@@ -347,6 +347,107 @@ async def monitor_openstack_resources() -> str:
 
 
 # =============================================================================
+# Prompt Template Helper Functions
+# =============================================================================
+
+def read_prompt_template(file_path: str) -> str:
+    """Read the prompt template file."""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return f.read()
+    except FileNotFoundError:
+        logger.warning(f"Prompt template file not found: {file_path}")
+        return "# OpenStack Operations Guide\n\nPrompt template file not found."
+    except Exception as e:
+        logger.error(f"Error reading prompt template: {e}")
+        return f"# Error\n\nFailed to read prompt template: {str(e)}"
+
+
+def parse_prompt_sections(template: str) -> tuple[List[str], List[str]]:
+    """Parse the prompt template into sections."""
+    lines = template.split('\n')
+    headings = []
+    sections = []
+    current_section = []
+    
+    for line in lines:
+        if line.startswith('## '):
+            if current_section:
+                sections.append('\n'.join(current_section))
+                current_section = []
+            heading = line[3:].strip()
+            headings.append(heading)
+            current_section.append(line)
+        else:
+            current_section.append(line)
+    
+    if current_section:
+        sections.append('\n'.join(current_section))
+    
+    return headings, sections
+
+
+# Define the prompt template path
+PROMPT_TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "prompt_template.md")
+
+
+# =============================================================================
+# MCP Prompts (for prompts/list exposure)
+# =============================================================================
+
+@mcp.prompt("prompt_template_full")
+def prompt_template_full_prompt() -> str:
+    """Return the full canonical prompt template."""
+    return read_prompt_template(PROMPT_TEMPLATE_PATH)
+
+
+@mcp.prompt("prompt_template_headings")
+def prompt_template_headings_prompt() -> str:
+    """Return compact list of section headings."""
+    template = read_prompt_template(PROMPT_TEMPLATE_PATH)
+    headings, _ = parse_prompt_sections(template)
+    lines = ["Section Headings:"]
+    for idx, title in enumerate(headings, 1):
+        lines.append(f"{idx}. {title}")
+    return "\n".join(lines)
+
+
+@mcp.prompt("prompt_template_section")
+def prompt_template_section_prompt(section: Optional[str] = None) -> str:
+    """Return a specific prompt template section by number or keyword."""
+    if not section:
+        template = read_prompt_template(PROMPT_TEMPLATE_PATH)
+        headings, _ = parse_prompt_sections(template)
+        lines = ["[HELP] Missing 'section' argument."]
+        lines.append("Specify a section number or keyword.")
+        lines.append("Examples: 1 | overview | tool map | usage")
+        lines.append("")
+        lines.append("Available sections:")
+        for idx, title in enumerate(headings, 1):
+            lines.append(f"{idx}. {title}")
+        return "\n".join(lines)
+
+    template = read_prompt_template(PROMPT_TEMPLATE_PATH)
+    headings, sections = parse_prompt_sections(template)
+
+    # Try by number
+    try:
+        idx = int(section) - 1
+        if 0 <= idx < len(headings):
+            return sections[idx + 1]  # +1 to skip the title section
+    except Exception:
+        pass
+
+    # Try by keyword
+    section_lower = section.strip().lower()
+    for i, heading in enumerate(headings):
+        if section_lower in heading.lower():
+            return sections[i + 1]  # +1 to skip the title section
+
+    return f"Section '{section}' not found."
+
+
+# =============================================================================
 # Configuration Validation
 # =============================================================================
 
