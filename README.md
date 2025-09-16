@@ -23,17 +23,17 @@
 ## MCP Tools Available
 
 ### 🔍 Monitoring Tools
-1. **`get_openstack_cluster_status`** - Overall cluster status with instances, networks, and services
-2. **`get_openstack_service_status`** - OpenStack service health and API endpoint status
-3. **`get_openstack_instance_details`** - Detailed information for specific instances
-4. **`monitor_openstack_resources`** - Real-time resource usage and capacity monitoring
+1. **`get_cluster_status`** - Overall cluster status with instances, networks, and services
+2. **`get_service_status`** - OpenStack service health and API endpoint status
+3. **`get_instance_details`** - Detailed information for specific instances
+4. **`monitor_resources`** - Real-time resource usage and capacity monitoring
 
 ### 🌐 Network Tools  
-5. **`get_openstack_network_details`** - Network, subnet, router, and security group details
+5. **`get_network_details`** - Network, subnet, router, and security group details
 
 ### ⚙️ Management Tools
-6. **`manage_openstack_instance`** - Instance lifecycle operations (start/stop/restart/pause/unpause)
-7. **`manage_openstack_volume`** - Volume management operations (create/delete/list)
+6. **`manage_instance`** - Instance lifecycle operations (start/stop/restart/pause/unpause)
+7. **`manage_volume`** - Volume management operations (create/delete/list)
 
 ## Quick Start
 
@@ -182,19 +182,19 @@ Options:
 ```bash
 # Get overall cluster status
 → "Show me the OpenStack cluster status"
-→ Calls: get_openstack_cluster_status()
+→ Calls: get_cluster_status()
 
 # Check service health
 → "Are all OpenStack services running properly?"
-→ Calls: get_openstack_service_status()
+→ Calls: get_service_status()
 
 # Monitor resource usage
 → "What's the current resource utilization?"
-→ Calls: monitor_openstack_resources()
+→ Calls: monitor_resources()
 
 # Get instance details
 → "Show details for instance web-server-01"
-→ Calls: get_openstack_instance_details("web-server-01")
+→ Calls: get_instance_details("web-server-01")
 ```
 
 ### 🌐 Network Examples
@@ -202,11 +202,11 @@ Options:
 ```bash
 # Check all networks
 → "Show me all network configurations"
-→ Calls: get_openstack_network_details("all")
+→ Calls: get_network_details("all")
 
 # Specific network details
 → "Get details for the internal network"
-→ Calls: get_openstack_network_details("internal")
+→ Calls: get_network_details("internal")
 ```
 
 ### ⚙️ Management Examples
@@ -214,17 +214,17 @@ Options:
 ```bash
 # Instance management
 → "Start the web-server-01 instance"
-→ Calls: manage_openstack_instance("web-server-01", "start")
+→ Calls: manage_instance("web-server-01", "start")
 
 → "Restart the database server"
-→ Calls: manage_openstack_instance("db-server", "restart")
+→ Calls: manage_instance("db-server", "restart")
 
 # Volume management
 → "Create a 100GB volume named backup-vol"
-→ Calls: manage_openstack_volume("backup-vol", "create", 100)
+→ Calls: manage_volume("backup-vol", "create", 100)
 
 → "List all volumes"
-→ Calls: manage_openstack_volume("", "list")
+→ Calls: manage_volume("", "list")
 ```
 
 ## Development

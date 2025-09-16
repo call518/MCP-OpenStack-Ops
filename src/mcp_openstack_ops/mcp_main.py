@@ -65,7 +65,7 @@ else:
 # =============================================================================
 
 @mcp.tool()
-async def get_openstack_cluster_status() -> str:
+async def get_cluster_status() -> str:
     """
     Provides real-time cluster information by querying the overall status of OpenStack cluster.
     
@@ -103,7 +103,7 @@ async def get_openstack_cluster_status() -> str:
 
 
 @mcp.tool()
-async def get_openstack_service_status() -> str:
+async def get_service_status() -> str:
     """
     Provides status and health check information for each OpenStack service.
     
@@ -140,7 +140,7 @@ async def get_openstack_service_status() -> str:
 
 
 @mcp.tool()
-async def get_openstack_instance_details(instance_name: str) -> str:
+async def get_instance_details(instance_name: str) -> str:
     """
     Provides detailed information and status for a specific OpenStack instance.
     
@@ -180,7 +180,7 @@ async def get_openstack_instance_details(instance_name: str) -> str:
 
 
 @mcp.tool()  
-async def get_openstack_network_details(network_name: str = "all") -> str:
+async def get_network_details(network_name: str = "all") -> str:
     """
     Provides detailed information for OpenStack networks, subnets, routers, and security groups.
     
@@ -217,7 +217,7 @@ async def get_openstack_network_details(network_name: str = "all") -> str:
 
 
 @mcp.tool()
-async def manage_openstack_instance(instance_name: str, action: str) -> str:
+async def manage_instance(instance_name: str, action: str) -> str:
     """
     Manages OpenStack instances with operations like start, stop, restart, pause, and unpause.
     
@@ -262,7 +262,7 @@ async def manage_openstack_instance(instance_name: str, action: str) -> str:
 
 
 @mcp.tool()
-async def manage_openstack_volume(volume_name: str, action: str, size: int = 1, instance_name: str = "") -> str:
+async def manage_volume(volume_name: str, action: str, size: int = 1, instance_name: str = "") -> str:
     """
     Manages OpenStack volumes with operations like create, delete, list, and attach.
     
@@ -314,7 +314,7 @@ async def manage_openstack_volume(volume_name: str, action: str, size: int = 1, 
 
 
 @mcp.tool()
-async def monitor_openstack_resources() -> str:
+async def monitor_resources() -> str:
     """
     Monitors real-time resource usage across the OpenStack cluster.
     

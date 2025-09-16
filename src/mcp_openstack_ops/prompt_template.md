@@ -39,25 +39,25 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 | User Intent / Keywords | Tool | Output Focus | Notes |
 |------------------------|------|--------------|-------|
-| Cluster overview / status / summary | get_openstack_cluster_status | Instance list, network summary, services | "cluster status" / "overview" |
-| Service health / API status | get_openstack_service_status | Service states, API endpoints | "service status" / "health check" |
-| Instance details / VM info | get_openstack_instance_details | Specific instance information | Requires instance name |
-| Network details / subnet info | get_openstack_network_details | Network, subnet, router details | Use "all" for all networks |
-| Resource monitoring / utilization | monitor_openstack_resources | CPU, memory, storage usage | "resource usage" / "monitoring" |
-| Start/Stop/Restart instance | manage_openstack_instance | Operation result, status | Confirm user intent |
-| Volume operations | manage_openstack_volume | Volume management results | create/delete/list actions |
+| Cluster overview / status / summary | get_cluster_status | Instance list, network summary, services | "cluster status" / "overview" |
+| Service health / API status | get_service_status | Service states, API endpoints | "service status" / "health check" |
+| Instance details / VM info | get_instance_details | Specific instance information | Requires instance name |
+| Network details / subnet info | get_network_details | Network, subnet, router details | Use "all" for all networks |
+| Resource monitoring / utilization | monitor_resources | CPU, memory, storage usage | "resource usage" / "monitoring" |
+| Start/Stop/Restart instance | manage_instance | Operation result, status | Confirm user intent |
+| Volume operations | manage_volume | Volume management results | create/delete/list actions |
 
 ---
 
 ## 4. Decision Flow
 
-1. User asks about overall state / cluster → get_openstack_cluster_status
-2. User asks about services / API health → get_openstack_service_status
-3. User mentions specific instance name → get_openstack_instance_details(instance_name)
-4. User asks about networks / subnets → get_openstack_network_details("all" or specific network)
-5. User asks about resource usage / capacity → monitor_openstack_resources
-6. User requests instance management → manage_openstack_instance(instance_name, action)
-7. User requests volume operations → manage_openstack_volume(volume_name, action, size)
+1. User asks about overall state / cluster → get_cluster_status
+2. User asks about services / API health → get_service_status
+3. User mentions specific instance name → get_instance_details(instance_name)
+4. User asks about networks / subnets → get_network_details("all" or specific network)
+5. User asks about resource usage / capacity → monitor_resources
+6. User requests instance management → manage_instance(instance_name, action)
+7. User requests volume operations → manage_volume(volume_name, action, size)
 8. Ambiguous reference ("restart it") → if no prior unambiguous instance, ask for clarification
 
 ---
@@ -76,25 +76,25 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 ## 6. Few-shot Examples
 
 ### A. User: "Show cluster status"
-→ Call: get_openstack_cluster_status()
+→ Call: get_cluster_status()
 
 ### B. User: "What's the status of web-server-01?"
-→ Call: get_openstack_instance_details("web-server-01")
+→ Call: get_instance_details("web-server-01")
 
 ### C. User: "Start the database server"
-→ Call: manage_openstack_instance("database-server", "start")
+→ Call: manage_instance("database-server", "start")
 
 ### D. User: "Show all network details"
-→ Call: get_openstack_network_details("all")
+→ Call: get_network_details("all")
 
 ### E. User: "Create a 50GB volume named backup-vol"
-→ Call: manage_openstack_volume("backup-vol", "create", 50)
+→ Call: manage_volume("backup-vol", "create", 50)
 
 ### F. User: "What's the resource utilization?"
-→ Call: monitor_openstack_resources()
+→ Call: monitor_resources()
 
 ### G. User: "Are OpenStack services healthy?"
-→ Call: get_openstack_service_status()
+→ Call: get_service_status()
 
 ---
 
@@ -102,13 +102,13 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 ### 🔍 Cluster & Service Management
 
-**get_openstack_cluster_status**
+**get_cluster_status**
 - "Show cluster summary and basic information."
 - "What's the overall cluster status?"
 - "Display cluster overview with instance counts."
 - "List all instances in the cluster."
 
-**get_openstack_service_status**
+**get_service_status**
 - "Are all OpenStack services running properly?"
 - "Check OpenStack service health."
 - "Show current state of OpenStack APIs."
@@ -116,13 +116,13 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 ### 📊 Instance Management
 
-**get_openstack_instance_details**
+**get_instance_details**
 - "Show details for instance web-server-01."
 - "Get information about the database server."
 - "Display instance configuration for app-server."
 - "What's the status of my VM named test-instance?"
 
-**manage_openstack_instance**
+**manage_instance**
 - "Start the web-server-01 instance."
 - "Stop the test-vm instance."
 - "Restart the database server."
@@ -131,7 +131,7 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 ### 🌐 Network Management
 
-**get_openstack_network_details**
+**get_network_details**
 - "Show all network configurations."
 - "Display network details for internal network."
 - "List all networks, subnets, and routers."
@@ -139,7 +139,7 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 ### 💾 Volume Management
 
-**manage_openstack_volume**
+**manage_volume**
 - "Create a 100GB volume named data-vol."
 - "Delete the old-backup volume."
 - "List all volumes in the project."
@@ -147,7 +147,7 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 ### 📈 Monitoring & Resources
 
-**monitor_openstack_resources**
+**monitor_resources**
 - "Show resource utilization across the cluster."
 - "What's the current CPU and memory usage?"
 - "Display hypervisor statistics."
