@@ -1,23 +1,25 @@
 #!/bin/bash
-set -euo pipefail
+set -eo pipefail
 
-# Run MCP Inspector with local source using uv
-cd "$(dirname "$0")/.."
+# Get the directory where this script is located and navigate to project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/.."
 
-echo "🔍 Starting MCP Inspector with local server..."
+echo "🔍 Starting MCP Inspector with OpenStack Operations server..."
 echo "📁 Working directory: $(pwd)"
 
 # Load environment variables if .env exists
 if [ -f ".env" ]; then
     echo "📄 Loading environment from .env file"
-    export $(cat .env | grep -v '^#' | xargs)
+    set -o allexport
+    source .env
+    set +o allexport
 fi
 
-# Set default log level for development
-export MCP_LOG_LEVEL=${MCP_LOG_LEVEL:-INFO}
-
 echo "🚀 Launching MCP Inspector..."
-echo "   Log Level: $MCP_LOG_LEVEL"
+echo "   OpenStack Auth URL: ${OS_AUTH_URL}"
 
 npx -y @modelcontextprotocol/inspector \
-  -- uv run python -m src.mcp_openstack_ops.mcp_main
+    -e PYTHONPATH='./src' \
+    -e FASTMCP_TYPE='stdio' \
+    -- uv run python -m mcp_openstack_ops

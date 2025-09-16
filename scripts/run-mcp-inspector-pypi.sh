@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefail
+set -eo pipefail
 
 # Run MCP Inspector with published package from PyPI
 cd "$(dirname "$0")/.."
@@ -9,7 +9,7 @@ echo "📦 Package: mcp-openstack-ops"
 
 # Check if package name has been customized
 if grep -q "mcp-openstack-ops" pyproject.toml; then
-    echo "⚠️  Warning: Package name 'mcp-openstack-ops' hasn't been customized."
+    echo "⚠  Warning: Package name 'mcp-openstack-ops' hasn't been customized."
     echo "   Run ./scripts/rename-template.sh first to customize the package."
     echo ""
 fi
