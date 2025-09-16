@@ -1,6 +1,11 @@
-# MCP OpenStack Operations Server
+# MCP-OpenStack-Ops
 
-A comprehensive MCP (Model Context Protocol) server providing OpenStack cluster management and monitoring capabilities. This server enables AI assistants to interact with OpenStack infrastructure through standardized tools for real-time monitoring, resource management, and operational tasks.
+> **MCP OpenStack Operations Server**: A comprehensive MCP (Model Context Protocol) server providing OpenStack cluster management and monitoring capabilities. This server enables AI assistants to interact with OpenStack infrastructure through standardized tools for real-time monitoring, resource management, and operational tasks.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Deploy to PyPI with tag](https://github.com/call518/MCP-OpenStack-Ops/actions/workflows/pypi-publish.yml/badge.svg)](https://github.com/call518/MCP-OpenStack-Ops/actions/workflows/pypi-publish.yml)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/call518/MCP-OpenStack-Ops)
+[![BuyMeACoffee](https://raw.githubusercontent.com/pachadotdev/buymeacoffee-badges/main/bmc-donate-yellow.svg)](https://www.buymeacoffee.com/call518)
 
 ## Features
 
