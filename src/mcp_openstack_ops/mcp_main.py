@@ -25,7 +25,27 @@ from functions import (
     get_project_info as _get_project_info,
     get_flavor_list as _get_flavor_list,
     get_image_list as _get_image_list,
-    reset_connection_cache
+    reset_connection_cache,
+    # Identity (Keystone) functions
+    get_user_list as _get_user_list,
+    get_role_assignments as _get_role_assignments,
+    # Compute (Nova) enhanced functions
+    get_keypair_list as _get_keypair_list,
+    manage_keypair as _manage_keypair,
+    get_security_groups as _get_security_groups,
+    # Network (Neutron) enhanced functions
+    get_floating_ips as _get_floating_ips,
+    manage_floating_ip as _manage_floating_ip,
+    get_routers as _get_routers,
+    # Block Storage (Cinder) enhanced functions
+    get_volume_types as _get_volume_types,
+    get_volume_snapshots as _get_volume_snapshots,
+    manage_snapshot as _manage_snapshot,
+    # Image Service (Glance) enhanced functions
+    manage_image as _manage_image,
+    # Orchestration (Heat) functions
+    get_stacks as _get_stacks,
+    manage_stack as _manage_stack
 )
 
 import json
@@ -794,3 +814,573 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"Failed to start server: {e}")
         sys.exit(1)
+
+
+# =============================================================================
+# Additional MCP Tools - Enhanced Functionality
+# =============================================================================
+
+# Identity (Keystone) Tools
+@mcp.tool()
+async def get_user_list() -> str:
+    """
+    Get list of OpenStack users in the current domain.
+    
+    Functions:
+    - Query user accounts and their basic information
+    - Display user status (enabled/disabled)
+    - Show user email and domain information
+    - Provide user creation and modification timestamps
+    
+    Use when user requests user management information, identity queries, or user administration tasks.
+    
+    Returns:
+        List of users with detailed information in JSON format.
+    """
+    try:
+        logger.info("Fetching user list")
+        users = _get_user_list()
+        
+        result = {
+            "timestamp": datetime.now().isoformat(),
+            "total_users": len(users),
+            "users": users
+        }
+        
+        return json.dumps(result, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to fetch user list - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+@mcp.tool()
+async def get_role_assignments() -> str:
+    """
+    Get role assignments for the current project.
+    
+    Functions:
+    - Query role assignments for users and groups
+    - Display project-level and domain-level permissions
+    - Show scope of role assignments
+    - Provide comprehensive access control information
+    
+    Use when user requests permission information, access control queries, or security auditing.
+    
+    Returns:
+        List of role assignments with detailed scope information in JSON format.
+    """
+    try:
+        logger.info("Fetching role assignments")
+        assignments = _get_role_assignments()
+        
+        result = {
+            "timestamp": datetime.now().isoformat(),
+            "total_assignments": len(assignments),
+            "role_assignments": assignments
+        }
+        
+        return json.dumps(result, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to fetch role assignments - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+# Compute (Nova) Enhanced Tools
+@mcp.tool()
+async def get_keypair_list() -> str:
+    """
+    Get list of SSH keypairs for the current user.
+    
+    Functions:
+    - Query SSH keypairs and their fingerprints
+    - Display keypair types and creation dates
+    - Show public key information (truncated for security)
+    - Provide keypair management information
+    
+    Use when user requests SSH key management, keypair information, or security key queries.
+    
+    Returns:
+        List of SSH keypairs with detailed information in JSON format.
+    """
+    try:
+        logger.info("Fetching keypair list")
+        keypairs = _get_keypair_list()
+        
+        result = {
+            "timestamp": datetime.now().isoformat(),
+            "total_keypairs": len(keypairs),
+            "keypairs": keypairs
+        }
+        
+        return json.dumps(result, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to fetch keypair list - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+@mcp.tool()
+async def manage_keypair(keypair_name: str, action: str, public_key: str = "") -> str:
+    """
+    Manage SSH keypairs (create, delete, import).
+    
+    Functions:
+    - Create new SSH keypairs with automatic key generation
+    - Import existing public keys
+    - Delete existing keypairs
+    - Provide private key for created keypairs (secure handling required)
+    
+    Use when user requests keypair creation, deletion, or import operations.
+    
+    Args:
+        keypair_name: Name of the keypair to manage
+        action: Action to perform (create, delete, import)
+        public_key: Public key content for import action (optional)
+        
+    Returns:
+        Result of keypair management operation in JSON format.
+    """
+    try:
+        logger.info(f"Managing keypair '{keypair_name}' with action '{action}'")
+        
+        kwargs = {}
+        if public_key.strip():
+            kwargs['public_key'] = public_key.strip()
+            
+        result_data = _manage_keypair(keypair_name, action, **kwargs)
+        
+        result = {
+            "timestamp": datetime.now().isoformat(),
+            "keypair_name": keypair_name,
+            "action": action,
+            "result": result_data
+        }
+        
+        return json.dumps(result, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage keypair - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+@mcp.tool()
+async def get_security_groups() -> str:
+    """
+    Get list of security groups with their rules.
+    
+    Functions:
+    - Query security groups and their rule configurations
+    - Display ingress and egress rules with protocols and ports
+    - Show remote IP prefixes and security group references
+    - Provide comprehensive network security information
+    
+    Use when user requests security group information, firewall rules, or network security queries.
+    
+    Returns:
+        List of security groups with detailed rules in JSON format.
+    """
+    try:
+        logger.info("Fetching security groups")
+        security_groups = _get_security_groups()
+        
+        result = {
+            "timestamp": datetime.now().isoformat(),
+            "total_security_groups": len(security_groups),
+            "security_groups": security_groups
+        }
+        
+        return json.dumps(result, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to fetch security groups - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+# Network (Neutron) Enhanced Tools
+@mcp.tool()
+async def get_floating_ips() -> str:
+    """
+    Get list of floating IPs with their associations.
+    
+    Functions:
+    - Query floating IPs and their current status
+    - Display associated fixed IPs and ports
+    - Show floating IP pool and router associations
+    - Provide floating IP allocation and usage information
+    
+    Use when user requests floating IP information, external connectivity queries, or IP management tasks.
+    
+    Returns:
+        List of floating IPs with detailed association information in JSON format.
+    """
+    try:
+        logger.info("Fetching floating IPs")
+        floating_ips = _get_floating_ips()
+        
+        result = {
+            "timestamp": datetime.now().isoformat(),
+            "total_floating_ips": len(floating_ips),
+            "floating_ips": floating_ips
+        }
+        
+        return json.dumps(result, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to fetch floating IPs - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+@mcp.tool()
+async def manage_floating_ip(action: str, floating_network_id: str = "", port_id: str = "", floating_ip_id: str = "") -> str:
+    """
+    Manage floating IPs (create, delete, associate, disassociate).
+    
+    Functions:
+    - Create new floating IPs from external networks
+    - Delete existing floating IPs
+    - Associate floating IPs with instance ports
+    - Disassociate floating IPs from instances
+    
+    Use when user requests floating IP management, external connectivity setup, or IP allocation tasks.
+    
+    Args:
+        action: Action to perform (create, delete, associate, disassociate)
+        floating_network_id: ID of external network for create action (optional)
+        port_id: Port ID for association operations (optional)
+        floating_ip_id: Floating IP ID for delete/associate/disassociate actions (optional)
+        
+    Returns:
+        Result of floating IP management operation in JSON format.
+    """
+    try:
+        logger.info(f"Managing floating IP with action '{action}'")
+        
+        kwargs = {}
+        if floating_network_id.strip():
+            kwargs['floating_network_id'] = floating_network_id.strip()
+        if port_id.strip():
+            kwargs['port_id'] = port_id.strip()
+        if floating_ip_id.strip():
+            kwargs['floating_ip_id'] = floating_ip_id.strip()
+            
+        result_data = _manage_floating_ip(action, **kwargs)
+        
+        result = {
+            "timestamp": datetime.now().isoformat(),
+            "action": action,
+            "parameters": kwargs,
+            "result": result_data
+        }
+        
+        return json.dumps(result, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage floating IP - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+@mcp.tool()
+async def get_routers() -> str:
+    """
+    Get list of routers with their configuration.
+    
+    Functions:
+    - Query routers and their external gateway configurations
+    - Display router interfaces and connected networks
+    - Show routing table entries and static routes
+    - Provide comprehensive network routing information
+    
+    Use when user requests router information, network connectivity queries, or routing configuration.
+    
+    Returns:
+        List of routers with detailed configuration in JSON format.
+    """
+    try:
+        logger.info("Fetching routers")
+        routers = _get_routers()
+        
+        result = {
+            "timestamp": datetime.now().isoformat(),
+            "total_routers": len(routers),
+            "routers": routers
+        }
+        
+        return json.dumps(result, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to fetch routers - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+# Block Storage (Cinder) Enhanced Tools
+@mcp.tool()
+async def get_volume_types() -> str:
+    """
+    Get list of volume types with their specifications.
+    
+    Functions:
+    - Query volume types and their capabilities
+    - Display extra specifications and backend configurations
+    - Show public/private volume type settings
+    - Provide storage backend information
+    
+    Use when user requests volume type information, storage backend queries, or volume creation planning.
+    
+    Returns:
+        List of volume types with detailed specifications in JSON format.
+    """
+    try:
+        logger.info("Fetching volume types")
+        volume_types = _get_volume_types()
+        
+        result = {
+            "timestamp": datetime.now().isoformat(),
+            "total_volume_types": len(volume_types),
+            "volume_types": volume_types
+        }
+        
+        return json.dumps(result, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to fetch volume types - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+@mcp.tool()
+async def get_volume_snapshots() -> str:
+    """
+    Get list of volume snapshots.
+    
+    Functions:
+    - Query volume snapshots and their status
+    - Display source volume information
+    - Show snapshot creation and modification dates
+    - Provide snapshot size and usage information
+    
+    Use when user requests snapshot information, backup queries, or volume restoration planning.
+    
+    Returns:
+        List of volume snapshots with detailed information in JSON format.
+    """
+    try:
+        logger.info("Fetching volume snapshots")
+        snapshots = _get_volume_snapshots()
+        
+        result = {
+            "timestamp": datetime.now().isoformat(),
+            "total_snapshots": len(snapshots),
+            "snapshots": snapshots
+        }
+        
+        return json.dumps(result, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to fetch volume snapshots - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+@mcp.tool()
+async def manage_snapshot(snapshot_name: str, action: str, volume_id: str = "", description: str = "") -> str:
+    """
+    Manage volume snapshots (create, delete).
+    
+    Functions:
+    - Create snapshots from existing volumes
+    - Delete existing snapshots
+    - Provide snapshot creation with custom descriptions
+    - Handle snapshot lifecycle management
+    
+    Use when user requests snapshot creation, deletion, or backup management tasks.
+    
+    Args:
+        snapshot_name: Name of the snapshot to manage
+        action: Action to perform (create, delete)
+        volume_id: Source volume ID for create action (optional)
+        description: Description for the snapshot (optional)
+        
+    Returns:
+        Result of snapshot management operation in JSON format.
+    """
+    try:
+        logger.info(f"Managing snapshot '{snapshot_name}' with action '{action}'")
+        
+        kwargs = {}
+        if volume_id.strip():
+            kwargs['volume_id'] = volume_id.strip()
+        if description.strip():
+            kwargs['description'] = description.strip()
+            
+        result_data = _manage_snapshot(snapshot_name, action, **kwargs)
+        
+        result = {
+            "timestamp": datetime.now().isoformat(),
+            "snapshot_name": snapshot_name,
+            "action": action,
+            "parameters": kwargs,
+            "result": result_data
+        }
+        
+        return json.dumps(result, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage snapshot - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+# Image Service (Glance) Enhanced Tools
+@mcp.tool()
+async def manage_image(image_name: str, action: str, container_format: str = "bare", disk_format: str = "qcow2", visibility: str = "private") -> str:
+    """
+    Manage images (create, delete, update).
+    
+    Functions:
+    - Create new images with specified formats and properties
+    - Delete existing images
+    - Update image metadata and visibility settings
+    - Handle image lifecycle management
+    
+    Use when user requests image management, custom image creation, or image metadata updates.
+    
+    Args:
+        image_name: Name or ID of the image to manage
+        action: Action to perform (create, delete, update)
+        container_format: Container format for create action (default: bare)
+        disk_format: Disk format for create action (default: qcow2)
+        visibility: Image visibility for create action (default: private)
+        
+    Returns:
+        Result of image management operation in JSON format.
+    """
+    try:
+        logger.info(f"Managing image '{image_name}' with action '{action}'")
+        
+        kwargs = {
+            'container_format': container_format,
+            'disk_format': disk_format,
+            'visibility': visibility
+        }
+        
+        result_data = _manage_image(image_name, action, **kwargs)
+        
+        result = {
+            "timestamp": datetime.now().isoformat(),
+            "image_name": image_name,
+            "action": action,
+            "parameters": kwargs,
+            "result": result_data
+        }
+        
+        return json.dumps(result, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage image - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+# Orchestration (Heat) Tools
+@mcp.tool()
+async def get_stacks() -> str:
+    """
+    Get list of Heat orchestration stacks.
+    
+    Functions:
+    - Query Heat stacks and their current status
+    - Display stack creation and update timestamps
+    - Show stack templates and resource information
+    - Provide orchestration deployment information
+    
+    Use when user requests stack information, orchestration queries, or infrastructure-as-code status.
+    
+    Returns:
+        List of Heat stacks with detailed information in JSON format.
+    """
+    try:
+        logger.info("Fetching Heat stacks")
+        stacks = _get_stacks()
+        
+        result = {
+            "timestamp": datetime.now().isoformat(),
+            "total_stacks": len(stacks),
+            "stacks": stacks
+        }
+        
+        return json.dumps(result, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to fetch Heat stacks - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+@mcp.tool()
+async def manage_stack(stack_name: str, action: str, template: str = "", parameters: str = "") -> str:
+    """
+    Manage Heat orchestration stacks (create, delete, update).
+    
+    Functions:
+    - Create new stacks from Heat templates
+    - Delete existing stacks and their resources
+    - Update stack configurations with new templates
+    - Handle infrastructure-as-code deployments
+    
+    Use when user requests stack deployment, infrastructure automation, or orchestration management.
+    
+    Args:
+        stack_name: Name of the stack to manage
+        action: Action to perform (create, delete, update)
+        template: Heat template content for create/update actions (optional)
+        parameters: Stack parameters in JSON format (optional)
+        
+    Returns:
+        Result of stack management operation in JSON format.
+    """
+    try:
+        logger.info(f"Managing stack '{stack_name}' with action '{action}'")
+        
+        kwargs = {}
+        if template.strip():
+            try:
+                kwargs['template'] = json.loads(template.strip())
+            except json.JSONDecodeError:
+                # If not JSON, treat as YAML or plain text template
+                kwargs['template'] = template.strip()
+        
+        if parameters.strip():
+            try:
+                kwargs['parameters'] = json.loads(parameters.strip())
+            except json.JSONDecodeError:
+                return json.dumps({
+                    "timestamp": datetime.now().isoformat(),
+                    "error": "Invalid JSON format for parameters",
+                    "message": "Parameters must be valid JSON format"
+                }, indent=2, ensure_ascii=False)
+            
+        result_data = _manage_stack(stack_name, action, **kwargs)
+        
+        result = {
+            "timestamp": datetime.now().isoformat(),
+            "stack_name": stack_name,
+            "action": action,
+            "result": result_data
+        }
+        
+        return json.dumps(result, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage stack - {str(e)}"
+        logger.error(error_msg)
+        return error_msg

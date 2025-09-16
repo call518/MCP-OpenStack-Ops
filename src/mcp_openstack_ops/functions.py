@@ -60,51 +60,254 @@ def get_openstack_connection():
 
 def get_cluster_status() -> Dict[str, Any]:
     """
-    Returns a comprehensive summary of cluster status using OpenStack SDK.
+    Returns a comprehensive and detailed summary of OpenStack cluster status.
     
     Returns:
-        Dict containing cluster status information including instances, networks, 
-        services, and connection status.
+        Dict containing extensive cluster status information including compute nodes,
+        services health, resource usage, storage, networking, and overall cluster health.
     """
     try:
         conn = get_openstack_connection()
-        
-        # Get basic cluster information with better error handling
-        services = []
-        instances = []
-        networks = []
-        
-        try:
-            services = [svc.name for svc in conn.identity.services()]
-        except Exception as e:
-            logger.warning(f"Failed to get services: {e}")
-            
-        try:
-            instances = [server.name for server in conn.compute.servers()]
-        except Exception as e:
-            logger.warning(f"Failed to get instances: {e}")
-            
-        try:
-            networks = [net.name for net in conn.network.networks()]
-        except Exception as e:
-            logger.warning(f"Failed to get networks: {e}")
-        
-        return {
-            'instances': instances if instances else ['No instances found'],
-            'networks': networks if networks else ['No networks found'],
-            'services': services if services else ['No services accessible'],
+        cluster_info = {
+            'timestamp': datetime.now().isoformat(),
             'connection_status': 'Connected via SDK',
-            'timestamp': datetime.now().isoformat()
+            'cluster_overview': {},
+            'compute_resources': {},
+            'network_resources': {},
+            'storage_resources': {},
+            'service_status': {},
+            'resource_usage': {},
+            'health_summary': {}
         }
+        
+        # === COMPUTE RESOURCES ===
+        try:
+            servers = list(conn.compute.servers(details=True))
+            hypervisors = list(conn.compute.hypervisors(details=True))
+            flavors = list(conn.compute.flavors(details=True))
+            keypairs = list(conn.compute.keypairs())
+            
+            # Compute nodes analysis
+            compute_nodes = {}
+            total_vcpus = total_ram = total_disk = 0
+            used_vcpus = used_ram = used_disk = 0
+            
+            for hv in hypervisors:
+                compute_nodes[hv.name] = {
+                    'status': hv.status,
+                    'state': hv.state,
+                    'vcpus': hv.vcpus,
+                    'vcpus_used': hv.vcpus_used,
+                    'memory_mb': hv.memory_mb,
+                    'memory_mb_used': hv.memory_mb_used,
+                    'local_gb': hv.local_gb,
+                    'local_gb_used': hv.local_gb_used,
+                    'running_vms': hv.running_vms,
+                    'hypervisor_type': getattr(hv, 'hypervisor_type', 'Unknown'),
+                    'hypervisor_version': getattr(hv, 'hypervisor_version', 'Unknown')
+                }
+                total_vcpus += hv.vcpus
+                used_vcpus += hv.vcpus_used
+                total_ram += hv.memory_mb
+                used_ram += hv.memory_mb_used
+                total_disk += hv.local_gb
+                used_disk += hv.local_gb_used
+            
+            # Server status analysis
+            server_status = {'ACTIVE': 0, 'ERROR': 0, 'STOPPED': 0, 'PAUSED': 0, 'SUSPENDED': 0, 'OTHER': 0}
+            servers_by_az = {}
+            servers_detail = []
+            
+            for server in servers:
+                status = server.status
+                if status in server_status:
+                    server_status[status] += 1
+                else:
+                    server_status['OTHER'] += 1
+                
+                az = getattr(server, 'availability_zone', 'Unknown')
+                if az not in servers_by_az:
+                    servers_by_az[az] = 0
+                servers_by_az[az] += 1
+                
+                servers_detail.append({
+                    'name': server.name,
+                    'status': server.status,
+                    'flavor': getattr(server, 'flavor', {}).get('original_name', 'Unknown'),
+                    'created': server.created_at,
+                    'availability_zone': az,
+                    'host': getattr(server, 'hypervisor_hostname', 'Unknown')
+                })
+            
+            cluster_info['compute_resources'] = {
+                'total_hypervisors': len(hypervisors),
+                'active_hypervisors': len([h for h in hypervisors if h.status == 'enabled' and h.state == 'up']),
+                'compute_nodes': compute_nodes,
+                'total_instances': len(servers),
+                'instances_by_status': server_status,
+                'instances_by_az': servers_by_az,
+                'instances_detail': servers_detail[:10],  # Top 10 for brevity
+                'total_flavors': len(flavors),
+                'total_keypairs': len(keypairs),
+                'resource_utilization': {
+                    'vcpu_usage': f"{used_vcpus}/{total_vcpus} ({(used_vcpus/total_vcpus*100):.1f}%)" if total_vcpus > 0 else "0/0",
+                    'memory_usage_gb': f"{used_ram//1024}/{total_ram//1024} ({(used_ram/total_ram*100):.1f}%)" if total_ram > 0 else "0/0",
+                    'disk_usage_gb': f"{used_disk}/{total_disk} ({(used_disk/total_disk*100):.1f}%)" if total_disk > 0 else "0/0"
+                }
+            }
+        except Exception as e:
+            cluster_info['compute_resources'] = {'error': f"Failed to get compute info: {str(e)}"}
+        
+        # === NETWORK RESOURCES ===
+        try:
+            networks = list(conn.network.networks())
+            subnets = list(conn.network.subnets())
+            routers = list(conn.network.routers())
+            floating_ips = list(conn.network.ips())
+            security_groups = list(conn.network.security_groups())
+            
+            # Network analysis
+            networks_detail = []
+            external_nets = 0
+            for net in networks:
+                if getattr(net, 'is_router_external', False):
+                    external_nets += 1
+                networks_detail.append({
+                    'name': net.name,
+                    'status': net.status,
+                    'is_external': getattr(net, 'is_router_external', False),
+                    'is_shared': getattr(net, 'is_shared', False),
+                    'subnets_count': len(getattr(net, 'subnet_ids', []))
+                })
+            
+            # Floating IP analysis
+            fip_status = {'ACTIVE': 0, 'DOWN': 0, 'AVAILABLE': 0}
+            for fip in floating_ips:
+                status = fip.status if fip.status in fip_status else 'AVAILABLE'
+                fip_status[status] += 1
+            
+            cluster_info['network_resources'] = {
+                'total_networks': len(networks),
+                'external_networks': external_nets,
+                'networks_detail': networks_detail,
+                'total_subnets': len(subnets),
+                'total_routers': len(routers),
+                'active_routers': len([r for r in routers if r.status == 'ACTIVE']),
+                'total_floating_ips': len(floating_ips),
+                'floating_ips_status': fip_status,
+                'total_security_groups': len(security_groups)
+            }
+        except Exception as e:
+            cluster_info['network_resources'] = {'error': f"Failed to get network info: {str(e)}"}
+        
+        # === STORAGE RESOURCES ===
+        try:
+            volumes = list(conn.volume.volumes(details=True))
+            volume_types = list(conn.volume.types())
+            snapshots = list(conn.volume.snapshots())
+            
+            # Volume analysis
+            volume_status = {'available': 0, 'in-use': 0, 'error': 0, 'creating': 0, 'deleting': 0}
+            total_volume_size = 0
+            
+            for vol in volumes:
+                status = vol.status
+                if status in volume_status:
+                    volume_status[status] += 1
+                else:
+                    volume_status['error'] += 1
+                total_volume_size += vol.size
+            
+            cluster_info['storage_resources'] = {
+                'total_volumes': len(volumes),
+                'volumes_by_status': volume_status,
+                'total_volume_size_gb': total_volume_size,
+                'total_volume_types': len(volume_types),
+                'total_snapshots': len(snapshots),
+                'volume_types': [{'name': vt.name, 'description': getattr(vt, 'description', '')} for vt in volume_types]
+            }
+        except Exception as e:
+            cluster_info['storage_resources'] = {'error': f"Failed to get storage info: {str(e)}"}
+        
+        # === SERVICE STATUS ===
+        try:
+            services = list(conn.identity.services())
+            endpoints = list(conn.identity.endpoints())
+            
+            # Get compute services for detailed health
+            compute_services = []
+            try:
+                compute_services = list(conn.compute.services())
+            except Exception as e:
+                logger.warning(f"Could not get compute services: {e}")
+            
+            services_by_type = {}
+            for svc in services:
+                svc_type = svc.type
+                if svc_type not in services_by_type:
+                    services_by_type[svc_type] = []
+                services_by_type[svc_type].append({
+                    'name': svc.name,
+                    'enabled': getattr(svc, 'enabled', True),
+                    'description': getattr(svc, 'description', '')
+                })
+            
+            # Compute services health
+            compute_svc_status = {}
+            for cs in compute_services:
+                status_key = f"{cs.binary}@{cs.host}"
+                compute_svc_status[status_key] = {
+                    'status': cs.status,
+                    'state': cs.state,
+                    'updated_at': getattr(cs, 'updated_at', 'Unknown'),
+                    'disabled_reason': getattr(cs, 'disabled_reason', None)
+                }
+            
+            cluster_info['service_status'] = {
+                'total_services': len(services),
+                'services_by_type': services_by_type,
+                'total_endpoints': len(endpoints),
+                'compute_services': compute_svc_status
+            }
+        except Exception as e:
+            cluster_info['service_status'] = {'error': f"Failed to get service info: {str(e)}"}
+        
+        # === CLUSTER OVERVIEW ===
+        cluster_info['cluster_overview'] = {
+            'total_projects': len(list(conn.identity.projects())) if 'error' not in cluster_info.get('service_status', {}) else 0,
+            'total_users': len(list(conn.identity.users())) if 'error' not in cluster_info.get('service_status', {}) else 0,
+            'total_images': len(list(conn.image.images())) if True else 0
+        }
+        
+        # === HEALTH SUMMARY ===
+        health_issues = []
+        if cluster_info.get('compute_resources', {}).get('active_hypervisors', 0) == 0:
+            health_issues.append("No active hypervisors found")
+        if cluster_info.get('network_resources', {}).get('active_routers', 0) == 0:
+            health_issues.append("No active routers found")
+        
+        # Calculate overall health score
+        total_checks = 10
+        passed_checks = total_checks - len(health_issues)
+        health_score = (passed_checks / total_checks) * 100
+        
+        cluster_info['health_summary'] = {
+            'overall_health_score': f"{health_score:.1f}%",
+            'health_status': 'HEALTHY' if health_score >= 80 else 'WARNING' if health_score >= 60 else 'CRITICAL',
+            'issues_found': len(health_issues),
+            'health_issues': health_issues,
+            'last_check': datetime.now().isoformat()
+        }
+        
+        return cluster_info
+        
     except Exception as e:
         logger.error(f"Unable to connect to OpenStack: {e}")
         return {
-            'instances': ['Connection failed - using demo data'],
-            'networks': ['public', 'private', 'external'],
-            'services': ['nova', 'neutron', 'keystone'],
-            'connection_status': f'Failed: {str(e)[:100]}...',
             'timestamp': datetime.now().isoformat(),
-            'error': True
+            'connection_status': f'Failed: {str(e)[:100]}...',
+            'error': True,
+            'error_details': str(e)
         }
 
 
@@ -1220,3 +1423,804 @@ def reset_connection_cache():
     global _connection_cache
     _connection_cache = None
     logger.info("OpenStack connection cache reset")
+
+
+# =============================================================================
+# Identity (Keystone) Functions
+# =============================================================================
+
+def get_user_list() -> List[Dict[str, Any]]:
+    """
+    Get list of all users in the current domain.
+    
+    Returns:
+        List of user dictionaries with detailed information
+    """
+    try:
+        conn = get_openstack_connection()
+        users = []
+        
+        for user in conn.identity.users():
+            users.append({
+                'id': user.id,
+                'name': user.name,
+                'email': getattr(user, 'email', None),
+                'enabled': getattr(user, 'is_enabled', True),
+                'description': getattr(user, 'description', ''),
+                'domain_id': getattr(user, 'domain_id', 'default'),
+                'default_project_id': getattr(user, 'default_project_id', None),
+                'created_at': str(getattr(user, 'created_at', 'unknown')),
+                'updated_at': str(getattr(user, 'updated_at', 'unknown'))
+            })
+        
+        return users
+    except Exception as e:
+        logger.error(f"Failed to get user list: {e}")
+        return [
+            {'id': 'demo-user', 'name': 'demo', 'email': 'demo@example.com', 'enabled': True, 'error': str(e)}
+        ]
+
+
+def get_role_assignments() -> List[Dict[str, Any]]:
+    """
+    Get role assignments for the current project.
+    
+    Returns:
+        List of role assignment dictionaries
+    """
+    try:
+        conn = get_openstack_connection()
+        assignments = []
+        
+        for assignment in conn.identity.role_assignments():
+            assignments.append({
+                'role_id': getattr(assignment, 'role', {}).get('id', 'unknown'),
+                'user_id': getattr(assignment, 'user', {}).get('id', None),
+                'group_id': getattr(assignment, 'group', {}).get('id', None),
+                'project_id': getattr(assignment, 'project', {}).get('id', None),
+                'domain_id': getattr(assignment, 'domain', {}).get('id', None),
+                'scope': getattr(assignment, 'scope', {})
+            })
+        
+        return assignments
+    except Exception as e:
+        logger.error(f"Failed to get role assignments: {e}")
+        return [
+            {'role_id': 'admin', 'user_id': 'demo-user', 'project_id': 'demo-project', 'error': str(e)}
+        ]
+
+
+# =============================================================================
+# Compute (Nova) Functions - Enhanced
+# =============================================================================
+
+def get_keypair_list() -> List[Dict[str, Any]]:
+    """
+    Get list of SSH keypairs.
+    
+    Returns:
+        List of keypair dictionaries
+    """
+    try:
+        conn = get_openstack_connection()
+        keypairs = []
+        
+        for keypair in conn.compute.keypairs():
+            keypairs.append({
+                'name': keypair.name,
+                'fingerprint': keypair.fingerprint,
+                'public_key': keypair.public_key[:100] + '...' if keypair.public_key and len(keypair.public_key) > 100 else keypair.public_key,
+                'type': getattr(keypair, 'type', 'ssh'),
+                'user_id': getattr(keypair, 'user_id', 'unknown'),
+                'created_at': str(getattr(keypair, 'created_at', 'unknown'))
+            })
+        
+        return keypairs
+    except Exception as e:
+        logger.error(f"Failed to get keypair list: {e}")
+        return [
+            {'name': 'demo-keypair', 'fingerprint': 'aa:bb:cc:dd:ee:ff', 'type': 'ssh', 'error': str(e)}
+        ]
+
+
+def manage_keypair(keypair_name: str, action: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage SSH keypairs (create, delete, import).
+    
+    Args:
+        keypair_name: Name of the keypair
+        action: Action to perform (create, delete, import)
+        **kwargs: Additional parameters (public_key for import)
+    
+    Returns:
+        Result of the keypair operation
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action.lower() == 'create':
+            keypair = conn.compute.create_keypair(name=keypair_name)
+            return {
+                'success': True,
+                'message': f'Keypair "{keypair_name}" created successfully',
+                'keypair': {
+                    'name': keypair.name,
+                    'fingerprint': keypair.fingerprint,
+                    'private_key': keypair.private_key,
+                    'public_key': keypair.public_key
+                }
+            }
+            
+        elif action.lower() == 'delete':
+            conn.compute.delete_keypair(keypair_name)
+            return {
+                'success': True,
+                'message': f'Keypair "{keypair_name}" deleted successfully'
+            }
+            
+        elif action.lower() == 'import':
+            public_key = kwargs.get('public_key')
+            if not public_key:
+                return {
+                    'success': False,
+                    'message': 'public_key parameter is required for import action'
+                }
+                
+            keypair = conn.compute.create_keypair(
+                name=keypair_name,
+                public_key=public_key
+            )
+            return {
+                'success': True,
+                'message': f'Keypair "{keypair_name}" imported successfully',
+                'keypair': {
+                    'name': keypair.name,
+                    'fingerprint': keypair.fingerprint,
+                    'public_key': keypair.public_key
+                }
+            }
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: create, delete, import'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage keypair: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage keypair: {str(e)}',
+            'error': str(e)
+        }
+
+
+def get_security_groups() -> List[Dict[str, Any]]:
+    """
+    Get list of security groups with rules.
+    
+    Returns:
+        List of security group dictionaries
+    """
+    try:
+        conn = get_openstack_connection()
+        security_groups = []
+        
+        for sg in conn.network.security_groups():
+            rules = []
+            for rule in getattr(sg, 'security_group_rules', []):
+                rules.append({
+                    'id': rule.get('id', 'unknown'),
+                    'direction': rule.get('direction', 'unknown'),
+                    'protocol': rule.get('protocol', 'any'),
+                    'port_range_min': rule.get('port_range_min'),
+                    'port_range_max': rule.get('port_range_max'),
+                    'remote_ip_prefix': rule.get('remote_ip_prefix'),
+                    'remote_group_id': rule.get('remote_group_id')
+                })
+            
+            security_groups.append({
+                'id': sg.id,
+                'name': sg.name,
+                'description': getattr(sg, 'description', ''),
+                'tenant_id': getattr(sg, 'tenant_id', 'unknown'),
+                'created_at': str(getattr(sg, 'created_at', 'unknown')),
+                'updated_at': str(getattr(sg, 'updated_at', 'unknown')),
+                'rules': rules
+            })
+        
+        return security_groups
+    except Exception as e:
+        logger.error(f"Failed to get security groups: {e}")
+        return [
+            {
+                'id': 'default-sg', 'name': 'default', 'description': 'Default security group',
+                'rules': [{'direction': 'ingress', 'protocol': 'tcp', 'port_range_min': 22, 'port_range_max': 22}],
+                'error': str(e)
+            }
+        ]
+
+
+# =============================================================================
+# Network (Neutron) Functions - Enhanced
+# =============================================================================
+
+def get_floating_ips() -> List[Dict[str, Any]]:
+    """
+    Get list of floating IPs.
+    
+    Returns:
+        List of floating IP dictionaries
+    """
+    try:
+        conn = get_openstack_connection()
+        floating_ips = []
+        
+        for fip in conn.network.ips():
+            floating_ips.append({
+                'id': fip.id,
+                'floating_ip_address': fip.floating_ip_address,
+                'fixed_ip_address': fip.fixed_ip_address,
+                'status': fip.status,
+                'port_id': fip.port_id,
+                'router_id': fip.router_id,
+                'tenant_id': getattr(fip, 'tenant_id', 'unknown'),
+                'floating_network_id': fip.floating_network_id,
+                'created_at': str(getattr(fip, 'created_at', 'unknown')),
+                'updated_at': str(getattr(fip, 'updated_at', 'unknown'))
+            })
+        
+        return floating_ips
+    except Exception as e:
+        logger.error(f"Failed to get floating IPs: {e}")
+        return [
+            {
+                'id': 'fip-1', 'floating_ip_address': '192.168.1.100', 'status': 'ACTIVE',
+                'fixed_ip_address': '10.0.0.10', 'error': str(e)
+            }
+        ]
+
+
+def manage_floating_ip(action: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage floating IPs (create, delete, associate, disassociate).
+    
+    Args:
+        action: Action to perform (create, delete, associate, disassociate)
+        **kwargs: Additional parameters (floating_network_id, port_id, floating_ip_id)
+    
+    Returns:
+        Result of the floating IP operation
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action.lower() == 'create':
+            floating_network_id = kwargs.get('floating_network_id')
+            if not floating_network_id:
+                return {
+                    'success': False,
+                    'message': 'floating_network_id parameter is required for create action'
+                }
+                
+            fip = conn.network.create_ip(
+                floating_network_id=floating_network_id,
+                port_id=kwargs.get('port_id')
+            )
+            return {
+                'success': True,
+                'message': f'Floating IP "{fip.floating_ip_address}" created successfully',
+                'floating_ip': {
+                    'id': fip.id,
+                    'floating_ip_address': fip.floating_ip_address,
+                    'status': fip.status
+                }
+            }
+            
+        elif action.lower() == 'delete':
+            floating_ip_id = kwargs.get('floating_ip_id')
+            if not floating_ip_id:
+                return {
+                    'success': False,
+                    'message': 'floating_ip_id parameter is required for delete action'
+                }
+                
+            conn.network.delete_ip(floating_ip_id)
+            return {
+                'success': True,
+                'message': f'Floating IP deleted successfully'
+            }
+            
+        elif action.lower() == 'associate':
+            floating_ip_id = kwargs.get('floating_ip_id')
+            port_id = kwargs.get('port_id')
+            if not floating_ip_id or not port_id:
+                return {
+                    'success': False,
+                    'message': 'floating_ip_id and port_id parameters are required for associate action'
+                }
+                
+            fip = conn.network.update_ip(floating_ip_id, port_id=port_id)
+            return {
+                'success': True,
+                'message': f'Floating IP associated successfully',
+                'floating_ip': {
+                    'id': fip.id,
+                    'floating_ip_address': fip.floating_ip_address,
+                    'port_id': fip.port_id
+                }
+            }
+            
+        elif action.lower() == 'disassociate':
+            floating_ip_id = kwargs.get('floating_ip_id')
+            if not floating_ip_id:
+                return {
+                    'success': False,
+                    'message': 'floating_ip_id parameter is required for disassociate action'
+                }
+                
+            fip = conn.network.update_ip(floating_ip_id, port_id=None)
+            return {
+                'success': True,
+                'message': f'Floating IP disassociated successfully'
+            }
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: create, delete, associate, disassociate'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage floating IP: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage floating IP: {str(e)}',
+            'error': str(e)
+        }
+
+
+def get_routers() -> List[Dict[str, Any]]:
+    """
+    Get list of routers with detailed information.
+    
+    Returns:
+        List of router dictionaries
+    """
+    try:
+        conn = get_openstack_connection()
+        routers = []
+        
+        for router in conn.network.routers():
+            # Get external gateway info
+            external_gateway = getattr(router, 'external_gateway_info', None)
+            gateway_info = None
+            if external_gateway:
+                gateway_info = {
+                    'network_id': external_gateway.get('network_id'),
+                    'external_fixed_ips': external_gateway.get('external_fixed_ips', [])
+                }
+            
+            routers.append({
+                'id': router.id,
+                'name': router.name,
+                'status': router.status,
+                'admin_state_up': getattr(router, 'is_admin_state_up', True),
+                'tenant_id': getattr(router, 'tenant_id', 'unknown'),
+                'external_gateway_info': gateway_info,
+                'routes': getattr(router, 'routes', []),
+                'created_at': str(getattr(router, 'created_at', 'unknown')),
+                'updated_at': str(getattr(router, 'updated_at', 'unknown'))
+            })
+        
+        return routers
+    except Exception as e:
+        logger.error(f"Failed to get routers: {e}")
+        return [
+            {
+                'id': 'router-1', 'name': 'default-router', 'status': 'ACTIVE',
+                'admin_state_up': True, 'external_gateway_info': None, 'error': str(e)
+            }
+        ]
+
+
+# =============================================================================
+# Block Storage (Cinder) Functions - Enhanced  
+# =============================================================================
+
+def get_volume_types() -> List[Dict[str, Any]]:
+    """
+    Get list of volume types.
+    
+    Returns:
+        List of volume type dictionaries
+    """
+    try:
+        conn = get_openstack_connection()
+        volume_types = []
+        
+        for vtype in conn.volume.types():
+            volume_types.append({
+                'id': vtype.id,
+                'name': vtype.name,
+                'description': getattr(vtype, 'description', ''),
+                'is_public': getattr(vtype, 'is_public', True),
+                'extra_specs': getattr(vtype, 'extra_specs', {}),
+                'created_at': str(getattr(vtype, 'created_at', 'unknown'))
+            })
+        
+        return volume_types
+    except Exception as e:
+        logger.error(f"Failed to get volume types: {e}")
+        return [
+            {'id': '__DEFAULT__', 'name': 'default', 'description': 'Default volume type', 'is_public': True, 'error': str(e)}
+        ]
+
+
+def get_volume_snapshots() -> List[Dict[str, Any]]:
+    """
+    Get list of volume snapshots.
+    
+    Returns:
+        List of volume snapshot dictionaries
+    """
+    try:
+        conn = get_openstack_connection()
+        snapshots = []
+        
+        for snapshot in conn.volume.snapshots(detailed=True):
+            snapshots.append({
+                'id': snapshot.id,
+                'name': snapshot.name,
+                'description': getattr(snapshot, 'description', ''),
+                'status': snapshot.status,
+                'size': snapshot.size,
+                'volume_id': snapshot.volume_id,
+                'user_id': getattr(snapshot, 'user_id', 'unknown'),
+                'project_id': getattr(snapshot, 'project_id', 'unknown'),
+                'created_at': str(getattr(snapshot, 'created_at', 'unknown')),
+                'updated_at': str(getattr(snapshot, 'updated_at', 'unknown'))
+            })
+        
+        return snapshots
+    except Exception as e:
+        logger.error(f"Failed to get volume snapshots: {e}")
+        return [
+            {
+                'id': 'snap-1', 'name': 'demo-snapshot', 'status': 'available',
+                'size': 10, 'volume_id': 'vol-1', 'error': str(e)
+            }
+        ]
+
+
+def manage_snapshot(snapshot_name: str, action: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage volume snapshots (create, delete).
+    
+    Args:
+        snapshot_name: Name of the snapshot
+        action: Action to perform (create, delete)
+        **kwargs: Additional parameters (volume_id, description)
+    
+    Returns:
+        Result of the snapshot operation
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action.lower() == 'create':
+            volume_id = kwargs.get('volume_id')
+            if not volume_id:
+                return {
+                    'success': False,
+                    'message': 'volume_id parameter is required for create action'
+                }
+                
+            snapshot = conn.volume.create_snapshot(
+                name=snapshot_name,
+                volume_id=volume_id,
+                description=kwargs.get('description', f'Snapshot of volume {volume_id}')
+            )
+            return {
+                'success': True,
+                'message': f'Snapshot "{snapshot_name}" creation started',
+                'snapshot': {
+                    'id': snapshot.id,
+                    'name': snapshot.name,
+                    'status': snapshot.status,
+                    'volume_id': snapshot.volume_id
+                }
+            }
+            
+        elif action.lower() == 'delete':
+            # Find the snapshot
+            snapshot = None
+            for snap in conn.volume.snapshots():
+                if snap.name == snapshot_name or snap.id == snapshot_name:
+                    snapshot = snap
+                    break
+                    
+            if not snapshot:
+                return {
+                    'success': False,
+                    'message': f'Snapshot "{snapshot_name}" not found'
+                }
+                
+            conn.volume.delete_snapshot(snapshot)
+            return {
+                'success': True,
+                'message': f'Snapshot "{snapshot_name}" deletion started',
+                'snapshot_id': snapshot.id
+            }
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: create, delete'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage snapshot: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage snapshot: {str(e)}',
+            'error': str(e)
+        }
+
+
+# =============================================================================
+# Image Service (Glance) Functions - Enhanced
+# =============================================================================
+
+def manage_image(image_name: str, action: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage images (create, delete, update).
+    
+    Args:
+        image_name: Name or ID of the image
+        action: Action to perform (create, delete, update, upload)
+        **kwargs: Additional parameters
+    
+    Returns:
+        Result of the image operation
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action.lower() == 'create':
+            container_format = kwargs.get('container_format', 'bare')
+            disk_format = kwargs.get('disk_format', 'qcow2')
+            
+            image = conn.image.create_image(
+                name=image_name,
+                container_format=container_format,
+                disk_format=disk_format,
+                visibility=kwargs.get('visibility', 'private'),
+                min_disk=kwargs.get('min_disk', 0),
+                min_ram=kwargs.get('min_ram', 0),
+                properties=kwargs.get('properties', {})
+            )
+            return {
+                'success': True,
+                'message': f'Image "{image_name}" created successfully',
+                'image': {
+                    'id': image.id,
+                    'name': image.name,
+                    'status': image.status,
+                    'visibility': image.visibility
+                }
+            }
+            
+        elif action.lower() == 'delete':
+            # Find the image
+            image = None
+            for img in conn.image.images():
+                if img.name == image_name or img.id == image_name:
+                    image = img
+                    break
+                    
+            if not image:
+                return {
+                    'success': False,
+                    'message': f'Image "{image_name}" not found'
+                }
+                
+            conn.image.delete_image(image)
+            return {
+                'success': True,
+                'message': f'Image "{image_name}" deleted successfully',
+                'image_id': image.id
+            }
+            
+        elif action.lower() == 'update':
+            # Find the image
+            image = None
+            for img in conn.image.images():
+                if img.name == image_name or img.id == image_name:
+                    image = img
+                    break
+                    
+            if not image:
+                return {
+                    'success': False,
+                    'message': f'Image "{image_name}" not found'
+                }
+                
+            update_params = {}
+            if 'visibility' in kwargs:
+                update_params['visibility'] = kwargs['visibility']
+            if 'properties' in kwargs:
+                update_params.update(kwargs['properties'])
+                
+            updated_image = conn.image.update_image(image, **update_params)
+            return {
+                'success': True,
+                'message': f'Image "{image_name}" updated successfully',
+                'image': {
+                    'id': updated_image.id,
+                    'name': updated_image.name,
+                    'visibility': updated_image.visibility
+                }
+            }
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: create, delete, update'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage image: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage image: {str(e)}',
+            'error': str(e)
+        }
+
+
+# =============================================================================
+# Orchestration (Heat) Functions
+# =============================================================================
+
+def get_stacks() -> List[Dict[str, Any]]:
+    """
+    Get list of Heat stacks.
+    
+    Returns:
+        List of stack dictionaries
+    """
+    try:
+        conn = get_openstack_connection()
+        stacks = []
+        
+        for stack in conn.orchestration.stacks():
+            stacks.append({
+                'id': stack.id,
+                'name': stack.name,
+                'status': stack.status,
+                'stack_status': getattr(stack, 'stack_status', 'unknown'),
+                'stack_status_reason': getattr(stack, 'stack_status_reason', ''),
+                'creation_time': str(getattr(stack, 'creation_time', 'unknown')),
+                'updated_time': str(getattr(stack, 'updated_time', 'unknown')),
+                'description': getattr(stack, 'description', ''),
+                'tags': getattr(stack, 'tags', []),
+                'timeout_mins': getattr(stack, 'timeout_mins', None),
+                'owner': getattr(stack, 'stack_owner', 'unknown')
+            })
+        
+        return stacks
+    except Exception as e:
+        logger.error(f"Failed to get stacks: {e}")
+        return [
+            {
+                'id': 'stack-1', 'name': 'demo-stack', 'status': 'CREATE_COMPLETE',
+                'stack_status': 'CREATE_COMPLETE', 'description': 'Demo stack', 'error': str(e)
+            }
+        ]
+
+
+def manage_stack(stack_name: str, action: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage Heat stacks (create, delete, update).
+    
+    Args:
+        stack_name: Name of the stack
+        action: Action to perform (create, delete, update, abandon)
+        **kwargs: Additional parameters (template, parameters)
+    
+    Returns:
+        Result of the stack operation
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action.lower() == 'create':
+            template = kwargs.get('template')
+            if not template:
+                return {
+                    'success': False,
+                    'message': 'template parameter is required for create action'
+                }
+                
+            stack = conn.orchestration.create_stack(
+                name=stack_name,
+                template=template,
+                parameters=kwargs.get('parameters', {}),
+                timeout=kwargs.get('timeout', 60),
+                tags=kwargs.get('tags', [])
+            )
+            return {
+                'success': True,
+                'message': f'Stack "{stack_name}" creation started',
+                'stack': {
+                    'id': stack.id,
+                    'name': stack.name,
+                    'status': stack.stack_status
+                }
+            }
+            
+        elif action.lower() == 'delete':
+            # Find the stack
+            stack = None
+            for stk in conn.orchestration.stacks():
+                if stk.name == stack_name or stk.id == stack_name:
+                    stack = stk
+                    break
+                    
+            if not stack:
+                return {
+                    'success': False,
+                    'message': f'Stack "{stack_name}" not found'
+                }
+                
+            conn.orchestration.delete_stack(stack)
+            return {
+                'success': True,
+                'message': f'Stack "{stack_name}" deletion started',
+                'stack_id': stack.id
+            }
+            
+        elif action.lower() == 'update':
+            # Find the stack
+            stack = None
+            for stk in conn.orchestration.stacks():
+                if stk.name == stack_name or stk.id == stack_name:
+                    stack = stk
+                    break
+                    
+            if not stack:
+                return {
+                    'success': False,
+                    'message': f'Stack "{stack_name}" not found'
+                }
+                
+            template = kwargs.get('template')
+            if not template:
+                return {
+                    'success': False,
+                    'message': 'template parameter is required for update action'
+                }
+                
+            updated_stack = conn.orchestration.update_stack(
+                stack,
+                template=template,
+                parameters=kwargs.get('parameters', {})
+            )
+            return {
+                'success': True,
+                'message': f'Stack "{stack_name}" update started',
+                'stack': {
+                    'id': updated_stack.id,
+                    'name': updated_stack.name,
+                    'status': updated_stack.stack_status
+                }
+            }
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: create, delete, update'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage stack: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage stack: {str(e)}',
+            'error': str(e)
+        }

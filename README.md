@@ -11,19 +11,19 @@
 
 ## Features
 
-- ✅ **OpenStack Integration**: Direct integration with OpenStack SDK for real-time cluster operations
-- ✅ **Large-Scale Environment Support**: Pagination and limits for environments with thousands of instances
-- ✅ **Comprehensive Monitoring**: Cluster status, service monitoring, resource utilization tracking with performance metrics
-- ✅ **Advanced Instance Management**: Start, stop, restart, pause/unpause OpenStack instances with pagination support
-- ✅ **Intelligent Search**: Flexible instance search with partial matching and case-sensitive options
-- ✅ **Volume Operations**: Create, delete, list, and manage OpenStack volumes
-- ✅ **Network Analysis**: Detailed network, subnet, router, and security group information
-- ✅ **Connection Optimization**: Global connection caching and automatic retry mechanisms
-- ✅ **Flexible Transport**: Support for both `stdio` and `streamable-http` transports
-- ✅ **Comprehensive Logging**: Configurable logging levels with structured output and performance tracking
-- ✅ **Environment Configuration**: Support for environment variables and CLI arguments
-- ✅ **Error Handling**: Robust error handling and configuration validation with fallback data
-- ✅ **Docker Support**: Containerized deployment with Docker Compose
+- ✅ **OpenStack Integration**: Direct integration with OpenStack SDK for real-time cluster operations. ([SDK Release Matrix](https://releases.openstack.org/teams/openstacksdk.html))
+- ✅ **Large-Scale Environment Support**: Pagination and limits for environments with thousands of instances.
+- ✅ **Comprehensive Monitoring**: Cluster status, service monitoring, resource utilization tracking with performance metrics.
+- ✅ **Advanced Instance Management**: Start, stop, restart, pause/unpause OpenStack instances with pagination support.
+- ✅ **Intelligent Search**: Flexible instance search with partial matching and case-sensitive options.
+- ✅ **Volume Operations**: Create, delete, list, and manage OpenStack volumes.
+- ✅ **Network Analysis**: Detailed network, subnet, router, and security group information.
+- ✅ **Connection Optimization**: Global connection caching and automatic retry mechanisms.
+- ✅ **Flexible Transport**: Support for both `stdio` and `streamable-http` transports.
+- ✅ **Comprehensive Logging**: Configurable logging levels with structured output and performance tracking.
+- ✅ **Environment Configuration**: Support for environment variables and CLI arguments.
+- ✅ **Error Handling**: Robust error handling and configuration validation with fallback data.
+- ✅ **Docker Support**: Containerized deployment with Docker Compose.
 
 ---
 
