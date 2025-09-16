@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/call518-mcp-openstack-ops-badge.png)](https://mseep.ai/app/call518-mcp-openstack-ops)
+
 # MCP-OpenStack-Ops
 
 > **MCP OpenStack Operations Server**: A comprehensive MCP (Model Context Protocol) server providing OpenStack cluster management and monitoring capabilities. This server enables AI assistants to interact with OpenStack infrastructure through standardized tools for real-time monitoring, resource management, and operational tasks.
