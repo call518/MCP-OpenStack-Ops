@@ -13,8 +13,10 @@
 
 - ✅ **OpenStack Integration**: Direct integration with OpenStack SDK for real-time cluster operations. ([SDK Release Matrix](https://releases.openstack.org/teams/openstacksdk.html))
 - ✅ **Large-Scale Environment Support**: Pagination and limits for environments with thousands of instances.
-- ✅ **Comprehensive Monitoring**: Cluster status, service monitoring, resource utilization tracking with performance metrics.
+- ✅ **Comprehensive Monitoring**: **Enhanced cluster status reports** with hypervisor health, resource utilization (CPU/memory/disk), service monitoring, health scoring, and issue detection.
+- ✅ **Complete Service Coverage**: **24 comprehensive tools** covering Identity, Compute, Network, Storage, Image, and Orchestration services.
 - ✅ **Advanced Instance Management**: Start, stop, restart, pause/unpause OpenStack instances with pagination support.
+- ✅ **Enterprise Features**: User management, role assignments, keypair management, floating IP operations, volume snapshots, Heat orchestration.
 - ✅ **Intelligent Search**: Flexible instance search with partial matching and case-sensitive options.
 - ✅ **Volume Operations**: Create, delete, list, and manage OpenStack volumes.
 - ✅ **Network Analysis**: Detailed network, subnet, router, and security group information.
@@ -29,27 +31,55 @@
 
 ## MCP Tools Available
 
-### 🔍 Monitoring Tools
-1. **`get_cluster_status`** - Overall cluster status with instances, networks, and services
+### 🔍 Monitoring & Status Tools
+1. **`get_cluster_status`** - **Enhanced comprehensive cluster analysis**
+   - Compute nodes: hypervisor status, resource utilization (CPU/memory/disk)
+   - Instance analysis: status distribution, availability zones, detailed info
+   - Network resources: external networks, floating IPs, routers, security groups
+   - Storage resources: volumes by status, snapshots, volume types
+   - Service status: service health, compute services monitoring
+   - **Health scoring**: overall cluster health with issue detection
 2. **`get_service_status`** - OpenStack service health and API endpoint status
 3. **`get_instance_details`** - Detailed information for specific instances with pagination support
    - Supports filtering by instance names or IDs
    - Pagination parameters: `limit` (default 50, max 200), `offset` (default 0)
    - Performance metrics and processing time tracking
-   - Safety limits for large-scale environments
 4. **`search_instances`** - Advanced instance search with flexible criteria
    - Search fields: name, status, host, flavor, image, availability_zone, all
    - Partial string matching with case-sensitive options
    - Optimized 2-phase search for large environments
-   - Pagination support for search results
-5. **`monitor_resources`** - Real-time resource usage and capacity monitoring
+5. **`get_instance_by_name`** - Quick lookup for specific instance by name
+6. **`get_instances_by_status`** - Filter instances by operational status
+7. **`monitor_resources`** - Real-time resource usage and capacity monitoring
 
-### 🌐 Network Tools  
-6. **`get_network_details`** - Network, subnet, router, and security group details
+### 🌐 Network Management Tools  
+8. **`get_network_details`** - Network, subnet, router, and security group details
+9. **`get_floating_ips`** - Floating IP allocation and status information
+10. **`manage_floating_ip`** - Create, delete, associate/disassociate floating IPs
+11. **`get_routers`** - Router status and configuration details
+12. **`get_security_groups`** - Security group rules and configuration
 
-### ⚙️ Management Tools
-7. **`manage_instance`** - Instance lifecycle operations (start/stop/restart/pause/unpause)
-8. **`manage_volume`** - Volume management operations (create/delete/list/extend)
+### 💾 Storage Management Tools
+13. **`manage_volume`** - Volume management operations (create/delete/list/extend)
+14. **`get_volume_types`** - Available volume types and specifications
+15. **`get_volume_snapshots`** - Volume snapshot status and management
+16. **`manage_snapshot`** - Create, delete, and manage volume snapshots
+
+### ⚙️ Instance & Compute Management
+17. **`manage_instance`** - Instance lifecycle operations (start/stop/restart/pause/unpause)
+18. **`get_keypair_list`** - SSH keypair management and listing
+19. **`manage_keypair`** - Create, delete SSH keypairs for instance access
+
+### 👥 Identity & Access Management
+20. **`get_user_list`** - OpenStack user accounts and details
+21. **`get_role_assignments`** - User role assignments and permissions
+
+### 🖼️ Image Management
+22. **`manage_image`** - Create, delete, and manage OpenStack images
+
+### 🔥 Orchestration (Heat) Tools
+23. **`get_stacks`** - Heat stack status and information
+24. **`manage_stack`** - Create, delete, and manage Heat orchestration stacks
 
 ---
 

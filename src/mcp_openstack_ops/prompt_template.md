@@ -35,18 +35,61 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 ---
 
-## 3. Tool Map (Complete & Updated)
+## 3. Tool Map (Complete & Updated - 24 Tools Total)
 
+### 🔍 Monitoring & Status Tools (7 tools)
 | User Intent / Keywords | Tool | Output Focus | Notes |
 |------------------------|------|--------------|-------|
-| Cluster overview / status / summary | get_cluster_status | Instance list, network summary, services | "cluster status" / "overview" |
+| Cluster overview / status / comprehensive report | get_cluster_status | **Enhanced**: Compute nodes, resource utilization, health scoring, service status | "cluster status" / "overview" / "health report" |
 | Service health / API status | get_service_status | Service states, API endpoints | "service status" / "health check" |
 | Instance details / VM info | get_instance_details | Specific instance information with pagination | Supports limit/offset, instance names/IDs |
 | Search instances / find VMs | search_instances | Flexible instance search with filters | Partial matching, case-sensitive, pagination |
-| Network details / subnet info | get_network_details | Network, subnet, router details | Use "all" for all networks |
+| Specific instance lookup | get_instance_by_name | Quick single instance details | Direct name-based lookup |
+| Instances by status | get_instances_by_status | Filter by operational status | "running" / "stopped" / "error" instances |
 | Resource monitoring / utilization | monitor_resources | CPU, memory, storage usage | "resource usage" / "monitoring" |
-| Start/Stop/Restart instance | manage_instance | Operation result, status | Confirm user intent |
+
+### 🌐 Network Management Tools (5 tools)
+| User Intent / Keywords | Tool | Output Focus | Notes |
+|------------------------|------|--------------|-------|
+| Network details / subnet info | get_network_details | Network, subnet, router details | Use "all" for all networks |
+| Floating IP status | get_floating_ips | Floating IP allocation and status | IP addresses, associations |
+| Floating IP operations | manage_floating_ip | Create/delete/associate floating IPs | Requires network/port IDs |
+| Router information | get_routers | Router status and configuration | Network connectivity |
+| Security group details | get_security_groups | Security rules and policies | Access control information |
+
+### 💾 Storage Management Tools (4 tools)
+| User Intent / Keywords | Tool | Output Focus | Notes |
+|------------------------|------|--------------|-------|
 | Volume operations | manage_volume | Volume management results | create/delete/list/extend actions |
+| Volume types | get_volume_types | Available storage types | Performance characteristics |
+| Volume snapshots | get_volume_snapshots | Snapshot status and details | Backup information |
+| Snapshot management | manage_snapshot | Create/delete snapshots | Volume backup operations |
+
+### ⚙️ Instance & Compute Management (3 tools)
+| User Intent / Keywords | Tool | Output Focus | Notes |
+|------------------------|------|--------------|-------|
+| Start/Stop/Restart instance | manage_instance | Operation result, status | Confirm user intent |
+| SSH keypairs | get_keypair_list | Available keypairs | Instance access keys |
+| Keypair management | manage_keypair | Create/delete keypairs | SSH key operations |
+
+### 👥 Identity & Access Management (2 tools)
+| User Intent / Keywords | Tool | Output Focus | Notes |
+|------------------------|------|--------------|-------|
+| User accounts | get_user_list | OpenStack users | Identity management |
+| Role assignments | get_role_assignments | User permissions | Access control |
+
+### 🖼️ Image Management (1 tool)
+| User Intent / Keywords | Tool | Output Focus | Notes |
+|------------------------|------|--------------|-------|
+| Image operations | manage_image | Create/delete images | VM template management |
+
+### 🔥 Orchestration Tools (2 tools)
+| User Intent / Keywords | Tool | Output Focus | Notes |
+|------------------------|------|--------------|-------|
+| Heat stacks | get_stacks | Stack status and info | Infrastructure as Code |
+| Stack management | manage_stack | Create/delete/update stacks | Orchestration operations |
+
+**Total: 24 comprehensive OpenStack management tools**
 
 **Enhanced Features:**
 - **Pagination Support**: get_instance_details and search_instances support limit/offset parameters
@@ -139,11 +182,13 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 ### 🔍 Cluster & Service Management
 
-**get_cluster_status**
-- "Show cluster summary and basic information."
-- "What's the overall cluster status?"
-- "Display cluster overview with instance counts."
-- "List all instances in the cluster."
+**get_cluster_status** (Enhanced Comprehensive Report)
+- "Generate a comprehensive cluster health report."
+- "Show detailed cluster analysis with resource utilization."
+- "What's the overall cluster health and status?"
+- "Display compute node status and capacity."
+- "Show cluster overview with health scoring."
+- "Create infrastructure status report with issue detection."
 
 **get_service_status**
 - "Are all OpenStack services running properly?"
@@ -161,7 +206,7 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - "Get all details for instances: web-01, db-01, app-01."
 - "Show next 20 instances starting from position 40."
 
-**search_instances** (New Advanced Search Tool)
+**search_instances** (Advanced Search Tool)
 - "Find all instances containing 'web' in their name."
 - "Search for instances with 'ACTIVE' status."
 - "Find instances running on compute-01 host."
@@ -169,6 +214,12 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - "Case-sensitive search for 'DB' in any field."
 - "Find instances in 'nova' availability zone."
 - "Show first 15 search results for 'server' in names."
+
+**get_instance_by_name & get_instances_by_status**
+- "Show me the web-01 instance details."
+- "List all ACTIVE instances."
+- "Find all stopped instances."
+- "Show ERROR state instances."
 
 **manage_instance**
 - "Start the web-server-01 instance."
@@ -185,7 +236,19 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - "List all networks, subnets, and routers."
 - "Get security group information."
 
-### 💾 Volume Management
+**get_floating_ips & manage_floating_ip**
+- "Show all floating IP addresses."
+- "List available floating IPs."
+- "Create a new floating IP from external network."
+- "Associate floating IP to instance port."
+- "Delete unused floating IP."
+
+**get_routers & get_security_groups**
+- "Show all router configurations."
+- "List security group rules."
+- "Display firewall policies."
+
+### 💾 Storage Management
 
 **manage_volume**
 - "Create a 100GB volume named data-vol."
@@ -193,6 +256,44 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - "Delete the old-backup volume."
 - "List all volumes in the project."
 - "Show volume information and usage."
+
+**get_volume_types & get_volume_snapshots & manage_snapshot**
+- "Show available volume types."
+- "List all volume snapshots."
+- "Create a snapshot of data-volume."
+- "Delete old backup snapshot."
+- "Show snapshot details and status."
+
+### ⚙️ Compute Management
+
+**get_keypair_list & manage_keypair**
+- "Show all SSH keypairs."
+- "Create a new keypair for servers."
+- "Delete unused keypair."
+- "List available keypairs for instance access."
+
+### 👥 Identity & Access Management
+
+**get_user_list & get_role_assignments**
+- "Show all OpenStack users."
+- "List user role assignments."
+- "Display project permissions."
+- "Show user access rights."
+
+### 🖼️ Image Management
+
+**manage_image**
+- "Create a new OpenStack image."
+- "Delete unused images."
+- "List available VM images."
+
+### 🔥 Orchestration (Heat)
+
+**get_stacks & manage_stack**
+- "Show all Heat stacks."
+- "Create a new stack from template."
+- "Delete completed stack."
+- "Display stack status and resources."
 
 ### 📈 Monitoring & Resources
 
