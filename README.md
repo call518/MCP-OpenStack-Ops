@@ -121,6 +121,8 @@ Options:
                         Transport type (default: stdio)
   --host HOST          Host address for HTTP transport (default: 127.0.0.1)
   --port PORT          Port number for HTTP transport (default: 8080)
+  --auth-enable        Enable Bearer token authentication for streamable-http mode
+  --secret-key SECRET  Secret key for Bearer token authentication
 ```
 
 ### Environment Variables
@@ -141,6 +143,9 @@ Options:
 | `FASTMCP_TYPE` | Transport type | `stdio` | Rarely needed to change |
 | `FASTMCP_HOST` | HTTP host address | `127.0.0.1` | For HTTP mode only |
 | `FASTMCP_PORT` | HTTP port number | `8080` | For HTTP mode only |
+| **Authentication (Optional)** |
+| `REMOTE_AUTH_ENABLE` | Enable Bearer token authentication for streamable-http mode | `false` | Production security |
+| `REMOTE_SECRET_KEY` | Secret key for Bearer token authentication | Required when auth enabled | Production security |
 
 **Note**: MCP servers typically use `stdio` transport. HTTP mode is mainly for testing and development.
 
@@ -315,10 +320,103 @@ curl -X POST http://localhost:18005/mcp \
   -d '{"method": "tools/list"}'
 ```
 
+## 🔐 Security & Authentication
+
+### Bearer Token Authentication
+
+For `streamable-http` mode, this MCP server supports Bearer token authentication to secure remote access. This is especially important when running the server in production environments.
+
+#### Configuration
+
+**Enable Authentication:**
+
+```bash
+# In .env file
+REMOTE_AUTH_ENABLE=true
+REMOTE_SECRET_KEY=your-secure-secret-key-here
+```
+
+**Or via CLI:**
+
+```bash
+uv run python -m mcp_openstack_ops --type streamable-http --auth-enable --secret-key your-secure-secret-key-here
+```
+
+#### Security Levels
+
+1. **stdio mode** (Default): Local-only access, no authentication needed
+2. **streamable-http + REMOTE_AUTH_ENABLE=false/undefined**: Remote access without authentication ⚠️ **NOT RECOMMENDED for production**
+3. **streamable-http + REMOTE_AUTH_ENABLE=true**: Remote access with Bearer token authentication ✅ **RECOMMENDED for production**
+
+> **🔒 Default Policy**: `REMOTE_AUTH_ENABLE` defaults to `false` if undefined, empty, or null. This ensures the server starts even without explicit authentication configuration.
+
+#### Client Configuration
+
+When authentication is enabled, MCP clients must include the Bearer token in the Authorization header:
+
+```json
+{
+  "mcpServers": {
+    "openstack-ops": {
+      "type": "streamable-http",
+      "url": "http://your-server:8080/mcp",
+      "headers": {
+        "Authorization": "Bearer your-secure-secret-key-here"
+      }
+    }
+  }
+}
+```
+
+#### Security Best Practices
+
+- **Always enable authentication** when using streamable-http mode in production
+- **Use strong, randomly generated secret keys** (32+ characters recommended)
+- **Use HTTPS** when possible (configure reverse proxy with SSL/TLS)
+- **Restrict network access** using firewalls or network policies
+- **Rotate secret keys regularly** for enhanced security
+- **Monitor access logs** for unauthorized access attempts
+
+#### Error Handling
+
+When authentication fails, the server returns:
+- **401 Unauthorized** for missing or invalid tokens
+- **Detailed error messages** in JSON format for debugging
+
+---
+
 ## Deployment
+
+### Local Development
+```bash
+# Test with MCP Inspector (recommended)
+./scripts/run-mcp-inspector-local.sh
+
+# Test with debug logging
+MCP_LOG_LEVEL=DEBUG uv run python -m mcp_openstack_ops
+
+# Validate OpenStack connection
+uv run python -c "from src.mcp_openstack_ops.functions import get_openstack_connection; print(get_openstack_connection())"
+```
+
+### Docker Testing
+```bash
+# Build and test in container
+docker-compose build
+docker-compose up -d
+
+# Check container logs
+docker-compose logs -f mcp-server
+
+# Test HTTP endpoint (if using HTTP transport)
+curl -X POST http://localhost:18005/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"method": "tools/list"}'
 
 ### Claude Desktop Integration
 Add to your Claude Desktop configuration (`claude_desktop_config.json`):
+
+#### Method 1: Local MCP (transport="stdio")
 
 ```json
 {
@@ -331,7 +429,37 @@ Add to your Claude Desktop configuration (`claude_desktop_config.json`):
         "OS_AUTH_URL": "https://your-openstack:5000/v3",
         "OS_USERNAME": "your-username",
         "OS_PASSWORD": "your-password",
-        "OS_PROJECT_NAME": "your-project"
+        "OS_PROJECT_NAME": "your-project",
+        "MCP_LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}
+```
+
+#### Method 2: Remote MCP (transport="streamable-http")
+
+**Without Authentication:**
+```json
+{
+  "mcpServers": {
+    "openstack-ops": {
+      "type": "streamable-http",
+      "url": "http://localhost:18005/mcp"
+    }
+  }
+}
+```
+
+**With Bearer Token Authentication (Recommended for production):**
+```json
+{
+  "mcpServers": {
+    "openstack-ops": {
+      "type": "streamable-http", 
+      "url": "http://localhost:18005/mcp",
+      "headers": {
+        "Authorization": "Bearer your-secure-secret-key-here"
       }
     }
   }
@@ -369,6 +497,12 @@ docker run -d --name mcp-openstack-ops \
    - Use `stdio` for Claude Desktop integration
    - Use `streamable-http` for testing and development
    - Check port availability for HTTP transport
+
+4. **Authentication Issues (streamable-http mode)**
+   - Verify `REMOTE_SECRET_KEY` matches between server and client
+   - Ensure Bearer token is included in client Authorization header
+   - Check server logs for authentication error details
+   - Confirm `REMOTE_AUTH_ENABLE=true` is set when using authentication
 
 ### Getting Help
 

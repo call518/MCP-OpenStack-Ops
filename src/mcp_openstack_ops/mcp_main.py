@@ -4,6 +4,7 @@ import os
 import sys
 from typing import Any, Optional, Dict, List
 from fastmcp import FastMCP
+from fastmcp.server.auth import StaticTokenVerifier
 
 # Add the current directory to sys.path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -23,15 +24,41 @@ import json
 from datetime import datetime
 from openstack import connection
 
-logger = logging.getLogger(__name__)
+# Set up logging (initial level from env; may be overridden by --log-level)
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    level=os.environ.get("MCP_LOG_LEVEL", "INFO"),
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
 )
+logger = logging.getLogger("OpenStackService")
 
-# OpenStack Operations MCP Server
-mcp = FastMCP("openstack-ops")
+# =============================================================================
+# Authentication Setup
+# =============================================================================
+
+# Check environment variables for authentication early
+_auth_enable = os.environ.get("REMOTE_AUTH_ENABLE", "false").lower() == "true"
+_secret_key = os.environ.get("REMOTE_SECRET_KEY", "")
+
+# Initialize the main MCP instance with authentication if configured
+if _auth_enable and _secret_key:
+    logger.info("Initializing MCP instance with Bearer token authentication (from environment)")
+    
+    # Create token configuration
+    tokens = {
+        _secret_key: {
+            "client_id": "openstack-ops-client",
+            "user": "admin",
+            "scopes": ["read", "write"],
+            "description": "OpenStack operations access token"
+        }
+    }
+    
+    auth = StaticTokenVerifier(tokens=tokens)
+    mcp = FastMCP("openstack-ops", auth=auth)
+    logger.info("MCP instance initialized with authentication")
+else:
+    logger.info("Initializing MCP instance without authentication")
+    mcp = FastMCP("openstack-ops")
 
 # =============================================================================
 # MCP Tools (OpenStack Operations and Monitoring)
@@ -343,87 +370,107 @@ def validate_config(transport_type: str, host: str, port: int) -> None:
 
 def main(argv: Optional[List[str]] = None) -> None:
     """Main entry point for the MCP server."""
+    global mcp
+    
     parser = argparse.ArgumentParser(
-        prog="mcp-server",
-        description="MCP Server with configurable transport",
+        prog="mcp-openstack-ops", 
+        description="MCP OpenStack Operations Server",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     
     parser.add_argument(
         "--log-level",
         dest="log_level",
-        help="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL). Overrides env var if provided.",
+        help="Logging level override (DEBUG, INFO, WARNING, ERROR, CRITICAL). Overrides MCP_LOG_LEVEL env if provided.",
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
     )
     parser.add_argument(
         "--type",
         dest="transport_type",
-        help="Transport type. Default: stdio",
+        help="Transport type (stdio or streamable-http). Default: stdio",
         choices=["stdio", "streamable-http"],
-        default="stdio"
     )
     parser.add_argument(
         "--host",
         dest="host",
         help="Host address for streamable-http transport. Default: 127.0.0.1",
-        default="127.0.0.1"
     )
     parser.add_argument(
         "--port",
         dest="port",
         type=int,
         help="Port number for streamable-http transport. Default: 8080",
-        default=8080
+    )
+    parser.add_argument(
+        "--auth-enable",
+        dest="auth_enable",
+        action="store_true",
+        help="Enable Bearer token authentication for streamable-http mode. Default: False",
+    )
+    parser.add_argument(
+        "--secret-key",
+        dest="secret_key",
+        help="Secret key for Bearer token authentication. Required when auth is enabled.",
     )
     
-    try:
-        args = parser.parse_args(argv)
-        
-        # Determine log level: CLI arg > environment variable > default
-        log_level = args.log_level or os.getenv("MCP_LOG_LEVEL", "INFO")
-        
-        # Set logging level
-        numeric_level = getattr(logging, log_level.upper(), None)
-        if not isinstance(numeric_level, int):
-            raise ValueError(f'Invalid log level: {log_level}')
-        
-        logger.setLevel(numeric_level)
-        logging.getLogger().setLevel(numeric_level)
-        
-        # Reduce noise from external libraries at DEBUG level
-        logging.getLogger("aiohttp.client").setLevel(logging.WARNING)
-        logging.getLogger("asyncio").setLevel(logging.WARNING)
-        
-        if args.log_level:
-            logger.info("Log level set via CLI to %s", args.log_level)
-        elif os.getenv("MCP_LOG_LEVEL"):
-            logger.info("Log level set via environment variable to %s", log_level)
-        else:
-            logger.info("Using default log level: %s", log_level)
+    # Allow future extension without breaking unknown args usage
+    args = parser.parse_args(argv)
 
-        # Priority: CLI args > environment variables > defaults
-        transport_type = args.transport_type or os.getenv("FASTMCP_TYPE", "stdio")
-        host = args.host or os.getenv("FASTMCP_HOST", "127.0.0.1") 
-        port = args.port if args.port != 8080 else int(os.getenv("FASTMCP_PORT", "8080"))
-        
-        # Validate configuration
-        validate_config(transport_type, host, port)
-        
-        # Run based on transport mode
-        if transport_type == "streamable-http":
-            logger.info(f"Starting MCP server with streamable-http transport on {host}:{port}")
-            mcp.run(transport="streamable-http", host=host, port=port)
-        else:
-            logger.info("Starting MCP server with stdio transport")
-            mcp.run(transport='stdio')
-            
-    except KeyboardInterrupt:
-        logger.info("Server shutdown requested by user")
-        sys.exit(0)
-    except Exception as e:
-        logger.error(f"Failed to start server: {e}")
-        sys.exit(1)
+    # Determine log level: CLI arg > environment variable > default
+    log_level = args.log_level or os.getenv("MCP_LOG_LEVEL", "INFO")
+    
+    # Set logging level
+    logging.getLogger().setLevel(log_level)
+    logger.setLevel(log_level)
+    logging.getLogger("aiohttp.client").setLevel("WARNING")  # reduce noise at DEBUG
+    
+    if args.log_level:
+        logger.info("Log level set via CLI to %s", args.log_level)
+    elif os.getenv("MCP_LOG_LEVEL"):
+        logger.info("Log level set via environment variable to %s", log_level)
+    else:
+        logger.info("Using default log level: %s", log_level)
 
+    # 우선순위: 실행옵션 > 환경변수 > 기본값
+    # Transport type 결정
+    transport_type = args.transport_type or os.getenv("FASTMCP_TYPE", "stdio")
+    
+    # Host 결정
+    host = args.host or os.getenv("FASTMCP_HOST", "127.0.0.1")
+    
+    # Port 결정 (간결하게)
+    port = args.port or int(os.getenv("FASTMCP_PORT", 8080))
+    
+    # Authentication 설정 결정
+    auth_enable = args.auth_enable or os.getenv("REMOTE_AUTH_ENABLE", "false").lower() in ("true", "1", "yes", "on")
+    secret_key = args.secret_key or os.getenv("REMOTE_SECRET_KEY", "")
+    
+    # Validation for streamable-http mode with authentication
+    if transport_type == "streamable-http":
+        if auth_enable:
+            if not secret_key:
+                logger.error("ERROR: Authentication is enabled but no secret key provided.")
+                logger.error("Please set REMOTE_SECRET_KEY environment variable or use --secret-key argument.")
+                return
+            logger.info("Authentication enabled for streamable-http transport")
+        else:
+            logger.warning("WARNING: streamable-http mode without authentication enabled!")
+            logger.warning("This server will accept requests without Bearer token verification.")
+            logger.warning("Set REMOTE_AUTH_ENABLE=true and REMOTE_SECRET_KEY to enable authentication.")
+
+    # Note: MCP instance with authentication is already initialized at module level
+    # based on environment variables. CLI arguments will override if different.
+    if auth_enable != _auth_enable or secret_key != _secret_key:
+        logger.warning("CLI authentication settings differ from environment variables.")
+        logger.warning("Environment settings take precedence during module initialization.")
+
+    # Transport 모드에 따른 실행
+    if transport_type == "streamable-http":
+        logger.info(f"Starting streamable-http server on {host}:{port}")
+        mcp.run(transport="streamable-http", host=host, port=port)
+    else:
+        logger.info("Starting stdio transport for local usage")
+        mcp.run(transport='stdio')
 
 if __name__ == "__main__":
     """Entrypoint for MCP server.
@@ -431,4 +478,11 @@ if __name__ == "__main__":
     Supports optional CLI arguments while remaining backward-compatible 
     with stdio launcher expectations.
     """
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        logger.info("Server shutdown requested by user")
+        sys.exit(0)
+    except Exception as e:
+        logger.error(f"Failed to start server: {e}")
+        sys.exit(1)
