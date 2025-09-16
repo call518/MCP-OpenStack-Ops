@@ -41,11 +41,18 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 |------------------------|------|--------------|-------|
 | Cluster overview / status / summary | get_cluster_status | Instance list, network summary, services | "cluster status" / "overview" |
 | Service health / API status | get_service_status | Service states, API endpoints | "service status" / "health check" |
-| Instance details / VM info | get_instance_details | Specific instance information | Requires instance name |
+| Instance details / VM info | get_instance_details | Specific instance information with pagination | Supports limit/offset, instance names/IDs |
+| Search instances / find VMs | search_instances | Flexible instance search with filters | Partial matching, case-sensitive, pagination |
 | Network details / subnet info | get_network_details | Network, subnet, router details | Use "all" for all networks |
 | Resource monitoring / utilization | monitor_resources | CPU, memory, storage usage | "resource usage" / "monitoring" |
 | Start/Stop/Restart instance | manage_instance | Operation result, status | Confirm user intent |
-| Volume operations | manage_volume | Volume management results | create/delete/list actions |
+| Volume operations | manage_volume | Volume management results | create/delete/list/extend actions |
+
+**Enhanced Features:**
+- **Pagination Support**: get_instance_details and search_instances support limit/offset parameters
+- **Large-Scale Optimization**: Built-in safety limits (max 200 per request) with performance metrics
+- **Advanced Search**: search_instances supports partial matching, case sensitivity, and multiple search fields
+- **Connection Caching**: Automatic connection reuse and retry mechanisms
 
 ---
 
@@ -53,12 +60,27 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 1. User asks about overall state / cluster → get_cluster_status
 2. User asks about services / API health → get_service_status
-3. User mentions specific instance name → get_instance_details(instance_name)
-4. User asks about networks / subnets → get_network_details("all" or specific network)
-5. User asks about resource usage / capacity → monitor_resources
-6. User requests instance management → manage_instance(instance_name, action)
-7. User requests volume operations → manage_volume(volume_name, action, size)
-8. Ambiguous reference ("restart it") → if no prior unambiguous instance, ask for clarification
+3. User mentions specific instance name → get_instance_details(instance_names=[name])
+4. User asks for multiple instances or pagination → get_instance_details(limit=X, offset=Y)
+5. User wants to search/find instances → search_instances(search_term, search_in, limit=X)
+6. User asks about networks / subnets → get_network_details("all" or specific network)
+7. User asks about resource usage / capacity → monitor_resources
+8. User requests instance management → manage_instance(instance_name, action)
+9. User requests volume operations → manage_volume(volume_name, action, **kwargs)
+10. Ambiguous reference ("restart it") → if no prior unambiguous instance, ask for clarification
+
+**Pagination Guidelines:**
+- For large environments: always use reasonable limits (default 50, max 200)
+- When user asks for "first X instances": get_instance_details(limit=X, offset=0)
+- When user asks for "next X instances": get_instance_details(limit=X, offset=previous_offset+limit)
+- For search results: search_instances with appropriate limit/offset parameters
+
+**Search Guidelines:**
+- Partial name matching: search_instances("web", "name")
+- Multiple field search: search_instances("active", "all")
+- Case-sensitive search: search_instances("DB", "name", case_sensitive=True)
+- Host-specific search: search_instances("compute-01", "host")
+- Status filtering: search_instances("ACTIVE", "status")
 
 ---
 
@@ -79,22 +101,37 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 → Call: get_cluster_status()
 
 ### B. User: "What's the status of web-server-01?"
-→ Call: get_instance_details("web-server-01")
+→ Call: get_instance_details(instance_names=["web-server-01"])
 
-### C. User: "Start the database server"
+### C. User: "Show me the first 20 instances"
+→ Call: get_instance_details(limit=20, offset=0)
+
+### D. User: "Find all instances with 'web' in their name"
+→ Call: search_instances("web", "name")
+
+### E. User: "Search for active instances on compute-01 host"
+→ Call: search_instances("compute-01", "host") AND search_instances("ACTIVE", "status")
+
+### F. User: "Start the database server"
 → Call: manage_instance("database-server", "start")
 
-### D. User: "Show all network details"
+### G. User: "Show all network details"
 → Call: get_network_details("all")
 
-### E. User: "Create a 50GB volume named backup-vol"
-→ Call: manage_volume("backup-vol", "create", 50)
+### H. User: "Create a 50GB volume named backup-vol"
+→ Call: manage_volume("backup-vol", "create", size=50)
 
-### F. User: "What's the resource utilization?"
+### I. User: "What's the resource utilization?"
 → Call: monitor_resources()
 
-### G. User: "Are OpenStack services healthy?"
+### J. User: "Are OpenStack services healthy?"
 → Call: get_service_status()
+
+### K. User: "Show next 30 instances starting from position 50"
+→ Call: get_instance_details(limit=30, offset=50)
+
+### L. User: "Find instances containing 'DB' case-sensitively"
+→ Call: search_instances("DB", "all", case_sensitive=True)
 
 ---
 
@@ -116,11 +153,22 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 ### 📊 Instance Management
 
-**get_instance_details**
+**get_instance_details** (Enhanced with Pagination)
 - "Show details for instance web-server-01."
 - "Get information about the database server."
-- "Display instance configuration for app-server."
-- "What's the status of my VM named test-instance?"
+- "Display the first 25 instances."
+- "Show instances 51-100 (pagination)."
+- "Get all details for instances: web-01, db-01, app-01."
+- "Show next 20 instances starting from position 40."
+
+**search_instances** (New Advanced Search Tool)
+- "Find all instances containing 'web' in their name."
+- "Search for instances with 'ACTIVE' status."
+- "Find instances running on compute-01 host."
+- "Search for instances with 'ubuntu' image."
+- "Case-sensitive search for 'DB' in any field."
+- "Find instances in 'nova' availability zone."
+- "Show first 15 search results for 'server' in names."
 
 **manage_instance**
 - "Start the web-server-01 instance."
@@ -141,9 +189,10 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 **manage_volume**
 - "Create a 100GB volume named data-vol."
+- "Extend backup-vol to 200GB size."
 - "Delete the old-backup volume."
 - "List all volumes in the project."
-- "Show volume information."
+- "Show volume information and usage."
 
 ### 📈 Monitoring & Resources
 
@@ -178,15 +227,53 @@ For volume operations with delete action:
 ## 10. Sample Multi-step Strategy
 
 Query: "Restart web-server-01 and show its status"
-1. manage_openstack_instance("web-server-01", "restart") → capture result
-2. get_openstack_instance_details("web-server-01") → show current state
+1. manage_instance("web-server-01", "restart") → capture result
+2. get_instance_details(instance_names=["web-server-01"]) → show current state
 3. Answer: restart triggered + current status + operation outcome
+
+Query: "Find all web servers and show their details"
+1. search_instances("web", "name") → get matching instances
+2. Extract instance names from search results
+3. get_instance_details(instance_names=extracted_names) → get detailed info
+4. Answer: search results + detailed information for found instances
+
+Query: "Show me instances 21-40 that are currently active"
+1. search_instances("ACTIVE", "status", limit=20, offset=20) → get active instances with pagination
+2. Answer: paginated list of active instances with navigation info
 
 ---
 
-## 11. Meta
+## 11. Performance and Scalability Guidelines
+
+### Large Environment Handling
+- **Default Pagination**: Always use reasonable limits (50 instances default, 200 maximum)
+- **Performance Metrics**: Tool responses include processing time and throughput metrics
+- **Memory Management**: Pagination prevents memory overflow in large environments
+- **Connection Optimization**: Automatic connection caching and reuse
+
+### Best Practices
+- For browsing large datasets: Use pagination with consistent limit/offset
+- For targeted searches: Use search_instances with specific criteria
+- For bulk operations: Process in batches respecting safety limits
+- For performance monitoring: Check returned metrics for optimization opportunities
+
+### Safety Warnings
+- include_all=True parameter bypasses safety limits (use only for small environments)
+- Large result sets may impact performance and memory usage
+- Always inform users about pagination when results are truncated
+
+---
+
+## 12. Meta
 
 Keep this template updated when new tools are added (update Sections 3 & 4). Can be delivered via the get_prompt_template MCP tool if implemented.
+
+**Recent Updates:**
+- Added pagination support for get_instance_details (limit, offset, include_all parameters)
+- Introduced search_instances tool with advanced filtering capabilities
+- Enhanced performance optimization for large-scale environments
+- Added connection caching and automatic retry mechanisms
+- Improved error handling with fallback data support
 
 ---
 

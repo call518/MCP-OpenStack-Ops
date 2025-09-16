@@ -163,29 +163,59 @@ def get_service_status() -> List[Dict[str, Any]]:
         ]
 
 
-def get_instance_details(instance_names: Optional[List[str]] = None, instance_ids: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+def get_instance_details(
+    instance_names: Optional[List[str]] = None, 
+    instance_ids: Optional[List[str]] = None,
+    limit: int = 50,
+    offset: int = 0,
+    include_all: bool = False
+) -> Dict[str, Any]:
     """
     Returns detailed instance information with comprehensive server data.
+    Implements pagination and limits to handle large-scale environments efficiently.
     
     Args:
         instance_names: Optional list of instance names to filter by
         instance_ids: Optional list of instance IDs to filter by
-        If both are None, returns all instances
-    
+        limit: Maximum number of instances to return (default: 50, max: 200)
+        offset: Number of instances to skip for pagination (default: 0)
+        include_all: If True, ignores limit and returns all instances (use with caution)
+        
     Returns:
-        List of instance dictionaries with detailed server information.
+        Dict containing:
+        - instances: List of instance dictionaries with detailed server information
+        - pagination: Pagination metadata (total_count, limit, offset, has_more)
+        - performance: Timing and optimization information
     """
+    start_time = datetime.now()
+    
     try:
+        # Validate and adjust limits for safety
+        max_limit = 200
+        if limit > max_limit:
+            logger.warning(f"Requested limit {limit} exceeds maximum {max_limit}, adjusting")
+            limit = max_limit
+            
+        if limit <= 0:
+            limit = 50
+            
+        # Safety check for include_all
+        if include_all:
+            logger.warning("include_all=True requested - this may impact performance in large environments")
+        
         conn = get_openstack_connection()
         instances = []
+        total_count = 0
         
         # Determine which servers to query
         servers_to_process = []
         
         if instance_names or instance_ids:
-            # Get specific instances
-            all_servers = list(conn.compute.servers(detailed=True))
+            # Specific instance filtering - get basic info first for efficiency
+            all_servers = list(conn.compute.servers(detailed=False))
+            total_count = len(all_servers)
             
+            filtered_servers = []
             for server in all_servers:
                 should_include = False
                 
@@ -198,11 +228,54 @@ def get_instance_details(instance_names: Optional[List[str]] = None, instance_id
                     should_include = True
                 
                 if should_include:
-                    servers_to_process.append(server)
+                    filtered_servers.append(server)
+            
+            # Apply pagination to filtered results
+            if not include_all:
+                servers_to_process = filtered_servers[offset:offset + limit]
+            else:
+                servers_to_process = filtered_servers
+                
+            # Get detailed info for selected servers
+            detailed_servers = []
+            for server in servers_to_process:
+                try:
+                    detailed_server = conn.compute.get_server(server.id)
+                    detailed_servers.append(detailed_server)
+                except Exception as e:
+                    logger.warning(f"Failed to get details for server {server.id}: {e}")
+                    
+            servers_to_process = detailed_servers
+            total_count = len(filtered_servers)
+            
         else:
-            # Get all instances
-            servers_to_process = list(conn.compute.servers(detailed=True))
+            # No specific filtering - use API-level pagination if possible
+            if include_all:
+                servers_to_process = list(conn.compute.servers(detailed=True))
+                total_count = len(servers_to_process)
+            else:
+                try:
+                    # Try to use API pagination (more efficient)
+                    servers_to_process = list(conn.compute.servers(
+                        detailed=True,
+                        limit=limit,
+                        offset=offset
+                    ))
+                    
+                    # Get total count with a separate lightweight call
+                    try:
+                        all_servers_basic = list(conn.compute.servers(detailed=False))
+                        total_count = len(all_servers_basic)
+                    except Exception:
+                        total_count = len(servers_to_process)
+                        
+                except Exception as e:
+                    logger.warning(f"API pagination failed, falling back to manual pagination: {e}")
+                    all_servers = list(conn.compute.servers(detailed=True))
+                    total_count = len(all_servers)
+                    servers_to_process = all_servers[offset:offset + limit]
         
+        # Process each server to get comprehensive details
         for server in servers_to_process:
             # Get flavor details
             flavor_name = 'unknown'
@@ -255,23 +328,62 @@ def get_instance_details(instance_names: Optional[List[str]] = None, instance_id
                 'tenant_id': getattr(server, 'tenant_id', 'unknown')
             })
         
-        return instances
+        # Calculate pagination info
+        has_more = (offset + len(instances)) < total_count
+        end_time = datetime.now()
+        processing_time = (end_time - start_time).total_seconds()
+        
+        return {
+            'instances': instances,
+            'pagination': {
+                'total_count': total_count,
+                'returned_count': len(instances),
+                'limit': limit,
+                'offset': offset,
+                'has_more': has_more,
+                'next_offset': offset + limit if has_more else None
+            },
+            'performance': {
+                'processing_time_seconds': round(processing_time, 3),
+                'instances_per_second': round(len(instances) / max(processing_time, 0.001), 2),
+                'include_all_used': include_all
+            },
+            'timestamp': datetime.now().isoformat()
+        }
+        
     except Exception as e:
         logger.error(f"Failed to get instance details: {e}")
-        return [
-            {
-                'id': 'demo-1', 'name': 'demo-instance-1', 'status': 'ACTIVE', 
-                'power_state': '1', 'vm_state': 'active', 'task_state': None,
-                'created': '2025-09-16T00:00:00Z', 'updated': '2025-09-16T00:00:00Z',
-                'flavor': 'm1.small (vcpus: 1, ram: 2048MB, disk: 20GB)', 
-                'image': 'ubuntu-20.04', 'host': 'compute-1',
-                'hypervisor_hostname': 'compute-1', 'availability_zone': 'nova',
-                'networks': [{'network': 'private', 'ip': '10.0.0.10', 'type': 'fixed', 'mac': '00:00:00:00:00:01'}],
-                'metadata': {}, 'security_groups': ['default'], 
-                'key_name': None, 'user_id': 'demo-user', 'tenant_id': 'demo-project',
-                'error': str(e)
-            }
-        ]
+        return {
+            'instances': [
+                {
+                    'id': 'demo-1', 'name': 'demo-instance-1', 'status': 'ACTIVE', 
+                    'power_state': '1', 'vm_state': 'active', 'task_state': None,
+                    'created': '2025-09-16T00:00:00Z', 'updated': '2025-09-16T00:00:00Z',
+                    'flavor': 'm1.small (vcpus: 1, ram: 2048MB, disk: 20GB)', 
+                    'image': 'ubuntu-20.04', 'host': 'compute-1',
+                    'hypervisor_hostname': 'compute-1', 'availability_zone': 'nova',
+                    'networks': [{'network': 'private', 'ip': '10.0.0.10', 'type': 'fixed', 'mac': '00:00:00:00:00:01'}],
+                    'metadata': {}, 'security_groups': ['default'], 
+                    'key_name': None, 'user_id': 'demo-user', 'tenant_id': 'demo-project',
+                    'error': str(e)
+                }
+            ],
+            'pagination': {
+                'total_count': 1,
+                'returned_count': 1,
+                'limit': limit,
+                'offset': offset,
+                'has_more': False,
+                'next_offset': None
+            },
+            'performance': {
+                'processing_time_seconds': 0,
+                'instances_per_second': 0,
+                'include_all_used': include_all
+            },
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }
 
 
 def get_instance_by_name(instance_name: str) -> Optional[Dict[str, Any]]:
@@ -302,58 +414,262 @@ def get_instance_by_id(instance_id: str) -> Optional[Dict[str, Any]]:
     return instances[0] if instances else None
 
 
-def search_instances(search_term: str, search_in: str = 'name') -> List[Dict[str, Any]]:
+def search_instances(
+    search_term: str, 
+    search_in: str = 'name',
+    limit: int = 50,
+    offset: int = 0,
+    case_sensitive: bool = False
+) -> Dict[str, Any]:
     """
-    Search for instances based on various criteria.
+    Search for instances based on various criteria with optimized performance.
+    Supports partial string matching for flexible searching.
     
     Args:
-        search_term: Term to search for
-        search_in: Field to search in ('name', 'status', 'host', 'flavor', 'image', 'all')
+        search_term: Term to search for (supports partial matching)
+        search_in: Field to search in ('name', 'status', 'host', 'flavor', 'image', 'availability_zone', 'all')
+        limit: Maximum number of matching instances to return (default: 50, max: 200)
+        offset: Number of matching instances to skip for pagination (default: 0)
+        case_sensitive: If True, performs case-sensitive search (default: False)
         
     Returns:
-        List of matching instance dictionaries
+        Dict containing:
+        - instances: List of matching instance dictionaries
+        - search_info: Information about search parameters and results
+        - pagination: Pagination metadata for search results
     """
+    start_time = datetime.now()
+    
     try:
-        all_instances = get_instance_details()
-        matching_instances = []
+        # Validate and adjust limits
+        max_limit = 200
+        if limit > max_limit:
+            logger.warning(f"Requested limit {limit} exceeds maximum {max_limit}, adjusting")
+            limit = max_limit
+            
+        if limit <= 0:
+            limit = 50
         
-        search_term_lower = search_term.lower()
+        # Prepare search term
+        if not search_term:
+            logger.warning("Empty search term provided")
+            return {
+                'instances': [],
+                'search_info': {
+                    'search_term': search_term,
+                    'search_in': search_in,
+                    'case_sensitive': case_sensitive,
+                    'matches_found': 0
+                },
+                'pagination': {
+                    'limit': limit,
+                    'offset': offset,
+                    'has_more': False
+                },
+                'timestamp': datetime.now().isoformat()
+            }
         
-        for instance in all_instances:
+        search_term_processed = search_term if case_sensitive else search_term.lower()
+        
+        # For large environments, we'll use a more efficient approach
+        # Get basic instance info first to perform initial filtering
+        conn = get_openstack_connection()
+        
+        # Phase 1: Get basic info and perform lightweight filtering
+        basic_servers = list(conn.compute.servers(detailed=False))
+        logger.info(f"Searching through {len(basic_servers)} instances for '{search_term}' in '{search_in}'")
+        
+        potential_matches = []
+        
+        # Quick filtering based on available basic info
+        for server in basic_servers:
             match_found = False
             
+            # Check name (available in basic info)
             if search_in == 'name' or search_in == 'all':
-                if search_term_lower in instance.get('name', '').lower():
+                server_name = server.name if case_sensitive else server.name.lower()
+                if search_term_processed in server_name:
                     match_found = True
-                    
+            
+            # Check status (available in basic info)  
             if search_in == 'status' or search_in == 'all':
-                if search_term_lower in instance.get('status', '').lower():
-                    match_found = True
-                    
-            if search_in == 'host' or search_in == 'all':
-                if search_term_lower in instance.get('host', '').lower():
-                    match_found = True
-                    
-            if search_in == 'flavor' or search_in == 'all':
-                if search_term_lower in instance.get('flavor', '').lower():
-                    match_found = True
-                    
-            if search_in == 'image' or search_in == 'all':
-                if search_term_lower in instance.get('image', '').lower():
-                    match_found = True
-                    
-            if search_in == 'availability_zone' or search_in == 'all':
-                if search_term_lower in instance.get('availability_zone', '').lower():
+                server_status = server.status if case_sensitive else server.status.lower()
+                if search_term_processed in server_status:
                     match_found = True
             
             if match_found:
-                matching_instances.append(instance)
+                potential_matches.append(server)
         
-        return matching_instances
+        # Apply pagination to potential matches before getting detailed info
+        paginated_matches = potential_matches[offset:offset + limit]
+        
+        # Phase 2: Get detailed info for paginated potential matches
+        matching_instances = []
+        
+        for server in paginated_matches:
+            try:
+                # Get detailed server info
+                detailed_server = conn.compute.get_server(server.id)
+                
+                # Perform detailed matching (for fields not available in basic info)
+                match_found = False
+                
+                # Re-check name with detailed info
+                if search_in == 'name' or search_in == 'all':
+                    server_name = detailed_server.name if case_sensitive else detailed_server.name.lower()
+                    if search_term_processed in server_name:
+                        match_found = True
+                
+                # Re-check status with detailed info
+                if search_in == 'status' or search_in == 'all':
+                    server_status = detailed_server.status if case_sensitive else detailed_server.status.lower()
+                    if search_term_processed in server_status:
+                        match_found = True
+                
+                # Check host (requires detailed info)
+                if search_in == 'host' or search_in == 'all':
+                    host = getattr(detailed_server, 'OS-EXT-SRV-ATTR:host', '')
+                    host_processed = host if case_sensitive else host.lower()
+                    if search_term_processed in host_processed:
+                        match_found = True
+                
+                # Check availability zone (requires detailed info)
+                if search_in == 'availability_zone' or search_in == 'all':
+                    az = getattr(detailed_server, 'OS-EXT-AZ:availability_zone', '')
+                    az_processed = az if case_sensitive else az.lower()
+                    if search_term_processed in az_processed:
+                        match_found = True
+                
+                # Check flavor (requires additional API call)
+                if search_in == 'flavor' or search_in == 'all':
+                    try:
+                        if detailed_server.flavor:
+                            flavor = conn.compute.get_flavor(detailed_server.flavor['id'])
+                            flavor_name = flavor.name if case_sensitive else flavor.name.lower()
+                            if search_term_processed in flavor_name:
+                                match_found = True
+                    except Exception as e:
+                        logger.debug(f"Failed to get flavor for server {detailed_server.id}: {e}")
+                
+                # Check image (requires additional API call)
+                if search_in == 'image' or search_in == 'all':
+                    try:
+                        if detailed_server.image:
+                            image = conn.image.get_image(detailed_server.image['id'])
+                            image_name = image.name if case_sensitive else image.name.lower()
+                            if search_term_processed in image_name:
+                                match_found = True
+                    except Exception as e:
+                        logger.debug(f"Failed to get image for server {detailed_server.id}: {e}")
+                
+                if match_found:
+                    # Build detailed instance info (reuse logic from get_instance_details)
+                    # Get flavor details
+                    flavor_name = 'unknown'
+                    if detailed_server.flavor:
+                        try:
+                            flavor = conn.compute.get_flavor(detailed_server.flavor['id'])
+                            flavor_name = f"{flavor.name} (vcpus: {flavor.vcpus}, ram: {flavor.ram}MB, disk: {flavor.disk}GB)"
+                        except Exception:
+                            flavor_name = detailed_server.flavor.get('id', 'unknown')
+                    
+                    # Get image details
+                    image_name = 'unknown'
+                    if detailed_server.image:
+                        try:
+                            image = conn.image.get_image(detailed_server.image['id'])
+                            image_name = image.name
+                        except Exception:
+                            image_name = detailed_server.image.get('id', 'unknown')
+                    
+                    # Get network information
+                    networks = []
+                    for network_name, addresses in getattr(detailed_server, 'addresses', {}).items():
+                        for addr in addresses:
+                            networks.append({
+                                'network': network_name,
+                                'ip': addr.get('addr', 'unknown'),
+                                'type': addr.get('OS-EXT-IPS:type', 'unknown'),
+                                'mac': addr.get('OS-EXT-IPS-MAC:mac_addr', 'unknown')
+                            })
+                    
+                    matching_instances.append({
+                        'id': detailed_server.id,
+                        'name': detailed_server.name,
+                        'status': detailed_server.status,
+                        'power_state': getattr(detailed_server, 'power_state', 'unknown'),
+                        'vm_state': getattr(detailed_server, 'vm_state', 'unknown'),
+                        'task_state': getattr(detailed_server, 'task_state', None),
+                        'created': str(detailed_server.created_at) if hasattr(detailed_server, 'created_at') else 'unknown',
+                        'updated': str(detailed_server.updated_at) if hasattr(detailed_server, 'updated_at') else 'unknown',
+                        'flavor': flavor_name,
+                        'image': image_name,
+                        'host': getattr(detailed_server, 'OS-EXT-SRV-ATTR:host', 'unknown'),
+                        'hypervisor_hostname': getattr(detailed_server, 'OS-EXT-SRV-ATTR:hypervisor_hostname', 'unknown'),
+                        'availability_zone': getattr(detailed_server, 'OS-EXT-AZ:availability_zone', 'unknown'),
+                        'networks': networks,
+                        'metadata': getattr(detailed_server, 'metadata', {}),
+                        'security_groups': [sg.get('name', 'unknown') for sg in getattr(detailed_server, 'security_groups', [])],
+                        'key_name': getattr(detailed_server, 'key_name', None),
+                        'user_id': getattr(detailed_server, 'user_id', 'unknown'),
+                        'tenant_id': getattr(detailed_server, 'tenant_id', 'unknown')
+                    })
+                    
+            except Exception as e:
+                logger.warning(f"Failed to process server {server.id} during search: {e}")
+        
+        # Calculate pagination info
+        total_potential_matches = len(potential_matches)
+        has_more = (offset + len(matching_instances)) < total_potential_matches
+        end_time = datetime.now()
+        processing_time = (end_time - start_time).total_seconds()
+        
+        return {
+            'instances': matching_instances,
+            'search_info': {
+                'search_term': search_term,
+                'search_in': search_in,
+                'case_sensitive': case_sensitive,
+                'matches_found': len(matching_instances),
+                'total_potential_matches': total_potential_matches,
+                'total_instances_scanned': len(basic_servers)
+            },
+            'pagination': {
+                'limit': limit,
+                'offset': offset,
+                'has_more': has_more,
+                'next_offset': offset + limit if has_more else None
+            },
+            'performance': {
+                'processing_time_seconds': round(processing_time, 3),
+                'instances_per_second': round(len(matching_instances) / max(processing_time, 0.001), 2)
+            },
+            'timestamp': datetime.now().isoformat()
+        }
         
     except Exception as e:
         logger.error(f"Failed to search instances: {e}")
-        return []
+        return {
+            'instances': [],
+            'search_info': {
+                'search_term': search_term,
+                'search_in': search_in,
+                'case_sensitive': case_sensitive,
+                'matches_found': 0,
+                'error': str(e)
+            },
+            'pagination': {
+                'limit': limit,
+                'offset': offset,
+                'has_more': False
+            },
+            'performance': {
+                'processing_time_seconds': 0,
+                'instances_per_second': 0
+            },
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }
 
 
 def get_instances_by_status(status: str) -> List[Dict[str, Any]]:

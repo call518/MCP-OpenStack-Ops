@@ -12,14 +12,17 @@
 ## Features
 
 - ✅ **OpenStack Integration**: Direct integration with OpenStack SDK for real-time cluster operations
-- ✅ **Comprehensive Monitoring**: Cluster status, service monitoring, resource utilization tracking
-- ✅ **Instance Management**: Start, stop, restart, pause/unpause OpenStack instances
+- ✅ **Large-Scale Environment Support**: Pagination and limits for environments with thousands of instances
+- ✅ **Comprehensive Monitoring**: Cluster status, service monitoring, resource utilization tracking with performance metrics
+- ✅ **Advanced Instance Management**: Start, stop, restart, pause/unpause OpenStack instances with pagination support
+- ✅ **Intelligent Search**: Flexible instance search with partial matching and case-sensitive options
 - ✅ **Volume Operations**: Create, delete, list, and manage OpenStack volumes
 - ✅ **Network Analysis**: Detailed network, subnet, router, and security group information
+- ✅ **Connection Optimization**: Global connection caching and automatic retry mechanisms
 - ✅ **Flexible Transport**: Support for both `stdio` and `streamable-http` transports
-- ✅ **Comprehensive Logging**: Configurable logging levels with structured output  
+- ✅ **Comprehensive Logging**: Configurable logging levels with structured output and performance tracking
 - ✅ **Environment Configuration**: Support for environment variables and CLI arguments
-- ✅ **Error Handling**: Robust error handling and configuration validation
+- ✅ **Error Handling**: Robust error handling and configuration validation with fallback data
 - ✅ **Docker Support**: Containerized deployment with Docker Compose
 
 ---
@@ -29,15 +32,24 @@
 ### 🔍 Monitoring Tools
 1. **`get_cluster_status`** - Overall cluster status with instances, networks, and services
 2. **`get_service_status`** - OpenStack service health and API endpoint status
-3. **`get_instance_details`** - Detailed information for specific instances
-4. **`monitor_resources`** - Real-time resource usage and capacity monitoring
+3. **`get_instance_details`** - Detailed information for specific instances with pagination support
+   - Supports filtering by instance names or IDs
+   - Pagination parameters: `limit` (default 50, max 200), `offset` (default 0)
+   - Performance metrics and processing time tracking
+   - Safety limits for large-scale environments
+4. **`search_instances`** - Advanced instance search with flexible criteria
+   - Search fields: name, status, host, flavor, image, availability_zone, all
+   - Partial string matching with case-sensitive options
+   - Optimized 2-phase search for large environments
+   - Pagination support for search results
+5. **`monitor_resources`** - Real-time resource usage and capacity monitoring
 
 ### 🌐 Network Tools  
-5. **`get_network_details`** - Network, subnet, router, and security group details
+6. **`get_network_details`** - Network, subnet, router, and security group details
 
 ### ⚙️ Management Tools
-6. **`manage_instance`** - Instance lifecycle operations (start/stop/restart/pause/unpause)
-7. **`manage_volume`** - Volume management operations (create/delete/list)
+7. **`manage_instance`** - Instance lifecycle operations (start/stop/restart/pause/unpause)
+8. **`manage_volume`** - Volume management operations (create/delete/list/extend)
 
 ---
 
@@ -176,9 +188,25 @@ Options:
 → "What's the current resource utilization?"
 → Calls: monitor_resources()
 
-# Get instance details
+# Get instance details with pagination
+→ "Show details for the first 20 instances"
+→ Calls: get_instance_details(limit=20, offset=0)
+
+# Get specific instance details
 → "Show details for instance web-server-01"
-→ Calls: get_instance_details("web-server-01")
+→ Calls: get_instance_details(instance_names="web-server-01")
+
+# Search instances with advanced options
+→ "Find all active instances containing 'web' in their name"
+→ Calls: search_instances("web", "name", limit=50)
+
+# Case-sensitive search across all fields
+→ "Search for 'DB' in any instance field, case-sensitive"
+→ Calls: search_instances("DB", "all", case_sensitive=True)
+
+# Search with pagination
+→ "Show next 20 instances with 'server' in the name"
+→ Calls: search_instances("server", "name", limit=20, offset=20)
 ```
 
 ### 🌐 Network Examples
@@ -205,10 +233,57 @@ Options:
 
 # Volume management
 → "Create a 100GB volume named backup-vol"
-→ Calls: manage_volume("backup-vol", "create", 100)
+→ Calls: manage_volume("backup-vol", "create", size=100)
+
+→ "Extend backup-vol to 200GB"
+→ Calls: manage_volume("backup-vol", "extend", new_size=200)
 
 → "List all volumes"
 → Calls: manage_volume("", "list")
+```
+
+---
+
+## Example Queries
+
+📋 **[Complete Query Examples →](src/mcp_openstack_ops/prompt_template.md#7-example-queries)**
+
+---
+
+## Performance Optimization
+
+### Large-Scale Environment Support
+
+The MCP server is optimized for large OpenStack environments with thousands of instances:
+
+**Pagination Features:**
+- Default limits prevent memory overflow (50 instances per request)
+- Configurable safety limits (maximum 200 instances per request)
+- Offset-based pagination for browsing large datasets
+- Performance metrics tracking (processing time, instances per second)
+
+**Search Optimization:**
+- 2-phase search process (basic info filtering → detailed info retrieval)
+- Intelligent caching with connection reuse
+- Selective API calls to minimize overhead
+- Case-sensitive search options for precise filtering
+
+**Connection Management:**
+- Global connection caching with validity testing
+- Automatic retry mechanisms for transient failures
+- Connection pooling for high-throughput scenarios
+
+**Usage Examples:**
+```bash
+# Safe large environment browsing
+get_instance_details(limit=50, offset=0)     # First 50 instances
+get_instance_details(limit=50, offset=50)    # Next 50 instances
+
+# Emergency override for small environments
+get_instance_details(include_all=True)       # All instances (use with caution)
+
+# Optimized search for large datasets
+search_instances("web", "name", limit=20)    # Search with reasonable limit
 ```
 
 ---

@@ -148,15 +148,23 @@ async def get_service_status() -> str:
 
 
 @mcp.tool()
-async def get_instance_details(instance_names: str = "", instance_ids: str = "", all_instances: bool = False) -> str:
+async def get_instance_details(
+    instance_names: str = "", 
+    instance_ids: str = "", 
+    all_instances: bool = False,
+    limit: int = 50,
+    offset: int = 0,
+    include_all: bool = False
+) -> str:
     """
-    Provides detailed information and status for OpenStack instances.
+    Provides detailed information and status for OpenStack instances with pagination support.
     
     Functions:
-    - Query basic instance information (name, ID, status, image, flavor)
+    - Query basic instance information (name, ID, status, image, flavor) with efficient pagination
     - Collect network connection status and IP address information
     - Check CPU, memory, storage resource usage and allocation
     - Provide instance metadata, keypair, and security group settings
+    - Support large-scale environments with configurable limits
     
     Use when user requests specific instance information, VM details, server analysis, or instance troubleshooting.
     
@@ -164,12 +172,15 @@ async def get_instance_details(instance_names: str = "", instance_ids: str = "",
         instance_names: Comma-separated list of instance names to query (optional)
         instance_ids: Comma-separated list of instance IDs to query (optional)
         all_instances: If True, returns all instances (default: False)
+        limit: Maximum number of instances to return (default: 50, max: 200)
+        offset: Number of instances to skip for pagination (default: 0)
+        include_all: If True, ignore pagination limits (use with caution in large environments)
         
     Returns:
-        Instance detailed information in JSON format with instance, network, and resource data.
+        Instance detailed information in JSON format with instance, network, resource data, and pagination info.
     """
     try:
-        logger.info(f"Fetching instance details - names: {instance_names}, ids: {instance_ids}, all: {all_instances}")
+        logger.info(f"Fetching instance details - names: {instance_names}, ids: {instance_ids}, all: {all_instances}, limit: {limit}, offset: {offset}")
         
         names_list = None
         ids_list = None
@@ -180,11 +191,32 @@ async def get_instance_details(instance_names: str = "", instance_ids: str = "",
         if instance_ids.strip():
             ids_list = [id.strip() for id in instance_ids.split(',') if id.strip()]
         
-        # If all_instances is True or no specific filters provided, get all instances
+        # Call the updated function with pagination parameters
         if all_instances or (not names_list and not ids_list):
-            details = _get_instance_details()
+            details_result = _get_instance_details(
+                limit=limit, 
+                offset=offset, 
+                include_all=include_all
+            )
         else:
-            details = _get_instance_details(instance_names=names_list, instance_ids=ids_list)
+            details_result = _get_instance_details(
+                instance_names=names_list, 
+                instance_ids=ids_list,
+                limit=limit, 
+                offset=offset, 
+                include_all=include_all
+            )
+        
+        # Handle both old return format (list) and new return format (dict)
+        if isinstance(details_result, dict):
+            instances = details_result.get('instances', [])
+            pagination_info = details_result.get('pagination', {})
+            performance_info = details_result.get('performance', {})
+        else:
+            # Backward compatibility with old list return format
+            instances = details_result
+            pagination_info = {}
+            performance_info = {}
         
         result = {
             "timestamp": datetime.now().isoformat(),
@@ -193,8 +225,15 @@ async def get_instance_details(instance_names: str = "", instance_ids: str = "",
                 "instance_ids": ids_list,
                 "all_instances": all_instances
             },
-            "instances_found": len(details),
-            "instance_details": details
+            "pagination": {
+                "limit": limit,
+                "offset": offset,
+                "include_all": include_all,
+                **pagination_info
+            },
+            "instances_found": len(instances),
+            "instance_details": instances,
+            "performance": performance_info
         }
         
         return json.dumps(result, indent=2, ensure_ascii=False)
@@ -206,38 +245,76 @@ async def get_instance_details(instance_names: str = "", instance_ids: str = "",
 
 
 @mcp.tool()
-async def search_instances(search_term: str, search_in: str = "name") -> str:
+async def search_instances(
+    search_term: str, 
+    search_in: str = "name",
+    limit: int = 50,
+    offset: int = 0,
+    case_sensitive: bool = False
+) -> str:
     """
-    Search for OpenStack instances based on various criteria.
+    Search for OpenStack instances based on various criteria with efficient pagination.
     
     Functions:
     - Search instances by name, status, host, flavor, image, or availability zone
-    - Support partial matching (case-insensitive)
-    - Return detailed information for matching instances
+    - Support partial matching with configurable case sensitivity
+    - Return detailed information for matching instances with pagination
+    - Optimized for large-scale environments with intelligent filtering
     
     Args:
-        search_term: Term to search for
+        search_term: Term to search for (supports partial matching)
         search_in: Field to search in ('name', 'status', 'host', 'flavor', 'image', 'availability_zone', 'all')
+        limit: Maximum number of matching instances to return (default: 50, max: 200)
+        offset: Number of matching instances to skip for pagination (default: 0)
+        case_sensitive: If True, performs case-sensitive search (default: False)
         
     Returns:
-        List of matching instances with detailed information
+        List of matching instances with detailed information and pagination metadata
     """
     try:
-        logger.info(f"Searching instances for '{search_term}' in '{search_in}'")
+        logger.info(f"Searching instances for '{search_term}' in '{search_in}' with limit {limit}, offset {offset}")
         
-        matching_instances = _search_instances(search_term, search_in)
+        search_result = _search_instances(
+            search_term=search_term, 
+            search_in=search_in,
+            limit=limit,
+            offset=offset,
+            case_sensitive=case_sensitive
+        )
+        
+        # Handle both old return format (list) and new return format (dict)
+        if isinstance(search_result, dict):
+            instances = search_result.get('instances', [])
+            search_info = search_result.get('search_info', {})
+            pagination_info = search_result.get('pagination', {})
+            performance_info = search_result.get('performance', {})
+        else:
+            # Backward compatibility with old list return format
+            instances = search_result
+            search_info = {
+                'search_term': search_term,
+                'search_in': search_in,
+                'case_sensitive': case_sensitive,
+                'matches_found': len(instances)
+            }
+            pagination_info = {'limit': limit, 'offset': offset, 'has_more': False}
+            performance_info = {}
         
         result = {
             "timestamp": datetime.now().isoformat(),
-            "search_criteria": {
-                "search_term": search_term,
-                "search_in": search_in
-            },
-            "instances_found": len(matching_instances),
-            "matching_instances": matching_instances
+            "search_info": search_info,
+            "pagination": pagination_info,
+            "instances_found": len(instances),
+            "matching_instances": instances,
+            "performance": performance_info
         }
         
         return json.dumps(result, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to search instances - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
         
     except Exception as e:
         error_msg = f"Error: Failed to search instances - {str(e)}"
