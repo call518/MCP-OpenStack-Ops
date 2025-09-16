@@ -11,13 +11,13 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from functions import (
     get_openstack_connection, 
-    get_cluster_status, 
-    get_service_status, 
-    get_instance_details, 
-    get_network_details,
-    manage_instance,
-    manage_volume,
-    monitor_resources
+    get_cluster_status as _get_cluster_status, 
+    get_service_status as _get_service_status, 
+    get_instance_details as _get_instance_details, 
+    get_network_details as _get_network_details,
+    manage_instance as _manage_instance,
+    manage_volume as _manage_volume,
+    monitor_resources as _monitor_resources
 )
 
 import json
@@ -82,7 +82,7 @@ async def get_cluster_status() -> str:
     """
     try:
         logger.info("Fetching OpenStack cluster status")
-        status = get_cluster_status()
+        status = _get_cluster_status()
         
         result = {
             "timestamp": datetime.now().isoformat(),
@@ -120,7 +120,7 @@ async def get_service_status() -> str:
     """
     try:
         logger.info("Fetching OpenStack service status")
-        services = get_service_status()
+        services = _get_service_status()
         
         result = {
             "timestamp": datetime.now().isoformat(),
@@ -163,7 +163,7 @@ async def get_instance_details(instance_name: str) -> str:
             return "Error: Instance name is required"
             
         logger.info(f"Fetching details for instance: {instance_name}")
-        details = get_instance_details(instance_name.strip())
+        details = _get_instance_details(instance_name.strip())
         
         result = {
             "timestamp": datetime.now().isoformat(),
@@ -200,7 +200,7 @@ async def get_network_details(network_name: str = "all") -> str:
     """
     try:
         logger.info(f"Fetching network details: {network_name}")
-        details = get_network_details(network_name)
+        details = _get_network_details(network_name)
         
         result = {
             "timestamp": datetime.now().isoformat(), 
@@ -244,7 +244,7 @@ async def manage_instance(instance_name: str, action: str) -> str:
             return "Error: Action is required (start, stop, restart, pause, unpause)"
             
         logger.info(f"Managing instance '{instance_name}' with action '{action}'")
-        result = manage_instance(instance_name.strip(), action.strip())
+        result = _manage_instance(instance_name.strip(), action.strip())
         
         response = {
             "timestamp": datetime.now().isoformat(),
@@ -296,7 +296,7 @@ async def manage_volume(volume_name: str, action: str, size: int = 1, instance_n
         if instance_name:
             kwargs['instance_name'] = instance_name.strip()
             
-        result = manage_volume(volume_name.strip(), action.strip(), **kwargs)
+        result = _manage_volume(volume_name.strip(), action.strip(), **kwargs)
         
         response = {
             "timestamp": datetime.now().isoformat(),
@@ -331,7 +331,7 @@ async def monitor_resources() -> str:
     """
     try:
         logger.info("Monitoring OpenStack cluster resources")
-        monitoring_data = monitor_resources()
+        monitoring_data = _monitor_resources()
         
         result = {
             "timestamp": datetime.now().isoformat(),
