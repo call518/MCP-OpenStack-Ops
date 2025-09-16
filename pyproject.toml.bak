@@ -1,10 +1,9 @@
 [project]
 name = "mcp-openstack-ops"
-version = "0.1.0"
-description = "OpenStack operations automation MCP server"
+version = "0.0.0"
+description = "MCP Server Template with logging and transport configuration"
 readme = "README.md"
 requires-python = ">=3.11"
-authors = [{ name = "JungJungIn", email = "call518@gmail.com" }]
 dependencies = [
     "fastmcp>=2.11.1"
 ]
@@ -15,15 +14,9 @@ dev = [
     "pytest-asyncio>=0.21.0"
 ]
 
-[project.scripts]
-mcp-openstack-ops = "mcp_openstack_ops.mcp_main:main"
-
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.setuptools.package-dir]
-"" = "src"
+[project.scripts]
+mcp-server = "src.mcp_openstack_ops.mcp_main:main"

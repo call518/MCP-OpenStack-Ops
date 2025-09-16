@@ -5,11 +5,11 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 echo "🔍 Starting MCP Inspector with published package..."
-echo "📦 Package: MCP-NAME"
+echo "📦 Package: mcp-openstack-ops"
 
 # Check if package name has been customized
-if grep -q "MCP-NAME" pyproject.toml; then
-    echo "⚠️  Warning: Package name 'MCP-NAME' hasn't been customized."
+if grep -q "mcp-openstack-ops" pyproject.toml; then
+    echo "⚠️  Warning: Package name 'mcp-openstack-ops' hasn't been customized."
     echo "   Run ./scripts/rename-template.sh first to customize the package."
     echo ""
 fi
@@ -17,4 +17,4 @@ fi
 echo "🚀 Launching MCP Inspector with uvx..."
 
 npx -y @modelcontextprotocol/inspector \
-  -- uvx MCP-NAME
+  -- uvx mcp-openstack-ops
