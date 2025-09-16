@@ -14,10 +14,18 @@ from functions import (
     get_cluster_status as _get_cluster_status, 
     get_service_status as _get_service_status, 
     get_instance_details as _get_instance_details, 
+    get_instance_by_name as _get_instance_by_name,
+    get_instance_by_id as _get_instance_by_id,
+    search_instances as _search_instances,
+    get_instances_by_status as _get_instances_by_status,
     get_network_details as _get_network_details,
     manage_instance as _manage_instance,
     manage_volume as _manage_volume,
-    monitor_resources as _monitor_resources
+    monitor_resources as _monitor_resources,
+    get_project_info as _get_project_info,
+    get_flavor_list as _get_flavor_list,
+    get_image_list as _get_image_list,
+    reset_connection_cache
 )
 
 import json
@@ -140,9 +148,9 @@ async def get_service_status() -> str:
 
 
 @mcp.tool()
-async def get_instance_details(instance_name: str) -> str:
+async def get_instance_details(instance_names: str = "", instance_ids: str = "", all_instances: bool = False) -> str:
     """
-    Provides detailed information and status for a specific OpenStack instance.
+    Provides detailed information and status for OpenStack instances.
     
     Functions:
     - Query basic instance information (name, ID, status, image, flavor)
@@ -153,28 +161,150 @@ async def get_instance_details(instance_name: str) -> str:
     Use when user requests specific instance information, VM details, server analysis, or instance troubleshooting.
     
     Args:
-        instance_name: Name of the instance to query
+        instance_names: Comma-separated list of instance names to query (optional)
+        instance_ids: Comma-separated list of instance IDs to query (optional)
+        all_instances: If True, returns all instances (default: False)
         
     Returns:
         Instance detailed information in JSON format with instance, network, and resource data.
     """
     try:
-        if not instance_name or not instance_name.strip():
-            return "Error: Instance name is required"
+        logger.info(f"Fetching instance details - names: {instance_names}, ids: {instance_ids}, all: {all_instances}")
+        
+        names_list = None
+        ids_list = None
+        
+        if instance_names.strip():
+            names_list = [name.strip() for name in instance_names.split(',') if name.strip()]
             
-        logger.info(f"Fetching details for instance: {instance_name}")
-        details = _get_instance_details(instance_name.strip())
+        if instance_ids.strip():
+            ids_list = [id.strip() for id in instance_ids.split(',') if id.strip()]
+        
+        # If all_instances is True or no specific filters provided, get all instances
+        if all_instances or (not names_list and not ids_list):
+            details = _get_instance_details()
+        else:
+            details = _get_instance_details(instance_names=names_list, instance_ids=ids_list)
         
         result = {
             "timestamp": datetime.now().isoformat(),
-            "requested_instance": instance_name,
+            "filter_applied": {
+                "instance_names": names_list,
+                "instance_ids": ids_list,
+                "all_instances": all_instances
+            },
+            "instances_found": len(details),
             "instance_details": details
         }
         
         return json.dumps(result, indent=2, ensure_ascii=False)
         
     except Exception as e:
-        error_msg = f"Error: Failed to fetch instance '{instance_name}' details - {str(e)}"
+        error_msg = f"Error: Failed to fetch instance details - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+@mcp.tool()
+async def search_instances(search_term: str, search_in: str = "name") -> str:
+    """
+    Search for OpenStack instances based on various criteria.
+    
+    Functions:
+    - Search instances by name, status, host, flavor, image, or availability zone
+    - Support partial matching (case-insensitive)
+    - Return detailed information for matching instances
+    
+    Args:
+        search_term: Term to search for
+        search_in: Field to search in ('name', 'status', 'host', 'flavor', 'image', 'availability_zone', 'all')
+        
+    Returns:
+        List of matching instances with detailed information
+    """
+    try:
+        logger.info(f"Searching instances for '{search_term}' in '{search_in}'")
+        
+        matching_instances = _search_instances(search_term, search_in)
+        
+        result = {
+            "timestamp": datetime.now().isoformat(),
+            "search_criteria": {
+                "search_term": search_term,
+                "search_in": search_in
+            },
+            "instances_found": len(matching_instances),
+            "matching_instances": matching_instances
+        }
+        
+        return json.dumps(result, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to search instances - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+@mcp.tool()
+async def get_instance_by_name(instance_name: str) -> str:
+    """
+    Get detailed information for a specific instance by name.
+    
+    Args:
+        instance_name: Name of the instance to retrieve
+        
+    Returns:
+        Instance detailed information or error message if not found
+    """
+    try:
+        logger.info(f"Getting instance by name: {instance_name}")
+        
+        instance = _get_instance_by_name(instance_name)
+        
+        if not instance:
+            return f"Instance '{instance_name}' not found"
+        
+        result = {
+            "timestamp": datetime.now().isoformat(),
+            "instance_name": instance_name,
+            "instance_details": instance
+        }
+        
+        return json.dumps(result, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to get instance '{instance_name}' - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+@mcp.tool()
+async def get_instances_by_status(status: str) -> str:
+    """
+    Get instances filtered by status.
+    
+    Args:
+        status: Instance status to filter by (ACTIVE, SHUTOFF, ERROR, BUILDING, etc.)
+        
+    Returns:
+        List of instances with the specified status
+    """
+    try:
+        logger.info(f"Getting instances with status: {status}")
+        
+        instances = _get_instances_by_status(status.upper())
+        
+        result = {
+            "timestamp": datetime.now().isoformat(),
+            "status_filter": status.upper(),
+            "instances_found": len(instances),
+            "instances": instances
+        }
+        
+        return json.dumps(result, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to get instances with status '{status}' - {str(e)}"
         logger.error(error_msg)
         return error_msg
 
