@@ -15,18 +15,18 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           persist-credentials: false
-      #- name: Set tag version
-      #  run: |
-      #    VERSION=${GITHUB_REF##refs/tags/}
-      #    echo "VERSION=$VERSION" >> $GITHUB_ENV
+      - name: Set tag version
+        run: |
+          VERSION=${GITHUB_REF##refs/tags/}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
       - name: Inject version into pyproject.toml
         run: sed -i "s|^version = \".*\"|version = \"${VERSION}\"|" pyproject.toml
-      - name: Replace mcp-config.json for PyPI
-        run: cp -f mcp-config.json.pypi mcp-config.json
-      - uses: actions/setup-python@v5
+      # - name: Replace mcp-config.json for PyPI
+      #   run: cp -f mcp-config.json.pypi mcp-config.json
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11.x"
       - name: Install build tool

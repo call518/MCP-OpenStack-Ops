@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "openstack-ops": {
+      "command": "python",
+      "args": ["-m", "mcp_openstack_ops"],
+      "env": {
+        "PYTHONPATH": "/app/src",
+        "OS_AUTH_URL": "http://192.168.35.2:5555",
+        "OS_PROJECT_NAME": "demo",
+        "OS_USERNAME": "demo",
+        "OS_PASSWORD": "demo",
+        "OS_USER_DOMAIN_NAME": "Default",
+        "OS_PROJECT_DOMAIN_NAME": "Default",
+        "OS_REGION_NAME": "RegionOne",
+        "OS_IDENTITY_API_VERSION": "3",
+        "OS_INTERFACE": "internal",
+        "MCP_LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}

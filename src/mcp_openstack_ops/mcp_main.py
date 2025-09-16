@@ -3,7 +3,7 @@ import logging
 import os
 import sys
 from typing import Any, Optional, Dict, List
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 # Add the current directory to sys.path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
