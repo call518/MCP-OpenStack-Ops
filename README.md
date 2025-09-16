@@ -7,6 +7,8 @@
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/call518/MCP-OpenStack-Ops)
 [![BuyMeACoffee](https://raw.githubusercontent.com/pachadotdev/buymeacoffee-badges/main/bmc-donate-yellow.svg)](https://www.buymeacoffee.com/call518)
 
+---
+
 ## Features
 
 - ✅ **OpenStack Integration**: Direct integration with OpenStack SDK for real-time cluster operations
@@ -19,6 +21,8 @@
 - ✅ **Environment Configuration**: Support for environment variables and CLI arguments
 - ✅ **Error Handling**: Robust error handling and configuration validation
 - ✅ **Docker Support**: Containerized deployment with Docker Compose
+
+---
 
 ## MCP Tools Available
 
@@ -34,6 +38,8 @@
 ### ⚙️ Management Tools
 6. **`manage_instance`** - Instance lifecycle operations (start/stop/restart/pause/unpause)
 7. **`manage_volume`** - Volume management operations (create/delete/list)
+
+---
 
 ## Quick Start
 
@@ -107,6 +113,8 @@ Add to your Claude Desktop configuration:
 }
 ```
 
+---
+
 ## Server Configuration
 
 ### Command Line Options
@@ -149,31 +157,7 @@ Options:
 
 **Note**: MCP servers typically use `stdio` transport. HTTP mode is mainly for testing and development.
 
-## Project Structure
-
-```
-.
-├── main.py                         # Main entry point
-├── MANIFEST.in                     # Package manifest
-├── pyproject.toml                  # Project configuration
-├── README.md                       # This file
-├── uv.lock                         # Dependency lock file
-├── .env.example                    # Environment configuration template
-├── Dockerfile.MCP-Server           # Docker container configuration
-├── docker-compose.yml              # Docker Compose setup
-├── docs/                           # Documentation
-├── scripts/
-│   ├── mcp-server-docker-cmd.sh    # Docker container startup script
-│   ├── run-mcp-inspector-local.sh  # Development & testing
-│   └── run-mcp-inspector-pypi.sh   # Test published package
-└── src/
-    └── mcp_openstack_ops/
-        ├── __init__.py
-        ├── __main__.py             # Module execution entry point
-        ├── functions.py            # OpenStack utility functions
-        ├── mcp_main.py             # FastMCP server implementation
-        └── prompt_template.md      # AI assistant prompt template
-```
+---
 
 ## Tool Usage Examples
 
@@ -226,6 +210,8 @@ Options:
 → "List all volumes"
 → Calls: manage_volume("", "list")
 ```
+
+---
 
 ## Development
 
@@ -291,6 +277,8 @@ def my_helper_function(param: str) -> dict:
         raise
 ```
 
+---
+
 ## Testing & Validation
 
 ### Local Testing
@@ -319,6 +307,8 @@ curl -X POST http://localhost:18005/mcp \
   -H "Content-Type: application/json" \
   -d '{"method": "tools/list"}'
 ```
+
+---
 
 ## 🔐 Security & Authentication
 
@@ -412,6 +402,7 @@ docker-compose logs -f mcp-server
 curl -X POST http://localhost:18005/mcp \
   -H "Content-Type: application/json" \
   -d '{"method": "tools/list"}'
+```
 
 ### Claude Desktop Integration
 Add to your Claude Desktop configuration (`claude_desktop_config.json`):
@@ -479,6 +470,8 @@ docker run -d --name mcp-openstack-ops \
   mcp-openstack-ops
 ```
 
+---
+
 ## Troubleshooting
 
 ### Common Issues
@@ -510,6 +503,8 @@ docker run -d --name mcp-openstack-ops \
 - Validate OpenStack connectivity independently
 - Test individual tools with MCP Inspector
 - Review OpenStack SDK documentation for API requirements
+
+---
 
 ## License
 
@@ -548,6 +543,8 @@ python -m src.mcp_openstack_ops.mcp_main --log-level DEBUG
 uv run pytest
 ```
 
+---
+
 ## Logging
 
 The server provides structured logging with configurable levels:
@@ -557,6 +554,8 @@ The server provides structured logging with configurable levels:
 2024-08-19 10:30:15 - mcp_main - INFO - Log level set via CLI to INFO
 2024-08-19 10:30:16 - functions - DEBUG - Fetching data from source: example.com
 ```
+
+---
 
 ## Notes
 
