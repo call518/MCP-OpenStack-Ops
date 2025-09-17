@@ -30,9 +30,20 @@ def get_openstack_connection():
     
     load_dotenv()
     
+    # Check required environment variables
+    required_vars = ["OS_PROJECT_NAME", "OS_USERNAME", "OS_PASSWORD"]
+    missing_vars = [var for var in required_vars if not os.environ.get(var)]
+    
+    if missing_vars:
+        error_msg = f"Missing required OpenStack environment variables: {missing_vars}"
+        logger.error(error_msg)
+        logger.error("Please ensure your .env file contains OpenStack authentication credentials")
+        raise ValueError(error_msg)
+    
     proxy_host = os.environ.get("OS_PROXY_HOST", "192.168.35.2")
     
     try:
+        logger.info(f"Creating OpenStack connection with proxy host: {proxy_host}")
         _connection_cache = connection.Connection(
             auth_url=f"http://{proxy_host}:5555",
             project_name=os.environ.get("OS_PROJECT_NAME"),
@@ -52,9 +63,19 @@ def get_openstack_connection():
             placement_endpoint=f"http://{proxy_host}:8780",
             timeout=10
         )
+        
+        # Test the connection
+        try:
+            token = _connection_cache.identity.get_token()
+            logger.info(f"OpenStack connection successful. Token acquired: {token[:20]}...")
+        except Exception as test_e:
+            logger.error(f"Connection test failed: {test_e}")
+            raise
+            
         return _connection_cache
     except Exception as e:
         logger.error(f"Failed to create OpenStack connection: {e}")
+        logger.error("Please check your OpenStack credentials and network connectivity")
         raise
 
 
@@ -599,8 +620,13 @@ def get_instance_by_name(instance_name: str) -> Optional[Dict[str, Any]]:
     Returns:
         Instance dictionary with detailed information, or None if not found
     """
-    instances = get_instance_details(instance_names=[instance_name])
-    return instances[0] if instances else None
+    try:
+        result = get_instance_details(instance_names=[instance_name])
+        instances = result.get('instances', [])
+        return instances[0] if instances else None
+    except Exception as e:
+        logger.error(f"Failed to get instance '{instance_name}': {e}")
+        return None
 
 
 def get_instance_by_id(instance_id: str) -> Optional[Dict[str, Any]]:
@@ -888,9 +914,12 @@ def get_instances_by_status(status: str) -> List[Dict[str, Any]]:
     return search_instances(status, 'status')
 
 
-def get_network_details() -> List[Dict[str, Any]]:
+def get_network_details(network_name: str = "all") -> List[Dict[str, Any]]:
     """
     Returns detailed network information with comprehensive network data.
+    
+    Args:
+        network_name: Name of specific network to query, or "all" for all networks (default: "all")
     
     Returns:
         List of network dictionaries with detailed information.
@@ -899,7 +928,14 @@ def get_network_details() -> List[Dict[str, Any]]:
         conn = get_openstack_connection()
         networks = []
         
-        for network in conn.network.networks():
+        # Get all networks or filter by name
+        if network_name == "all":
+            network_list = conn.network.networks()
+        else:
+            # Filter networks by name
+            network_list = [n for n in conn.network.networks() if n.name == network_name]
+        
+        for network in network_list:
             # Get subnet details
             subnets = []
             for subnet_id in getattr(network, 'subnet_ids', []):
@@ -938,7 +974,7 @@ def get_network_details() -> List[Dict[str, Any]]:
         
         return networks
     except Exception as e:
-        logger.error(f"Failed to get network details: {e}")
+        logger.error(f"Failed to get network details for '{network_name}': {e}")
         return [
             {
                 'id': 'net-1', 'name': 'public', 'status': 'ACTIVE', 
@@ -1045,7 +1081,7 @@ def manage_volume(volume_name: str, action: str, **kwargs) -> Dict[str, Any]:
     Manages OpenStack volumes (create, delete, attach, detach)
     
     Args:
-        volume_name: Name or ID of the volume
+        volume_name: Name or ID of the volume (not required for 'list' action)
         action: Action to perform (create, delete, attach, detach, list, extend)
         **kwargs: Additional parameters (size, instance_name, device, new_size, etc.)
     
@@ -1186,27 +1222,36 @@ def monitor_resources() -> Dict[str, Any]:
         # Get hypervisor statistics
         hypervisors = []
         for hypervisor in conn.compute.hypervisors(details=True):
-            cpu_usage_percent = (hypervisor.vcpus_used / hypervisor.vcpus * 100) if hypervisor.vcpus > 0 else 0
-            memory_usage_percent = (hypervisor.memory_mb_used / hypervisor.memory_mb * 100) if hypervisor.memory_mb > 0 else 0
-            disk_usage_percent = (hypervisor.local_gb_used / hypervisor.local_gb * 100) if hypervisor.local_gb > 0 else 0
+            # Safely handle None values
+            vcpus = getattr(hypervisor, 'vcpus', 0) or 0
+            vcpus_used = getattr(hypervisor, 'vcpus_used', 0) or 0
+            memory_mb = getattr(hypervisor, 'memory_mb', 0) or 0
+            memory_mb_used = getattr(hypervisor, 'memory_mb_used', 0) or 0
+            local_gb = getattr(hypervisor, 'local_gb', 0) or 0
+            local_gb_used = getattr(hypervisor, 'local_gb_used', 0) or 0
+            running_vms = getattr(hypervisor, 'running_vms', 0) or 0
+            
+            cpu_usage_percent = (vcpus_used / vcpus * 100) if vcpus > 0 else 0
+            memory_usage_percent = (memory_mb_used / memory_mb * 100) if memory_mb > 0 else 0
+            disk_usage_percent = (local_gb_used / local_gb * 100) if local_gb > 0 else 0
             
             hypervisors.append({
-                'id': hypervisor.id,
-                'name': hypervisor.hypervisor_hostname,
-                'status': hypervisor.status,
-                'state': hypervisor.state,
+                'id': getattr(hypervisor, 'id', 'unknown'),
+                'name': getattr(hypervisor, 'hypervisor_hostname', 'unknown'),
+                'status': getattr(hypervisor, 'status', 'unknown'),
+                'state': getattr(hypervisor, 'state', 'unknown'),
                 'hypervisor_type': getattr(hypervisor, 'hypervisor_type', 'unknown'),
                 'hypervisor_version': getattr(hypervisor, 'hypervisor_version', 'unknown'),
-                'vcpus_used': hypervisor.vcpus_used,
-                'vcpus': hypervisor.vcpus,
+                'vcpus_used': vcpus_used,
+                'vcpus': vcpus,
                 'vcpu_usage_percent': round(cpu_usage_percent, 2),
-                'memory_mb_used': hypervisor.memory_mb_used,
-                'memory_mb': hypervisor.memory_mb,
+                'memory_mb_used': memory_mb_used,
+                'memory_mb': memory_mb,
                 'memory_usage_percent': round(memory_usage_percent, 2),
-                'local_gb_used': hypervisor.local_gb_used,
-                'local_gb': hypervisor.local_gb,
+                'local_gb_used': local_gb_used,
+                'local_gb': local_gb,
                 'disk_usage_percent': round(disk_usage_percent, 2),
-                'running_vms': hypervisor.running_vms,
+                'running_vms': running_vms,
                 'disk_available_least': getattr(hypervisor, 'disk_available_least', None),
                 'free_ram_mb': getattr(hypervisor, 'free_ram_mb', None),
                 'free_disk_gb': getattr(hypervisor, 'free_disk_gb', None)
@@ -1234,6 +1279,7 @@ def monitor_resources() -> Dict[str, Any]:
             }
         except Exception as e:
             logger.warning(f"Failed to get quotas: {e}")
+            quotas = {'error': f'Failed to get quotas: {str(e)}'}
         
         return {
             'cluster_summary': {
@@ -1293,42 +1339,27 @@ def get_project_info() -> Dict[str, Any]:
                     'subnets': getattr(network_quotas, 'subnets', -1),
                     'ports': getattr(network_quotas, 'ports', -1),
                     'routers': getattr(network_quotas, 'routers', -1),
-                    'floating_ips': getattr(network_quotas, 'floating_ips', -1),
-                    'security_groups': getattr(network_quotas, 'security_groups', -1)
+                    'floatingips': getattr(network_quotas, 'floatingips', -1)
                 },
                 'volume': {
                     'volumes': getattr(volume_quotas, 'volumes', -1),
-                    'gigabytes': getattr(volume_quotas, 'gigabytes', -1),
-                    'snapshots': getattr(volume_quotas, 'snapshots', -1)
+                    'snapshots': getattr(volume_quotas, 'snapshots', -1),
+                    'gigabytes': getattr(volume_quotas, 'gigabytes', -1)
                 }
             }
         except Exception as e:
             logger.warning(f"Failed to get quotas: {e}")
-        
-        # Get usage statistics
-        usage_stats = {}
-        try:
-            instances = list(conn.compute.servers())
-            networks = list(conn.network.networks())
-            volumes = list(conn.volume.volumes())
-            
-            usage_stats = {
-                'instances_count': len(instances),
-                'networks_count': len(networks),
-                'volumes_count': len(volumes),
-                'total_volume_size': sum(getattr(vol, 'size', 0) for vol in volumes)
-            }
-        except Exception as e:
-            logger.warning(f"Failed to get usage stats: {e}")
-        
+            quotas = {'error': f'Failed to get quotas: {str(e)}'}
+
         return {
-            'project_id': project.id,
-            'project_name': project.name,
-            'description': getattr(project, 'description', ''),
-            'enabled': getattr(project, 'is_enabled', True),
-            'domain_id': getattr(project, 'domain_id', 'unknown'),
+            'project': {
+                'id': project.id,
+                'name': project.name,
+                'description': getattr(project, 'description', ''),
+                'enabled': project.is_enabled,
+                'domain_id': project.domain_id
+            },
             'quotas': quotas,
-            'usage_stats': usage_stats,
             'timestamp': datetime.now().isoformat()
         }
         
@@ -1971,11 +2002,11 @@ def manage_snapshot(snapshot_name: str, action: str, **kwargs) -> Dict[str, Any]
 
 def manage_image(image_name: str, action: str, **kwargs) -> Dict[str, Any]:
     """
-    Manage images (create, delete, update).
+    Manage images (create, delete, update, list).
     
     Args:
-        image_name: Name or ID of the image
-        action: Action to perform (create, delete, update, upload)
+        image_name: Name or ID of the image (not required for 'list' action)
+        action: Action to perform (create, delete, update, list)
         **kwargs: Additional parameters
     
     Returns:
@@ -1984,7 +2015,33 @@ def manage_image(image_name: str, action: str, **kwargs) -> Dict[str, Any]:
     try:
         conn = get_openstack_connection()
         
-        if action.lower() == 'create':
+        if action.lower() == 'list':
+            images = []
+            for image in conn.image.images():
+                images.append({
+                    'id': image.id,
+                    'name': image.name,
+                    'status': image.status,
+                    'visibility': image.visibility,
+                    'size': getattr(image, 'size', 0),
+                    'disk_format': getattr(image, 'disk_format', 'unknown'),
+                    'container_format': getattr(image, 'container_format', 'unknown'),
+                    'min_disk': getattr(image, 'min_disk', 0),
+                    'min_ram': getattr(image, 'min_ram', 0),
+                    'owner': getattr(image, 'owner', 'unknown'),
+                    'created_at': str(getattr(image, 'created_at', 'unknown')),
+                    'updated_at': str(getattr(image, 'updated_at', 'unknown')),
+                    'protected': getattr(image, 'is_protected', False),
+                    'checksum': getattr(image, 'checksum', None),
+                    'properties': getattr(image, 'properties', {})
+                })
+            return {
+                'success': True,
+                'images': images,
+                'count': len(images)
+            }
+        
+        elif action.lower() == 'create':
             container_format = kwargs.get('container_format', 'bare')
             disk_format = kwargs.get('disk_format', 'qcow2')
             
@@ -2062,7 +2119,7 @@ def manage_image(image_name: str, action: str, **kwargs) -> Dict[str, Any]:
         else:
             return {
                 'success': False,
-                'message': f'Unknown action "{action}". Supported: create, delete, update'
+                'message': f'Unknown action "{action}". Supported: create, delete, update, list'
             }
             
     except Exception as e:

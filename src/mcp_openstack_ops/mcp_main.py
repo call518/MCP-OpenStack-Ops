@@ -511,23 +511,29 @@ async def manage_volume(volume_name: str, action: str, size: int = 1, instance_n
         Volume management operation result in JSON format with success status and volume information.
     """
     try:
-        if not volume_name or not volume_name.strip():
-            return "Error: Volume name is required"
         if not action or not action.strip():
             return "Error: Action is required (create, delete, list)"
             
-        logger.info(f"Managing volume '{volume_name}' with action '{action}'")
+        action = action.strip().lower()
+        
+        # Volume name is not required for 'list' action
+        if action != 'list' and (not volume_name or not volume_name.strip()):
+            return "Error: Volume name is required for this action"
+            
+        logger.info(f"Managing volume with action '{action}'" + (f" for volume '{volume_name}'" if volume_name and volume_name.strip() else ""))
         
         # Prepare kwargs for manage_volume function
         kwargs = {'size': size}
         if instance_name:
             kwargs['instance_name'] = instance_name.strip()
-            
-        result = _manage_volume(volume_name.strip(), action.strip(), **kwargs)
+        
+        # For list action, use empty string if no volume_name provided
+        volume_name_param = volume_name.strip() if volume_name and volume_name.strip() else ""
+        result = _manage_volume(volume_name_param, action, **kwargs)
         
         response = {
             "timestamp": datetime.now().isoformat(),
-            "requested_volume": volume_name,
+            "requested_volume": volume_name if volume_name else "all",
             "requested_action": action,
             "volume_result": result
         }
@@ -535,7 +541,7 @@ async def manage_volume(volume_name: str, action: str, size: int = 1, instance_n
         return json.dumps(response, indent=2, ensure_ascii=False)
         
     except Exception as e:
-        error_msg = f"Error: Failed to manage volume '{volume_name}' - {str(e)}"
+        error_msg = f"Error: Failed to manage volume" + (f" '{volume_name}'" if volume_name and volume_name.strip() else "") + f" - {str(e)}"
         logger.error(error_msg)
         return error_msg
 
@@ -1244,19 +1250,20 @@ async def manage_snapshot(snapshot_name: str, action: str, volume_id: str = "", 
 @mcp.tool()
 async def manage_image(image_name: str, action: str, container_format: str = "bare", disk_format: str = "qcow2", visibility: str = "private") -> str:
     """
-    Manage images (create, delete, update).
+    Manage images (create, delete, update, list).
     
     Functions:
     - Create new images with specified formats and properties
     - Delete existing images
     - Update image metadata and visibility settings
+    - List all available images in the project
     - Handle image lifecycle management
     
-    Use when user requests image management, custom image creation, or image metadata updates.
+    Use when user requests image management, custom image creation, image listing, or image metadata updates.
     
     Args:
-        image_name: Name or ID of the image to manage
-        action: Action to perform (create, delete, update)
+        image_name: Name or ID of the image to manage (not required for 'list' action)
+        action: Action to perform (create, delete, update, list)
         container_format: Container format for create action (default: bare)
         disk_format: Disk format for create action (default: qcow2)
         visibility: Image visibility for create action (default: private)
@@ -1265,7 +1272,11 @@ async def manage_image(image_name: str, action: str, container_format: str = "ba
         Result of image management operation in JSON format.
     """
     try:
-        logger.info(f"Managing image '{image_name}' with action '{action}'")
+        # Image name is not required for 'list' action
+        if action.lower() != 'list' and (not image_name or not image_name.strip()):
+            return "Error: Image name is required for this action"
+        
+        logger.info(f"Managing image with action '{action}'" + (f" for image '{image_name}'" if image_name and image_name.strip() else ""))
         
         kwargs = {
             'container_format': container_format,
@@ -1273,11 +1284,13 @@ async def manage_image(image_name: str, action: str, container_format: str = "ba
             'visibility': visibility
         }
         
-        result_data = _manage_image(image_name, action, **kwargs)
+        # For list action, use empty string if no image_name provided
+        image_name_param = image_name.strip() if image_name and image_name.strip() else ""
+        result_data = _manage_image(image_name_param, action, **kwargs)
         
         result = {
             "timestamp": datetime.now().isoformat(),
-            "image_name": image_name,
+            "image_name": image_name if image_name else "all",
             "action": action,
             "parameters": kwargs,
             "result": result_data

@@ -9,9 +9,11 @@
 
 ---
 
+> **⚠️ Important**: This project supports multiple OpenStack releases (Stein to Flamingo). **Always use the correct OpenStack SDK version** that matches your deployment. See the [Version Compatibility Matrix](#version-compatibility-matrix) for detailed version mappings.
+
 ## Features
 
-- ✅ **OpenStack Integration**: Direct integration with OpenStack SDK for real-time cluster operations. ([SDK Release Matrix](https://releases.openstack.org/teams/openstacksdk.html))
+- ✅ **OpenStack Integration**: Direct integration with OpenStack SDK for real-time cluster operations with **version-aware compatibility**.
 - ✅ **Large-Scale Environment Support**: Pagination and limits for environments with thousands of instances.
 - ✅ **Comprehensive Monitoring**: **Enhanced cluster status reports** with hypervisor health, resource utilization (CPU/memory/disk), service monitoring, health scoring, and issue detection.
 - ✅ **Complete Service Coverage**: **24 comprehensive tools** covering Identity, Compute, Network, Storage, Image, and Orchestration services.
@@ -75,7 +77,7 @@
 21. **`get_role_assignments`** - User role assignments and permissions
 
 ### 🖼️ Image Management
-22. **`manage_image`** - Create, delete, and manage OpenStack images
+22. **`manage_image`** - Create, delete, list, and manage OpenStack images
 
 ### 🔥 Orchestration (Heat) Tools
 23. **`get_stacks`** - Heat stack status and information
@@ -99,7 +101,91 @@ cp .env.example .env
 # Edit .env with your OpenStack credentials
 ```
 
-### 2. OpenStack Configuration
+### 2. OpenStack Compatibility & Configuration
+
+#### Version Compatibility Matrix
+
+This project is designed to work with various OpenStack versions. **It's crucial to use the correct OpenStack SDK version that matches your OpenStack deployment:**
+
+| OpenStack Release | Release Date | Supported SDK Versions | Recommended | Status |
+|-------------------|--------------|------------------------|-------------|---------|
+| **Flamingo (2025.2)** | 2025 | `4.5.0` - `4.7.1` | `4.7.1` | Future |
+| **Epoxy (2025.1)** | 2025 | `4.1.0` - `4.4.0` | `4.4.0` | Current |
+| **Dalmatian (2024.2)** | Oct 2024 | `3.1.0` - `4.0.1` | `4.0.1` | Stable |
+| **Caracal (2024.1)** | Apr 2024 | `2.0.0` - `3.0.0` | `3.0.0` | Stable |
+| **Bobcat (2023.2)** | Oct 2023 | `1.1.0` - `1.5.1` | `1.5.1` | Stable |
+| **Antelope (2023.1)** | Mar 2023 | `0.103.0` - `1.0.2` | `1.0.2` | Supported |
+| **Zed (2022.2)** | Oct 2022 | `0.99.0` - `0.101.0` | `0.101.0` | Extended Support |
+| **Yoga (2022.1)** | Mar 2022 | `0.60.0` - `0.62.0` | `0.62.0` | Extended Support |
+| **Xena (2021.2)** | Oct 2021 | `0.56.0` - `0.59.0` | `0.59.0` | EOL |
+| **Wallaby (2021.1)** | Apr 2021 | `0.51.0` - `0.55.1` | `0.55.1` | EOL |
+| **Victoria (2020.2)** | Oct 2020 | `0.47.0` - `0.50.0` | `0.50.0` | EOL |
+| **Ussuri (2020.1)** | May 2020 | `0.37.0` - `0.46.1` | `0.46.1` | EOL |
+| **Train (2019.2)** | Oct 2019 | `0.28.0` - `0.36.5` | `0.36.5` | EOL |
+| **Stein (2019.1)** | Apr 2019 | `0.18.0` - `0.27.1` | `0.27.1` | EOL |
+
+**Legend:**
+- **Current**: Latest stable release with active development
+- **Stable**: Supported releases with regular maintenance updates  
+- **Supported**: Receives security and critical bug fixes only
+- **Extended Support**: Limited support for critical issues
+- **EOL**: End of Life - no longer supported
+
+**⚠️ Important**: Check your OpenStack version and install the appropriate SDK version:
+
+```bash
+# Check your OpenStack version first (see methods below)
+# Most reliable: check your cloud provider documentation
+
+# Install SDK based on your OpenStack version:
+
+# For Epoxy (2025.1) - Current Release
+uv add "openstacksdk>=4.1.0,<=4.4.0"
+
+# For Dalmatian (2024.2) - Stable
+uv add "openstacksdk>=3.1.0,<=4.0.1"  
+
+# For Caracal (2024.1) - Stable  
+uv add "openstacksdk>=2.0.0,<=3.0.0"
+
+# For Bobcat (2023.2) - Stable
+uv add "openstacksdk>=1.1.0,<=1.5.1"
+
+# For older versions (check the table above)
+uv add "openstacksdk==X.Y.Z"  # Use specific recommended version
+```
+
+**How to determine your OpenStack version:**
+```bash
+# Method 1: Check with OpenStack CLI (if installed)
+openstack --version
+# Note: Requires python-openstackclient package installation
+
+# Method 2: Check API version directly
+curl -s $OS_AUTH_URL | jq '.version.id' 2>/dev/null || curl -s $OS_AUTH_URL
+
+# Method 3: Check Horizon dashboard footer (web interface)
+# Look for version info at the bottom of your OpenStack web dashboard
+
+# Method 4: Check deployment documentation or ask administrator
+# Most reliable method - check your cloud provider's documentation
+
+# Method 5: Try detecting via Python (if you have credentials)
+python3 -c "
+import requests, os
+auth_url = os.environ.get('OS_AUTH_URL', 'your-auth-url-here')
+try:
+    resp = requests.get(auth_url, timeout=5)
+    print('OpenStack endpoint response:', resp.json())
+except Exception as e:
+    print('Check your OpenStack documentation or contact admin')
+    print('Auth URL should be something like: https://openstack.example.com:5000/v3')
+"
+```
+
+**Reference**: [OpenStack SDK Release Matrix](https://releases.openstack.org/teams/openstacksdk.html)
+
+#### Environment Configuration
 
 Configure your `.env` file with OpenStack credentials:
 
@@ -125,8 +211,128 @@ FASTMCP_PORT=8080
 
 #### For Development & Testing
 ```bash
-# Local testing with MCP Inspector
+### Testing & Development
+
+```bash
+# Test with MCP Inspector
 ./scripts/run-mcp-inspector-local.sh
+```
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+#### 1. Hypervisor Statistics Show Zero Values
+
+**Problem**: The `monitor_resources` tool returns all zeros for CPU, memory, and VM counts.
+
+**Possible Causes**:
+- **Missing OpenStack credentials**: Ensure your `.env` file contains all required authentication variables
+- **SDK version incompatibility**: Use the correct OpenStack SDK version for your deployment
+- **Docker-based OpenStack (Kolla)**: Some containerized deployments may not expose hypervisor statistics
+- **Nova-compute service issues**: Check if nova-compute is running and properly configured
+- **Permission restrictions**: Ensure your user has sufficient privileges to access hypervisor details
+
+**Solutions**:
+```bash
+# 1. Check OpenStack connectivity
+openstack server list  # Should show your instances
+openstack hypervisor list  # Should show hypervisors
+
+# 2. Verify environment variables
+env | grep OS_
+
+# 3. Check Nova services
+openstack compute service list
+
+# 4. Test with admin credentials if available
+export OS_USERNAME=admin
+export OS_PROJECT_NAME=admin
+```
+
+#### 2. Connection Timeouts or Errors
+
+**Problem**: Cannot connect to OpenStack API endpoints.
+
+**Solutions**:
+- Verify your `OS_AUTH_URL` and network connectivity
+- Check if you're using the correct proxy configuration
+- Ensure firewall rules allow access to OpenStack ports (5000, 8774, 9696, etc.)
+
+#### 3. SDK Compatibility Issues
+
+**Problem**: Import errors, unexpected API responses, or version conflicts.
+
+**Common Symptoms**:
+```
+ModuleNotFoundError: No module named 'openstack.xyz'
+AttributeError: 'Resource' object has no attribute 'abc'
+API version mismatch errors
+Unexpected JSON response format
+```
+
+**Diagnosis Steps**:
+```bash
+# 1. Check current SDK version
+pip show openstacksdk
+
+# 2. Check your OpenStack release version (see methods above)
+# Most reliable: check your deployment documentation
+
+# 3. Verify API endpoint responses (if credentials available)
+curl -H "X-Auth-Token: $OS_TOKEN" $OS_AUTH_URL/ 2>/dev/null || echo "Need valid credentials"
+
+# 4. Install OpenStack CLI to check versions (optional)
+pip install python-openstackclient
+openstack versions show
+```
+
+**Solutions by OpenStack Version**:
+```bash
+# Epoxy (2025.1) - Most Recent
+uv add "openstacksdk>=4.1.0,<=4.4.0"
+
+# Dalmatian (2024.2) - Stable  
+uv add "openstacksdk>=3.1.0,<=4.0.1"
+
+# Caracal (2024.1) - Stable
+uv add "openstacksdk>=2.0.0,<=3.0.0"
+
+# Bobcat (2023.2) - Stable
+uv add "openstacksdk>=1.1.0,<=1.5.1"
+
+# Antelope (2023.1) - Supported
+uv add "openstacksdk>=0.103.0,<=1.0.2"
+
+# Zed (2022.2) - Extended Support
+uv add "openstacksdk>=0.99.0,<=0.101.0"
+
+# For older versions, use specific versions from compatibility matrix
+```
+
+**Version Detection Script**:
+```bash
+# Create a quick version detection script
+cat > check_openstack_version.py << 'EOF'
+import openstack
+try:
+    conn = openstack.connect()
+    # Try to get version info
+    versions = conn.identity.get('/').json()
+    print("OpenStack Version Info:", versions)
+except Exception as e:
+    print(f"Error detecting version: {e}")
+    print("Check your OpenStack deployment documentation")
+EOF
+
+python check_openstack_version.py
+```
+
+**Reference**: See the [complete compatibility matrix](#version-compatibility-matrix) above for detailed version mappings.
+
+---
 
 # Direct execution for debugging
 uv run python -m mcp_openstack_ops --log-level DEBUG
