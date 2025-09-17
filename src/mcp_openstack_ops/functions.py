@@ -2915,27 +2915,51 @@ def get_compute_quota_usage(conn) -> Dict[str, Any]:
         # Get quota limits
         quotas = conn.compute.get_quota_set(project_id)
         
-        # Get usage statistics (use separate try-catch for usage)
+        # Get actual usage by counting real resources
+        actual_instances = list(conn.compute.servers())
+        actual_instance_count = len(actual_instances)
+        
+        # Calculate actual vCPU usage from running instances
+        actual_vcpu_usage = 0
+        actual_memory_usage = 0
+        
+        for instance in actual_instances:
+            try:
+                # Get flavor info - try both ID and direct object access
+                flavor_info = instance.flavor
+                if isinstance(flavor_info, dict):
+                    flavor_id = flavor_info.get('id')
+                    if flavor_id:
+                        try:
+                            # Try to get full flavor details
+                            flavor = conn.compute.get_flavor(flavor_id)
+                            actual_vcpu_usage += getattr(flavor, 'vcpus', 0)
+                            actual_memory_usage += getattr(flavor, 'ram', 0)
+                        except Exception:
+                            # If flavor not found, try to get basic info from instance
+                            logger.warning(f"Flavor {flavor_id} not found for instance {instance.id}, using instance flavor info if available")
+                            # Some basic fallback - these values might be stored in instance metadata
+                            actual_vcpu_usage += flavor_info.get('vcpus', 1)  # Default to 1 if not available
+                            actual_memory_usage += flavor_info.get('ram', 512)  # Default to 512MB if not available
+                else:
+                    # Flavor object directly
+                    actual_vcpu_usage += getattr(flavor_info, 'vcpus', 1)
+                    actual_memory_usage += getattr(flavor_info, 'ram', 512)
+                    
+            except Exception as e:
+                logger.warning(f"Could not get flavor info for instance {instance.id}: {e}")
+                # Use minimal defaults when flavor info is unavailable
+                actual_vcpu_usage += 1
+                actual_memory_usage += 512
+        
+        # Get usage statistics from API (as fallback/comparison)
         try:
             usage = conn.compute.get_quota_set(project_id, usage=True)
         except Exception as usage_e:
-            logger.warning(f"Failed to get quota usage, using limits only: {usage_e}")
-            usage = quotas  # Fallback to limits
+            logger.warning(f"Failed to get quota usage from API: {usage_e}")
+            usage = None
         
-        # Helper function to safely extract quota values
-        def safe_get_quota_value(obj, attr_name, default=0):
-            """Safely extract quota values handling both dict and int responses"""
-            try:
-                attr = getattr(obj, attr_name, default)
-                if isinstance(attr, dict):
-                    return attr.get('in_use', default)
-                elif isinstance(attr, (int, float)):
-                    return attr
-                else:
-                    return default
-            except Exception:
-                return default
-        
+        # Helper function to safely extract quota limits
         def safe_get_quota_limit(obj, attr_name, default=-1):
             """Safely extract quota limits"""
             try:
@@ -2946,23 +2970,44 @@ def get_compute_quota_usage(conn) -> Dict[str, Any]:
         quota_info = {
             'description': 'Project quota usage (vCPU = virtual CPU allocation, pCPU = physical CPU usage)',
             'instances': {
-                'used': safe_get_quota_value(usage, 'instances', 0),
+                'used': actual_instance_count,  # Use actual count instead of quota API
                 'limit': safe_get_quota_limit(quotas, 'instances', -1),
                 'usage_percent': 0
             },
             'vcpus': {
                 'description': 'Virtual CPUs (vCPU) - allocated to instances',
-                'used': safe_get_quota_value(usage, 'cores', 0),
+                'used': actual_vcpu_usage,  # Use actual usage from flavor calculations
                 'limit': safe_get_quota_limit(quotas, 'cores', -1),
                 'usage_percent': 0
             },
             'memory': {
                 'description': 'Virtual memory (allocated to instances)',
-                'used_mb': safe_get_quota_value(usage, 'ram', 0),
+                'used_mb': actual_memory_usage,  # Use actual memory from flavor calculations
                 'limit_mb': safe_get_quota_limit(quotas, 'ram', -1),
                 'usage_percent': 0
             }
         }
+        
+        # Add quota API data for comparison (if available)
+        if usage:
+            def safe_get_quota_value(obj, attr_name, default=0):
+                """Safely extract quota values handling both dict and int responses"""
+                try:
+                    attr = getattr(obj, attr_name, default)
+                    if isinstance(attr, dict):
+                        return attr.get('in_use', default)
+                    elif isinstance(attr, (int, float)):
+                        return attr
+                    else:
+                        return default
+                except Exception:
+                    return default
+            
+            quota_info['api_reported_usage'] = {
+                'instances': safe_get_quota_value(usage, 'instances', 0),
+                'vcpus': safe_get_quota_value(usage, 'cores', 0),
+                'memory_mb': safe_get_quota_value(usage, 'ram', 0)
+            }
         
         # Calculate usage percentages
         for resource in ['instances', 'vcpus', 'memory']:
@@ -2976,6 +3021,9 @@ def get_compute_quota_usage(conn) -> Dict[str, Any]:
                 
             if limit > 0:
                 resource_data['usage_percent'] = round((used / limit) * 100, 1)
+        
+        logger.info(f"Quota usage - Actual instances: {actual_instance_count}, "
+                   f"vCPUs: {actual_vcpu_usage}, Memory: {actual_memory_usage}MB")
         
         return quota_info
         

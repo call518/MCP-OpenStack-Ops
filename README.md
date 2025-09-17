@@ -152,6 +152,7 @@ OS_PLACEMENT_PORT=8780
 
 # MCP Server Configuration (optional)
 MCP_LOG_LEVEL=INFO
+ALLOW_MODIFY_OPERATIONS=false
 FASTMCP_TYPE=stdio
 FASTMCP_HOST=127.0.0.1
 FASTMCP_PORT=8080
@@ -314,6 +315,7 @@ Options:
 | `OS_PLACEMENT_PORT` | Placement service port | `8780` | Placement endpoint |
 | **MCP Server Configuration** |
 | `MCP_LOG_LEVEL` | Logging level | `INFO` | Development debugging |
+| `ALLOW_MODIFY_OPERATIONS` | Enable modify operations | `false` | Safety control for state modifications |
 | `FASTMCP_TYPE` | Transport type | `stdio` | Rarely needed to change |
 | `FASTMCP_HOST` | HTTP host address | `127.0.0.1` | For HTTP mode only |
 | `FASTMCP_PORT` | HTTP port number | `8080` | For HTTP mode only |
@@ -322,6 +324,47 @@ Options:
 | `REMOTE_SECRET_KEY` | Secret key for Bearer token authentication | Required when auth enabled | Production security |
 
 **Note**: MCP servers typically use `stdio` transport. HTTP mode is mainly for testing and development.
+
+---
+
+## Safety Controls
+
+### Modification Operations Protection
+
+By default, all operations that can modify or delete OpenStack resources are **disabled** for safety:
+
+```bash
+# Default setting - Only read-only operations allowed
+ALLOW_MODIFY_OPERATIONS=false
+```
+
+**Protected Operations (when `ALLOW_MODIFY_OPERATIONS=false`):**
+- Instance management (start, stop, restart, pause, unpause)
+- Volume operations (create, delete, attach, detach)
+- Keypair management (create, delete, import)
+- Floating IP operations (create, delete, associate, disassociate)
+- Snapshot management (create, delete)
+- Image management (create, delete, update)
+- Stack operations (create, delete, update)
+
+**Always Available (Read-Only Operations):**
+- Cluster status and monitoring
+- Resource listings (instances, volumes, networks, etc.)
+- Service status checks
+- Usage and quota information
+- Search and filtering operations
+
+**⚠️ To Enable Modify Operations:**
+```bash
+# Enable all operations (USE WITH CAUTION)
+ALLOW_MODIFY_OPERATIONS=true
+```
+
+**Best Practices:**
+- Keep `ALLOW_MODIFY_OPERATIONS=false` in production environments
+- Enable modify operations only in development/testing environments
+- Use separate configurations for different environments
+- Review operations before enabling modify capabilities
 
 ---
 
@@ -583,6 +626,7 @@ Add to your Claude Desktop configuration (`claude_desktop_config.json`):
         "OS_VOLUME_PORT": "8776",
         "OS_IMAGE_PORT": "9292",
         "OS_PLACEMENT_PORT": "8780",
+        "ALLOW_MODIFY_OPERATIONS": "false",
         "MCP_LOG_LEVEL": "INFO"
       }
     }

@@ -89,6 +89,41 @@ else:
     mcp = FastMCP("openstack-ops")
 
 # =============================================================================
+# Safety Control Functions
+# =============================================================================
+
+def _is_modify_operation_allowed() -> bool:
+    """Check if modify operations are allowed based on environment variable."""
+    return os.environ.get("ALLOW_MODIFY_OPERATIONS", "false").lower() == "true"
+
+def _check_modify_operation_permission() -> str:
+    """Check and return error message if modify operations are not allowed."""
+    if not _is_modify_operation_allowed():
+        return """
+❌ **MODIFY OPERATION BLOCKED**
+
+This operation can modify or delete OpenStack resources and has been disabled for safety.
+
+To enable modify operations, set the following in your .env file:
+```
+ALLOW_MODIFY_OPERATIONS=true
+```
+
+**⚠️  WARNING**: Only enable this in development or testing environments where data loss is acceptable.
+
+**Read-only operations available:**
+- get_cluster_status, get_service_status
+- get_instance_details, search_instances
+- get_network_details, get_project_info
+- get_flavor_list, get_image_list, get_user_list
+- get_keypair_list, get_security_groups
+- get_floating_ips, get_routers, get_volume_types
+- get_volume_snapshots, get_stacks
+- monitor_resources
+"""
+    return ""
+
+# =============================================================================
 # MCP Tools (OpenStack Operations and Monitoring)
 # =============================================================================
 
@@ -470,6 +505,11 @@ async def manage_instance(instance_name: str, action: str) -> str:
     Returns:
         Management operation result in JSON format with success status, message, and state information.
     """
+    # Safety check for modify operations
+    safety_error = _check_modify_operation_permission()
+    if safety_error:
+        return safety_error
+        
     try:
         if not instance_name or not instance_name.strip():
             return "Error: Instance name is required"
@@ -516,6 +556,12 @@ async def manage_volume(volume_name: str, action: str, size: int = 1, instance_n
     Returns:
         Volume management operation result in JSON format with success status and volume information.
     """
+    # Safety check for modify operations (except for 'list' action)
+    if action and action.strip().lower() not in ['list', 'show']:
+        safety_error = _check_modify_operation_permission()
+        if safety_error:
+            return safety_error
+    
     try:
         if not action or not action.strip():
             return "Error: Action is required (create, delete, list)"
@@ -957,6 +1003,11 @@ async def manage_keypair(keypair_name: str, action: str, public_key: str = "") -
     Returns:
         Result of keypair management operation in JSON format.
     """
+    # Safety check for modify operations (except for 'list' action)
+    if action and action.strip().lower() not in ['list', 'show']:
+        safety_error = _check_modify_operation_permission()
+        if safety_error:
+            return safety_error
     try:
         logger.info(f"Managing keypair '{keypair_name}' with action '{action}'")
         
@@ -1072,6 +1123,10 @@ async def manage_floating_ip(action: str, floating_network_id: str = "", port_id
     Returns:
         Result of floating IP management operation in JSON format.
     """
+    # Safety check for modify operations
+    safety_error = _check_modify_operation_permission()
+    if safety_error:
+        return safety_error
     try:
         logger.info(f"Managing floating IP with action '{action}'")
         
@@ -1219,12 +1274,17 @@ async def manage_snapshot(snapshot_name: str, action: str, volume_id: str = "", 
     Args:
         snapshot_name: Name of the snapshot to manage
         action: Action to perform (create, delete)
-        volume_id: Source volume ID for create action (optional)
+        volume_id: Volume ID for snapshot creation (optional)
         description: Description for the snapshot (optional)
         
     Returns:
         Result of snapshot management operation in JSON format.
     """
+    # Safety check for modify operations
+    safety_error = _check_modify_operation_permission()
+    if safety_error:
+        return safety_error
+    
     try:
         logger.info(f"Managing snapshot '{snapshot_name}' with action '{action}'")
         
@@ -1268,15 +1328,21 @@ async def manage_image(image_name: str, action: str, container_format: str = "ba
     Use when user requests image management, custom image creation, image listing, or image metadata updates.
     
     Args:
-        image_name: Name or ID of the image to manage (not required for 'list' action)
+        image_name: Name of the image to manage
         action: Action to perform (create, delete, update, list)
-        container_format: Container format for create action (default: bare)
-        disk_format: Disk format for create action (default: qcow2)
-        visibility: Image visibility for create action (default: private)
+        container_format: Container format (bare, ovf, etc.)
+        disk_format: Disk format (qcow2, raw, vmdk, etc.)
+        visibility: Image visibility (private, public, shared, community)
         
     Returns:
         Result of image management operation in JSON format.
     """
+    # Safety check for modify operations (except for 'list' action)
+    if action and action.strip().lower() not in ['list', 'show']:
+        safety_error = _check_modify_operation_permission()
+        if safety_error:
+            return safety_error
+    
     try:
         # Image name is not required for 'list' action
         if action.lower() != 'list' and (not image_name or not image_name.strip()):
@@ -1352,11 +1418,11 @@ async def manage_stack(stack_name: str, action: str, template: str = "", paramet
     
     Functions:
     - Create new stacks from Heat templates
-    - Delete existing stacks and their resources
-    - Update stack configurations with new templates
-    - Handle infrastructure-as-code deployments
+    - Delete existing stacks
+    - Update stack configurations and parameters
+    - Handle complex infrastructure deployments
     
-    Use when user requests stack deployment, infrastructure automation, or orchestration management.
+    Use when user requests Heat stack management, infrastructure orchestration, or template deployment tasks.
     
     Args:
         stack_name: Name of the stack to manage
@@ -1367,6 +1433,11 @@ async def manage_stack(stack_name: str, action: str, template: str = "", paramet
     Returns:
         Result of stack management operation in JSON format.
     """
+    # Safety check for modify operations
+    safety_error = _check_modify_operation_permission()
+    if safety_error:
+        return safety_error
+    
     try:
         logger.info(f"Managing stack '{stack_name}' with action '{action}'")
         

@@ -20,6 +20,7 @@
         "OS_VOLUME_PORT": "8776",
         "OS_IMAGE_PORT": "9292",
         "OS_PLACEMENT_PORT": "8780",
+        "ALLOW_MODIFY_OPERATIONS": "false",
         "MCP_LOG_LEVEL": "INFO"
       }
     }
