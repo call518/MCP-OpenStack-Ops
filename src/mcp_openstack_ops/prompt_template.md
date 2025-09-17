@@ -475,11 +475,11 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 ### 💾 Storage Management
 
-**set_volume**
-- "Create a 100GB volume named data-vol."
-- "Extend backup-vol to 200GB size."
-- "Delete the old-backup volume."
-- "List all volumes in the project."
+**set_volume** (Updated Call Pattern)
+- "List all volumes in the project." → **set_volume("", "list")**
+- "Create a 100GB volume named data-vol." → **set_volume("data-vol", "create", size=100)**
+- "Extend backup-vol to 200GB size." → **set_volume("backup-vol", "extend", size=200)**
+- "Delete the old-backup volume." → **set_volume("old-backup", "delete")**
 - "Show volume information and usage."
 
 **get_volume_types & get_volume_snapshots & set_snapshot**
@@ -507,13 +507,13 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 ### 🖼️ Image Management
 
-**set_image**
-- "List available VM images."
-- "Show all OpenStack images."
-- "What images are available for deployment?"
-- "Create a new OpenStack image."
-- "Delete unused images."
-- "Update image metadata."
+**set_image** (Updated Call Pattern)
+- "List available VM images." → **set_image("", "list")**
+- "Show all OpenStack images." → **set_image("", "list")**
+- "What images are available for deployment?" → **set_image("", "list")**
+- "Create a new OpenStack image." → **set_image("image-name", "create")**
+- "Delete unused images." → **set_image("image-name", "delete")**
+- "Update image metadata." → **set_image("image-name", "set")**
 
 ### 🔥 Heat Stack Management
 
@@ -525,29 +525,60 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - "Display stack status and resources."
 - "Update stack configuration."
 
-### � Quota Management
+### 📊 Quota Management
 
-**get_quota**
-- "Show current project quotas."
-- "Check project limits."
-- "Display quota usage for project admin."
-- "What are the resource limits?"
-- "Show compute and storage quotas."
+**get_quota** (Enhanced Project Quota Information)
+- "Show current project quotas." → **get_quota("")**
+- "Check project limits." → **get_quota("")**
+- "Display quota usage for project admin." → **get_quota("admin")**
+- "What are the resource limits?" → **get_quota("")**
+- "Show compute and storage quotas." → **get_quota("")**
+- "Show quota for all projects." → **get_quota("")**
 
-**set_quota**
-- "Set quotas for project service."
-- "Increase cores limit to 50 for project admin."
-- "Reset project quotas to default."
-- "List quotas for all projects."
-- "Update storage quota to 2TB."
+**set_quota** (Comprehensive Quota Management)
+- "Set quotas for project service." → **set_quota("service", "set", cores=50, instances=40, ram=102400)**
+- "Increase cores limit to 50 for project admin." → **set_quota("admin", "set", cores=50)**
+- "Reset project quotas to default." → **set_quota("project-name", "delete")**
+- "List quotas for all projects." → **set_quota("", "list")**
+- "Update storage quota to 2TB." → **set_quota("project-name", "set", gigabytes=2048)**
 
-### �📈 Monitoring & Resources
+### 👥 Project Management (New Section)
 
-**get_resource_monitoring**
+**get_project_details** (Project Information & Details)
+- "List all OpenStack projects." → **get_project_details("")**
+- "Show project details for admin." → **get_project_details("admin")**
+- "Display project information with roles." → **get_project_details("project-name")**
+- "What projects are available?" → **get_project_details("")**
+- "Show project quotas and assignments." → **get_project_details("project-name")**
+
+**set_project** (Complete Project Lifecycle Management)
+- "Create project development." → **set_project("development", "create", description="Development environment")**
+- "Delete unused project test." → **set_project("test", "delete")**
+- "Update project description." → **set_project("project-name", "set", description="New description")**
+- "Enable disabled project." → **set_project("project-name", "set", enable=true)**
+- "Cleanup project resources before deletion." → **set_project("project-name", "cleanup")**
+
+### 📈 Usage Statistics & Billing (New Section)
+
+**get_usage_statistics** (Project Usage Analytics)
+- "Show usage statistics." → **get_usage_statistics()**
+- "Project usage data." → **get_usage_statistics()**
+- "Billing information." → **get_usage_statistics()**
+- "Resource consumption over time." → **get_usage_statistics()**
+- "Show usage for last 30 days." → **get_usage_statistics()**
+- "Usage from date X to Y." → **get_usage_statistics(start_date="2024-01-01", end_date="2024-01-31")**
+- "RAM hours and CPU hours." → **get_usage_statistics()**
+- "Disk usage statistics." → **get_usage_statistics()**
+
+### 📊📈 Monitoring & Resources
+
+**get_resource_monitoring** (Physical & Virtual Resource Analysis)
 - "Show resource utilization across the cluster."
 - "What's the current CPU and memory usage?"
 - "Display hypervisor statistics."
 - "Monitor cluster capacity and usage."
+- "Physical vs virtual resource usage."
+- "Show pCPU and vCPU utilization separately."
 
 **CRITICAL**: When displaying CPU/memory usage results from get_resource_monitoring:
 1. **Always show BOTH perspectives**: physical_usage AND quota_usage sections

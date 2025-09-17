@@ -3193,7 +3193,7 @@ def get_quota(project_name: str = "") -> Dict[str, Any]:
     Get quota information for projects (similar to 'openstack quota show').
     
     Args:
-        project_name: Name of the project (optional, defaults to current project)
+        project_name: Name of the project (optional, defaults to current project from OS_PROJECT_NAME)
     
     Returns:
         Quota information for the specified project or current project
@@ -3201,84 +3201,87 @@ def get_quota(project_name: str = "") -> Dict[str, Any]:
     try:
         conn = get_openstack_connection()
         
-        # If no project name specified, use current project
+        # If no project name specified, use environment variable OS_PROJECT_NAME
         if not project_name or project_name.strip() == "":
-            project_name = conn.auth.auth.project_name
-            project_id = conn.auth.auth.project_id
-            logger.info(f"Getting quota for current project: {project_name}")
+            project_name = os.environ.get('OS_PROJECT_NAME', 'admin')
+            logger.info(f"No project specified, using default from OS_PROJECT_NAME: {project_name}")
         else:
-            # Find project by name
-            try:
-                project = conn.identity.find_project(project_name)
-                if not project:
-                    return {
-                        'success': False,
-                        'error': f'Project "{project_name}" not found'
-                    }
-                project_id = project.id
-                logger.info(f"Getting quota for project: {project_name} ({project_id})")
-            except Exception as e:
+            logger.info(f"Getting quota for specified project: {project_name}")
+        
+        # Find project by name
+        try:
+            project = conn.identity.find_project(project_name)
+            if not project:
                 return {
                     'success': False,
-                    'error': f'Failed to find project "{project_name}": {str(e)}'
+                    'error': f'Project "{project_name}" not found'
                 }
+            project_id = project.id
+            logger.info(f"Found project: {project_name} ({project_id})")
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f'Failed to find project "{project_name}": {str(e)}'
+            }
         
         quota_data = {}
         
-        # Get Compute (Nova) quotas
+        # Get Compute (Nova) quotas - using correct API endpoints
         try:
-            compute_quota = conn.compute.get_quota(project_id)
+            # Use direct API call instead of get_quota method
+            compute_quotas = conn.compute.get(f'/os-quota-sets/{project_id}').json()['quota_set']
             quota_data['compute'] = {
-                'cores': getattr(compute_quota, 'cores', -1),
-                'instances': getattr(compute_quota, 'instances', -1),
-                'ram': getattr(compute_quota, 'ram', -1),
-                'key_pairs': getattr(compute_quota, 'key_pairs', -1),
-                'server_groups': getattr(compute_quota, 'server_groups', -1),
-                'server_group_members': getattr(compute_quota, 'server_group_members', -1),
-                'injected_files': getattr(compute_quota, 'injected_files', -1),
-                'injected_file_content_bytes': getattr(compute_quota, 'injected_file_content_bytes', -1),
-                'injected_file_path_bytes': getattr(compute_quota, 'injected_file_path_bytes', -1),
-                'fixed_ips': getattr(compute_quota, 'fixed_ips', -1)
+                'cores': compute_quotas.get('cores', -1),
+                'instances': compute_quotas.get('instances', -1),
+                'ram': compute_quotas.get('ram', -1),
+                'key_pairs': compute_quotas.get('key_pairs', -1),
+                'server_groups': compute_quotas.get('server_groups', -1),
+                'server_group_members': compute_quotas.get('server_group_members', -1),
+                'injected_files': compute_quotas.get('injected_files', -1),
+                'injected_file_content_bytes': compute_quotas.get('injected_file_content_bytes', -1),
+                'injected_file_path_bytes': compute_quotas.get('injected_file_path_bytes', -1),
+                'fixed_ips': compute_quotas.get('fixed_ips', None)  # Can be None
             }
         except Exception as e:
             logger.warning(f"Failed to get compute quota: {e}")
             quota_data['compute'] = {'error': f'Failed to get compute quota: {str(e)}'}
         
-        # Get Volume (Cinder) quotas
+        # Get Volume (Cinder) quotas - using correct API endpoints
         try:
-            volume_quota = conn.volume.get_quota(project_id)
+            volume_quotas = conn.volume.get(f'/os-quota-sets/{project_id}').json()['quota_set']
             quota_data['volume'] = {
-                'volumes': getattr(volume_quota, 'volumes', -1),
-                'snapshots': getattr(volume_quota, 'snapshots', -1),
-                'gigabytes': getattr(volume_quota, 'gigabytes', -1),
-                'backups': getattr(volume_quota, 'backups', -1),
-                'backup_gigabytes': getattr(volume_quota, 'backup_gigabytes', -1),
-                'per_volume_gigabytes': getattr(volume_quota, 'per_volume_gigabytes', -1),
-                'groups': getattr(volume_quota, 'groups', -1)
+                'volumes': volume_quotas.get('volumes', -1),
+                'snapshots': volume_quotas.get('snapshots', -1),
+                'gigabytes': volume_quotas.get('gigabytes', -1),
+                'backups': volume_quotas.get('backups', -1),
+                'backup_gigabytes': volume_quotas.get('backup_gigabytes', -1),
+                'per_volume_gigabytes': volume_quotas.get('per_volume_gigabytes', -1),
+                'groups': volume_quotas.get('groups', -1)
             }
             
             # Add volume type specific quotas
-            for attr_name in dir(volume_quota):
-                if 'volumes___' in attr_name or 'gigabytes___' in attr_name or 'snapshots___' in attr_name:
-                    quota_data['volume'][attr_name] = getattr(volume_quota, attr_name, -1)
+            for key, value in volume_quotas.items():
+                if '___' in key:  # Volume type specific quotas (e.g., volumes___DEFAULT__)
+                    quota_data['volume'][key] = value
                     
         except Exception as e:
             logger.warning(f"Failed to get volume quota: {e}")
             quota_data['volume'] = {'error': f'Failed to get volume quota: {str(e)}'}
         
-        # Get Network (Neutron) quotas
+        # Get Network (Neutron) quotas - using quotas API
         try:
-            network_quota = conn.network.get_quota(project_id)
+            # Use the quotas method which should work for Neutron
+            network_quota_obj = conn.network.get_quota(project_id)
             quota_data['network'] = {
-                'networks': getattr(network_quota, 'networks', -1),
-                'subnets': getattr(network_quota, 'subnets', -1),
-                'ports': getattr(network_quota, 'ports', -1),
-                'routers': getattr(network_quota, 'routers', -1),
-                'floating_ips': getattr(network_quota, 'floating_ips', -1),
-                'security_groups': getattr(network_quota, 'security_groups', -1),
-                'security_group_rules': getattr(network_quota, 'security_group_rules', -1),
-                'rbac_policies': getattr(network_quota, 'rbac_policies', -1),
-                'subnet_pools': getattr(network_quota, 'subnet_pools', -1)
+                'networks': getattr(network_quota_obj, 'networks', -1),
+                'subnets': getattr(network_quota_obj, 'subnets', -1),
+                'ports': getattr(network_quota_obj, 'ports', -1),
+                'routers': getattr(network_quota_obj, 'routers', -1),
+                'floating_ips': getattr(network_quota_obj, 'floating_ips', -1),
+                'security_groups': getattr(network_quota_obj, 'security_groups', -1),
+                'security_group_rules': getattr(network_quota_obj, 'security_group_rules', -1),
+                'rbac_policies': getattr(network_quota_obj, 'rbac_policies', -1),
+                'subnet_pools': getattr(network_quota_obj, 'subnet_pools', -1)
             }
         except Exception as e:
             logger.warning(f"Failed to get network quota: {e}")
@@ -3300,7 +3303,8 @@ def get_quota(project_name: str = "") -> Dict[str, Any]:
                 'injected-files': compute.get('injected_files', -1),
                 'injected-file-size': compute.get('injected_file_content_bytes', -1),
                 'injected-path-size': compute.get('injected_file_path_bytes', -1),
-                'fixed_ips': compute.get('fixed_ips', None)  # Can be None
+                'fixed_ips': compute.get('fixed_ips', None),  # Can be None
+                'properties': 128  # Default value for image properties
             })
         
         # Add volume quotas
@@ -3438,7 +3442,9 @@ def set_quota(project_name: str, action: str, **kwargs) -> Dict[str, Any]:
             
             if compute_updates:
                 try:
-                    conn.compute.update_quota(project_id, **compute_updates)
+                    # Use direct API call for compute quota update
+                    quota_set = {"quota_set": compute_updates}
+                    conn.compute.put(f'/os-quota-sets/{project_id}', json=quota_set)
                     results['compute'] = {'success': True, 'updated_fields': list(compute_updates.keys())}
                 except Exception as e:
                     results['compute'] = {'success': False, 'error': str(e)}
@@ -3454,7 +3460,9 @@ def set_quota(project_name: str, action: str, **kwargs) -> Dict[str, Any]:
             
             if volume_updates:
                 try:
-                    conn.volume.update_quota(project_id, **volume_updates)
+                    # Use direct API call for volume quota update
+                    quota_set = {"quota_set": volume_updates}
+                    conn.block_storage.put(f'/os-quota-sets/{project_id}', json=quota_set)
                     results['volume'] = {'success': True, 'updated_fields': list(volume_updates.keys())}
                 except Exception as e:
                     results['volume'] = {'success': False, 'error': str(e)}
@@ -3470,6 +3478,7 @@ def set_quota(project_name: str, action: str, **kwargs) -> Dict[str, Any]:
             
             if network_updates:
                 try:
+                    # Network quota update should work with SDK method
                     conn.network.update_quota(project_id, **network_updates)
                     results['network'] = {'success': True, 'updated_fields': list(network_updates.keys())}
                 except Exception as e:
