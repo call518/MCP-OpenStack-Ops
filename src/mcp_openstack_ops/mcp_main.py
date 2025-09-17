@@ -123,6 +123,17 @@ ALLOW_MODIFY_OPERATIONS=true
 """
     return ""
 
+def conditional_tool(func):
+    """
+    Decorator that conditionally registers tools based on ALLOW_MODIFY_OPERATIONS setting.
+    Modify operations are only registered when explicitly enabled.
+    """
+    if _is_modify_operation_allowed():
+        return mcp.tool()(func)
+    else:
+        # Return the function without registering it as a tool
+        return func
+
 # =============================================================================
 # MCP Tools (OpenStack Operations and Monitoring)
 # =============================================================================
@@ -484,7 +495,7 @@ async def get_network_details(network_name: str = "all") -> str:
         return error_msg
 
 
-@mcp.tool()
+@conditional_tool
 async def manage_instance(instance_name: str, action: str) -> str:
     """
     Manages OpenStack instances with operations like start, stop, restart, pause, and unpause.
@@ -505,11 +516,6 @@ async def manage_instance(instance_name: str, action: str) -> str:
     Returns:
         Management operation result in JSON format with success status, message, and state information.
     """
-    # Safety check for modify operations
-    safety_error = _check_modify_operation_permission()
-    if safety_error:
-        return safety_error
-        
     try:
         if not instance_name or not instance_name.strip():
             return "Error: Instance name is required"
@@ -534,7 +540,7 @@ async def manage_instance(instance_name: str, action: str) -> str:
         return error_msg
 
 
-@mcp.tool()
+@conditional_tool
 async def manage_volume(volume_name: str, action: str, size: int = 1, instance_name: str = "") -> str:
     """
     Manages OpenStack volumes with operations like create, delete, list, and attach.
@@ -556,11 +562,6 @@ async def manage_volume(volume_name: str, action: str, size: int = 1, instance_n
     Returns:
         Volume management operation result in JSON format with success status and volume information.
     """
-    # Safety check for modify operations (except for 'list' action)
-    if action and action.strip().lower() not in ['list', 'show']:
-        safety_error = _check_modify_operation_permission()
-        if safety_error:
-            return safety_error
     
     try:
         if not action or not action.strip():
@@ -982,7 +983,7 @@ async def get_keypair_list() -> str:
         return error_msg
 
 
-@mcp.tool()
+@conditional_tool
 async def manage_keypair(keypair_name: str, action: str, public_key: str = "") -> str:
     """
     Manage SSH keypairs (create, delete, import).
@@ -1003,11 +1004,6 @@ async def manage_keypair(keypair_name: str, action: str, public_key: str = "") -
     Returns:
         Result of keypair management operation in JSON format.
     """
-    # Safety check for modify operations (except for 'list' action)
-    if action and action.strip().lower() not in ['list', 'show']:
-        safety_error = _check_modify_operation_permission()
-        if safety_error:
-            return safety_error
     try:
         logger.info(f"Managing keypair '{keypair_name}' with action '{action}'")
         
@@ -1101,7 +1097,7 @@ async def get_floating_ips() -> str:
         return error_msg
 
 
-@mcp.tool()
+@conditional_tool
 async def manage_floating_ip(action: str, floating_network_id: str = "", port_id: str = "", floating_ip_id: str = "") -> str:
     """
     Manage floating IPs (create, delete, associate, disassociate).
@@ -1123,10 +1119,6 @@ async def manage_floating_ip(action: str, floating_network_id: str = "", port_id
     Returns:
         Result of floating IP management operation in JSON format.
     """
-    # Safety check for modify operations
-    safety_error = _check_modify_operation_permission()
-    if safety_error:
-        return safety_error
     try:
         logger.info(f"Managing floating IP with action '{action}'")
         
@@ -1258,7 +1250,7 @@ async def get_volume_snapshots() -> str:
         return error_msg
 
 
-@mcp.tool()
+@conditional_tool
 async def manage_snapshot(snapshot_name: str, action: str, volume_id: str = "", description: str = "") -> str:
     """
     Manage volume snapshots (create, delete).
@@ -1280,10 +1272,6 @@ async def manage_snapshot(snapshot_name: str, action: str, volume_id: str = "", 
     Returns:
         Result of snapshot management operation in JSON format.
     """
-    # Safety check for modify operations
-    safety_error = _check_modify_operation_permission()
-    if safety_error:
-        return safety_error
     
     try:
         logger.info(f"Managing snapshot '{snapshot_name}' with action '{action}'")
@@ -1313,7 +1301,7 @@ async def manage_snapshot(snapshot_name: str, action: str, volume_id: str = "", 
 
 
 # Image Service (Glance) Enhanced Tools
-@mcp.tool()
+@conditional_tool
 async def manage_image(image_name: str, action: str, container_format: str = "bare", disk_format: str = "qcow2", visibility: str = "private") -> str:
     """
     Manage images (create, delete, update, list).
@@ -1337,11 +1325,6 @@ async def manage_image(image_name: str, action: str, container_format: str = "ba
     Returns:
         Result of image management operation in JSON format.
     """
-    # Safety check for modify operations (except for 'list' action)
-    if action and action.strip().lower() not in ['list', 'show']:
-        safety_error = _check_modify_operation_permission()
-        if safety_error:
-            return safety_error
     
     try:
         # Image name is not required for 'list' action
@@ -1411,7 +1394,7 @@ async def get_stacks() -> str:
         return error_msg
 
 
-@mcp.tool()
+@conditional_tool
 async def manage_stack(stack_name: str, action: str, template: str = "", parameters: str = "") -> str:
     """
     Manage Heat orchestration stacks (create, delete, update).
@@ -1433,10 +1416,6 @@ async def manage_stack(stack_name: str, action: str, template: str = "", paramet
     Returns:
         Result of stack management operation in JSON format.
     """
-    # Safety check for modify operations
-    safety_error = _check_modify_operation_permission()
-    if safety_error:
-        return safety_error
     
     try:
         logger.info(f"Managing stack '{stack_name}' with action '{action}'")
