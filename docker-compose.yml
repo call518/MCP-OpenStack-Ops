@@ -13,7 +13,7 @@ services:
     restart: unless-stopped
 
   mcp-server:
-    image: call518/mcp-server-openstack-ops:1.0.0
+    image: call518/mcp-server-openstack-ops:${OPENSTACK_RELEASE}
     container_name: mcp-openstack-ops-mcp-server
     ports:
       - "${DOCKER_EXTERNAL_PORT_MCP_SERVER}:8000" ### (WARNING) Must be same with port number of 'FASTMCP_PORT', 'mcp-config.json' and 'mcp-config.json.http'

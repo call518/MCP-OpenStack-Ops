@@ -27,7 +27,8 @@
 - ✅ **Comprehensive Logging**: Configurable logging levels with structured output and performance tracking.
 - ✅ **Environment Configuration**: Support for environment variables and CLI arguments.
 - ✅ **Error Handling**: Robust error handling and configuration validation with fallback data.
-- ✅ **Docker Support**: Containerized deployment with Docker Compose.
+- ✅ **Docker Support**: Containerized deployment with Docker Compose and **release-specific images**.
+- ✅ **Multi-Release Support**: **8 Docker images** optimized for different OpenStack releases (Yoga to Flamingo).
 
 ---
 
@@ -98,7 +99,8 @@ uv sync
 
 # Configure environment
 cp .env.example .env
-# Edit .env with your OpenStack credentials
+# Edit .env with your OpenStack credentials and select appropriate release
+# OPENSTACK_RELEASE=epoxy  # Choose: flamingo, epoxy, dalmatian, caracal, bobcat, antelope, zed, yoga
 ```
 
 ### 2. OpenStack Compatibility & Configuration
@@ -211,11 +213,51 @@ FASTMCP_PORT=8080
 
 #### For Development & Testing
 ```bash
-### Testing & Development
-
-```bash
 # Test with MCP Inspector
 ./scripts/run-mcp-inspector-local.sh
+
+# Direct execution for debugging  
+uv run python -m mcp_openstack_ops --log-level DEBUG
+```
+
+#### For Production (Docker)
+
+**Release-specific Docker Images**: Each OpenStack release has its own optimized Docker image with the appropriate SDK version:
+
+```bash
+# Available images with release-specific SDK versions:
+# call518/mcp-server-openstack-ops:flamingo   (SDK 4.5.0-4.7.1)
+# call518/mcp-server-openstack-ops:epoxy      (SDK 4.1.0-4.4.0) 
+# call518/mcp-server-openstack-ops:dalmatian  (SDK 3.1.0-4.0.1)
+# call518/mcp-server-openstack-ops:caracal    (SDK 2.0.0-3.0.0)
+# call518/mcp-server-openstack-ops:bobcat     (SDK 1.1.0-1.5.1)
+# call518/mcp-server-openstack-ops:antelope   (SDK 0.103.0-1.0.2)
+# call518/mcp-server-openstack-ops:zed        (SDK 0.99.0-0.101.0)
+# call518/mcp-server-openstack-ops:yoga       (SDK 0.60.0-0.62.0)
+
+# 1. Configure your OpenStack release in .env
+cp .env.example .env
+# Edit OPENSTACK_RELEASE=epoxy  # Change to match your environment
+
+# 2. Start services (automatically uses the correct image)
+docker-compose up -d
+
+# 3. Check logs
+docker-compose logs -f mcp-server
+```
+
+#### For Claude Desktop Integration
+Add to your Claude Desktop configuration:
+```json
+{
+  "mcpServers": {
+    "openstack-ops": {
+      "command": "uv",
+      "args": ["run", "python", "-m", "mcp_openstack_ops"],
+      "cwd": "/path/to/MCP-OpenStack-Ops"
+    }
+  }
+}
 ```
 
 ---
@@ -331,35 +373,6 @@ python check_openstack_version.py
 ```
 
 **Reference**: See the [complete compatibility matrix](#version-compatibility-matrix) above for detailed version mappings.
-
----
-
-# Direct execution for debugging
-uv run python -m mcp_openstack_ops --log-level DEBUG
-```
-
-#### For Production (Docker)
-```bash
-# Build and run with Docker Compose
-docker-compose up -d
-
-# Check logs
-docker-compose logs -f mcp-server
-```
-
-#### For Claude Desktop Integration
-Add to your Claude Desktop configuration:
-```json
-{
-  "mcpServers": {
-    "openstack-ops": {
-      "command": "uv",
-      "args": ["run", "python", "-m", "mcp_openstack_ops"],
-      "cwd": "/path/to/MCP-OpenStack-Ops"
-    }
-  }
-}
-```
 
 ---
 

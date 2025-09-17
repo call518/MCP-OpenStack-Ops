@@ -1,20 +1,42 @@
 FROM rockylinux:9.3
 
 ARG PYTHON_VERSION=3.11
+ARG OPENSTACK_SDK_MIN
+ARG OPENSTACK_SDK_MAX  
+ARG OPENSTACK_RELEASE
 
 WORKDIR /app
 
+# Add labels for image identification
+LABEL org.opencontainers.image.title="MCP OpenStack Operations Server"
+LABEL org.opencontainers.image.description="OpenStack operations automation MCP server for ${OPENSTACK_RELEASE} release"
+LABEL org.opencontainers.image.version="1.0.0"
+LABEL org.opencontainers.image.vendor="call518"
+LABEL openstack.release="${OPENSTACK_RELEASE}"
+LABEL openstack.sdk.version="${OPENSTACK_SDK_MIN}-${OPENSTACK_SDK_MAX}"
+
 RUN dnf install -y epel-release \
-        && dnf install -y python${PYTHON_VERSION} python${PYTHON_VERSION}-pip git procps-ng lsof telnet screen iputils \
+        && dnf install -y python${PYTHON_VERSION} python${PYTHON_VERSION}-pip python${PYTHON_VERSION}-devel \
+                         git procps-ng lsof telnet screen iputils \
+                         gcc gcc-c++ make kernel-headers \
         && dnf clean all \
         && update-alternatives --install /usr/bin/python python /usr/bin/python${PYTHON_VERSION} 1000 --slave /usr/bin/pip pip /usr/bin/pip${PYTHON_VERSION}
 
+# Install Python packages with OpenStack SDK version specific to the release
+# SDK version range is passed as build arguments from build script
 RUN pip install \
         'uv>=0.8.5' \
         'mcpo>=0.0.17' \
         'fastmcp>=2.11.1' \
         'aiohttp>=3.12.0' \
-        'openstacksdk>=3.3.0' \
+        "openstacksdk>=${OPENSTACK_SDK_MIN},<=${OPENSTACK_SDK_MAX}" \
         'python-dotenv>=1.0.0'
+
+# Add build info file for runtime reference  
+RUN echo "OpenStack Release: ${OPENSTACK_RELEASE}" > /app/build-info.txt \
+    && echo "OpenStack SDK Version: ${OPENSTACK_SDK_MIN}-${OPENSTACK_SDK_MAX}" >> /app/build-info.txt \
+    && echo "Build Date: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> /app/build-info.txt
+
+COPY . /app/
 
 CMD ["/bin/bash", "/app/scripts/mcp-server-docker-cmd.sh"]
