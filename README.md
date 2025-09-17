@@ -25,6 +25,10 @@
 - ✅ **Docker Support**: Containerized deployment optimized for OpenStack Epoxy environments.
 - ✅ **Flexible Transport**: Support for both `stdio` and `streamable-http` transports with comprehensive logging.
 
+> ⚠️ **Compatibility Notice**: This MCP server is officially supported and tested on **OpenStack Epoxy (2025.1)** only. While it may work with other OpenStack releases (Dalmatian, Caracal, Bobcat, etc.), some API endpoints and features may not be fully compatible. For production environments, we strongly recommend using OpenStack Epoxy for optimal performance and reliability.
+> 
+> 🚧 **Coming Soon**: Multi-version OpenStack API compatibility is under active development and will be added in upcoming releases to support broader OpenStack deployments.
+
 ---
 
 ## MCP Tools Available

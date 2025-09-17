@@ -1219,17 +1219,52 @@ def monitor_resources() -> Dict[str, Any]:
     try:
         conn = get_openstack_connection()
         
-        # Get hypervisor statistics
+        # First try to get hypervisor statistics directly (like CLI does)
+        hypervisor_stats = None
+        try:
+            # Try to get hypervisor statistics summary
+            stats_response = conn.compute.get("/os-hypervisors/statistics")
+            if stats_response.status_code == 200:
+                hypervisor_stats = stats_response.json().get('hypervisor_statistics', {})
+                logger.info(f"Got hypervisor statistics: {hypervisor_stats}")
+        except Exception as e:
+            logger.warning(f"Failed to get hypervisor statistics: {e}")
+            
+        # Get individual hypervisor details
         hypervisors = []
         for hypervisor in conn.compute.hypervisors(details=True):
-            # Safely handle None values
-            vcpus = getattr(hypervisor, 'vcpus', 0) or 0
-            vcpus_used = getattr(hypervisor, 'vcpus_used', 0) or 0
-            memory_mb = getattr(hypervisor, 'memory_mb', 0) or 0
-            memory_mb_used = getattr(hypervisor, 'memory_mb_used', 0) or 0
-            local_gb = getattr(hypervisor, 'local_gb', 0) or 0
-            local_gb_used = getattr(hypervisor, 'local_gb_used', 0) or 0
-            running_vms = getattr(hypervisor, 'running_vms', 0) or 0
+            # Get detailed hypervisor info including usage statistics
+            try:
+                # Try to get more detailed info by making a specific API call
+                hv_detail = conn.compute.get_hypervisor(hypervisor.id)
+                logger.debug(f"Hypervisor {hypervisor.id} details: {hv_detail}")
+                
+                # Use the detailed response or fallback to original
+                hv_data = hv_detail if hv_detail else hypervisor
+                
+            except Exception as detail_e:
+                logger.warning(f"Failed to get detailed hypervisor info for {hypervisor.id}: {detail_e}")
+                hv_data = hypervisor
+            
+            # Extract values with multiple fallback methods
+            vcpus = getattr(hv_data, 'vcpus', None) or getattr(hypervisor, 'vcpus', 0) or 0
+            vcpus_used = getattr(hv_data, 'vcpus_used', None) or getattr(hypervisor, 'vcpus_used', 0) or 0
+            memory_mb = getattr(hv_data, 'memory_mb', None) or getattr(hypervisor, 'memory_mb', 0) or 0
+            memory_mb_used = getattr(hv_data, 'memory_mb_used', None) or getattr(hypervisor, 'memory_mb_used', 0) or 0
+            local_gb = getattr(hv_data, 'local_gb', None) or getattr(hypervisor, 'local_gb', 0) or 0
+            local_gb_used = getattr(hv_data, 'local_gb_used', None) or getattr(hypervisor, 'local_gb_used', 0) or 0
+            running_vms = getattr(hv_data, 'running_vms', None) or getattr(hypervisor, 'running_vms', 0) or 0
+            
+            # If we still have zero values but we have statistics, use those for totals
+            if hypervisor_stats and len(list(conn.compute.hypervisors())) == 1:
+                # For single hypervisor environments, use the statistics data
+                vcpus = hypervisor_stats.get('vcpus', vcpus)
+                vcpus_used = hypervisor_stats.get('vcpus_used', vcpus_used)
+                memory_mb = hypervisor_stats.get('memory_mb', memory_mb)
+                memory_mb_used = hypervisor_stats.get('memory_mb_used', memory_mb_used)
+                local_gb = hypervisor_stats.get('local_gb', local_gb)
+                local_gb_used = hypervisor_stats.get('local_gb_used', local_gb_used)
+                running_vms = hypervisor_stats.get('running_vms', running_vms)
             
             cpu_usage_percent = (vcpus_used / vcpus * 100) if vcpus > 0 else 0
             memory_usage_percent = (memory_mb_used / memory_mb * 100) if memory_mb > 0 else 0
@@ -1252,44 +1287,88 @@ def monitor_resources() -> Dict[str, Any]:
                 'local_gb': local_gb,
                 'disk_usage_percent': round(disk_usage_percent, 2),
                 'running_vms': running_vms,
-                'disk_available_least': getattr(hypervisor, 'disk_available_least', None),
-                'free_ram_mb': getattr(hypervisor, 'free_ram_mb', None),
-                'free_disk_gb': getattr(hypervisor, 'free_disk_gb', None)
+                'disk_available_least': getattr(hv_data, 'disk_available_least', None) or getattr(hypervisor, 'disk_available_least', None),
+                'free_ram_mb': getattr(hv_data, 'free_ram_mb', None) or getattr(hypervisor, 'free_ram_mb', None),
+                'free_disk_gb': getattr(hv_data, 'free_disk_gb', None) or getattr(hypervisor, 'free_disk_gb', None)
             })
             
-        # Calculate cluster totals
-        total_vcpus = sum(h['vcpus'] for h in hypervisors)
-        used_vcpus = sum(h['vcpus_used'] for h in hypervisors) 
-        total_memory = sum(h['memory_mb'] for h in hypervisors)
-        used_memory = sum(h['memory_mb_used'] for h in hypervisors)
-        total_storage = sum(h['local_gb'] for h in hypervisors)
-        used_storage = sum(h['local_gb_used'] for h in hypervisors)
-        total_vms = sum(h['running_vms'] for h in hypervisors)
+        # Calculate cluster totals - use statistics if available, otherwise sum from hypervisors
+        if hypervisor_stats:
+            total_vcpus = hypervisor_stats.get('vcpus', sum(h['vcpus'] for h in hypervisors))
+            used_vcpus = hypervisor_stats.get('vcpus_used', sum(h['vcpus_used'] for h in hypervisors))
+            total_memory = hypervisor_stats.get('memory_mb', sum(h['memory_mb'] for h in hypervisors))
+            used_memory = hypervisor_stats.get('memory_mb_used', sum(h['memory_mb_used'] for h in hypervisors))
+            total_storage = hypervisor_stats.get('local_gb', sum(h['local_gb'] for h in hypervisors))
+            used_storage = hypervisor_stats.get('local_gb_used', sum(h['local_gb_used'] for h in hypervisors))
+            total_vms = hypervisor_stats.get('running_vms', sum(h['running_vms'] for h in hypervisors))
+        else:
+            total_vcpus = sum(h['vcpus'] for h in hypervisors)
+            used_vcpus = sum(h['vcpus_used'] for h in hypervisors) 
+            total_memory = sum(h['memory_mb'] for h in hypervisors)
+            used_memory = sum(h['memory_mb_used'] for h in hypervisors)
+            total_storage = sum(h['local_gb'] for h in hypervisors)
+            used_storage = sum(h['local_gb_used'] for h in hypervisors)
+            total_vms = sum(h['running_vms'] for h in hypervisors)
         
-        # Get quota information if available
+        # Get quota information and calculate project-level usage
         quotas = {}
+        project_vcpu_quota = None
+        project_ram_quota = None
+        project_instance_quota = None
+        
         try:
             project_id = conn.current_project_id
             compute_quotas = conn.compute.get_quota_set(project_id)
+            project_vcpu_quota = getattr(compute_quotas, 'cores', None)
+            project_ram_quota = getattr(compute_quotas, 'ram', None)  # in MB
+            project_instance_quota = getattr(compute_quotas, 'instances', None)
+            
             quotas['compute'] = {
-                'instances': getattr(compute_quotas, 'instances', 'unlimited'),
-                'cores': getattr(compute_quotas, 'cores', 'unlimited'),
-                'ram': getattr(compute_quotas, 'ram', 'unlimited'),
+                'instances': project_instance_quota if project_instance_quota != -1 else 'unlimited',
+                'cores': project_vcpu_quota if project_vcpu_quota != -1 else 'unlimited',
+                'ram': project_ram_quota if project_ram_quota != -1 else 'unlimited',
                 'volumes': getattr(compute_quotas, 'volumes', 'unlimited')
             }
         except Exception as e:
             logger.warning(f"Failed to get quotas: {e}")
             quotas = {'error': f'Failed to get quotas: {str(e)}'}
         
+        # Build comprehensive cluster summary with both physical and quota perspectives
+        cluster_summary = {
+            'total_hypervisors': len(hypervisors),
+            'total_running_instances': total_vms,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        # Physical hypervisor resources (like CLI shows)
+        cluster_summary['physical_resources'] = {
+            'vcpu_usage': f'{used_vcpus}/{total_vcpus} ({(used_vcpus/total_vcpus*100):.1f}% used)' if total_vcpus > 0 else 'N/A',
+            'memory_usage': f'{used_memory}/{total_memory} MB ({(used_memory/total_memory*100):.1f}% used)' if total_memory > 0 else 'N/A',
+            'storage_usage': f'{used_storage}/{total_storage} GB ({(used_storage/total_storage*100):.1f}% used)' if total_storage > 0 else 'N/A'
+        }
+        
+        # Project quota perspective (like Horizon shows)
+        if project_vcpu_quota and project_vcpu_quota != -1:
+            quota_vcpu_percent = (used_vcpus / project_vcpu_quota * 100) if project_vcpu_quota > 0 else 0
+            cluster_summary['quota_usage'] = {
+                'vcpu_usage': f'{used_vcpus}/{project_vcpu_quota} ({quota_vcpu_percent:.1f}% of quota used)',
+                'instance_usage': f'{total_vms}/{project_instance_quota} ({(total_vms/project_instance_quota*100):.1f}% of quota used)' if project_instance_quota and project_instance_quota != -1 else f'{total_vms}/unlimited',
+                'memory_usage': f'{used_memory}/{project_ram_quota} MB ({(used_memory/project_ram_quota*100):.1f}% of quota used)' if project_ram_quota and project_ram_quota != -1 else f'{used_memory}/unlimited MB'
+            }
+        else:
+            cluster_summary['quota_usage'] = {
+                'note': 'Project quotas are unlimited or not available'
+            }
+        
+        # Legacy fields for backward compatibility (using physical resources)
+        cluster_summary.update({
+            'vcpu_usage': f'{used_vcpus}/{total_vcpus} ({(used_vcpus/total_vcpus*100):.1f}% used)' if total_vcpus > 0 else 'N/A',
+            'memory_usage': f'{used_memory}/{total_memory} MB ({(used_memory/total_memory*100):.1f}% used)' if total_memory > 0 else 'N/A',
+            'storage_usage': f'{used_storage}/{total_storage} GB ({(used_storage/total_storage*100):.1f}% used)' if total_storage > 0 else 'N/A'
+        })
+        
         return {
-            'cluster_summary': {
-                'total_hypervisors': len(hypervisors),
-                'total_running_instances': total_vms,
-                'vcpu_usage': f'{used_vcpus}/{total_vcpus} ({(used_vcpus/total_vcpus*100):.1f}% used)' if total_vcpus > 0 else 'N/A',
-                'memory_usage': f'{used_memory}/{total_memory} MB ({(used_memory/total_memory*100):.1f}% used)' if total_memory > 0 else 'N/A',
-                'storage_usage': f'{used_storage}/{total_storage} GB ({(used_storage/total_storage*100):.1f}% used)' if total_storage > 0 else 'N/A',
-                'timestamp': datetime.now().isoformat()
-            },
+            'cluster_summary': cluster_summary,
             'hypervisors': hypervisors,
             'quotas': quotas
         }
