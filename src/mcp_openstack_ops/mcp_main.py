@@ -54,7 +54,16 @@ from functions import (
     get_quota as _get_quota,
     set_quota as _set_quota,
     get_project_details as _get_project_details,
-    set_project as _set_project
+    set_project as _set_project,
+    # New enhanced server management functions
+    get_server_events as _get_server_events,
+    get_server_groups as _get_server_groups,
+    set_server_group as _set_server_group,
+    get_hypervisor_details as _get_hypervisor_details,
+    get_availability_zones as _get_availability_zones,
+    set_flavor as _set_flavor,
+    get_server_volumes as _get_server_volumes,
+    set_server_volume as _set_server_volume
 )
 
 import json
@@ -1805,6 +1814,365 @@ async def set_project(
         
     except Exception as e:
         error_msg = f"Error: Failed to manage project - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+# =============================================================================
+# Enhanced Server Management Tools
+# =============================================================================
+
+@mcp.tool()
+async def get_server_events(
+    instance_name: str,
+    limit: int = 50
+) -> str:
+    """
+    Get recent events for a specific server
+    
+    Args:
+        instance_name: Name or ID of the server instance
+        limit: Maximum number of events to return (default: 50)
+    
+    Returns:
+        JSON string with server events information
+    """
+    try:
+        logger.info(f"Getting events for server: {instance_name}")
+        
+        events_result = _get_server_events(instance_name=instance_name, limit=limit)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "operation": "get_server_events",
+            "parameters": {
+                "instance_name": instance_name,
+                "limit": limit
+            },
+            "result": events_result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to get server events - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+@mcp.tool()
+async def get_server_groups() -> str:
+    """
+    List all server groups with their details
+    
+    Returns:
+        JSON string with server groups information
+    """
+    try:
+        logger.info("Getting server groups list")
+        
+        groups_result = _get_server_groups()
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "operation": "get_server_groups",
+            "result": {
+                "server_groups_count": len(groups_result),
+                "server_groups": groups_result
+            }
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to get server groups - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+@conditional_tool
+async def set_server_group(
+    group_name: str,
+    action: str,
+    policies: Optional[str] = None,
+    metadata: Optional[str] = None
+) -> str:
+    """
+    Manage server groups (create, delete, show)
+    
+    Args:
+        group_name: Name of the server group
+        action: Action to perform (create, delete, show)
+        policies: Comma-separated list of policies for create (e.g., "affinity" or "anti-affinity")
+        metadata: JSON string of metadata for create
+    
+    Returns:
+        JSON string with server group operation result
+    """
+    try:
+        logger.info(f"Managing server group: {group_name}, action: {action}")
+        
+        group_params = {}
+        
+        if policies:
+            group_params['policies'] = [p.strip() for p in policies.split(',')]
+            
+        if metadata:
+            import json as json_module
+            group_params['metadata'] = json_module.loads(metadata)
+        
+        group_result = _set_server_group(group_name=group_name, action=action, **group_params)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "operation": "set_server_group",
+            "parameters": {
+                "group_name": group_name,
+                "action": action,
+                "group_params": group_params if group_params else "none"
+            },
+            "result": group_result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage server group - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+@mcp.tool()
+async def get_hypervisor_details(
+    hypervisor_name: str = "all"
+) -> str:
+    """
+    Get detailed information about hypervisors
+    
+    Args:
+        hypervisor_name: Name/ID of specific hypervisor or "all" for all hypervisors
+    
+    Returns:
+        JSON string with hypervisor details and statistics
+    """
+    try:
+        logger.info(f"Getting hypervisor details for: {hypervisor_name}")
+        
+        hypervisor_result = _get_hypervisor_details(hypervisor_name=hypervisor_name)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "operation": "get_hypervisor_details",
+            "parameters": {
+                "hypervisor_name": hypervisor_name
+            },
+            "result": hypervisor_result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to get hypervisor details - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+@mcp.tool()
+async def get_availability_zones() -> str:
+    """
+    List availability zones and their status
+    
+    Returns:
+        JSON string with availability zones information
+    """
+    try:
+        logger.info("Getting availability zones")
+        
+        zones_result = _get_availability_zones()
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "operation": "get_availability_zones",
+            "result": zones_result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to get availability zones - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+@conditional_tool
+async def set_flavor(
+    flavor_name: str,
+    action: str,
+    vcpus: Optional[int] = None,
+    ram: Optional[int] = None,
+    disk: Optional[int] = None,
+    ephemeral: Optional[int] = None,
+    swap: Optional[int] = None,
+    rxtx_factor: Optional[float] = None,
+    is_public: Optional[bool] = None,
+    properties: Optional[str] = None
+) -> str:
+    """
+    Manage OpenStack flavors (create, delete, set properties, list)
+    
+    Args:
+        flavor_name: Name of the flavor
+        action: Action to perform (create, delete, show, list, set)
+        vcpus: Number of virtual CPUs (for create)
+        ram: Amount of RAM in MB (for create)
+        disk: Disk size in GB (for create)
+        ephemeral: Ephemeral disk size in GB (for create)
+        swap: Swap size in MB (for create)
+        rxtx_factor: RX/TX factor (for create)
+        is_public: Whether flavor is public (for create)
+        properties: JSON string of extra properties (for create/set)
+    
+    Returns:
+        JSON string with flavor operation result
+    """
+    try:
+        logger.info(f"Managing flavor: {flavor_name}, action: {action}")
+        
+        flavor_params = {}
+        
+        if vcpus is not None:
+            flavor_params['vcpus'] = vcpus
+        if ram is not None:
+            flavor_params['ram'] = ram
+        if disk is not None:
+            flavor_params['disk'] = disk
+        if ephemeral is not None:
+            flavor_params['ephemeral'] = ephemeral
+        if swap is not None:
+            flavor_params['swap'] = swap
+        if rxtx_factor is not None:
+            flavor_params['rxtx_factor'] = rxtx_factor
+        if is_public is not None:
+            flavor_params['is_public'] = is_public
+            
+        if properties:
+            import json as json_module
+            flavor_params['properties'] = json_module.loads(properties)
+        
+        flavor_result = _set_flavor(flavor_name=flavor_name, action=action, **flavor_params)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "operation": "set_flavor",
+            "parameters": {
+                "flavor_name": flavor_name,
+                "action": action,
+                "flavor_params": flavor_params if flavor_params else "none"
+            },
+            "result": flavor_result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage flavor - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+@mcp.tool()
+async def get_server_volumes(
+    instance_name: str
+) -> str:
+    """
+    Get all volumes attached to a specific server
+    
+    Args:
+        instance_name: Name or ID of the server instance
+    
+    Returns:
+        JSON string with server volumes information
+    """
+    try:
+        logger.info(f"Getting volumes for server: {instance_name}")
+        
+        volumes_result = _get_server_volumes(instance_name=instance_name)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "operation": "get_server_volumes",
+            "parameters": {
+                "instance_name": instance_name
+            },
+            "result": volumes_result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to get server volumes - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+@conditional_tool
+async def set_server_volume(
+    instance_name: str,
+    action: str,
+    volume_id: Optional[str] = None,
+    volume_name: Optional[str] = None,
+    device: Optional[str] = None,
+    attachment_id: Optional[str] = None
+) -> str:
+    """
+    Manage server volume attachments (attach, detach, list)
+    
+    Args:
+        instance_name: Name or ID of the server instance
+        action: Action to perform (attach, detach, list)
+        volume_id: Volume ID for attach/detach operations
+        volume_name: Volume name for attach/detach operations (alternative to volume_id)
+        device: Device path for attach operation (optional, e.g., /dev/vdb)
+        attachment_id: Attachment ID for detach operation (alternative to volume_id/name)
+    
+    Returns:
+        JSON string with server volume operation result
+    """
+    try:
+        logger.info(f"Managing server volume: {instance_name}, action: {action}")
+        
+        volume_params = {}
+        
+        if volume_id:
+            volume_params['volume_id'] = volume_id
+        if volume_name:
+            volume_params['volume_name'] = volume_name
+        if device:
+            volume_params['device'] = device
+        if attachment_id:
+            volume_params['attachment_id'] = attachment_id
+        
+        volume_result = _set_server_volume(
+            instance_name=instance_name, 
+            action=action, 
+            **volume_params
+        )
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "operation": "set_server_volume",
+            "parameters": {
+                "instance_name": instance_name,
+                "action": action,
+                "volume_params": volume_params if volume_params else "none"
+            },
+            "result": volume_result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage server volume - {str(e)}"
         logger.error(error_msg)
         return error_msg
 

@@ -15,8 +15,11 @@
 
 - ✅ **OpenStack Epoxy Integration**: Direct integration with OpenStack SDK 4.1.0-4.4.0 for real-time cluster operations.
 - ✅ **Comprehensive Monitoring**: Enhanced cluster status reports with hypervisor health, resource utilization, and health scoring.
-- ✅ **Complete Service Coverage**: 31 comprehensive tools covering Identity, Compute, Network, Storage, Image, and Orchestration services.
-- ✅ **Advanced Instance Management**: Start, stop, restart, pause/unpause OpenStack instances with pagination support.
+- ✅ **Complete Service Coverage**: 39 comprehensive tools covering Identity, Compute, Network, Storage, Image, and Orchestration services.
+- ✅ **Advanced Instance Management**: Enhanced server lifecycle operations with backup, migration, rescue, and administrative functions.
+- ✅ **Server Event Tracking**: Detailed server event history and lifecycle monitoring with comprehensive logging.
+- ✅ **Hypervisor Monitoring**: Real-time hypervisor resource statistics with utilization tracking and cluster totals.
+- ✅ **Volume Management**: Comprehensive volume attachment/detachment operations with metadata tracking.
 - ✅ **Large-Scale Environment Support**: Pagination and limits for environments with thousands of instances.
 - ✅ **Enterprise Features**: User management, role assignments, keypair management, floating IP operations, volume snapshots.
 - ✅ **Intelligent Search**: Flexible instance search with partial matching and case-sensitive options.
@@ -85,29 +88,60 @@
 18. **`set_snapshot`** - Create, delete, and manage volume snapshots
 
 ### ⚙️ Instance & Compute Management
-19. **`set_instance`** - Instance lifecycle operations (start/stop/restart/pause/unpause)
-20. **`get_keypair_list`** - SSH keypair management and listing
-21. **`set_keypair`** - Create, delete SSH keypairs for instance access
+19. **`set_instance`** - Enhanced instance lifecycle operations with extensive action support:
+   - Basic operations: start/stop/restart/pause/unpause/suspend/resume
+   - Advanced operations: backup (with auto-naming), shelve/unshelve, lock/unlock
+   - Recovery operations: rescue/unrescue with image selection
+   - Maintenance operations: resize (flavor changes) and rebuild (OS reinstall)
+20. **`get_server_events`** - Server event tracking and lifecycle history
+   - Detailed event logs with timestamps and result tracking
+   - Action history: start/stop, resize, rebuild, migration events
+   - Error tracking and event filtering capabilities
+21. **`get_server_groups`** - Server group management and affinity policies
+   - List server groups with member details and policy information
+   - Anti-affinity and affinity group configurations
+22. **`set_server_group`** - Create and manage server groups
+   - Affinity/anti-affinity policy management
+   - Server group CRUD operations with member management
+23. **`get_server_volumes`** - Server volume attachment information
+   - List all volumes attached to a server with detailed metadata
+   - Volume status, type, size, and bootable flag information
+24. **`set_server_volume`** - Server volume attachment management
+   - Attach/detach volumes with device specification
+   - Volume attachment operations with comprehensive error handling
+25. **`get_hypervisor_details`** - Hypervisor resource monitoring
+   - Detailed hypervisor statistics with resource utilization
+   - CPU, memory, disk usage with percentage calculations
+   - Cluster-wide totals and per-hypervisor breakdown
+26. **`get_availability_zones`** - Availability zone information
+   - Compute and volume availability zones with host details
+   - Zone status and service availability information
+27. **`set_flavor`** - Flavor management with comprehensive CRUD operations
+   - Create, delete, show, and list flavors with specifications
+   - Extra properties and specifications management
+   - Public/private flavor visibility controls
+28. **`get_keypair_list`** - SSH keypair management and listing
+29. **`set_keypair`** - Create, delete SSH keypairs for instance access
 
 ### 👥 Identity & Access Management
-22. **`get_user_list`** - OpenStack user accounts and details
-23. **`get_role_assignments`** - User role assignments and permissions
+30. **`get_user_list`** - OpenStack user accounts and details
+31. **`get_role_assignments`** - User role assignments and permissions
 
 ### 🖼️ Image Management
-24. **`get_image_detail_list`** - Detailed list of all images with metadata (read-only)
-25. **`set_image`** - Create, delete, list, and manage OpenStack images
+32. **`get_image_detail_list`** - Detailed list of all images with metadata (read-only)
+33. **`set_image`** - Create, delete, list, and manage OpenStack images
 
 ### 🔥 Orchestration (Heat) Tools
-26. **`get_heat_stacks`** - Heat stack status and information
-27. **`set_heat_stack`** - Create, delete, and manage Heat orchestration stacks
+34. **`get_heat_stacks`** - Heat stack status and information
+35. **`set_heat_stack`** - Create, delete, and manage Heat orchestration stacks
 
 ### 📊 Quota Management
-28. **`get_quota`** - View project quotas for compute, storage, and network resources (read-only)
-29. **`set_quota`** - Set, delete, and list project quota limits
+36. **`get_quota`** - View project quotas for compute, storage, and network resources (read-only)
+37. **`set_quota`** - Set, delete, and list project quota limits
 
 ### 👥 Project Management  
-30. **`get_project_details`** - List and show OpenStack project details with roles and quotas (read-only)
-31. **`set_project`** - Create, delete, update, and cleanup OpenStack projects
+38. **`get_project_details`** - List and show OpenStack project details with roles and quotas (read-only)
+39. **`set_project`** - Create, delete, update, and cleanup OpenStack projects
 
 ---
 

@@ -1392,13 +1392,19 @@ def get_network_details(network_name: str = "all") -> List[Dict[str, Any]]:
         ]
 
 
-def set_instance(instance_name: str, action: str) -> Dict[str, Any]:
+def set_instance(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
     """
-    Manages OpenStack instances (start, stop, restart, etc.)
+    Manages OpenStack instances (start, stop, restart, backup, etc.)
     
     Args:
         instance_name: Name of the instance to manage
-        action: Action to perform (start, stop, restart, pause, unpause, delete)
+        action: Action to perform (start, stop, restart, pause, unpause, delete, backup, shelve, etc.)
+        **kwargs: Additional parameters for specific actions:
+            - backup_name: Custom name for backup image
+            - flavor_id/flavor_name: For resize operations
+            - image_id/image_name: For rebuild operations
+            - admin_password: For rebuild operations
+            - rescue_image_id: For rescue operations
     
     Returns:
         Result of the management operation
@@ -1449,10 +1455,107 @@ def set_instance(instance_name: str, action: str) -> Dict[str, Any]:
         elif action == 'delete':
             conn.compute.delete_server(instance)
             message = f'Instance "{instance_name}" delete command sent'
+        elif action in ['backup', 'create_backup']:
+            # Create a backup image of the instance
+            backup_name = kwargs.get('backup_name', f'{instance_name}-backup-{datetime.now().strftime("%Y%m%d-%H%M%S")}')
+            image = conn.compute.create_server_image(instance, name=backup_name)
+            message = f'Backup image "{backup_name}" creation started for instance "{instance_name}"'
+            return {
+                'success': True,
+                'message': message,
+                'backup_name': backup_name,
+                'backup_image_id': image.id,
+                'instance_id': instance.id,
+                'previous_state': previous_state
+            }
+        elif action in ['shelve', 'shelve_offload']:
+            # Shelve instance (shut down and store image)
+            conn.compute.shelve_server(instance)
+            message = f'Instance "{instance_name}" shelve command sent'
+        elif action == 'unshelve':
+            # Unshelve instance (restore from shelved state)
+            conn.compute.unshelve_server(instance)
+            message = f'Instance "{instance_name}" unshelve command sent'
+        elif action in ['lock', 'admin_lock']:
+            # Lock instance (prevent non-admin operations)
+            conn.compute.lock_server(instance)
+            message = f'Instance "{instance_name}" lock command sent'
+        elif action == 'unlock':
+            # Unlock instance
+            conn.compute.unlock_server(instance)
+            message = f'Instance "{instance_name}" unlock command sent'
+        elif action in ['rescue', 'rescue_mode']:
+            # Put instance in rescue mode
+            rescue_image_id = kwargs.get('rescue_image_id', None)
+            conn.compute.rescue_server(instance, image_id=rescue_image_id)
+            message = f'Instance "{instance_name}" rescue mode command sent'
+        elif action in ['unrescue', 'exit_rescue']:
+            # Exit rescue mode
+            conn.compute.unrescue_server(instance)
+            message = f'Instance "{instance_name}" unrescue command sent'
+        elif action in ['resize', 'change_flavor']:
+            # Resize instance to new flavor
+            new_flavor_id = kwargs.get('flavor_id') or kwargs.get('flavor_name')
+            if not new_flavor_id:
+                return {
+                    'success': False,
+                    'message': 'Flavor ID or name required for resize action',
+                    'current_state': instance.status
+                }
+            
+            # If flavor_name is provided, find the flavor ID
+            if kwargs.get('flavor_name'):
+                for flavor in conn.compute.flavors():
+                    if flavor.name == kwargs.get('flavor_name'):
+                        new_flavor_id = flavor.id
+                        break
+                else:
+                    return {
+                        'success': False,
+                        'message': f'Flavor "{kwargs.get("flavor_name")}" not found',
+                        'current_state': instance.status
+                    }
+            
+            conn.compute.resize_server(instance, new_flavor_id)
+            message = f'Instance "{instance_name}" resize to flavor "{new_flavor_id}" command sent'
+        elif action == 'confirm_resize':
+            # Confirm resize operation
+            conn.compute.confirm_server_resize(instance)
+            message = f'Instance "{instance_name}" resize confirmation sent'
+        elif action == 'revert_resize':
+            # Revert resize operation
+            conn.compute.revert_server_resize(instance)
+            message = f'Instance "{instance_name}" resize revert sent'
+        elif action in ['rebuild', 'reinstall']:
+            # Rebuild instance with new image
+            new_image_id = kwargs.get('image_id') or kwargs.get('image_name')
+            if not new_image_id:
+                return {
+                    'success': False,
+                    'message': 'Image ID or name required for rebuild action',
+                    'current_state': instance.status
+                }
+            
+            # If image_name is provided, find the image ID
+            if kwargs.get('image_name'):
+                for image in conn.image.images():
+                    if image.name == kwargs.get('image_name'):
+                        new_image_id = image.id
+                        break
+                else:
+                    return {
+                        'success': False,
+                        'message': f'Image "{kwargs.get("image_name")}" not found',
+                        'current_state': instance.status
+                    }
+            
+            admin_password = kwargs.get('admin_password', None)
+            conn.compute.rebuild_server(instance, new_image_id, admin_password=admin_password)
+            message = f'Instance "{instance_name}" rebuild with image "{new_image_id}" command sent'
         else:
             return {
                 'success': False,
-                'message': f'Unknown action "{action}". Supported: start, stop, restart, pause, unpause, suspend, resume_suspended, delete',
+                'message': f'Unknown action "{action}". Supported: start, stop, restart, pause, unpause, suspend, resume_suspended, delete, backup, shelve, unshelve, lock, unlock, rescue, unrescue, resize, confirm_resize, revert_resize, rebuild',
                 'current_state': instance.status
             }
             
@@ -3946,4 +4049,801 @@ def set_project(project_name: str, action: str, **kwargs) -> Dict[str, Any]:
             'success': False,
             'error': str(e),
             'message': 'Failed to manage project'
+        }
+
+
+def get_server_events(instance_name: str, limit: int = 50) -> Dict[str, Any]:
+    """
+    Get recent events for a specific server
+    
+    Args:
+        instance_name: Name or ID of the instance
+        limit: Maximum number of events to return
+    
+    Returns:
+        Dictionary with server events information
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        # Find the instance
+        instance = None
+        for server in conn.compute.servers():
+            if server.name == instance_name or server.id == instance_name:
+                instance = server
+                break
+                
+        if not instance:
+            return {
+                'success': False,
+                'message': f'Instance "{instance_name}" not found'
+            }
+        
+        # Get server events
+        events = list(conn.compute.server_actions(instance, limit=limit))
+        
+        events_data = []
+        for event in events:
+            event_data = {
+                'request_id': event.request_id,
+                'action': event.action,
+                'start_time': event.start_time,
+                'finish_time': getattr(event, 'finish_time', None),
+                'message': getattr(event, 'message', ''),
+                'user_id': getattr(event, 'user_id', ''),
+                'project_id': getattr(event, 'project_id', '')
+            }
+            
+            # Get event details if available
+            try:
+                event_details = conn.compute.get_server_action(instance, event.request_id)
+                if event_details:
+                    event_data.update({
+                        'details': {
+                            'events': []
+                        }
+                    })
+                    
+                    if hasattr(event_details, 'events'):
+                        for detail in event_details.events:
+                            event_data['details']['events'].append({
+                                'event': getattr(detail, 'event', ''),
+                                'start_time': getattr(detail, 'start_time', ''),
+                                'finish_time': getattr(detail, 'finish_time', ''),
+                                'result': getattr(detail, 'result', ''),
+                                'traceback': getattr(detail, 'traceback', '')
+                            })
+            except Exception as e:
+                logger.debug(f"Could not get event details for {event.request_id}: {e}")
+                
+            events_data.append(event_data)
+        
+        return {
+            'success': True,
+            'instance_name': instance_name,
+            'instance_id': instance.id,
+            'events_count': len(events_data),
+            'events': events_data
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get server events for {instance_name}: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to get server events for "{instance_name}": {str(e)}',
+            'error': str(e)
+        }
+
+
+def get_server_groups() -> List[Dict[str, Any]]:
+    """
+    List all server groups
+    
+    Returns:
+        List of server groups with their details
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        server_groups = list(conn.compute.server_groups())
+        
+        groups_data = []
+        for group in server_groups:
+            group_data = {
+                'id': group.id,
+                'name': group.name,
+                'project_id': group.project_id,
+                'user_id': getattr(group, 'user_id', ''),
+                'policies': group.policies,
+                'members': group.members,
+                'member_count': len(group.members),
+                'metadata': getattr(group, 'metadata', {}),
+                'created_at': getattr(group, 'created_at', '')
+            }
+            groups_data.append(group_data)
+        
+        return groups_data
+        
+    except Exception as e:
+        logger.error(f"Failed to list server groups: {e}")
+        return []
+
+
+def set_server_group(group_name: str, action: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage server groups (create, delete, show)
+    
+    Args:
+        group_name: Name of the server group
+        action: Action to perform (create, delete, show)
+        **kwargs: Additional parameters:
+            - policies: List of policies for create (e.g., ['affinity'], ['anti-affinity'])
+            - metadata: Dictionary of metadata for create
+    
+    Returns:
+        Result of the server group operation
+    """
+    try:
+        conn = get_openstack_connection()
+        action = action.lower()
+        
+        if action == 'create':
+            policies = kwargs.get('policies', ['anti-affinity'])
+            if isinstance(policies, str):
+                policies = [policies]
+                
+            metadata = kwargs.get('metadata', {})
+            
+            group = conn.compute.create_server_group(
+                name=group_name,
+                policies=policies,
+                **metadata
+            )
+            
+            return {
+                'success': True,
+                'message': f'Server group "{group_name}" created successfully',
+                'group_id': group.id,
+                'group_name': group.name,
+                'policies': group.policies
+            }
+            
+        elif action == 'delete':
+            # Find the group
+            group = None
+            for sg in conn.compute.server_groups():
+                if sg.name == group_name or sg.id == group_name:
+                    group = sg
+                    break
+                    
+            if not group:
+                return {
+                    'success': False,
+                    'message': f'Server group "{group_name}" not found'
+                }
+            
+            conn.compute.delete_server_group(group)
+            return {
+                'success': True,
+                'message': f'Server group "{group_name}" deleted successfully',
+                'group_id': group.id
+            }
+            
+        elif action == 'show':
+            # Find the group
+            group = None
+            for sg in conn.compute.server_groups():
+                if sg.name == group_name or sg.id == group_name:
+                    group = sg
+                    break
+                    
+            if not group:
+                return {
+                    'success': False,
+                    'message': f'Server group "{group_name}" not found'
+                }
+            
+            return {
+                'success': True,
+                'group': {
+                    'id': group.id,
+                    'name': group.name,
+                    'project_id': group.project_id,
+                    'user_id': getattr(group, 'user_id', ''),
+                    'policies': group.policies,
+                    'members': group.members,
+                    'member_count': len(group.members),
+                    'metadata': getattr(group, 'metadata', {}),
+                    'created_at': getattr(group, 'created_at', '')
+                }
+            }
+            
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: create, delete, show'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage server group {group_name}: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage server group "{group_name}": {str(e)}',
+            'error': str(e)
+        }
+
+
+def get_hypervisor_details(hypervisor_name: str = "all") -> Dict[str, Any]:
+    """
+    Get detailed information about hypervisors
+    
+    Args:
+        hypervisor_name: Name/ID of specific hypervisor or "all" for all hypervisors
+    
+    Returns:
+        Dictionary with hypervisor details and statistics
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        hypervisors = list(conn.compute.hypervisors(details=True))
+        
+        if hypervisor_name != "all":
+            # Find specific hypervisor
+            target_hypervisor = None
+            for hv in hypervisors:
+                if hv.name == hypervisor_name or str(hv.id) == str(hypervisor_name):
+                    target_hypervisor = hv
+                    break
+            
+            if not target_hypervisor:
+                return {
+                    'success': False,
+                    'message': f'Hypervisor "{hypervisor_name}" not found'
+                }
+            hypervisors = [target_hypervisor]
+        
+        hypervisor_data = []
+        total_stats = {
+            'total_hypervisors': len(hypervisors),
+            'total_vcpus': 0,
+            'total_vcpus_used': 0,
+            'total_memory_mb': 0,
+            'total_memory_mb_used': 0,
+            'total_local_gb': 0,
+            'total_local_gb_used': 0,
+            'total_running_vms': 0
+        }
+        
+        for hv in hypervisors:
+            hv_info = {
+                'id': hv.id,
+                'name': hv.name,
+                'status': hv.status,
+                'state': hv.state,
+                'host_ip': getattr(hv, 'host_ip', ''),
+                'hypervisor_type': getattr(hv, 'hypervisor_type', ''),
+                'hypervisor_version': getattr(hv, 'hypervisor_version', ''),
+                'service_id': getattr(hv, 'service', {}).get('id', ''),
+                'service_host': getattr(hv, 'service', {}).get('host', ''),
+                'vcpus': hv.vcpus,
+                'vcpus_used': hv.vcpus_used,
+                'vcpu_usage_percent': round((hv.vcpus_used / hv.vcpus * 100) if hv.vcpus > 0 else 0, 2),
+                'memory_mb': hv.memory_mb,
+                'memory_mb_used': hv.memory_mb_used,
+                'memory_usage_percent': round((hv.memory_mb_used / hv.memory_mb * 100) if hv.memory_mb > 0 else 0, 2),
+                'local_gb': hv.local_gb,
+                'local_gb_used': hv.local_gb_used,
+                'storage_usage_percent': round((hv.local_gb_used / hv.local_gb * 100) if hv.local_gb > 0 else 0, 2),
+                'running_vms': hv.running_vms,
+                'free_ram_mb': hv.free_ram_mb,
+                'free_disk_gb': hv.free_disk_gb,
+                'current_workload': getattr(hv, 'current_workload', 0),
+                'disk_available_least': getattr(hv, 'disk_available_least', 0)
+            }
+            
+            # Update totals
+            total_stats['total_vcpus'] += hv.vcpus
+            total_stats['total_vcpus_used'] += hv.vcpus_used
+            total_stats['total_memory_mb'] += hv.memory_mb
+            total_stats['total_memory_mb_used'] += hv.memory_mb_used
+            total_stats['total_local_gb'] += hv.local_gb
+            total_stats['total_local_gb_used'] += hv.local_gb_used
+            total_stats['total_running_vms'] += hv.running_vms
+            
+            hypervisor_data.append(hv_info)
+        
+        # Calculate total usage percentages
+        total_stats['total_vcpu_usage_percent'] = round(
+            (total_stats['total_vcpus_used'] / total_stats['total_vcpus'] * 100) 
+            if total_stats['total_vcpus'] > 0 else 0, 2
+        )
+        total_stats['total_memory_usage_percent'] = round(
+            (total_stats['total_memory_mb_used'] / total_stats['total_memory_mb'] * 100) 
+            if total_stats['total_memory_mb'] > 0 else 0, 2
+        )
+        total_stats['total_storage_usage_percent'] = round(
+            (total_stats['total_local_gb_used'] / total_stats['total_local_gb'] * 100) 
+            if total_stats['total_local_gb'] > 0 else 0, 2
+        )
+        
+        return {
+            'success': True,
+            'hypervisor_count': len(hypervisor_data),
+            'hypervisors': hypervisor_data,
+            'cluster_statistics': total_stats,
+            'query_target': hypervisor_name
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get hypervisor details: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to get hypervisor details: {str(e)}',
+            'error': str(e)
+        }
+
+
+def get_availability_zones() -> Dict[str, Any]:
+    """
+    List availability zones and their status
+    
+    Returns:
+        Dictionary with availability zones information
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        # Get compute availability zones
+        compute_zones = list(conn.compute.availability_zones(details=True))
+        # Get volume availability zones  
+        volume_zones = list(conn.block_storage.availability_zones())
+        
+        compute_zone_data = []
+        for zone in compute_zones:
+            zone_info = {
+                'zone_name': zone.name,
+                'zone_state': zone.state,
+                'hosts': {}
+            }
+            
+            # Process hosts in the zone
+            if hasattr(zone, 'hosts') and zone.hosts:
+                for host_name, services in zone.hosts.items():
+                    host_info = {
+                        'services': {}
+                    }
+                    for service_name, service_info in services.items():
+                        host_info['services'][service_name] = {
+                            'available': service_info.get('available', False),
+                            'active': service_info.get('active', False)
+                        }
+                    zone_info['hosts'][host_name] = host_info
+            
+            compute_zone_data.append(zone_info)
+        
+        volume_zone_data = []
+        for zone in volume_zones:
+            zone_info = {
+                'zone_name': zone.name,
+                'zone_state': zone.state
+            }
+            volume_zone_data.append(zone_info)
+        
+        return {
+            'success': True,
+            'compute_zones': compute_zone_data,
+            'volume_zones': volume_zone_data,
+            'total_compute_zones': len(compute_zone_data),
+            'total_volume_zones': len(volume_zone_data)
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get availability zones: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to get availability zones: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_flavor(flavor_name: str, action: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage OpenStack flavors (create, delete, set properties)
+    
+    Args:
+        flavor_name: Name of the flavor
+        action: Action to perform (create, delete, show, set, list)
+        **kwargs: Additional parameters for flavor operations:
+            - vcpus: Number of virtual CPUs
+            - ram: Amount of RAM in MB
+            - disk: Disk size in GB
+            - ephemeral: Ephemeral disk size in GB
+            - swap: Swap size in MB  
+            - rxtx_factor: RX/TX factor
+            - is_public: Whether flavor is public
+            - properties: Dictionary of extra properties
+    
+    Returns:
+        Result of the flavor operation
+    """
+    try:
+        conn = get_openstack_connection()
+        action = action.lower()
+        
+        if action == 'create':
+            # Required parameters for create
+            vcpus = kwargs.get('vcpus', 1)
+            ram = kwargs.get('ram', 512)  # MB
+            disk = kwargs.get('disk', 1)  # GB
+            
+            # Optional parameters
+            ephemeral = kwargs.get('ephemeral', 0)
+            swap = kwargs.get('swap', 0)
+            rxtx_factor = kwargs.get('rxtx_factor', 1.0)
+            is_public = kwargs.get('is_public', True)
+            properties = kwargs.get('properties', {})
+            
+            flavor = conn.compute.create_flavor(
+                name=flavor_name,
+                vcpus=vcpus,
+                ram=ram,
+                disk=disk,
+                ephemeral=ephemeral,
+                swap=swap,
+                rxtx_factor=rxtx_factor,
+                is_public=is_public,
+                **properties
+            )
+            
+            return {
+                'success': True,
+                'message': f'Flavor "{flavor_name}" created successfully',
+                'flavor': {
+                    'id': flavor.id,
+                    'name': flavor.name,
+                    'vcpus': flavor.vcpus,
+                    'ram': flavor.ram,
+                    'disk': flavor.disk,
+                    'ephemeral': flavor.ephemeral,
+                    'swap': flavor.swap,
+                    'is_public': flavor.is_public
+                }
+            }
+            
+        elif action == 'delete':
+            # Find the flavor
+            flavor = None
+            for f in conn.compute.flavors(details=True):
+                if f.name == flavor_name or f.id == flavor_name:
+                    flavor = f
+                    break
+                    
+            if not flavor:
+                return {
+                    'success': False,
+                    'message': f'Flavor "{flavor_name}" not found'
+                }
+            
+            conn.compute.delete_flavor(flavor)
+            return {
+                'success': True,
+                'message': f'Flavor "{flavor_name}" deleted successfully',
+                'flavor_id': flavor.id
+            }
+            
+        elif action == 'show':
+            # Find the flavor
+            flavor = None
+            for f in conn.compute.flavors(details=True):
+                if f.name == flavor_name or f.id == flavor_name:
+                    flavor = f
+                    break
+                    
+            if not flavor:
+                return {
+                    'success': False,
+                    'message': f'Flavor "{flavor_name}" not found'
+                }
+            
+            return {
+                'success': True,
+                'flavor': {
+                    'id': flavor.id,
+                    'name': flavor.name,
+                    'vcpus': flavor.vcpus,
+                    'ram': flavor.ram,
+                    'disk': flavor.disk,
+                    'ephemeral': getattr(flavor, 'ephemeral', 0),
+                    'swap': getattr(flavor, 'swap', 0),
+                    'rxtx_factor': getattr(flavor, 'rxtx_factor', 1.0),
+                    'is_public': getattr(flavor, 'is_public', True),
+                    'extra_specs': getattr(flavor, 'extra_specs', {})
+                }
+            }
+            
+        elif action == 'list':
+            flavors = list(conn.compute.flavors(details=True))
+            flavor_data = []
+            
+            for flavor in flavors:
+                flavor_info = {
+                    'id': flavor.id,
+                    'name': flavor.name,
+                    'vcpus': flavor.vcpus,
+                    'ram': flavor.ram,
+                    'disk': flavor.disk,
+                    'ephemeral': getattr(flavor, 'ephemeral', 0),
+                    'swap': getattr(flavor, 'swap', 0),
+                    'rxtx_factor': getattr(flavor, 'rxtx_factor', 1.0),
+                    'is_public': getattr(flavor, 'is_public', True)
+                }
+                flavor_data.append(flavor_info)
+            
+            return {
+                'success': True,
+                'flavor_count': len(flavor_data),
+                'flavors': flavor_data
+            }
+            
+        elif action == 'set':
+            # Find the flavor
+            flavor = None
+            for f in conn.compute.flavors(details=True):
+                if f.name == flavor_name or f.id == flavor_name:
+                    flavor = f
+                    break
+                    
+            if not flavor:
+                return {
+                    'success': False,
+                    'message': f'Flavor "{flavor_name}" not found'
+                }
+            
+            # Set extra specs if provided
+            extra_specs = kwargs.get('properties', {})
+            if extra_specs:
+                conn.compute.create_flavor_extra_specs(flavor, extra_specs)
+                return {
+                    'success': True,
+                    'message': f'Flavor "{flavor_name}" properties updated successfully',
+                    'updated_properties': extra_specs
+                }
+            else:
+                return {
+                    'success': False,
+                    'message': 'No properties provided to update'
+                }
+                
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: create, delete, show, list, set'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage flavor {flavor_name}: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage flavor "{flavor_name}": {str(e)}',
+            'error': str(e)
+        }
+
+
+def get_server_volumes(instance_name: str) -> Dict[str, Any]:
+    """
+    Get all volumes attached to a specific server
+    
+    Args:
+        instance_name: Name or ID of the server instance
+    
+    Returns:
+        Dictionary with server volumes information
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        # Find the instance
+        instance = None
+        for server in conn.compute.servers():
+            if server.name == instance_name or server.id == instance_name:
+                instance = server
+                break
+                
+        if not instance:
+            return {
+                'success': False,
+                'message': f'Instance "{instance_name}" not found'
+            }
+        
+        # Get attached volumes
+        volume_attachments = list(conn.compute.volume_attachments(instance))
+        
+        volumes_data = []
+        total_size_gb = 0
+        
+        for attachment in volume_attachments:
+            # Get volume details
+            try:
+                volume = conn.block_storage.get_volume(attachment.volume_id)
+                volume_info = {
+                    'attachment_id': attachment.id,
+                    'volume_id': attachment.volume_id,
+                    'device': attachment.device,
+                    'volume_name': volume.name or 'N/A',
+                    'volume_status': volume.status,
+                    'size_gb': volume.size,
+                    'volume_type': getattr(volume, 'volume_type', 'N/A'),
+                    'bootable': getattr(volume, 'bootable', False),
+                    'created_at': getattr(volume, 'created_at', ''),
+                    'description': getattr(volume, 'description', ''),
+                    'metadata': getattr(volume, 'metadata', {})
+                }
+                total_size_gb += volume.size
+            except Exception as e:
+                logger.warning(f"Could not get details for volume {attachment.volume_id}: {e}")
+                volume_info = {
+                    'attachment_id': attachment.id,
+                    'volume_id': attachment.volume_id,
+                    'device': attachment.device,
+                    'volume_name': 'Unknown',
+                    'volume_status': 'Unknown',
+                    'size_gb': 0,
+                    'error': f'Could not fetch volume details: {str(e)}'
+                }
+            
+            volumes_data.append(volume_info)
+        
+        return {
+            'success': True,
+            'instance_name': instance_name,
+            'instance_id': instance.id,
+            'attached_volumes_count': len(volumes_data),
+            'total_storage_gb': total_size_gb,
+            'attached_volumes': volumes_data
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get server volumes for {instance_name}: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to get server volumes for "{instance_name}": {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_server_volume(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage server volume attachments (attach, detach)
+    
+    Args:
+        instance_name: Name or ID of the server instance
+        action: Action to perform (attach, detach, list)
+        **kwargs: Additional parameters:
+            - volume_id: Volume ID for attach/detach operations
+            - volume_name: Volume name for attach/detach operations (alternative to volume_id)
+            - device: Device path for attach operation (optional)
+    
+    Returns:
+        Result of the server volume operation
+    """
+    try:
+        conn = get_openstack_connection()
+        action = action.lower()
+        
+        # Find the instance
+        instance = None
+        for server in conn.compute.servers():
+            if server.name == instance_name or server.id == instance_name:
+                instance = server
+                break
+                
+        if not instance:
+            return {
+                'success': False,
+                'message': f'Instance "{instance_name}" not found'
+            }
+        
+        if action == 'list':
+            # Return the attached volumes list
+            return get_server_volumes(instance_name)
+            
+        elif action == 'attach':
+            volume_id = kwargs.get('volume_id')
+            volume_name = kwargs.get('volume_name')
+            device = kwargs.get('device', None)
+            
+            if not volume_id and not volume_name:
+                return {
+                    'success': False,
+                    'message': 'Either volume_id or volume_name is required for attach operation'
+                }
+            
+            # If volume_name is provided, find the volume ID
+            if volume_name and not volume_id:
+                for volume in conn.block_storage.volumes():
+                    if volume.name == volume_name:
+                        volume_id = volume.id
+                        break
+                else:
+                    return {
+                        'success': False,
+                        'message': f'Volume "{volume_name}" not found'
+                    }
+            
+            # Attach the volume
+            attachment = conn.compute.create_volume_attachment(
+                server=instance,
+                volume_id=volume_id,
+                device=device
+            )
+            
+            return {
+                'success': True,
+                'message': f'Volume "{volume_id}" attached to instance "{instance_name}"',
+                'attachment_id': attachment.id,
+                'volume_id': volume_id,
+                'device': attachment.device,
+                'instance_id': instance.id
+            }
+            
+        elif action == 'detach':
+            volume_id = kwargs.get('volume_id')
+            volume_name = kwargs.get('volume_name')
+            attachment_id = kwargs.get('attachment_id')
+            
+            if not volume_id and not volume_name and not attachment_id:
+                return {
+                    'success': False,
+                    'message': 'Either volume_id, volume_name, or attachment_id is required for detach operation'
+                }
+            
+            # If volume_name is provided, find the volume ID
+            if volume_name and not volume_id:
+                for volume in conn.block_storage.volumes():
+                    if volume.name == volume_name:
+                        volume_id = volume.id
+                        break
+                else:
+                    return {
+                        'success': False,
+                        'message': f'Volume "{volume_name}" not found'
+                    }
+            
+            # Find the attachment
+            if not attachment_id:
+                volume_attachments = list(conn.compute.volume_attachments(instance))
+                for attachment in volume_attachments:
+                    if attachment.volume_id == volume_id:
+                        attachment_id = attachment.id
+                        break
+                else:
+                    return {
+                        'success': False,
+                        'message': f'Volume "{volume_id}" is not attached to instance "{instance_name}"'
+                    }
+            
+            # Detach the volume
+            conn.compute.delete_volume_attachment(attachment_id, server=instance)
+            
+            return {
+                'success': True,
+                'message': f'Volume detached from instance "{instance_name}"',
+                'attachment_id': attachment_id,
+                'volume_id': volume_id,
+                'instance_id': instance.id
+            }
+            
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: attach, detach, list'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage server volume for {instance_name}: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage server volume for "{instance_name}": {str(e)}',
+            'error': str(e)
         }
