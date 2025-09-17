@@ -49,7 +49,7 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 | Search instances / find VMs | search_instances | Flexible instance search with filters | Partial matching, case-sensitive, pagination |
 | Specific instance lookup | get_instance_by_name | Quick single instance details | Direct name-based lookup |
 | Instances by status | get_instances_by_status | Filter by operational status | "running" / "stopped" / "error" instances |
-| Hypervisor-specific monitoring | monitor_resources | CPU, memory, storage usage by hypervisor | "hypervisor statistics" / "resource monitoring" |
+| Hypervisor-specific monitoring | monitor_resources | CPU, memory, storage usage by hypervisor (physical_usage + quota_usage) | "hypervisor statistics" / "resource monitoring" |
 
 ### 🌐 Network Management Tools (5 tools)
 | User Intent / Keywords | Tool | Output Focus | Notes |
@@ -373,6 +373,23 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - "What's the current CPU and memory usage?"
 - "Display hypervisor statistics."
 - "Monitor cluster capacity and usage."
+
+**CRITICAL**: When displaying CPU/memory usage results from monitor_resources:
+1. **Always show BOTH perspectives**: physical_usage AND quota_usage sections
+2. **Physical Usage (물리적 사용량)**: Actual hypervisor hardware utilization - shows physical server limits (e.g., "3/4 vCPU used" - 물리 서버의 실제 CPU 코어)
+3. **Quota Usage (할당량 사용량)**: Project allocation usage - shows tenant/project limits that Horizon displays (e.g., "3/40 vCPU of quota used" - 프로젝트에 할당된 vCPU 할당량)
+4. **Always explain the difference**: Clarify that physical_usage = hardware limits, quota_usage = project/tenant limits
+5. **Required format example**:
+   ```
+   ## Physical Usage (물리적 하드웨어 사용량):
+   - CPU: 3/4 vCPU (75.0% 사용) - 실제 물리 서버 CPU 코어
+   - Memory: 5,120/31,805 MB (16.1% 사용) - 실제 물리 서버 메모리
+   
+   ## Quota Usage (프로젝트 할당량 사용량 - Horizon 표시 방식):
+   - CPU: 3/40 vCPU (7.5% of quota used) - 프로젝트 할당 vCPU 중 사용량
+   - Memory: 5,120/96,000 MB (5.3% of quota used) - 프로젝트 할당 메모리 중 사용량
+   ```
+6. **Key point**: Explain that Horizon web interface shows quota_usage values, not physical_usage
 
 ---
 

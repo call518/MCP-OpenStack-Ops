@@ -1340,14 +1340,14 @@ def monitor_resources() -> Dict[str, Any]:
             'timestamp': datetime.now().isoformat()
         }
         
-        # Physical hypervisor resources (like CLI shows)
-        cluster_summary['physical_resources'] = {
+        # Physical hypervisor hardware usage (actual server resources)
+        cluster_summary['physical_usage'] = {
             'vcpu_usage': f'{used_vcpus}/{total_vcpus} ({(used_vcpus/total_vcpus*100):.1f}% used)' if total_vcpus > 0 else 'N/A',
             'memory_usage': f'{used_memory}/{total_memory} MB ({(used_memory/total_memory*100):.1f}% used)' if total_memory > 0 else 'N/A',
             'storage_usage': f'{used_storage}/{total_storage} GB ({(used_storage/total_storage*100):.1f}% used)' if total_storage > 0 else 'N/A'
         }
         
-        # Project quota perspective (like Horizon shows)
+        # Project quota allocation usage (tenant/project limits - like Horizon shows)
         if project_vcpu_quota and project_vcpu_quota != -1:
             quota_vcpu_percent = (used_vcpus / project_vcpu_quota * 100) if project_vcpu_quota > 0 else 0
             cluster_summary['quota_usage'] = {
@@ -1360,7 +1360,7 @@ def monitor_resources() -> Dict[str, Any]:
                 'note': 'Project quotas are unlimited or not available'
             }
         
-        # Legacy fields for backward compatibility (using physical resources)
+        # Legacy fields for backward compatibility (using physical usage)
         cluster_summary.update({
             'vcpu_usage': f'{used_vcpus}/{total_vcpus} ({(used_vcpus/total_vcpus*100):.1f}% used)' if total_vcpus > 0 else 'N/A',
             'memory_usage': f'{used_memory}/{total_memory} MB ({(used_memory/total_memory*100):.1f}% used)' if total_memory > 0 else 'N/A',
