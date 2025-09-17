@@ -1,5 +1,23 @@
 # MCP OpenStack Operations - AI Coding Instructions
 
+## Development Restrictions and Safety Guidelines
+
+### ⚠️ Critical Operational Restrictions
+
+**Git Operations - DO NOT EXECUTE DIRECTLY**:
+- **NEVER** run git commands directly (git add, git commit, git push, git pull, git merge, etc.)
+- **NEVER** create or modify git branches, tags, or repositories
+- **NEVER** perform any git-related operations without explicit user request
+- **When git operations are needed**: Ask the user to perform them manually
+
+**Docker/Container Operations - DO NOT EXECUTE DIRECTLY**:
+- **NEVER** run docker build, docker-compose build, or image building commands
+- **NEVER** run docker-compose up/down/restart or container lifecycle commands
+- **NEVER** start, stop, or restart Docker services automatically
+- **When container operations are needed**: Ask the user to perform them manually
+
+**Rationale**: These operations can have significant impact on the development environment, deployment state, and code repository integrity. User confirmation and manual execution ensures proper oversight and prevents unintended changes.
+
 ## Architecture Overview
 
 **MCP OpenStack Ops** is a Model Context Protocol (MCP) server providing 24 OpenStack management tools via FastMCP framework. Key components:

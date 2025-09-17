@@ -375,6 +375,76 @@ def get_service_status() -> List[Dict[str, Any]]:
         except Exception as e:
             logger.warning(f"Failed to get network agents: {e}")
             
+        # Get volume services (Cinder)
+        try:
+            for service in conn.volume.services():
+                services.append({
+                    'binary': service.binary,
+                    'host': service.host,
+                    'status': service.status,
+                    'state': service.state,
+                    'zone': getattr(service, 'zone', 'unknown'),
+                    'updated_at': str(getattr(service, 'updated_at', 'unknown')),
+                    'disabled_reason': getattr(service, 'disabled_reason', None),
+                    'service_type': 'volume'
+                })
+        except Exception as e:
+            logger.warning(f"Failed to get volume services: {e}")
+            
+        # Get image service status (Glance) - Check if service catalog is available
+        try:
+            # Test if image service is available by trying to list images (with limit)
+            list(conn.image.images(limit=1))
+            services.append({
+                'binary': 'glance-api',
+                'host': 'controller',  # Default host name
+                'status': 'enabled',
+                'state': 'up',
+                'zone': 'internal',
+                'updated_at': datetime.now().isoformat(),
+                'disabled_reason': None,
+                'service_type': 'image'
+            })
+        except Exception as e:
+            logger.warning(f"Image service (Glance) appears to be down: {e}")
+            services.append({
+                'binary': 'glance-api',
+                'host': 'controller',
+                'status': 'enabled',
+                'state': 'down',
+                'zone': 'internal',
+                'updated_at': 'unknown',
+                'disabled_reason': f'Service check failed: {str(e)}',
+                'service_type': 'image'
+            })
+            
+        # Get orchestration service status (Heat) - Check if service catalog is available
+        try:
+            # Test if orchestration service is available by trying to list stacks (with limit)
+            list(conn.orchestration.stacks(limit=1))
+            services.append({
+                'binary': 'heat-engine',
+                'host': 'controller',
+                'status': 'enabled',
+                'state': 'up',
+                'zone': 'internal',
+                'updated_at': datetime.now().isoformat(),
+                'disabled_reason': None,
+                'service_type': 'orchestration'
+            })
+        except Exception as e:
+            logger.warning(f"Orchestration service (Heat) appears to be down: {e}")
+            services.append({
+                'binary': 'heat-engine',
+                'host': 'controller',
+                'status': 'enabled',
+                'state': 'down',
+                'zone': 'internal',
+                'updated_at': 'unknown',
+                'disabled_reason': f'Service check failed: {str(e)}',
+                'service_type': 'orchestration'
+            })
+            
         return services if services else [
             {'binary': 'nova-compute', 'host': 'controller', 'status': 'enabled', 'state': 'up', 'zone': 'nova', 'service_type': 'compute'},
             {'binary': 'neutron-server', 'host': 'controller', 'status': 'enabled', 'state': 'up', 'zone': 'internal', 'service_type': 'network'}

@@ -150,12 +150,18 @@ async def get_service_status() -> str:
         logger.info("Fetching OpenStack service status")
         services = _get_service_status()
         
+        # services is a list, not a dict
+        enabled_services = [s for s in services if s.get('status') == 'enabled']
+        running_services = [s for s in services if s.get('state') == 'up']
+        
         result = {
             "timestamp": datetime.now().isoformat(),
             "service_status": services,
             "summary": {
-                "total_services": len(services.get('services', [])) if isinstance(services, dict) else 0,
-                "status_check": services.get('status_check', 'unknown')
+                "total_services": len(services),
+                "enabled_services": len(enabled_services),
+                "running_services": len(running_services),
+                "service_types": list(set(s.get('service_type', 'unknown') for s in services))
             }
         }
         
