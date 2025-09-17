@@ -106,100 +106,61 @@ def get_cluster_status() -> Dict[str, Any]:
             servers = list(conn.compute.servers(details=True))
             logger.info(f"Retrieved {len(servers)} servers from OpenStack")
             
-            # Try to get hypervisor info, but don't fail if it's not available
+            # Try to get hypervisor info using monitor_resources() function (Refactored)
             compute_nodes = {}
             total_vcpus = total_ram = total_disk = 0
             used_vcpus = used_ram = used_disk = 0
             hypervisors = []
             
             try:
-                hypervisors = list(conn.compute.hypervisors(details=True))
-                logger.info(f"Retrieved {len(hypervisors)} hypervisors from OpenStack")
+                # Get hypervisor and resource data from monitor_resources() function
+                resource_data = monitor_resources()
                 
-                for hv in hypervisors:
-                    # Based on official OpenStack SDK documentation and Nova API microversion compatibility
-                    # Handle attribute variations across different OpenStack versions
+                if 'error' not in resource_data:
+                    hypervisors = resource_data.get('hypervisors', [])
+                    cluster_summary = resource_data.get('cluster_summary', {})
                     
-                        # VCPUs - consistent attribute names in SDK but may be None in newer versions
-                        vcpus = getattr(hv, 'vcpus', None)
-                        vcpus_used = getattr(hv, 'vcpus_used', None)
-                        
-                        # Handle Nova API 2.88+ where these attributes are deprecated/removed
-                        if vcpus is None:
-                            # Try alternative approaches for newer OpenStack versions
-                            try:
-                                # Attempt to get resource provider info (Placement API)
-                                # This is more reliable in newer OpenStack versions
-                                vcpus = 0  # Will be updated with placement info if available
-                                vcpus_used = 0
-                                logger.info(f"Hypervisor {getattr(hv, 'hypervisor_hostname', 'unknown')} returned None for vcpus - using fallback (Nova 2.88+ compatibility)")
-                            except Exception:
-                                vcpus = 0
-                                vcpus_used = 0
-                        
-                        # Memory attributes - Official SDK documented names with version fallbacks
-                        memory_mb = getattr(hv, 'memory_size', None)  # Official SDK attribute
-                        if memory_mb is None:
-                            memory_mb = getattr(hv, 'memory_mb', None)  # Legacy attribute
-                        if memory_mb is None:
-                            memory_mb = 0  # Default for deprecated attributes
-                            
-                        memory_mb_used = getattr(hv, 'memory_used', None)  # Official SDK attribute
-                        if memory_mb_used is None:
-                            memory_mb_used = getattr(hv, 'memory_mb_used', None)  # Legacy attribute
-                        if memory_mb_used is None:
-                            memory_mb_used = 0  # Default for deprecated attributes
-                        
-                        # Disk attributes - Official SDK documented names with fallbacks
-                        local_gb = getattr(hv, 'local_disk_size', None)  # Official SDK attribute
-                        if local_gb is None:
-                            local_gb = getattr(hv, 'local_gb', None)  # Legacy attribute
-                        if local_gb is None:
-                            local_gb = 0  # Default for deprecated attributes
-                            
-                        local_gb_used = getattr(hv, 'local_disk_used', None)  # Official SDK attribute
-                        if local_gb_used is None:
-                            local_gb_used = getattr(hv, 'local_gb_used', None)  # Legacy attribute
-                        if local_gb_used is None:
-                            local_gb_used = 0  # Default for deprecated attributes
-                        
-                        # Running VMs count - may also be None in newer versions
-                        running_vms = getattr(hv, 'running_vms', None)
-                        if running_vms is None:
-                            # Calculate from actual server count on this hypervisor
-                            running_vms = len([s for s in servers if getattr(s, 'OS-EXT-SRV-ATTR:hypervisor_hostname', '') == getattr(hv, 'hypervisor_hostname', '')])
-                        
-                        # Ensure we have valid numeric values (handle None from deprecated attributes)
-                        vcpus = vcpus if vcpus is not None else 0
-                        vcpus_used = vcpus_used if vcpus_used is not None else 0
-                        memory_mb = memory_mb if memory_mb is not None else 0
-                        memory_mb_used = memory_mb_used if memory_mb_used is not None else 0
-                        local_gb = local_gb if local_gb is not None else 0
-                        local_gb_used = local_gb_used if local_gb_used is not None else 0
-                        running_vms = running_vms if running_vms is not None else 0
-                        
-                        compute_nodes[hv.name] = {
-                            'status': hv.status,
-                            'state': hv.state,
-                            'vcpus': vcpus,
-                            'vcpus_used': vcpus_used,
-                            'memory_mb': memory_mb,
-                            'memory_mb_used': memory_mb_used,
-                            'local_gb': local_gb,
-                            'local_gb_used': local_gb_used,
-                            'running_vms': running_vms,
-                            'hypervisor_type': getattr(hv, 'hypervisor_type', 'Unknown'),
-                            'hypervisor_version': getattr(hv, 'hypervisor_version', 'Unknown')
+                    logger.info(f"Retrieved {len(hypervisors)} hypervisors from monitor_resources()")
+                    
+                    # Extract totals from monitor_resources data
+                    physical_resources = cluster_summary.get('physical_resources', {})
+                    
+                    total_vcpus = physical_resources.get('pCPU', {}).get('total', 0)
+                    used_vcpus = physical_resources.get('pCPU', {}).get('used', 0)
+                    total_ram = physical_resources.get('physical_memory', {}).get('total_mb', 0)
+                    used_ram = physical_resources.get('physical_memory', {}).get('used_mb', 0)
+                    total_disk = physical_resources.get('physical_storage', {}).get('total_gb', 0)
+                    used_disk = physical_resources.get('physical_storage', {}).get('used_gb', 0)
+                    
+                    # Convert hypervisor data to cluster_status format
+                    for hv in hypervisors:
+                        hv_name = hv.get('name', 'unknown')
+                        compute_nodes[hv_name] = {
+                            'status': hv.get('status', 'unknown'),
+                            'state': hv.get('state', 'unknown'),
+                            'vcpus': hv.get('pCPUs_total', 0),
+                            'vcpus_used': hv.get('pCPUs_used', 0),
+                            'memory_mb': hv.get('physical_memory_total_mb', 0),
+                            'memory_mb_used': hv.get('physical_memory_used_mb', 0),
+                            'local_gb': hv.get('local_storage_total_gb', 0),
+                            'local_gb_used': hv.get('local_storage_used_gb', 0),
+                            'running_vms': hv.get('running_vms', 0),
+                            'hypervisor_type': hv.get('hypervisor_type', 'Unknown'),
+                            'hypervisor_version': hv.get('hypervisor_version', 'Unknown')
                         }
-                        total_vcpus += vcpus
-                        used_vcpus += vcpus_used
-                        total_ram += memory_mb
-                        used_ram += memory_mb_used
-                        total_disk += local_gb
-                        used_disk += local_gb_used
+                else:
+                    logger.warning(f"monitor_resources() returned error: {resource_data.get('error', 'Unknown error')}")
+                    # Fall back to minimal hypervisor processing
+                    hypervisors_raw = list(conn.compute.hypervisors(details=True))
+                    for hv in hypervisors_raw:
+                        hypervisors.append({
+                            'name': getattr(hv, 'hypervisor_hostname', 'unknown'),
+                            'status': getattr(hv, 'status', 'unknown'),
+                            'state': getattr(hv, 'state', 'unknown')
+                        })
                     
             except Exception as hv_error:
-                logger.warning(f"Failed to get hypervisor details: {hv_error}")
+                logger.warning(f"Failed to get hypervisor details from monitor_resources(): {hv_error}")
                 # Continue without hypervisor info
             
             # Get other compute resources
@@ -372,38 +333,51 @@ def get_cluster_status() -> Dict[str, Any]:
                 }
             }
         
-        # === NETWORK RESOURCES ===
+        # === NETWORK RESOURCES === (Refactored: Use get_network_details() function)
         try:
-            networks = list(conn.network.networks())
-            subnets = list(conn.network.subnets())
-            routers = list(conn.network.routers())
-            floating_ips = list(conn.network.ips())
-            security_groups = list(conn.network.security_groups())
+            # Get detailed network information from existing function
+            detailed_networks = get_network_details()
             
-            # Network analysis
-            networks_detail = []
+            # Get additional network resources for completeness
+            try:
+                subnets = list(conn.network.subnets())
+                routers = list(conn.network.routers())
+                floating_ips = list(conn.network.ips())
+                security_groups = list(conn.network.security_groups())
+            except Exception as e:
+                logger.warning(f"Could not get additional network resources: {e}")
+                subnets = []
+                routers = []
+                floating_ips = []
+                security_groups = []
+            
+            # Process network details for cluster status format
             external_nets = 0
-            for net in networks:
-                if getattr(net, 'is_router_external', False):
+            networks_detail = []
+            for net in detailed_networks:
+                if net.get('external', False):
                     external_nets += 1
                 networks_detail.append({
-                    'name': net.name,
-                    'status': net.status,
-                    'is_external': getattr(net, 'is_router_external', False),
-                    'is_shared': getattr(net, 'is_shared', False),
-                    'subnets_count': len(getattr(net, 'subnet_ids', []))
+                    'name': net.get('name', 'Unknown'),
+                    'status': net.get('status', 'Unknown'),
+                    'is_external': net.get('external', False),
+                    'is_shared': net.get('shared', False),
+                    'subnets_count': len(net.get('subnets', [])),
+                    'provider_network_type': net.get('provider_network_type', 'Unknown'),
+                    'mtu': net.get('mtu', 'Unknown')
                 })
             
-            # Floating IP analysis
+            # Floating IP analysis (same as before for consistency)
             fip_status = {'ACTIVE': 0, 'DOWN': 0, 'AVAILABLE': 0}
             for fip in floating_ips:
                 status = fip.status if fip.status in fip_status else 'AVAILABLE'
                 fip_status[status] += 1
             
             cluster_info['network_resources'] = {
-                'total_networks': len(networks),
+                'total_networks': len(detailed_networks),
                 'external_networks': external_nets,
                 'networks_detail': networks_detail,
+                'detailed_networks': detailed_networks,  # Include full network details
                 'total_subnets': len(subnets),
                 'total_routers': len(routers),
                 'active_routers': len([r for r in routers if r.status == 'ACTIVE']),
@@ -500,9 +474,10 @@ def get_cluster_status() -> Dict[str, Any]:
         except Exception as e:
             cluster_info['storage_resources'] = {'error': f"Failed to get storage info: {str(e)}"}
             
-        # === IMAGE RESOURCES (Glance) ===
+        # === IMAGE RESOURCES (Glance) === (Refactored: Use get_image_list() function)
         try:
-            images = list(conn.image.images())
+            # Get detailed image information from existing function
+            detailed_images = get_image_list()
             
             # Get image usage stats from compute resources (already calculated)
             image_usage_stats = cluster_info.get('compute_resources', {}).get('image_usage_stats', {})
@@ -510,40 +485,40 @@ def get_cluster_status() -> Dict[str, Any]:
             for img_id, stats in image_usage_stats.items():
                 logger.info(f"  Image {img_id[:8]}...: {stats['count']} total instances, {stats['active_count']} active")
             
-            # Image analysis
+            # Process image analysis using detailed image data
             images_by_status = {'active': 0, 'queued': 0, 'saving': 0, 'killed': 0, 'deleted': 0, 'other': 0}
             images_by_visibility = {'public': 0, 'private': 0, 'shared': 0, 'community': 0}
             total_image_size = 0
             images_detail = []
             images_usage_ranking = []
             
-            for img in images:
+            for img in detailed_images:
                 # Status analysis
-                status = getattr(img, 'status', 'unknown').lower()
+                status = img.get('status', 'unknown').lower()
                 if status in images_by_status:
                     images_by_status[status] += 1
                 else:
                     images_by_status['other'] += 1
                 
                 # Visibility analysis
-                visibility = getattr(img, 'visibility', 'unknown')
+                visibility = img.get('visibility', 'unknown')
                 if visibility in images_by_visibility:
                     images_by_visibility[visibility] += 1
                 
                 # Size calculation
-                img_size = getattr(img, 'size', 0) or 0
+                img_size = img.get('size', 0) or 0
                 total_image_size += img_size
                 
                 # Get usage statistics for this image (performance optimized - using pre-calculated data)
-                usage_stats = image_usage_stats.get(img.id, {
+                usage_stats = image_usage_stats.get(img.get('id'), {
                     'count': 0, 'active_count': 0, 'error_count': 0, 'shutoff_count': 0, 'other_count': 0
                 })
                 
                 # Add to usage ranking
                 if usage_stats['count'] > 0:
                     images_usage_ranking.append({
-                        'image_id': img.id,
-                        'image_name': img.name or 'Unnamed',
+                        'image_id': img.get('id'),
+                        'image_name': img.get('name') or 'Unnamed',
                         'total_instances': usage_stats['count'],
                         'active_instances': usage_stats['active_count'],
                         'inactive_instances': usage_stats['shutoff_count'],
@@ -555,16 +530,16 @@ def get_cluster_status() -> Dict[str, Any]:
                 # Add detailed image info (top 15 for brevity, but include usage stats)
                 if len(images_detail) < 15:
                     images_detail.append({
-                        'name': img.name or 'Unnamed',
-                        'id': img.id[:8] + '...' if len(img.id) > 8 else img.id,
-                        'status': getattr(img, 'status', 'unknown'),
+                        'name': img.get('name') or 'Unnamed',
+                        'id': img.get('id', '')[:8] + '...' if len(img.get('id', '')) > 8 else img.get('id', ''),
+                        'status': img.get('status', 'unknown'),
                         'visibility': visibility,
                         'size_mb': round(img_size / (1024*1024), 1) if img_size > 0 else 0,
-                        'disk_format': getattr(img, 'disk_format', 'unknown'),
-                        'container_format': getattr(img, 'container_format', 'unknown'),
-                        'created_at': str(getattr(img, 'created_at', 'unknown'))[:19] if hasattr(img, 'created_at') else 'unknown',
-                        'min_disk': getattr(img, 'min_disk', 0),
-                        'min_ram': getattr(img, 'min_ram', 0),
+                        'disk_format': img.get('disk_format', 'unknown'),
+                        'container_format': img.get('container_format', 'unknown'),
+                        'created_at': str(img.get('created_at', 'unknown'))[:19] if img.get('created_at') != 'unknown' else 'unknown',
+                        'min_disk': img.get('min_disk', 0),
+                        'min_ram': img.get('min_ram', 0),
                         # Enhanced: Add usage statistics
                         'usage_stats': {
                             'total_instances_using': usage_stats['count'],
@@ -580,20 +555,21 @@ def get_cluster_status() -> Dict[str, Any]:
             
             # Calculate usage statistics
             total_used_images = len([img for img in images_usage_ranking if img['total_instances'] > 0])
-            total_unused_images = len(images) - total_used_images
+            total_unused_images = len(detailed_images) - total_used_images
             
             cluster_info['image_resources'] = {
-                'total_images': len(images),
+                'total_images': len(detailed_images),
                 'images_by_status': images_by_status,
                 'images_by_visibility': images_by_visibility,
                 'images_detail': images_detail,
+                'detailed_images': detailed_images,  # Include full image details from get_image_list()
                 'total_image_size_gb': round(total_image_size / (1024*1024*1024), 2) if total_image_size > 0 else 0,
-                'average_image_size_mb': round(total_image_size / len(images) / (1024*1024), 1) if len(images) > 0 and total_image_size > 0 else 0,
+                'average_image_size_mb': round(total_image_size / len(detailed_images) / (1024*1024), 1) if len(detailed_images) > 0 and total_image_size > 0 else 0,
                 # Enhanced: Image usage and popularity analysis
                 'image_usage_analysis': {
                     'total_used_images': total_used_images,
                     'total_unused_images': total_unused_images,
-                    'usage_efficiency': round((total_used_images / max(len(images), 1)) * 100, 1),
+                    'usage_efficiency': round((total_used_images / max(len(detailed_images), 1)) * 100, 1),
                     'top_popular_images': images_usage_ranking[:10],  # Top 10 most popular images
                     'unused_images_count': total_unused_images,
                     'usage_distribution': {
@@ -608,45 +584,54 @@ def get_cluster_status() -> Dict[str, Any]:
             logger.warning(f"Failed to get image info: {e}")
             cluster_info['image_resources'] = {'error': f"Failed to get image info: {str(e)}"}
         
-        # === SERVICE STATUS ===
+        # === SERVICE STATUS === (Refactored: Use get_service_status() function)
         try:
-            services = list(conn.identity.services())
-            endpoints = list(conn.identity.endpoints())
+            # Get services data from existing function
+            services_list = get_service_status()
             
-            # Get compute services for detailed health
-            compute_services = []
+            # Get additional service catalog info for completeness
             try:
-                compute_services = list(conn.compute.services())
+                identity_services = list(conn.identity.services())
+                endpoints = list(conn.identity.endpoints())
             except Exception as e:
-                logger.warning(f"Could not get compute services: {e}")
+                logger.warning(f"Could not get identity services/endpoints: {e}")
+                identity_services = []
+                endpoints = []
             
+            # Process services into cluster status format
             services_by_type = {}
-            for svc in services:
-                svc_type = svc.type
+            compute_services = {}
+            
+            for svc in services_list:
+                svc_type = svc.get('service_type', 'unknown')
                 if svc_type not in services_by_type:
                     services_by_type[svc_type] = []
+                
                 services_by_type[svc_type].append({
-                    'name': svc.name,
-                    'enabled': getattr(svc, 'enabled', True),
-                    'description': getattr(svc, 'description', '')
+                    'binary': svc.get('binary', 'unknown'),
+                    'host': svc.get('host', 'unknown'),
+                    'status': svc.get('status', 'unknown'),
+                    'state': svc.get('state', 'unknown'),
+                    'zone': svc.get('zone', 'unknown'),
+                    'updated_at': svc.get('updated_at', 'unknown')
                 })
-            
-            # Compute services health
-            compute_svc_status = {}
-            for cs in compute_services:
-                status_key = f"{cs.binary}@{cs.host}"
-                compute_svc_status[status_key] = {
-                    'status': cs.status,
-                    'state': cs.state,
-                    'updated_at': getattr(cs, 'updated_at', 'Unknown'),
-                    'disabled_reason': getattr(cs, 'disabled_reason', None)
-                }
+                
+                # Extract compute services for detailed health tracking
+                if svc_type == 'compute':
+                    status_key = f"{svc.get('binary', 'unknown')}@{svc.get('host', 'unknown')}"
+                    compute_services[status_key] = {
+                        'status': svc.get('status', 'unknown'),
+                        'state': svc.get('state', 'unknown'),
+                        'updated_at': svc.get('updated_at', 'unknown'),
+                        'disabled_reason': svc.get('disabled_reason', None)
+                    }
             
             cluster_info['service_status'] = {
-                'total_services': len(services),
+                'total_services': len(identity_services),
                 'services_by_type': services_by_type,
                 'total_endpoints': len(endpoints),
-                'compute_services': compute_svc_status
+                'compute_services': compute_services,
+                'detailed_services': services_list  # Include full service details
             }
         except Exception as e:
             cluster_info['service_status'] = {'error': f"Failed to get service info: {str(e)}"}
@@ -844,22 +829,22 @@ def get_service_status() -> List[Dict[str, Any]]:
                 'service_type': 'image'
             })
             
-        # Get orchestration service status (Heat) - Check if service catalog is available
+        # Get orchestration service status (Heat) - Skip due to timeout issues
         try:
-            # Test if orchestration service is available by trying to list stacks (with limit)
-            list(conn.orchestration.stacks(limit=1))
+            # Skip Heat service check due to network timeout issues
+            logger.warning("Skipping Heat service check due to known timeout issues")
             services.append({
                 'binary': 'heat-engine',
                 'host': 'controller',
                 'status': 'enabled',
-                'state': 'up',
+                'state': 'unknown',
                 'zone': 'internal',
-                'updated_at': datetime.now().isoformat(),
-                'disabled_reason': None,
+                'updated_at': 'skipped',
+                'disabled_reason': 'Skipped due to timeout issues',
                 'service_type': 'orchestration'
             })
         except Exception as e:
-            logger.warning(f"Orchestration service (Heat) appears to be down: {e}")
+            logger.warning(f"Orchestration service (Heat) check skipped: {e}")
             services.append({
                 'binary': 'heat-engine',
                 'host': 'controller',
@@ -2920,26 +2905,51 @@ def get_compute_quota_usage(conn) -> Dict[str, Any]:
         # Get quota limits
         quotas = conn.compute.get_quota_set(project_id)
         
-        # Get usage statistics
-        usage = conn.compute.get_quota_set(project_id, usage=True)
+        # Get usage statistics (use separate try-catch for usage)
+        try:
+            usage = conn.compute.get_quota_set(project_id, usage=True)
+        except Exception as usage_e:
+            logger.warning(f"Failed to get quota usage, using limits only: {usage_e}")
+            usage = quotas  # Fallback to limits
+        
+        # Helper function to safely extract quota values
+        def safe_get_quota_value(obj, attr_name, default=0):
+            """Safely extract quota values handling both dict and int responses"""
+            try:
+                attr = getattr(obj, attr_name, default)
+                if isinstance(attr, dict):
+                    return attr.get('in_use', default)
+                elif isinstance(attr, (int, float)):
+                    return attr
+                else:
+                    return default
+            except Exception:
+                return default
+        
+        def safe_get_quota_limit(obj, attr_name, default=-1):
+            """Safely extract quota limits"""
+            try:
+                return getattr(obj, attr_name, default)
+            except Exception:
+                return default
         
         quota_info = {
             'description': 'Project quota usage (vCPU = virtual CPU allocation, pCPU = physical CPU usage)',
             'instances': {
-                'used': getattr(usage, 'instances', {}).get('in_use', 0) if hasattr(usage, 'instances') else 0,
-                'limit': getattr(quotas, 'instances', -1),
+                'used': safe_get_quota_value(usage, 'instances', 0),
+                'limit': safe_get_quota_limit(quotas, 'instances', -1),
                 'usage_percent': 0
             },
             'vcpus': {
                 'description': 'Virtual CPUs (vCPU) - allocated to instances',
-                'used': getattr(usage, 'cores', {}).get('in_use', 0) if hasattr(usage, 'cores') else 0,
-                'limit': getattr(quotas, 'cores', -1),
+                'used': safe_get_quota_value(usage, 'cores', 0),
+                'limit': safe_get_quota_limit(quotas, 'cores', -1),
                 'usage_percent': 0
             },
             'memory': {
                 'description': 'Virtual memory (allocated to instances)',
-                'used_mb': getattr(usage, 'ram', {}).get('in_use', 0) if hasattr(usage, 'ram') else 0,
-                'limit_mb': getattr(quotas, 'ram', -1),
+                'used_mb': safe_get_quota_value(usage, 'ram', 0),
+                'limit_mb': safe_get_quota_limit(quotas, 'ram', -1),
                 'usage_percent': 0
             }
         }

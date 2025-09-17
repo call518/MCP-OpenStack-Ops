@@ -17,6 +17,13 @@
   - **Physical Memory** - hardware server memory
   - **Virtual Memory** - project quota allocation
   - NEVER combine physical and virtual resources in the same table row
+- **MANDATORY QUOTA INFORMATION DISPLAY**: When showing resource usage, ALWAYS include BOTH:
+  - **Physical Resource Usage**: Hardware utilization (e.g., "pCPU: 3/4 (75%)")
+  - **Virtual Resource Quota**: Project allocation (e.g., "vCPU: 3/40 (7.5% of quota)")
+  - **Memory Usage BOTH**: Physical memory + virtual memory quotas
+  - **Instance Quota**: Current instances vs project limit (e.g., "Instances: 3/40 (7.5%)")
+  - This information is available in monitor_resources() and get_cluster_status() responses
+  - NEVER show only physical resources without mentioning quota usage
 
 Canonical English prompt template for the OpenStack MCP server. Use this file as the primary system/developer prompt to guide tool selection and safety behavior.
 
@@ -152,6 +159,12 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - "Volume usage" / "storage utilization" → **get_cluster_status** (includes detailed volume utilization)
 - "Instance deployment status" / "operational status" → **get_cluster_status** (includes instance_deployment_status)
 - "Image popularity" / "most used images" → **get_cluster_status** (includes image usage ranking)
+- **MANDATORY FOR CLUSTER REPORTS**: ALWAYS include BOTH physical and quota information:
+  - Physical resource usage from hypervisors (pCPU, physical memory, physical storage)
+  - Virtual resource quotas from projects (vCPU quota, virtual memory quota, instance quota)
+  - Example format: "pCPU: 3/4 (75%) | vCPU Quota: 3/40 (7.5%)"
+  - Get this data from compute_resources.physical_usage AND compute_resources.quota_usage sections
+  - Also include virtual_resources data from monitor_resources when available
 
 ### 🔧 **Management Operations**
 - "Start/stop/restart instance X" → **manage_instance("X", "action")**
@@ -196,6 +209,16 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 4. ALWAYS surface any operation result status returned by management tools.
 5. When operation status is unknown, show actual returned status (do NOT fabricate).
 6. Always end operational answers with status information from the tool response.
+7. **MANDATORY RESOURCE REPORTING**: When displaying resource information, ALWAYS include:
+   - **Physical Resources**: Hardware utilization (e.g., "pCPU: 3/4 cores (75%)")
+   - **Virtual/Quota Resources**: Project allocation (e.g., "vCPU Quota: 3/40 cores (7.5%)")
+   - **Memory Both Ways**: Physical + virtual memory quotas  
+   - **Instance Quota**: Current vs limit (e.g., "Instances: 3/40 (7.5% of quota)")
+   - Format example: "물리/가상 자원 사용률 - pCPU: 3/4 (75%) | vCPU 할당량: 3/40 (7.5%)"
+8. **Source JSON Sections**: Extract quota information from:
+   - `compute_resources.physical_usage` for physical resources
+   - `compute_resources.quota_usage` for virtual resource quotas  
+   - `virtual_resources` from monitor_resources for detailed quota breakdown
 
 ---
 
