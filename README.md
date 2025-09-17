@@ -192,6 +192,11 @@ except Exception as e:
 Configure your `.env` file with OpenStack credentials:
 
 ```bash
+# OpenStack Release Configuration (for Docker deployment)
+# Available releases: flamingo, epoxy, dalmatian, caracal, bobcat, antelope, zed, yoga
+# Choose the release that matches your OpenStack environment for optimal SDK compatibility
+OPENSTACK_RELEASE=epoxy
+
 # OpenStack Authentication
 OS_AUTH_URL=https://your-openstack:5000/v3
 OS_IDENTITY_API_VERSION=3
