@@ -15,7 +15,7 @@
 
 - ✅ **OpenStack Epoxy Integration**: Direct integration with OpenStack SDK 4.1.0-4.4.0 for real-time cluster operations.
 - ✅ **Comprehensive Monitoring**: Enhanced cluster status reports with hypervisor health, resource utilization, and health scoring.
-- ✅ **Complete Service Coverage**: 24 comprehensive tools covering Identity, Compute, Network, Storage, Image, and Orchestration services.
+- ✅ **Complete Service Coverage**: 29 comprehensive tools covering Identity, Compute, Network, Storage, Image, and Orchestration services.
 - ✅ **Advanced Instance Management**: Start, stop, restart, pause/unpause OpenStack instances with pagination support.
 - ✅ **Large-Scale Environment Support**: Pagination and limits for environments with thousands of instances.
 - ✅ **Enterprise Features**: User management, role assignments, keypair management, floating IP operations, volume snapshots.
@@ -100,6 +100,10 @@
 ### 🔥 Orchestration (Heat) Tools
 26. **`get_heat_stacks`** - Heat stack status and information
 27. **`manage_heat_stack`** - Create, delete, and manage Heat orchestration stacks
+
+### 📊 Quota Management
+28. **`get_quota`** - View project quotas for compute, storage, and network resources (read-only)
+29. **`manage_quota`** - Set, delete, and list project quota limits
 
 ---
 

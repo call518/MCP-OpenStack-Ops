@@ -3186,3 +3186,354 @@ def get_usage_statistics(start_date: str = "", end_date: str = "") -> Dict[str, 
             'error': str(e),
             'message': 'Failed to retrieve usage statistics'
         }
+
+
+def get_quota(project_name: str = "") -> Dict[str, Any]:
+    """
+    Get quota information for projects (similar to 'openstack quota show').
+    
+    Args:
+        project_name: Name of the project (optional, defaults to current project)
+    
+    Returns:
+        Quota information for the specified project or current project
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        # If no project name specified, use current project
+        if not project_name or project_name.strip() == "":
+            project_name = conn.auth.auth.project_name
+            project_id = conn.auth.auth.project_id
+            logger.info(f"Getting quota for current project: {project_name}")
+        else:
+            # Find project by name
+            try:
+                project = conn.identity.find_project(project_name)
+                if not project:
+                    return {
+                        'success': False,
+                        'error': f'Project "{project_name}" not found'
+                    }
+                project_id = project.id
+                logger.info(f"Getting quota for project: {project_name} ({project_id})")
+            except Exception as e:
+                return {
+                    'success': False,
+                    'error': f'Failed to find project "{project_name}": {str(e)}'
+                }
+        
+        quota_data = {}
+        
+        # Get Compute (Nova) quotas
+        try:
+            compute_quota = conn.compute.get_quota(project_id)
+            quota_data['compute'] = {
+                'cores': getattr(compute_quota, 'cores', -1),
+                'instances': getattr(compute_quota, 'instances', -1),
+                'ram': getattr(compute_quota, 'ram', -1),
+                'key_pairs': getattr(compute_quota, 'key_pairs', -1),
+                'server_groups': getattr(compute_quota, 'server_groups', -1),
+                'server_group_members': getattr(compute_quota, 'server_group_members', -1),
+                'injected_files': getattr(compute_quota, 'injected_files', -1),
+                'injected_file_content_bytes': getattr(compute_quota, 'injected_file_content_bytes', -1),
+                'injected_file_path_bytes': getattr(compute_quota, 'injected_file_path_bytes', -1),
+                'fixed_ips': getattr(compute_quota, 'fixed_ips', -1)
+            }
+        except Exception as e:
+            logger.warning(f"Failed to get compute quota: {e}")
+            quota_data['compute'] = {'error': f'Failed to get compute quota: {str(e)}'}
+        
+        # Get Volume (Cinder) quotas
+        try:
+            volume_quota = conn.volume.get_quota(project_id)
+            quota_data['volume'] = {
+                'volumes': getattr(volume_quota, 'volumes', -1),
+                'snapshots': getattr(volume_quota, 'snapshots', -1),
+                'gigabytes': getattr(volume_quota, 'gigabytes', -1),
+                'backups': getattr(volume_quota, 'backups', -1),
+                'backup_gigabytes': getattr(volume_quota, 'backup_gigabytes', -1),
+                'per_volume_gigabytes': getattr(volume_quota, 'per_volume_gigabytes', -1),
+                'groups': getattr(volume_quota, 'groups', -1)
+            }
+            
+            # Add volume type specific quotas
+            for attr_name in dir(volume_quota):
+                if 'volumes___' in attr_name or 'gigabytes___' in attr_name or 'snapshots___' in attr_name:
+                    quota_data['volume'][attr_name] = getattr(volume_quota, attr_name, -1)
+                    
+        except Exception as e:
+            logger.warning(f"Failed to get volume quota: {e}")
+            quota_data['volume'] = {'error': f'Failed to get volume quota: {str(e)}'}
+        
+        # Get Network (Neutron) quotas
+        try:
+            network_quota = conn.network.get_quota(project_id)
+            quota_data['network'] = {
+                'networks': getattr(network_quota, 'networks', -1),
+                'subnets': getattr(network_quota, 'subnets', -1),
+                'ports': getattr(network_quota, 'ports', -1),
+                'routers': getattr(network_quota, 'routers', -1),
+                'floating_ips': getattr(network_quota, 'floating_ips', -1),
+                'security_groups': getattr(network_quota, 'security_groups', -1),
+                'security_group_rules': getattr(network_quota, 'security_group_rules', -1),
+                'rbac_policies': getattr(network_quota, 'rbac_policies', -1),
+                'subnet_pools': getattr(network_quota, 'subnet_pools', -1)
+            }
+        except Exception as e:
+            logger.warning(f"Failed to get network quota: {e}")
+            quota_data['network'] = {'error': f'Failed to get network quota: {str(e)}'}
+        
+        # Create consolidated quota view (like openstack quota show output)
+        consolidated_quota = {}
+        
+        # Add compute quotas
+        if 'error' not in quota_data.get('compute', {}):
+            compute = quota_data['compute']
+            consolidated_quota.update({
+                'cores': compute.get('cores', -1),
+                'instances': compute.get('instances', -1),
+                'ram': compute.get('ram', -1),
+                'key-pairs': compute.get('key_pairs', -1),
+                'server-groups': compute.get('server_groups', -1),
+                'server-group-members': compute.get('server_group_members', -1),
+                'injected-files': compute.get('injected_files', -1),
+                'injected-file-size': compute.get('injected_file_content_bytes', -1),
+                'injected-path-size': compute.get('injected_file_path_bytes', -1),
+                'fixed_ips': compute.get('fixed_ips', None)  # Can be None
+            })
+        
+        # Add volume quotas
+        if 'error' not in quota_data.get('volume', {}):
+            volume = quota_data['volume']
+            consolidated_quota.update({
+                'volumes': volume.get('volumes', -1),
+                'snapshots': volume.get('snapshots', -1),
+                'gigabytes': volume.get('gigabytes', -1),
+                'backups': volume.get('backups', -1),
+                'backup-gigabytes': volume.get('backup_gigabytes', -1),
+                'per-volume-gigabytes': volume.get('per_volume_gigabytes', -1),
+                'groups': volume.get('groups', -1)
+            })
+            
+            # Add volume type specific quotas
+            for key, value in volume.items():
+                if '___' in key:  # Volume type specific quotas
+                    consolidated_quota[key] = value
+        
+        # Add network quotas
+        if 'error' not in quota_data.get('network', {}):
+            network = quota_data['network']
+            consolidated_quota.update({
+                'networks': network.get('networks', -1),
+                'subnets': network.get('subnets', -1),
+                'ports': network.get('ports', -1),
+                'routers': network.get('routers', -1),
+                'floating-ips': network.get('floating_ips', -1),
+                'secgroups': network.get('security_groups', -1),
+                'secgroup-rules': network.get('security_group_rules', -1),
+                'rbac_policies': network.get('rbac_policies', -1),
+                'subnet_pools': network.get('subnet_pools', -1)
+            })
+        
+        return {
+            'success': True,
+            'project_name': project_name,
+            'project_id': project_id,
+            'quota_details': quota_data,
+            'consolidated_quota': consolidated_quota,
+            'total_quotas': len(consolidated_quota)
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get quota information: {e}")
+        return {
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to retrieve quota information'
+        }
+
+
+def manage_quota(project_name: str, action: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage project quotas (set, delete, list).
+    
+    Args:
+        project_name: Name of the project (required for set/delete, optional for list)
+        action: Action to perform (set, delete, list)
+        **kwargs: Quota parameters for set action (cores, instances, ram, volumes, etc.)
+    
+    Returns:
+        Result of the quota management operation
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action.lower() == 'list':
+            # List quotas for all projects the user has access to
+            projects = []
+            try:
+                for project in conn.identity.projects():
+                    try:
+                        # Try to get quota for this project (will fail if no access)
+                        quota_result = get_quota(project.name)
+                        if quota_result.get('success', False):
+                            projects.append({
+                                'project_name': project.name,
+                                'project_id': project.id,
+                                'description': getattr(project, 'description', ''),
+                                'enabled': getattr(project, 'is_enabled', True),
+                                'quota_accessible': True
+                            })
+                    except Exception:
+                        # Add project but mark quota as not accessible
+                        projects.append({
+                            'project_name': project.name,
+                            'project_id': project.id,
+                            'description': getattr(project, 'description', ''),
+                            'enabled': getattr(project, 'is_enabled', True),
+                            'quota_accessible': False
+                        })
+                        
+                return {
+                    'success': True,
+                    'action': 'list',
+                    'projects': projects,
+                    'total_projects': len(projects)
+                }
+            except Exception as list_error:
+                return {
+                    'success': False,
+                    'error': f'Failed to list projects: {str(list_error)}'
+                }
+        
+        # Find project for set/delete operations
+        try:
+            project = conn.identity.find_project(project_name)
+            if not project:
+                return {
+                    'success': False,
+                    'error': f'Project "{project_name}" not found'
+                }
+            project_id = project.id
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f'Failed to find project "{project_name}": {str(e)}'
+            }
+        
+        if action.lower() == 'set':
+            # Set quota values
+            results = {}
+            
+            # Compute quota updates
+            compute_updates = {}
+            compute_fields = ['cores', 'instances', 'ram', 'key_pairs', 'server_groups', 
+                            'server_group_members', 'injected_files', 'injected_file_content_bytes',
+                            'injected_file_path_bytes', 'fixed_ips']
+            
+            for field in compute_fields:
+                if field in kwargs:
+                    compute_updates[field] = kwargs[field]
+            
+            if compute_updates:
+                try:
+                    conn.compute.update_quota(project_id, **compute_updates)
+                    results['compute'] = {'success': True, 'updated_fields': list(compute_updates.keys())}
+                except Exception as e:
+                    results['compute'] = {'success': False, 'error': str(e)}
+            
+            # Volume quota updates
+            volume_updates = {}
+            volume_fields = ['volumes', 'snapshots', 'gigabytes', 'backups', 
+                           'backup_gigabytes', 'per_volume_gigabytes', 'groups']
+            
+            for field in volume_fields:
+                if field in kwargs:
+                    volume_updates[field] = kwargs[field]
+            
+            if volume_updates:
+                try:
+                    conn.volume.update_quota(project_id, **volume_updates)
+                    results['volume'] = {'success': True, 'updated_fields': list(volume_updates.keys())}
+                except Exception as e:
+                    results['volume'] = {'success': False, 'error': str(e)}
+            
+            # Network quota updates
+            network_updates = {}
+            network_fields = ['networks', 'subnets', 'ports', 'routers', 'floating_ips',
+                            'security_groups', 'security_group_rules', 'rbac_policies', 'subnet_pools']
+            
+            for field in network_fields:
+                if field in kwargs:
+                    network_updates[field] = kwargs[field]
+            
+            if network_updates:
+                try:
+                    conn.network.update_quota(project_id, **network_updates)
+                    results['network'] = {'success': True, 'updated_fields': list(network_updates.keys())}
+                except Exception as e:
+                    results['network'] = {'success': False, 'error': str(e)}
+            
+            if not results:
+                return {
+                    'success': False,
+                    'error': 'No valid quota parameters provided',
+                    'message': 'Specify quota parameters like cores, instances, ram, volumes, etc.'
+                }
+            
+            return {
+                'success': True,
+                'action': 'set',
+                'project_name': project_name,
+                'project_id': project_id,
+                'results': results
+            }
+            
+        elif action.lower() == 'delete':
+            # Delete/reset quotas to default values
+            results = {}
+            
+            try:
+                # Reset compute quotas
+                conn.compute.revert_quota(project_id)
+                results['compute'] = {'success': True, 'message': 'Reset to defaults'}
+            except Exception as e:
+                results['compute'] = {'success': False, 'error': str(e)}
+            
+            try:
+                # Reset volume quotas
+                conn.volume.revert_quota(project_id)
+                results['volume'] = {'success': True, 'message': 'Reset to defaults'}
+            except Exception as e:
+                results['volume'] = {'success': False, 'error': str(e)}
+            
+            try:
+                # Reset network quotas
+                conn.network.delete_quota(project_id)
+                results['network'] = {'success': True, 'message': 'Reset to defaults'}
+            except Exception as e:
+                results['network'] = {'success': False, 'error': str(e)}
+            
+            return {
+                'success': True,
+                'action': 'delete',
+                'project_name': project_name,
+                'project_id': project_id,
+                'results': results
+            }
+        
+        else:
+            return {
+                'success': False,
+                'error': f'Unknown action: {action}',
+                'message': 'Valid actions are: set, delete, list'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage quota: {e}")
+        return {
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to manage quota'
+        }

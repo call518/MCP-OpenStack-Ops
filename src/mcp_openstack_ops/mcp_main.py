@@ -49,7 +49,9 @@ from functions import (
     # Read-only functions extracted from manage_* functions
     get_volume_list as _get_volume_list,
     get_image_detail_list as _get_image_detail_list,
-    get_usage_statistics as _get_usage_statistics
+    get_usage_statistics as _get_usage_statistics,
+    get_quota as _get_quota,
+    manage_quota as _manage_quota
 )
 
 import json
@@ -123,7 +125,7 @@ ALLOW_MODIFY_OPERATIONS=true
 - get_keypair_list, get_security_groups
 - get_floating_ips, get_routers, get_volume_types
 - get_volume_snapshots, get_heat_stacks
-- get_resource_monitoring, get_usage_statistics
+- get_resource_monitoring, get_usage_statistics, get_quota
 - get_volume_list, get_image_detail_list
 """
     return ""
@@ -1572,6 +1574,132 @@ async def get_usage_statistics(start_date: str = "", end_date: str = "") -> str:
         
     except Exception as e:
         error_msg = f"Error: Failed to fetch usage statistics - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+@mcp.tool()
+async def get_quota(project_name: str = "") -> str:
+    """
+    Get quota information for projects (similar to 'openstack quota show').
+    
+    Args:
+        project_name: Name of the project (optional, defaults to current project if empty)
+    
+    Returns:
+        JSON string containing quota information for the specified project or current project
+    """
+    try:
+        if not project_name.strip():
+            logger.info("Getting quota for current project (no project name specified)")
+        else:
+            logger.info(f"Getting quota for project: {project_name}")
+            
+        quota_info = _get_quota(project_name=project_name)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "operation": "get_quota",
+            "parameters": {
+                "project_name": project_name or "current project"
+            },
+            "quota_data": quota_info
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to get quota information - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+@conditional_tool
+async def manage_quota(
+    project_name: str, 
+    action: str, 
+    cores: int = None,
+    instances: int = None,
+    ram: int = None,
+    volumes: int = None,
+    snapshots: int = None,
+    gigabytes: int = None,
+    networks: int = None,
+    ports: int = None,
+    routers: int = None,
+    floating_ips: int = None,
+    security_groups: int = None,
+    security_group_rules: int = None
+) -> str:
+    """
+    Manage project quotas (set, delete, list).
+    
+    Args:
+        project_name: Name of the project (required for set/delete, optional for list)
+        action: Action to perform (set, delete, list)
+        cores: Compute cores quota (optional, for set action)
+        instances: Instance count quota (optional, for set action)
+        ram: RAM in MB quota (optional, for set action)
+        volumes: Volume count quota (optional, for set action)
+        snapshots: Snapshot count quota (optional, for set action)
+        gigabytes: Storage in GB quota (optional, for set action)
+        networks: Network count quota (optional, for set action)
+        ports: Port count quota (optional, for set action)
+        routers: Router count quota (optional, for set action)
+        floating_ips: Floating IP count quota (optional, for set action)
+        security_groups: Security group count quota (optional, for set action)
+        security_group_rules: Security group rules count quota (optional, for set action)
+    
+    Returns:
+        JSON string containing the result of the quota management operation
+    """
+    try:
+        logger.info(f"Managing quota - Action: {action}, Project: {project_name}")
+        
+        # Build quota parameters for set action
+        quota_params = {}
+        if cores is not None:
+            quota_params['cores'] = cores
+        if instances is not None:
+            quota_params['instances'] = instances
+        if ram is not None:
+            quota_params['ram'] = ram
+        if volumes is not None:
+            quota_params['volumes'] = volumes
+        if snapshots is not None:
+            quota_params['snapshots'] = snapshots
+        if gigabytes is not None:
+            quota_params['gigabytes'] = gigabytes
+        if networks is not None:
+            quota_params['networks'] = networks
+        if ports is not None:
+            quota_params['ports'] = ports
+        if routers is not None:
+            quota_params['routers'] = routers
+        if floating_ips is not None:
+            quota_params['floating_ips'] = floating_ips
+        if security_groups is not None:
+            quota_params['security_groups'] = security_groups
+        if security_group_rules is not None:
+            quota_params['security_group_rules'] = security_group_rules
+        
+        quota_result = _manage_quota(project_name=project_name, action=action, **quota_params)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "operation": "manage_quota",
+            "parameters": {
+                "project_name": project_name,
+                "action": action,
+                "quota_params": quota_params if quota_params else "none"
+            },
+            "result": quota_result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage quota - {str(e)}"
         logger.error(error_msg)
         return error_msg
 

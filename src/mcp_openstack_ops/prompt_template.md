@@ -103,7 +103,7 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - **Current Context**: Check your available tools - not all tools listed below may be accessible
 - **Safety Control**: modify operations are conditionally registered for security
 
-### 🔍 Monitoring & Status Tools (8 tools)
+### 🔍 Monitoring & Status Tools (9 tools)
 | User Intent / Keywords | Tool | Output Focus | Notes |
 |------------------------|------|--------------|-------|
 | ### Detailed Cluster Analysis
@@ -120,6 +120,7 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 | Instances by status | get_instances_by_status | Filter by operational status | "running" / "stopped" / "error" instances |
 | Hypervisor-specific monitoring | get_resource_monitoring | CPU, memory, storage usage by hypervisor (physical_usage + quota_usage) | "hypervisor statistics" / "resource monitoring" |
 | **"Usage statistics"** / **"Project usage"** / **"Billing data"** / **"Resource consumption"** | **get_usage_statistics** | **Project usage statistics over time (servers, RAM MB-Hours, CPU Hours, Disk GB-Hours)** | **Similar to 'openstack usage list' - supports start_date/end_date parameters** |
+| **"Show quotas"** / **"Project limits"** / **"Resource quotas"** / **"Check quota"** | **get_quota** | **Project quota information for compute, storage, network resources** | **Similar to 'openstack quota show' - supports project_name parameter** |
 
 ### 🌐 Network Management Tools (5 tools)
 | User Intent / Keywords | Tool | Output Focus | Notes |
@@ -165,7 +166,13 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 | Heat stacks | get_heat_stacks | Stack status and info | Infrastructure as Code |
 | Stack management | manage_heat_stack | Create/delete/update stacks | **Conditional Tool** - Orchestration operations |
 
-**Total: 24 comprehensive OpenStack management tools**
+### 📊 Quota Management (2 tools)
+| User Intent / Keywords | Tool | Output Focus | Notes |
+|------------------------|------|--------------|-------|
+| **"Show quotas"** / **"Project limits"** / **"Check quota"** / **"Current quotas"** | **get_quota** | **PRIORITY**: Project quota information (read-only) | **Always available - compute/storage/network quotas** |
+| Quota management | manage_quota | Set/delete/list project quotas | **Conditional Tool** - requires project_name and action parameters |
+
+**Total: 29 comprehensive OpenStack management tools**
 
 **Enhanced Features:**
 - **Pagination Support**: get_instance_details and search_instances support limit/offset parameters
@@ -212,6 +219,13 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - "Create/delete/update stack X" → **manage_heat_stack("X", "action")**
 - "Deploy Heat template" → **manage_heat_stack("stack_name", "create")**
 
+### 📊 **Quota & Resource Limit Operations**
+- "Show quotas" / "Check quotas" / "Project limits" → **get_quota("")** (current project)
+- "Show quota for project X" → **get_quota("X")**
+- "Set quota for project X" → **manage_quota("X", "set", cores=N, instances=N, ram=N)**
+- "Reset quota for project X" → **manage_quota("X", "delete")**
+- "List all project quotas" → **manage_quota("", "list")**
+
 ### 🌐 **Network & Infrastructure**
 - "Show network details" → **get_network_details("all")**
 - "Service health" / "API status" → **get_service_status**
@@ -233,7 +247,8 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 3. **Cluster/overview keywords** → get_cluster_status
 4. **Service/health keywords** → get_service_status
 5. **Usage/billing keywords** → get_usage_statistics
-6. **Management action keywords** → manage_instance, manage_volume, or manage_heat_stack
+6. **Quota/limit keywords** → get_quota or manage_quota
+7. **Management action keywords** → manage_instance, manage_volume, or manage_heat_stack
 7. **Heat stack keywords** → get_heat_stacks or manage_heat_stack
 8. **Resource/hypervisor specific** → get_resource_monitoring
 9. **Volume listing** → get_volume_list (read-only)
@@ -472,7 +487,23 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - "Display stack status and resources."
 - "Update stack configuration."
 
-### 📈 Monitoring & Resources
+### � Quota Management
+
+**get_quota**
+- "Show current project quotas."
+- "Check project limits."
+- "Display quota usage for project admin."
+- "What are the resource limits?"
+- "Show compute and storage quotas."
+
+**manage_quota**
+- "Set quotas for project service."
+- "Increase cores limit to 50 for project admin."
+- "Reset project quotas to default."
+- "List quotas for all projects."
+- "Update storage quota to 2TB."
+
+### �📈 Monitoring & Resources
 
 **get_resource_monitoring**
 - "Show resource utilization across the cluster."
