@@ -189,7 +189,6 @@ def get_cluster_status() -> Dict[str, Any]:
             server_status = {'ACTIVE': 0, 'ERROR': 0, 'SHUTOFF': 0, 'STOPPED': 0, 'PAUSED': 0, 'SUSPENDED': 0, 'BUILD': 0, 'REBOOT': 0, 'HARD_REBOOT': 0, 'OTHER': 0}
             servers_by_az = {}
             servers_detail = []
-            image_usage = {}  # Track image usage by instances
             flavor_usage = {}  # Track flavor usage
             
             # Single pass through servers for all analysis (performance optimization)
@@ -204,31 +203,6 @@ def get_cluster_status() -> Dict[str, Any]:
                 if az not in servers_by_az:
                     servers_by_az[az] = 0
                 servers_by_az[az] += 1
-                
-                # Track image usage (Fix: Use proper server attributes)
-                image_info = getattr(server, 'image', {})
-                if image_info and isinstance(image_info, dict):
-                    image_id = image_info.get('id', 'unknown')
-                    if image_id != 'unknown' and image_id is not None:
-                        if image_id not in image_usage:
-                            image_usage[image_id] = {
-                                'count': 0,
-                                'active_count': 0,
-                                'error_count': 0,
-                                'shutoff_count': 0,
-                                'other_count': 0
-                            }
-                        image_usage[image_id]['count'] += 1
-                        
-                        # Count by status for detailed analytics
-                        if status == 'ACTIVE':
-                            image_usage[image_id]['active_count'] += 1
-                        elif status == 'ERROR':
-                            image_usage[image_id]['error_count'] += 1
-                        elif status in ['SHUTOFF', 'STOPPED']:
-                            image_usage[image_id]['shutoff_count'] += 1
-                        else:
-                            image_usage[image_id]['other_count'] += 1
                 
                 # Track flavor usage (Fix: Resolve flavor names properly)
                 flavor_info = getattr(server, 'flavor', {})
@@ -284,7 +258,6 @@ def get_cluster_status() -> Dict[str, Any]:
                 'instance_operations': instance_operations,  # Enhanced instance operational info
                 'instances_by_az': servers_by_az,
                 'instances_detail': servers_detail[:10],  # Top 10 for brevity
-                'image_usage_stats': image_usage,  # Fixed: Now properly populated
                 'total_flavors': len(flavors),
                 'total_keypairs': len(keypairs),
                 'resource_utilization': {
@@ -492,18 +465,11 @@ def get_cluster_status() -> Dict[str, Any]:
             # Get detailed image information from existing function
             detailed_images = get_image_list()
             
-            # Get image usage stats from compute resources (already calculated)
-            image_usage_stats = cluster_info.get('compute_resources', {}).get('image_usage_stats', {})
-            logger.info(f"Image usage stats from compute resources: {len(image_usage_stats)} images tracked")
-            for img_id, stats in image_usage_stats.items():
-                logger.info(f"  Image {img_id[:8]}...: {stats['count']} total instances, {stats['active_count']} active")
-            
-            # Process image analysis using detailed image data
+            # Process image analysis using detailed image data (simplified - no usage tracking)
             images_by_status = {'active': 0, 'queued': 0, 'saving': 0, 'killed': 0, 'deleted': 0, 'other': 0}
             images_by_visibility = {'public': 0, 'private': 0, 'shared': 0, 'community': 0}
             total_image_size = 0
             images_detail = []
-            images_usage_ranking = []
             
             for img in detailed_images:
                 # Status analysis
@@ -522,25 +488,7 @@ def get_cluster_status() -> Dict[str, Any]:
                 img_size = img.get('size', 0) or 0
                 total_image_size += img_size
                 
-                # Get usage statistics for this image (performance optimized - using pre-calculated data)
-                usage_stats = image_usage_stats.get(img.get('id'), {
-                    'count': 0, 'active_count': 0, 'error_count': 0, 'shutoff_count': 0, 'other_count': 0
-                })
-                
-                # Add to usage ranking
-                if usage_stats['count'] > 0:
-                    images_usage_ranking.append({
-                        'image_id': img.get('id'),
-                        'image_name': img.get('name') or 'Unnamed',
-                        'total_instances': usage_stats['count'],
-                        'active_instances': usage_stats['active_count'],
-                        'inactive_instances': usage_stats['shutoff_count'],
-                        'error_instances': usage_stats['error_count'],
-                        'other_instances': usage_stats['other_count'],
-                        'popularity_score': usage_stats['active_count'] + (usage_stats['count'] * 0.1)  # Weight active instances higher
-                    })
-                
-                # Add detailed image info (top 15 for brevity, but include usage stats)
+                # Add detailed image info (top 15 for brevity)
                 if len(images_detail) < 15:
                     images_detail.append({
                         'name': img.get('name') or 'Unnamed',
@@ -552,23 +500,8 @@ def get_cluster_status() -> Dict[str, Any]:
                         'container_format': img.get('container_format', 'unknown'),
                         'created_at': str(img.get('created_at', 'unknown'))[:19] if img.get('created_at') != 'unknown' else 'unknown',
                         'min_disk': img.get('min_disk', 0),
-                        'min_ram': img.get('min_ram', 0),
-                        # Enhanced: Add usage statistics
-                        'usage_stats': {
-                            'total_instances_using': usage_stats['count'],
-                            'active_instances': usage_stats['active_count'],
-                            'inactive_instances': usage_stats['shutoff_count'],
-                            'error_instances': usage_stats['error_count'],
-                            'usage_category': 'High' if usage_stats['count'] >= 5 else 'Medium' if usage_stats['count'] >= 2 else 'Low' if usage_stats['count'] > 0 else 'Unused'
-                        }
+                        'min_ram': img.get('min_ram', 0)
                     })
-            
-            # Sort usage ranking by popularity
-            images_usage_ranking.sort(key=lambda x: x['popularity_score'], reverse=True)
-            
-            # Calculate usage statistics
-            total_used_images = len([img for img in images_usage_ranking if img['total_instances'] > 0])
-            total_unused_images = len(detailed_images) - total_used_images
             
             cluster_info['image_resources'] = {
                 'total_images': len(detailed_images),
@@ -577,21 +510,7 @@ def get_cluster_status() -> Dict[str, Any]:
                 'images_detail': images_detail,
                 'detailed_images': detailed_images,  # Include full image details from get_image_list()
                 'total_image_size_gb': round(total_image_size / (1024*1024*1024), 2) if total_image_size > 0 else 0,
-                'average_image_size_mb': round(total_image_size / len(detailed_images) / (1024*1024), 1) if len(detailed_images) > 0 and total_image_size > 0 else 0,
-                # Enhanced: Image usage and popularity analysis
-                'image_usage_analysis': {
-                    'total_used_images': total_used_images,
-                    'total_unused_images': total_unused_images,
-                    'usage_efficiency': round((total_used_images / max(len(detailed_images), 1)) * 100, 1),
-                    'top_popular_images': images_usage_ranking[:10],  # Top 10 most popular images
-                    'unused_images_count': total_unused_images,
-                    'usage_distribution': {
-                        'high_usage_images': len([img for img in images_usage_ranking if img['total_instances'] >= 5]),
-                        'medium_usage_images': len([img for img in images_usage_ranking if 2 <= img['total_instances'] < 5]),
-                        'low_usage_images': len([img for img in images_usage_ranking if 1 <= img['total_instances'] < 2]),
-                        'unused_images': total_unused_images
-                    }
-                }
+                'average_image_size_mb': round(total_image_size / len(detailed_images) / (1024*1024), 1) if len(detailed_images) > 0 and total_image_size > 0 else 0
             }
         except Exception as e:
             logger.warning(f"Failed to get image info: {e}")
@@ -683,22 +602,6 @@ def get_cluster_status() -> Dict[str, Any]:
                     'other_states': instance_ops.get('deployment_summary', {}).get('other_states', 0),
                     'operational_health': instance_ops.get('operational_health', {}),
                     'detailed_status_breakdown': compute_resources.get('instances_by_status', {})
-                },
-                # Enhanced: Image popularity and usage insights
-                'image_usage_insights': {
-                    'total_available_images': total_images,
-                    'actively_used_images': image_resources.get('image_usage_analysis', {}).get('total_used_images', 0),
-                    'unused_images': image_resources.get('image_usage_analysis', {}).get('total_unused_images', 0),
-                    'usage_efficiency_percent': image_resources.get('image_usage_analysis', {}).get('usage_efficiency', 0),
-                    'top_5_popular_images': [
-                        {
-                            'name': img.get('image_name', 'Unknown'),
-                            'total_instances': img.get('total_instances', 0),
-                            'active_instances': img.get('active_instances', 0)
-                        }
-                        for img in image_resources.get('image_usage_analysis', {}).get('top_popular_images', [])[:5]
-                    ],
-                    'usage_distribution': image_resources.get('image_usage_analysis', {}).get('usage_distribution', {})
                 }
             }
         except Exception as e:

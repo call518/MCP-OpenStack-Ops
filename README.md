@@ -31,6 +31,18 @@
 
 ---
 
+### Screenshots
+
+**OpenStack Dashboard (Epoxy 2025.1)**
+
+![OpenStack Dashboard (Epoxy 2025.1)](img/screenshot-openstack-dashboard.png)
+
+**MCP Query Example - Cluster Status**
+
+![Example Cluster Status](img/screenshot-example-cluster-status.png)
+
+---
+
 ## MCP Tools Available
 
 ### 🔍 Monitoring & Status Tools
@@ -101,32 +113,6 @@ cp .env.example .env
 # Edit .env with your OpenStack credentials
 ```
 
-### 2. OpenStack Requirements
-
-**Supported OpenStack Version**: **Epoxy (2025.1)**
-
-**Required OpenStack SDK Version**: `4.1.0 - 4.4.0`
-
-```bash
-# Install the correct SDK version (automatically handled by uv sync)
-uv add "openstacksdk>=4.1.0,<=4.4.0"
-```
-
-**How to verify your OpenStack version:**
-```bash
-# Method 1: Check with OpenStack CLI (if installed)
-openstack --version
-
-# Method 2: Check API version directly
-curl -s http://$OS_AUTH_HOST:$OS_AUTH_PORT
-
-# Method 3: Check Horizon dashboard footer
-# Look for version info at the bottom of your OpenStack web dashboard
-
-# Method 4: Check deployment documentation
-# Most reliable method - consult your cloud provider's documentation
-```
-
 **Environment Configuration**
 
 Configure your `.env` file with OpenStack credentials:
@@ -150,7 +136,7 @@ OS_VOLUME_PORT=8776
 OS_IMAGE_PORT=9292
 OS_PLACEMENT_PORT=8780
 OS_HEAT_STACK_PORT=8004
-OS_HEAT_STACK_CFN_PORT=18888
+OS_HEAT_STACK_CFN_PORT=8000
 
 # MCP Server Configuration (optional)
 MCP_LOG_LEVEL=INFO
@@ -160,39 +146,31 @@ FASTMCP_HOST=127.0.0.1
 FASTMCP_PORT=8080
 ```
 
-### 3. Run Server
-
-#### For Development & Testing
-```bash
-# Test with MCP Inspector
-./scripts/run-mcp-inspector-local.sh
-
-# Direct execution for debugging  
-uv run python -m mcp_openstack_ops --log-level DEBUG
-```
-
-#### For Production (Docker)
+### 2. Run Server
 
 ```bash
-# 1. Build the MCP server image for Epoxy
-./build-mcp-server-docker-image.sh
-
-# 2. Start all services
+# Start all services
 docker-compose up -d
 
-# 3. Check logs
-docker-compose logs -f mcp-server
+# Check logs
+docker-compose logs mcp-server
+docker-compose logs mcpo-proxy
 ```
 
 **Container Architecture**:
-- **mcp-server**: OpenStack MCP server with 24 tools
-- **mcpo-proxy**: HTTP proxy for OpenStack APIs  
+- **mcp-server**: OpenStack MCP server with tools
+- **mcpo-proxy**: OpenAPI (REST-API)
 - **open-webui**: Web interface for testing and interaction
 
-**Service URLs**:
+**Service URLs - Docker Internal**:
 - MCP Server: `localhost:8080` (HTTP transport)
 - MCPO Proxy: `localhost:8000` (OpenStack API proxy)
 - Open WebUI: `localhost:3000` (Web interface)
+
+**Service URLs - Docker External**:
+- MCP Server: `host.docker.internal:18005` (HTTP transport)
+- MCPO Proxy: `host.docker.internal:8005` (OpenStack API proxy)
+- Open WebUI: `host.docker.internal:3005` (Web interface)
 
 #### For Claude Desktop Integration
 Add to your Claude Desktop configuration:
@@ -200,79 +178,32 @@ Add to your Claude Desktop configuration:
 {
   "mcpServers": {
     "openstack-ops": {
-      "command": "uv",
-      "args": ["run", "python", "-m", "mcp_openstack_ops"],
-      "cwd": "/path/to/MCP-OpenStack-Ops"
+      "command": "uvx",
+      "args": ["--python", "3.11", "mcp-openstack-ops"],
+      "env": {
+        "OS_AUTH_HOST": "your-openstack-host",
+        "OS_AUTH_PORT": "5000",
+        "OS_PROJECT_NAME": "your-project",
+        "OS_USERNAME": "your-username",
+        "OS_PASSWORD": "your-password",
+        "OS_USER_DOMAIN_NAME": "Default",
+        "OS_PROJECT_DOMAIN_NAME": "Default",
+        "OS_REGION_NAME": "RegionOne",
+        "OS_IDENTITY_API_VERSION": "3",
+        "OS_INTERFACE": "internal",
+        "OS_COMPUTE_PORT": "8774",
+        "OS_NETWORK_PORT": "9696",
+        "OS_VOLUME_PORT": "8776",
+        "OS_IMAGE_PORT": "9292",
+        "OS_PLACEMENT_PORT": "8780",
+        "OS_HEAT_STACK_PORT": "8004",
+        "OS_HEAT_STACK_CFN_PORT": "18888",
+        "ALLOW_MODIFY_OPERATIONS": "false",
+        "MCP_LOG_LEVEL": "INFO"
+      }
     }
   }
 }
-```
-
----
-
-## Troubleshooting
-
-### Common Issues
-
-#### 1. Hypervisor Statistics Show Zero Values
-
-**Problem**: The `monitor_resources` tool returns all zeros for CPU, memory, and VM counts.
-
-**Possible Causes**:
-- **Missing OpenStack credentials**: Ensure your `.env` file contains all required authentication variables
-- **SDK version incompatibility**: Use the correct OpenStack SDK version for your deployment
-- **Docker-based OpenStack (Kolla)**: Some containerized deployments may not expose hypervisor statistics
-- **Nova-compute service issues**: Check if nova-compute is running and properly configured
-- **Permission restrictions**: Ensure your user has sufficient privileges to access hypervisor details
-
-**Solutions**:
-```bash
-# 1. Check OpenStack connectivity
-openstack server list  # Should show your instances
-openstack hypervisor list  # Should show hypervisors
-
-# 2. Verify environment variables
-env | grep OS_
-
-# 3. Check Nova services
-openstack compute service list
-
-# 4. Test with admin credentials if available
-export OS_USERNAME=admin
-export OS_PROJECT_NAME=admin
-```
-
-#### 2. Connection Timeouts or Errors
-
-**Problem**: Cannot connect to OpenStack API endpoints.
-
-**Solutions**:
-- Verify your `OS_AUTH_HOST` and `OS_AUTH_PORT` and network connectivity
-- Check if you're using the correct proxy configuration
-- Ensure firewall rules allow access to OpenStack ports (5000, 8774, 9696, etc.)
-- Verify service ports configuration (`OS_AUTH_PORT`, `OS_COMPUTE_PORT`, etc.)
-
-#### 3. SDK Compatibility Issues
-
-**Problem**: Import errors, unexpected API responses, or version conflicts.
-
-**Common Symptoms**:
-```
-ModuleNotFoundError: No module named 'openstack.xyz'
-AttributeError: 'Resource' object has no attribute 'abc'
-API version mismatch errors
-```
-
-**Solution for Epoxy**:
-```bash
-# Ensure correct SDK version for Epoxy (2025.1)
-uv add "openstacksdk>=4.1.0,<=4.4.0"
-
-# Check current version
-pip show openstacksdk
-
-# Verify installation
-python -c "import openstack; print(openstack.__version__)"
 ```
 
 ---
@@ -502,21 +433,6 @@ MCP_LOG_LEVEL=DEBUG uv run python -m mcp_openstack_ops
 uv run python -c "from src.mcp_openstack_ops.functions import get_openstack_connection; print(get_openstack_connection())"
 ```
 
-### Docker Testing
-```bash
-# Build and test in container
-docker-compose build
-docker-compose up -d
-
-# Check container logs
-docker-compose logs -f mcp-server
-
-# Test HTTP endpoint (if using HTTP transport)
-curl -X POST http://localhost:18005/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"method": "tools/list"}'
-```
-
 ---
 
 ## 🔐 Security & Authentication
@@ -558,7 +474,7 @@ When authentication is enabled, MCP clients must include the Bearer token in the
   "mcpServers": {
     "openstack-ops": {
       "type": "streamable-http",
-      "url": "http://your-server:8080/mcp",
+      "url": "http://your-server:8000/mcp",
       "headers": {
         "Authorization": "Bearer your-secure-secret-key-here"
       }
@@ -584,144 +500,6 @@ When authentication fails, the server returns:
 
 ---
 
-## Deployment
-
-### Local Development
-```bash
-# Test with MCP Inspector (recommended)
-./scripts/run-mcp-inspector-local.sh
-
-# Test with debug logging
-MCP_LOG_LEVEL=DEBUG uv run python -m mcp_openstack_ops
-
-# Validate OpenStack connection
-uv run python -c "from src.mcp_openstack_ops.functions import get_openstack_connection; print(get_openstack_connection())"
-```
-
-### Docker Testing
-```bash
-# Build and test in container
-docker-compose build
-docker-compose up -d
-
-# Check container logs
-docker-compose logs -f mcp-server
-
-# Test HTTP endpoint (if using HTTP transport)
-curl -X POST http://localhost:18005/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"method": "tools/list"}'
-```
-
-### Claude Desktop Integration
-Add to your Claude Desktop configuration (`claude_desktop_config.json`):
-
-#### Method 1: Local MCP (transport="stdio")
-
-```json
-{
-  "mcpServers": {
-    "openstack-ops": {
-      "command": "uv",
-      "args": ["run", "python", "-m", "mcp_openstack_ops"],
-      "cwd": "/path/to/MCP-OpenStack-Ops",
-      "env": {
-        "OS_AUTH_HOST": "your-openstack-host",
-        "OS_AUTH_PORT": "5000",
-        "OS_USERNAME": "your-username",
-        "OS_PASSWORD": "your-password",
-        "OS_PROJECT_NAME": "your-project",
-        "OS_COMPUTE_PORT": "8774",
-        "OS_NETWORK_PORT": "9696",
-        "OS_VOLUME_PORT": "8776",
-        "OS_IMAGE_PORT": "9292",
-        "OS_PLACEMENT_PORT": "8780",
-        "ALLOW_MODIFY_OPERATIONS": "false",
-        "MCP_LOG_LEVEL": "INFO"
-      }
-    }
-  }
-}
-```
-
-#### Method 2: Remote MCP (transport="streamable-http")
-
-**Without Authentication:**
-```json
-{
-  "mcpServers": {
-    "openstack-ops": {
-      "type": "streamable-http",
-      "url": "http://localhost:18005/mcp"
-    }
-  }
-}
-```
-
-**With Bearer Token Authentication (Recommended for production):**
-```json
-{
-  "mcpServers": {
-    "openstack-ops": {
-      "type": "streamable-http", 
-      "url": "http://localhost:18005/mcp",
-      "headers": {
-        "Authorization": "Bearer your-secure-secret-key-here"
-      }
-    }
-  }
-}
-```
-
-### Production Deployment
-```bash
-# Using Docker Compose (recommended)
-docker-compose up -d
-
-# Manual Docker run
-docker build -f Dockerfile.MCP-Server -t mcp-openstack-ops .
-docker run -d --name mcp-openstack-ops \
-  --env-file .env \
-  -p 18005:8000 \
-  mcp-openstack-ops
-```
-
----
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Authentication Errors**
-   - Verify OpenStack credentials in `.env`
-   - Check network connectivity to OpenStack API endpoints
-   - Validate user permissions and project access
-
-2. **Tool Execution Failures**
-   - Review logs with `MCP_LOG_LEVEL=DEBUG`
-   - Ensure OpenStack services are accessible
-   - Verify instance/volume/network names exist
-
-3. **Transport Issues**
-   - Use `stdio` for Claude Desktop integration
-   - Use `streamable-http` for testing and development
-   - Check port availability for HTTP transport
-
-4. **Authentication Issues (streamable-http mode)**
-   - Verify `REMOTE_SECRET_KEY` matches between server and client
-   - Ensure Bearer token is included in client Authorization header
-   - Check server logs for authentication error details
-   - Confirm `REMOTE_AUTH_ENABLE=true` is set when using authentication
-
-### Getting Help
-
-- Check logs for detailed error messages
-- Validate OpenStack connectivity independently
-- Test individual tools with MCP Inspector
-- Review OpenStack SDK documentation for API requirements
-
----
-
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
@@ -733,49 +511,3 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 3. Commit your changes (`git commit -m 'Add some amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
-
-### HTTP Mode (Advanced)
-For special testing scenarios only:
-
-```bash
-# Run HTTP server for testing
-python -m src.mcp_openstack_ops.mcp_main \
-  --type streamable-http \
-  --host 127.0.0.1 \
-  --port 8080 \
-  --log-level DEBUG
-```
-
-### Testing & Development
-
-```bash
-# Test with MCP Inspector
-./scripts/run-mcp-inspector-local.sh
-
-# Direct execution for debugging
-python -m src.mcp_openstack_ops.mcp_main --log-level DEBUG
-
-# Run tests (if you add any)
-uv run pytest
-```
-
----
-
-## Logging
-
-The server provides structured logging with configurable levels:
-
-```
-2024-08-19 10:30:15 - mcp_main - INFO - Starting MCP server with stdio transport
-2024-08-19 10:30:15 - mcp_main - INFO - Log level set via CLI to INFO
-2024-08-19 10:30:16 - functions - DEBUG - Fetching data from source: example.com
-```
-
----
-
-## Notes
-
-- The script replaces mcp_openstack_ops (underscore), mcp-openstack-ops (hyphen), and mcp-openstack-ops (display name)
-- Configuration validation ensures proper setup before server start
-- If you need to rename again, revert changes or re-clone and re-run
-- A backup `pyproject.toml.bak` is created when overwriting pyproject
