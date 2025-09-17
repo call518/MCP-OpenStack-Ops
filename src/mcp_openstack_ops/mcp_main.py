@@ -43,9 +43,9 @@ from functions import (
     manage_snapshot as _manage_snapshot,
     # Image Service (Glance) enhanced functions
     manage_image as _manage_image,
-    # Orchestration (Heat) functions
-    get_stacks as _get_stacks,
-    manage_stack as _manage_stack
+    # Heat Stack functions
+    get_heat_stacks as _get_heat_stacks,
+    manage_heat_stack as _manage_heat_stack
 )
 
 import json
@@ -118,7 +118,7 @@ ALLOW_MODIFY_OPERATIONS=true
 - get_flavor_list, get_image_list, get_user_list
 - get_keypair_list, get_security_groups
 - get_floating_ips, get_routers, get_volume_types
-- get_volume_snapshots, get_stacks
+- get_volume_snapshots, get_heat_stacks
 - monitor_resources
 """
     return ""
@@ -1359,9 +1359,9 @@ async def manage_image(image_name: str, action: str, container_format: str = "ba
         return error_msg
 
 
-# Orchestration (Heat) Tools
+# Heat Stack Tools
 @mcp.tool()
-async def get_stacks() -> str:
+async def get_heat_stacks() -> str:
     """
     Get list of Heat orchestration stacks.
     
@@ -1378,7 +1378,7 @@ async def get_stacks() -> str:
     """
     try:
         logger.info("Fetching Heat stacks")
-        stacks = _get_stacks()
+        stacks = _get_heat_stacks()
         
         result = {
             "timestamp": datetime.now().isoformat(),
@@ -1395,7 +1395,7 @@ async def get_stacks() -> str:
 
 
 @conditional_tool
-async def manage_stack(stack_name: str, action: str, template: str = "", parameters: str = "") -> str:
+async def manage_heat_stack(stack_name: str, action: str, template: str = "", parameters: str = "") -> str:
     """
     Manage Heat orchestration stacks (create, delete, update).
     
@@ -1438,7 +1438,7 @@ async def manage_stack(stack_name: str, action: str, template: str = "", paramet
                     "message": "Parameters must be valid JSON format"
                 }, indent=2, ensure_ascii=False)
             
-        result_data = _manage_stack(stack_name, action, **kwargs)
+        result_data = _manage_heat_stack(stack_name, action, **kwargs)
         
         result = {
             "timestamp": datetime.now().isoformat(),

@@ -80,8 +80,8 @@
 22. **`manage_image`** - Create, delete, list, and manage OpenStack images
 
 ### 🔥 Orchestration (Heat) Tools
-23. **`get_stacks`** - Heat stack status and information
-24. **`manage_stack`** - Create, delete, and manage Heat orchestration stacks
+23. **`get_heat_stacks`** - Heat stack status and information
+24. **`manage_heat_stack`** - Create, delete, and manage Heat orchestration stacks
 
 ---
 
@@ -149,6 +149,8 @@ OS_NETWORK_PORT=9696
 OS_VOLUME_PORT=8776
 OS_IMAGE_PORT=9292
 OS_PLACEMENT_PORT=8780
+OS_HEAT_STACK_PORT=8004
+OS_HEAT_STACK_CFN_PORT=18888
 
 # MCP Server Configuration (optional)
 MCP_LOG_LEVEL=INFO
@@ -313,6 +315,8 @@ Options:
 | `OS_VOLUME_PORT` | Volume service port | `8776` | Cinder endpoint |
 | `OS_IMAGE_PORT` | Image service port | `9292` | Glance endpoint |
 | `OS_PLACEMENT_PORT` | Placement service port | `8780` | Placement endpoint |
+| `OS_HEAT_STACK_PORT` | Heat orchestration service port | `8004` | Heat API endpoint |
+| `OS_HEAT_STACK_CFN_PORT` | Heat CloudFormation service port | `18888` | Heat CFN API endpoint |
 | **MCP Server Configuration** |
 | `MCP_LOG_LEVEL` | Logging level | `INFO` | Development debugging |
 | `ALLOW_MODIFY_OPERATIONS` | Enable modify operations | `false` | Safety control for state modifications |
@@ -345,7 +349,7 @@ ALLOW_MODIFY_OPERATIONS=false
 - Floating IP operations (create, delete, associate, disassociate)
 - Snapshot management (create, delete)
 - Image management (create, delete, update)
-- Stack operations (create, delete, update)
+- Heat stack operations (create, delete, update)
 
 **Always Available (Read-Only Operations):**
 - Cluster status and monitoring

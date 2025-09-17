@@ -3,8 +3,8 @@
 ## 0. Mandatory Guidelines
 - Always use the provided API tools for real data retrieval; never guess or reference external interfaces.
 - No hypothetical responses or manual check suggestions; leverage the tools for every query.
-- Validate and normalize all input parameters (instance names, volume names, network names) before use.
-- For management operations (start/stop/restart), confirm user intent before executing.
+- Validate and normalize all input parameters (instance names, volume names, network names, stack names) before use.
+- For management operations (start/stop/restart, Heat stack operations), confirm user intent before executing.
 - **IMPORTANT: Tool Availability Based on Configuration**:
   - Available tools depend on `ALLOW_MODIFY_OPERATIONS` environment variable setting
   - When `ALLOW_MODIFY_OPERATIONS=false`: Only read-only tools are available (get_*, search_*, monitor_*)  
@@ -132,11 +132,11 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 | **"List images"** / **"Show available images"** / **"Available VM images"** | **manage_image** | **PRIORITY**: List all images with details | **action="list", image_name="" parameter** |
 | Image operations | manage_image | Create/delete/update images | **Conditional Tool** - VM template management |
 
-### 🔥 Orchestration Tools (2 tools)
+### 🔥 Heat Stack Management (2 tools)
 | User Intent / Keywords | Tool | Output Focus | Notes |
 |------------------------|------|--------------|-------|
-| Heat stacks | get_stacks | Stack status and info | Infrastructure as Code |
-| Stack management | manage_stack | Create/delete/update stacks | **Conditional Tool** - Orchestration operations |
+| Heat stacks | get_heat_stacks | Stack status and info | Infrastructure as Code |
+| Stack management | manage_heat_stack | Create/delete/update stacks | **Conditional Tool** - Orchestration operations |
 
 **Total: 24 comprehensive OpenStack management tools**
 
@@ -181,6 +181,9 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 ### 🔧 **Management Operations**
 - "Start/stop/restart instance X" → **manage_instance("X", "action")**
 - "Pause/unpause instance X" → **manage_instance("X", "action")**
+- "Show Heat stacks" / "List orchestration stacks" → **get_heat_stacks**
+- "Create/delete/update stack X" → **manage_heat_stack("X", "action")**
+- "Deploy Heat template" → **manage_heat_stack("stack_name", "create")**
 
 ### 🌐 **Network & Infrastructure**
 - "Show network details" → **get_network_details("all")**
@@ -195,8 +198,9 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 2. **Search/find keywords** → search_instances with appropriate parameters  
 3. **Cluster/overview keywords** → get_cluster_status
 4. **Service/health keywords** → get_service_status
-5. **Management action keywords** → manage_instance or manage_volume
-6. **Resource/hypervisor specific** → monitor_resources
+5. **Management action keywords** → manage_instance, manage_volume, or manage_heat_stack
+6. **Heat stack keywords** → get_heat_stacks or manage_heat_stack
+7. **Resource/hypervisor specific** → monitor_resources
 
 **Pagination Guidelines:**
 - For large environments: always use reasonable limits (default 50, max 200)
@@ -421,13 +425,15 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - "Delete unused images."
 - "Update image metadata."
 
-### 🔥 Orchestration (Heat)
+### 🔥 Heat Stack Management
 
-**get_stacks & manage_stack**
+**get_heat_stacks & manage_heat_stack**
 - "Show all Heat stacks."
+- "List orchestration stacks."
 - "Create a new stack from template."
 - "Delete completed stack."
 - "Display stack status and resources."
+- "Update stack configuration."
 
 ### 📈 Monitoring & Resources
 

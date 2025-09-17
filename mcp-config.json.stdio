@@ -20,6 +20,8 @@
         "OS_VOLUME_PORT": "8776",
         "OS_IMAGE_PORT": "9292",
         "OS_PLACEMENT_PORT": "8780",
+        "OS_HEAT_STACK_PORT": "8004",
+        "OS_HEAT_STACK_CFN_PORT": "8000",
         "ALLOW_MODIFY_OPERATIONS": "false",
         "MCP_LOG_LEVEL": "INFO"
       }
