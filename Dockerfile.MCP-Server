@@ -5,7 +5,7 @@ ARG PYTHON_VERSION=3.11
 WORKDIR /app
 
 RUN dnf install -y epel-release \
-        && dnf install -y python${PYTHON_VERSION} python${PYTHON_VERSION}-pip git procps-ng lsof telnet screen iputils \
+        && dnf install -y python${PYTHON_VERSION} python${PYTHON_VERSION}-pip git procps-ng lsof telnet screen iputils nmap-ncat \
         && dnf clean all \
         && update-alternatives --install /usr/bin/python python /usr/bin/python${PYTHON_VERSION} 1000 --slave /usr/bin/pip pip /usr/bin/pip${PYTHON_VERSION}
 
