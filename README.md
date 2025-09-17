@@ -46,102 +46,153 @@
 
 ---
 
-## MCP Tools Available
+## 📊 OpenStack CLI vs MCP Tools Mapping
 
-### 🔍 Monitoring & Status Tools
-1. **`get_cluster_status`** - **Enhanced comprehensive cluster analysis**
-   - Compute nodes: hypervisor status, resource utilization (CPU/memory/disk)
-   - Instance analysis: status distribution, availability zones, detailed info
-   - Network resources: external networks, floating IPs, routers, security groups
-   - Storage resources: volumes by status, snapshots, volume types
-   - Service status: service health, compute services monitoring
-   - **Health scoring**: overall cluster health with issue detection
-2. **`get_service_status`** - OpenStack service health and API endpoint status
-3. **`get_instance_details`** - Detailed information for specific instances with pagination support
-   - Supports filtering by instance names or IDs
-   - Pagination parameters: `limit` (default 50, max 200), `offset` (default 0)
-   - Performance metrics and processing time tracking
-4. **`search_instances`** - Advanced instance search with flexible criteria
-   - Search fields: name, status, host, flavor, image, availability_zone, all
-   - Partial string matching with case-sensitive options
-   - Optimized 2-phase search for large environments
-5. **`get_instance_by_name`** - Quick lookup for specific instance by name
-6. **`get_instances_by_status`** - Filter instances by operational status
-7. **`get_resource_monitoring`** - Real-time resource usage and capacity monitoring
-8. **`get_usage_statistics`** - Project usage statistics (servers, RAM MB-Hours, CPU Hours, Disk GB-Hours)
-   - Similar to 'openstack usage list' command
-   - Configurable time periods with start/end dates
-   - Detailed server usage breakdown and project summaries
+**Detailed Mapping by Category**
 
-### 🌐 Network Management Tools  
-9. **`get_network_details`** - Network, subnet, router, and security group details
-10. **`get_floating_ips`** - Floating IP allocation and status information
-11. **`set_floating_ip`** - Create, delete, associate/disassociate floating IPs
-12. **`get_routers`** - Router status and configuration details
-13. **`get_security_groups`** - Security group rules and configuration
+### 1. 🖥️ **Compute (Nova) - 85% Implementation**
 
-### 💾 Storage Management Tools
-14. **`get_volume_list`** - List all volumes with detailed information (read-only)
-15. **`set_volume`** - Volume management operations (create/delete/list/extend)
-16. **`get_volume_types`** - Available volume types and specifications
-17. **`get_volume_snapshots`** - Volume snapshot status and management
-18. **`set_snapshot`** - Create, delete, and manage volume snapshots
+| OpenStack CLI Command | MCP Tool | Status | Notes |
+|---------------------|---------|------|------|
+| `openstack server list` | `get_instance_details` | ✅ | Pagination, filtering support |
+| `openstack server show` | `get_instance_by_name`, `get_instance_by_id` | ✅ | ID/name search |
+| `openstack server create` | `set_instance` (action="create") | ✅ | Instance creation |
+| `openstack server start/stop/reboot` | `set_instance` | ✅ | Full lifecycle management |
+| `openstack server delete` | `set_instance` (action="delete") | ✅ | Instance deletion |
+| `openstack server backup` | `set_instance` (action="backup") | ✅ | Backup creation |
+| `openstack server shelve/unshelve` | `set_instance` | ✅ | Instance shelving |
+| `openstack server resize` | `set_instance` (action="resize") | ✅ | Instance resizing |
+| `openstack server rebuild` | `set_instance` (action="rebuild") | ✅ | Instance rebuilding |
+| `openstack server rescue/unrescue` | `set_instance` | ✅ | Recovery mode |
+| `openstack server migrate` | ❌ | Not implemented | Migration functionality |
+| `openstack server event list` | `get_server_events` | ✅ | Server event tracking |
+| `openstack server group list` | `get_server_groups` | ✅ | Server group listing |
+| `openstack server group create/delete` | `set_server_group` | ✅ | Server group management |
+| `openstack flavor list` | `get_flavor_list` (via cluster_status) | ✅ | Flavor listing |
+| `openstack flavor create/delete` | `set_flavor` | ✅ | Flavor management |
+| `openstack keypair list` | `get_keypair_list` | ✅ | Keypair listing |
+| `openstack keypair create/delete` | `set_keypair` | ✅ | Keypair management |
+| `openstack hypervisor list` | `get_hypervisor_details` | ✅ | Hypervisor querying |
+| `openstack availability zone list` | `get_availability_zones` | ✅ | Availability zone listing |
 
-### ⚙️ Instance & Compute Management
-19. **`set_instance`** - Enhanced instance lifecycle operations with extensive action support:
-   - Basic operations: start/stop/restart/pause/unpause/suspend/resume
-   - Advanced operations: backup (with auto-naming), shelve/unshelve, lock/unlock
-   - Recovery operations: rescue/unrescue with image selection
-   - Maintenance operations: resize (flavor changes) and rebuild (OS reinstall)
-20. **`get_server_events`** - Server event tracking and lifecycle history
-   - Detailed event logs with timestamps and result tracking
-   - Action history: start/stop, resize, rebuild, migration events
-   - Error tracking and event filtering capabilities
-21. **`get_server_groups`** - Server group management and affinity policies
-   - List server groups with member details and policy information
-   - Anti-affinity and affinity group configurations
-22. **`set_server_group`** - Create and manage server groups
-   - Affinity/anti-affinity policy management
-   - Server group CRUD operations with member management
-23. **`get_server_volumes`** - Server volume attachment information
-   - List all volumes attached to a server with detailed metadata
-   - Volume status, type, size, and bootable flag information
-24. **`set_server_volume`** - Server volume attachment management
-   - Attach/detach volumes with device specification
-   - Volume attachment operations with comprehensive error handling
-25. **`get_hypervisor_details`** - Hypervisor resource monitoring
-   - Detailed hypervisor statistics with resource utilization
-   - CPU, memory, disk usage with percentage calculations
-   - Cluster-wide totals and per-hypervisor breakdown
-26. **`get_availability_zones`** - Availability zone information
-   - Compute and volume availability zones with host details
-   - Zone status and service availability information
-27. **`set_flavor`** - Flavor management with comprehensive CRUD operations
-   - Create, delete, show, and list flavors with specifications
-   - Extra properties and specifications management
-   - Public/private flavor visibility controls
-28. **`get_keypair_list`** - SSH keypair management and listing
-29. **`set_keypair`** - Create, delete SSH keypairs for instance access
+### 2. 🌐 **Network (Neutron) - 80% Implementation**
 
-### 👥 Identity & Access Management
-30. **`get_user_list`** - OpenStack user accounts and details
-31. **`get_role_assignments`** - User role assignments and permissions
+| OpenStack CLI Command | MCP Tool | Status | Notes |
+|---------------------|---------|------|------|
+| `openstack network list` | `get_network_details` | ✅ | Detailed network information |
+| `openstack network show` | `get_network_details` (name param) | ✅ | Specific network query |
+| `openstack network create/delete` | ❌ | Not implemented | Network creation/deletion |
+| `openstack subnet list` | `get_network_details` (includes subnets) | ✅ | Subnet information included |
+| `openstack subnet create/delete` | `set_subnets` | ✅ | Subnet management |
+| `openstack router list` | `get_routers` | ✅ | Router listing |
+| `openstack router create/delete` | ❌ | Not implemented | Router management |
+| `openstack floating ip list` | `get_floating_ips` | ✅ | Floating IP listing |
+| `openstack floating ip create/delete` | `set_floating_ip` | ✅ | Floating IP management |
+| `openstack security group list` | `get_security_groups` | ✅ | Security group listing |
+| `openstack security group create/delete` | ❌ | Not implemented | Security group management |
+| `openstack port list` | `get_network_details` (includes ports) | ✅ | Port information included |
+| `openstack port create/delete` | `set_network_ports` | ✅ | Port management |
+| `openstack network qos policy list` | ❌ | Not implemented | QoS policy listing |
+| `openstack network qos policy create` | `set_network_qos_policies` | ✅ | QoS policy management |
+| `openstack network agent list` | `get_service_status` (includes agents) | ✅ | Network agents |
+| `openstack network agent set` | `set_network_agents` | ✅ | Network agent management |
 
-### 🖼️ Image Management
-32. **`get_image_detail_list`** - Detailed list of all images with metadata (read-only)
-33. **`set_image`** - Create, delete, list, and manage OpenStack images
+### 3. 💾 **Storage (Cinder) - 90% Implementation**
 
-### 🔥 Orchestration (Heat) Tools
-34. **`get_heat_stacks`** - Heat stack status and information
-35. **`set_heat_stack`** - Create, delete, and manage Heat orchestration stacks
+| OpenStack CLI Command | MCP Tool | Status | Notes |
+|---------------------|---------|------|------|
+| `openstack volume list` | `get_volume_list` | ✅ | Volume listing |
+| `openstack volume show` | `get_volume_list` (filtering) | ✅ | Specific volume query |
+| `openstack volume create/delete` | `set_volume` | ✅ | Volume creation/deletion |
+| `openstack volume set` | `set_volume` (action="modify") | ✅ | Volume property modification |
+| `openstack volume type list` | `get_volume_types` | ✅ | Volume type listing |
+| `openstack volume type create/delete` | ❌ | Not implemented | Volume type management |
+| `openstack volume snapshot list` | `get_volume_snapshots` | ✅ | Snapshot listing |
+| `openstack volume snapshot create/delete` | `set_snapshot` | ✅ | Snapshot management |
+| `openstack backup list` | ❌ | Not implemented | Backup listing |
+| `openstack backup create/delete` | `set_volume_backups` | ✅ | Volume backup management |
+| `openstack volume transfer request list` | ❌ | Not implemented | Volume transfer |
+| `openstack server volume list` | `get_server_volumes` | ✅ | Server volume listing |
+| `openstack server add/remove volume` | `set_server_volume` | ✅ | Server volume attach/detach |
+| `openstack volume group list` | ❌ | Not implemented | Volume group listing |
+| `openstack volume group create` | `set_volume_groups` | ✅ | Volume group management |
+| `openstack volume qos list` | ❌ | Not implemented | QoS listing |
+| `openstack volume qos create` | `set_volume_qos` | ✅ | QoS management |
 
-### 📊 Quota Management
-36. **`get_quota`** - View project quotas for compute, storage, and network resources (read-only)
-37. **`set_quota`** - Set, delete, and list project quota limits
+### 4. 🖼️ **Image (Glance) - 75% Implementation**
 
-### 👥 Project Management  
-38. **`get_project_details`** - List and show OpenStack project details with roles and quotas (read-only)
-39. **`set_project`** - Create, delete, update, and cleanup OpenStack projects
+| OpenStack CLI Command | MCP Tool | Status | Notes |
+|---------------------|---------|------|------|
+| `openstack image list` | `get_image_detail_list` | ✅ | Image listing |
+| `openstack image show` | `get_image_detail_list` (filtering) | ✅ | Specific image query |
+| `openstack image create` | `set_image` (action="create") | ✅ | Image creation |
+| `openstack image delete` | `set_image` (action="delete") | ✅ | Image deletion |
+| `openstack image set` | `set_image` (action="update") | ✅ | Image property modification |
+| `openstack image save` | `set_image` (action="save") | ✅ | Image download |
+| `openstack image add project` | ❌ | Not implemented | Project sharing |
+| `openstack image member list` | ❌ | Not implemented | Member listing |
+| `openstack image member create` | `set_image_members` | ✅ | Image member management |
+| `openstack image set --property` | `set_image_metadata` | ✅ | Image metadata |
+| `openstack image set --public/private` | `set_image_visibility` | ✅ | Image visibility setting |
+
+### 5. 👥 **Identity (Keystone) - 70% Implementation**
+
+| OpenStack CLI Command | MCP Tool | Status | Notes |
+|---------------------|---------|------|------|
+| `openstack user list` | `get_user_list` | ✅ | User listing |
+| `openstack user show` | `get_user_list` (filtering) | ✅ | Specific user query |
+| `openstack user create/delete` | ❌ | Not implemented | User management |
+| `openstack project list` | `get_project_details` | ✅ | Project listing |
+| `openstack project show` | `get_project_details` (name param) | ✅ | Specific project query |
+| `openstack project create/delete` | `set_project` | ✅ | Project management |
+| `openstack role list` | `get_role_assignments` | ✅ | Role listing |
+| `openstack role assignment list` | `get_role_assignments` | ✅ | Role assignment listing |
+| `openstack role create/delete` | `set_roles` | ✅ | Role management |
+| `openstack domain list` | ❌ | Not implemented | Domain listing |
+| `openstack domain create/delete` | `set_domains` | ✅ | Domain management |
+| `openstack group list` | ❌ | Not implemented | Group listing |
+| `openstack group create/delete` | `set_identity_groups` | ✅ | Group management |
+| `openstack service list` | `get_service_status` | ✅ | Service listing |
+| `openstack service create/delete` | `set_services` | ✅ | Service management |
+| `openstack endpoint list` | `get_service_status` (includes endpoints) | ✅ | Endpoint information |
+
+### 6. 🔥 **Orchestration (Heat) - 40% Implementation**
+
+| OpenStack CLI Command | MCP Tool | Status | Notes |
+|---------------------|---------|------|------|
+| `openstack stack list` | `get_heat_stacks` | ✅ | Stack listing |
+| `openstack stack show` | `get_heat_stacks` (filtering) | ✅ | Specific stack query |
+| `openstack stack create` | `set_heat_stack` (action="create") | ✅ | Stack creation |
+| `openstack stack delete` | `set_heat_stack` (action="delete") | ✅ | Stack deletion |
+| `openstack stack update` | `set_heat_stack` (action="update") | ✅ | Stack update |
+| `openstack stack suspend/resume` | `set_heat_stack` | ✅ | Stack suspend/resume |
+| `openstack stack resource list` | ❌ | Not implemented | Stack resource listing |
+| `openstack stack event list` | ❌ | Not implemented | Stack event listing |
+| `openstack stack template show` | ❌ | Not implemented | Template query |
+| `openstack stack output list` | ❌ | Not implemented | Stack output listing |
+
+### 7. 📊 **Monitoring & Logging - 60% Implementation**
+
+| OpenStack CLI Command | MCP Tool | Status | Notes |
+|---------------------|---------|------|------|
+| Resource monitoring | `get_resource_monitoring` | ✅ | Resource monitoring |
+| Service status | `get_service_status` | ✅ | Service status query |
+| Cluster overview | `get_cluster_status` | ✅ | Cluster overview |
+| Service logs | `set_service_logs` | ✅ | Service log management |
+| System metrics | `set_metrics` | ✅ | Metrics management |
+| Alarm management | `set_alarms` | ✅ | Alarm management |
+| Compute agents | `set_compute_agents` | ✅ | Compute agent management |
+| Usage statistics | `get_usage_statistics` | ✅ | Usage statistics |
+
+### 8. 📏 **Usage & Quota - 80% Implementation**
+
+| OpenStack CLI Command | MCP Tool | Status | Notes |
+|---------------------|---------|------|------|
+| `openstack quota show` | `get_quota` | ✅ | Quota query |
+| `openstack quota set` | `set_quota` | ✅ | Quota setting |
+| `openstack usage show` | `get_usage_statistics` | ✅ | Usage query |
+| `openstack limits show` | `get_quota` (includes limits) | ✅ | Limits query |
+| Resource utilization | `get_resource_monitoring` | ✅ | Resource utilization |
 
 ---
 

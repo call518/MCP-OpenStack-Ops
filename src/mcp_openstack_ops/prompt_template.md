@@ -69,7 +69,7 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 ---
 
-## 3. Tool Map (Complete & Updated - 39 Tools Total)
+## 3. Tool Map (Complete & Updated - 57 Tools Total)
 
 **⚠️ Tool Availability Notice:**
 - **Read-Only Tools**: Always available (get_*, search_*, monitor_* tools)
@@ -86,7 +86,7 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 **Notes**: Two-phase approach for complete cluster visibility with proper CPU/memory terminology:
 - Physical resources (pCPU, physical memory) from hypervisors
 - Virtual resources (vCPU, virtual memory) from instances and quotas
-- Clear distinction between hardware capacity and allocated resources | **get_cluster_status** | **PRIORITY**: Enhanced compute nodes, resource utilization, health scoring, service status, image resources with usage stats, detailed instance deployment status, image popularity ranking | **USE THIS for comprehensive analysis** |
+- Clear distinction between hardware capacity and allocated resources | **get_cluster_status** | **PRIORITY**: Enhanced compute nodes, resource utilization, health scoring, service status, image resources with usage stats, detailed instance deployment status, image popularity ranking, **NEW**: server groups with affinity policies, detailed availability zones, resource usage analytics, comprehensive quota information | **USE THIS for comprehensive analysis** |
 | Service health / API status | get_service_status | Service states, API endpoints | "service status" / "health check" |
 | **"Show details for instance X"** / **"Get info about instance X"** / specific instance name mentioned | **get_instance_details** | **PRIORITY**: Specific instance information with pagination | **instance_names=["X"] parameter** |
 | Search instances / find VMs | search_instances | Flexible instance search with filters | Partial matching, case-sensitive, pagination |
@@ -94,7 +94,7 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 | Instances by status | get_instances_by_status | Filter by operational status | "running" / "stopped" / "error" instances |
 | Hypervisor-specific monitoring | get_resource_monitoring | CPU, memory, storage usage by hypervisor (physical_usage + quota_usage) | "hypervisor statistics" / "resource monitoring" |
 
-### 🌐 Network Management Tools (5 tools)
+### 🌐 Network Management Tools (9 tools)
 | User Intent / Keywords | Tool | Output Focus | Notes |
 |------------------------|------|--------------|-------|
 | **"Show all network configurations"** / **"List networks"** / **"Network details"** | **get_network_details** | **PRIORITY**: All networks with subnets | **network_name="all" parameter** |
@@ -103,8 +103,12 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 | Floating IP operations | set_floating_ip | Create/delete/associate floating IPs | **Conditional Tool** - Requires network/port IDs |
 | Router information | get_routers | Router status and configuration | Network connectivity |
 | Security group details | get_security_groups | Security rules and policies | Access control information |
+| Network port management | set_network_ports | Create/manage network ports | **Conditional Tool** - Port creation and configuration |
+| Subnet management | set_subnets | Create/manage subnets | **Conditional Tool** - Subnet operations and DHCP configuration |
+| Network QoS policies | set_network_qos_policies | Network quality of service management | **Conditional Tool** - Bandwidth and traffic control |
+| Network agent management | set_network_agents | Neutron agent operations | **Conditional Tool** - Enable/disable/configure network agents |
 
-### 💾 Storage Management Tools (5 tools)
+### 💾 Storage Management Tools (8 tools)
 | User Intent / Keywords | Tool | Output Focus | Notes |
 |------------------------|------|--------------|-------|
 | **"List volumes"** / **"Show all volumes"** / **"List all volumes in project"** | **get_volume_list** | **PRIORITY**: List all volumes with status (read-only) | **Always available - detailed volume information** |
@@ -112,6 +116,9 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 | Volume types | get_volume_types | Available storage types | Performance characteristics |
 | Volume snapshots | get_volume_snapshots | Snapshot status and details | Backup information |
 | Snapshot management | set_snapshot | Create/delete snapshots | **Conditional Tool** - Volume backup operations |
+| Volume backup management | set_volume_backups | Advanced backup operations | **Conditional Tool** - Create/restore/delete volume backups |
+| Volume group management | set_volume_groups | Volume consistency groups | **Conditional Tool** - Create/manage volume groups |
+| Volume QoS management | set_volume_qos | Volume quality of service policies | **Conditional Tool** - Performance control and QoS policies |
 
 ### ⚙️ Enhanced Instance & Compute Management (11 tools) - ⚠️ Most Require ALLOW_MODIFY_OPERATIONS=true
 | User Intent / Keywords | Tool | Output Focus | Notes |
@@ -128,17 +135,29 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 | SSH keypairs | get_keypair_list | Available keypairs | Instance access keys |
 | Keypair management | set_keypair | Create/delete keypairs | **Conditional Tool** - SSH key operations |
 
-### 👥 Identity & Access Management (2 tools)
+### 👥 Identity & Access Management (7 tools)
 | User Intent / Keywords | Tool | Output Focus | Notes |
 |------------------------|------|--------------|-------|
 | User accounts | get_user_list | OpenStack users | Identity management |
 | Role assignments | get_role_assignments | User permissions | Access control |
+| Domain management | set_domains | Create/manage domains | **Conditional Tool** - Domain operations and configuration |
+| Identity group management | set_identity_groups | User group operations | **Conditional Tool** - Group creation and member management |
+| Role management | set_roles | Role creation and assignment | **Conditional Tool** - Role operations and permissions |
+| Service management | set_services | OpenStack service operations | **Conditional Tool** - Service catalog management |
+| Project usage statistics | get_usage_statistics | Project usage and quota consumption | **Always available** - Resource usage tracking |
+| Quota management | get_quota | Project quotas and limits | **Always available** - Quota information |
+| Quota setting | set_quota | Set project quotas and limits | **Conditional Tool** - Quota modification operations |
+| Project details | get_project_details | Project information and configuration | **Always available** - Project data |
+| Project management | set_project | Create/update/delete projects | **Conditional Tool** - Project operations |
 
-### 🖼️ Image Management (2 tools)
+### 🖼️ Image Management (5 tools)
 | User Intent / Keywords | Tool | Output Focus | Notes |
 |------------------------|------|--------------|-------|
 | **"List images"** / **"Show available images"** / **"Available VM images"** | **get_image_detail_list** | **PRIORITY**: List all images with detailed metadata (read-only) | **Always available - comprehensive image information** |
 | Image operations | set_image | Create/delete/update images | **Conditional Tool** - VM template management |
+| Image member management | set_image_members | Image sharing and access control | **Conditional Tool** - Manage image project sharing |
+| Image metadata management | set_image_metadata | Image properties and metadata | **Conditional Tool** - Set image properties and tags |
+| Image visibility management | set_image_visibility | Public/private image settings | **Conditional Tool** - Control image visibility and sharing |
 
 ### 🔥 Heat Stack Management (2 tools)
 | User Intent / Keywords | Tool | Output Focus | Notes |
@@ -146,7 +165,15 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 | Heat stacks | get_heat_stacks | Stack status and info | Infrastructure as Code |
 | Stack management | set_heat_stack | Create/delete/update stacks | **Conditional Tool** - Orchestration operations |
 
-**Total: 24 comprehensive OpenStack management tools**
+### 📊 Monitoring & Logging (4 tools)
+| User Intent / Keywords | Tool | Output Focus | Notes |
+|------------------------|------|--------------|-------|
+| Service log management | set_service_logs | Service log operations | **Conditional Tool** - Log collection and analysis |
+| System metrics management | set_metrics | Metrics collection and monitoring | **Conditional Tool** - Performance metrics and monitoring |
+| Alarm management | set_alarms | Alert configuration and management | **Conditional Tool** - Monitoring alerts and notifications |
+| Compute agent management | set_compute_agents | Compute service agent operations | **Conditional Tool** - Nova agent management |
+
+**Total: 57 comprehensive OpenStack management tools**
 
 **Enhanced Features:**
 - **Pagination Support**: get_instance_details and search_instances support limit/offset parameters
@@ -179,6 +206,11 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - "Volume usage" / "storage utilization" → **get_cluster_status** (includes detailed volume utilization)
 - "Instance deployment status" / "operational status" → **get_cluster_status** (includes instance_deployment_status)
 - "Image popularity" / "most used images" → **get_cluster_status** (includes image usage ranking)
+- **NEW Enhanced Features in get_cluster_status**:
+  - "Server groups" / "affinity policies" → **get_cluster_status** (includes server_groups section with anti-affinity data)
+  - "Availability zones" / "zone status" → **get_cluster_status** (includes detailed availability_zones with host information)  
+  - "Usage statistics" / "billing trends" / "resource consumption" → **get_cluster_status** (includes resource_usage section with 30-day analytics)
+  - "Project quotas" / "quota limits" / "resource limits" → **get_cluster_status** (includes quota_information section with comprehensive limits)
 - **MANDATORY FOR CLUSTER REPORTS**: ALWAYS include BOTH physical and quota information:
   - Physical resource usage from hypervisors (pCPU, physical memory, physical storage)
   - Virtual resource quotas from projects (vCPU quota, virtual memory quota, instance quota)
@@ -332,6 +364,14 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - "Display compute node status and capacity."
 - "Show cluster overview with health scoring."
 - "Create infrastructure status report with issue detection."
+- **NEW Enhanced Queries**:
+- "Show server groups and affinity policies."
+- "Display availability zones with host details."
+- "What are the resource usage trends and billing information?"
+- "Show comprehensive quota limits for all services."
+- "Display 30-day resource consumption analytics."
+- "What are the anti-affinity policies in use?"
+- "Show zone distribution and host service status."
 
 **get_service_status**
 - "Are all OpenStack services running properly?"
@@ -391,6 +431,18 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - "List security group rules."
 - "Display firewall policies."
 
+**set_network_ports & set_subnets**
+- "Create a new network port for instance."
+- "Configure port with specific IP address."
+- "Create subnet with DHCP configuration."
+- "Manage subnet allocation pools."
+
+**set_network_qos_policies & set_network_agents**
+- "Apply bandwidth limits to network ports."
+- "Set QoS policies for network traffic."
+- "Enable neutron DHCP agent."
+- "Configure network agent settings."
+
 ### 💾 Storage Management
 
 **set_volume**
@@ -406,6 +458,18 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - "Create a snapshot of data-volume."
 - "Delete old backup snapshot."
 - "Show snapshot details and status."
+
+**set_volume_backups**
+- "Create a backup of production-data volume."
+- "Restore volume from backup-2024-09-18."
+- "Delete old volume backups."
+- "Show backup status and progress."
+
+**set_volume_groups & set_volume_qos**
+- "Create a consistency group for database volumes."
+- "Set QoS policy for high-performance volumes."
+- "Manage volume group snapshots."
+- "Apply bandwidth limits to volumes."
 
 ### ⚙️ Compute Management
 
@@ -423,6 +487,36 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - "Display project permissions."
 - "Show user access rights."
 
+**get_project_details & set_project**
+- "Show project information and quotas."
+- "Create new project with specific quotas."
+- "Update project settings and description."
+- "Delete unused test project."
+
+**get_quota & set_quota**
+- "Show current project quotas and limits."
+- "Set compute quotas for project."
+- "Update network quota limits."
+- "Display resource utilization vs quotas."
+
+**get_usage_statistics**
+- "Show project resource usage statistics."
+- "Display monthly compute usage report."
+- "Get billing information for project."
+- "Show resource consumption trends."
+
+**set_domains & set_identity_groups**
+- "Create a new domain for organization."
+- "Manage user groups and membership."
+- "Set domain-specific configurations."
+- "Add users to identity groups."
+
+**set_roles & set_services**
+- "Create custom roles with permissions."
+- "Assign roles to users and projects."
+- "Manage OpenStack service catalog."
+- "Configure service endpoints."
+
 ### 🖼️ Image Management
 
 **set_image**
@@ -433,6 +527,18 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - "Delete unused images."
 - "Update image metadata."
 
+**set_image_members & set_image_metadata**
+- "Share image with specific projects."
+- "Add projects to image member list."
+- "Set image properties and metadata."
+- "Update image description and tags."
+
+**set_image_visibility**
+- "Make image public for all projects."
+- "Set image visibility to private."
+- "Change image sharing settings."
+- "Control image access permissions."
+
 ### 🔥 Heat Stack Management
 
 **get_heat_stacks & set_heat_stack**
@@ -442,6 +548,32 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - "Delete completed stack."
 - "Display stack status and resources."
 - "Update stack configuration."
+
+### 📊 Monitoring & Logging
+
+**set_service_logs**
+- "Collect nova service logs."
+- "Get neutron agent log information."
+- "Show cinder service log files."
+- "Analyze OpenStack service logs."
+
+**set_metrics**
+- "Set up performance metrics collection."
+- "Configure system monitoring metrics."
+- "Enable resource utilization metrics."
+- "Create custom monitoring dashboards."
+
+**set_alarms**
+- "Create CPU usage alarms for instances."
+- "Set up storage utilization alerts."
+- "Configure network traffic monitoring."
+- "Manage alert notification settings."
+
+**set_compute_agents**
+- "Enable nova compute agents."
+- "Configure hypervisor agents."
+- "Manage compute service agents."
+- "Update agent configurations."
 
 ### 📈 Monitoring & Resources
 
@@ -541,11 +673,26 @@ Query: "Show me instances 21-40 that are currently active"
 Keep this template updated when new tools are added (update Sections 3 & 4). Can be delivered via the get_prompt_template MCP tool if implemented.
 
 **Recent Updates:**
+- Added 18 new advanced management tools (set_volume_backups, set_volume_groups, set_volume_qos, set_network_ports, set_subnets, set_network_qos_policies, set_network_agents, set_image_members, set_image_metadata, set_image_visibility, set_domains, set_identity_groups, set_roles, set_services, set_service_logs, set_metrics, set_alarms, set_compute_agents)
+- Updated total tool count from 39 to 57 comprehensive OpenStack management tools
+- Enhanced Storage Management with backup, group, and QoS operations
+- Expanded Network Management with port, subnet, QoS, and agent management
+- Improved Image Management with member, metadata, and visibility controls
+- Enhanced Identity & Access Management with domain, group, role, and service operations  
+- Added Monitoring & Logging tools for service logs, metrics, alarms, and compute agents
+- Maintained consistent naming convention with get_* (read-only) and set_* (modify) patterns
 - Added pagination support for get_instance_details (limit, offset, include_all parameters)
 - Introduced search_instances tool with advanced filtering capabilities
 - Enhanced performance optimization for large-scale environments
 - Added connection caching and automatic retry mechanisms
 - Improved error handling with fallback data support
+- **LATEST**: Enhanced get_cluster_status() with 4 new data sections:
+  - Server groups information with affinity/anti-affinity policies (using get_server_groups())
+  - Detailed availability zones with host service status (using get_availability_zones())
+  - Resource usage analytics with 30-day consumption trends (using get_usage_statistics())
+  - Comprehensive quota information across all services (using get_quota())
+- Function reuse pattern implemented to avoid code duplication while enriching cluster analysis
+- Enhanced cluster analysis queries now support server group policies, zone details, billing trends, and quota management
 
 ---
 

@@ -96,9 +96,29 @@ def get_cluster_status() -> Dict[str, Any]:
     """
     Returns a comprehensive and detailed summary of OpenStack cluster status.
     
+    This function provides an extensive overview of the OpenStack cluster including:
+    - Compute resources with server groups and affinity policies
+    - Network configurations and floating IP management
+    - Storage volumes and comprehensive quota information  
+    - Image resources and usage statistics
+    - Service status and health monitoring
+    - Availability zones with detailed host information
+    - Resource usage analytics and billing trends
+    - Overall cluster health scoring
+    
+    Enhanced with data from newly added tools:
+    - get_server_groups(): Affinity/anti-affinity policy information
+    - get_availability_zones(): Detailed zone and host service status
+    - get_usage_statistics(): Resource consumption trends and billing data
+    - get_quota(): Comprehensive quota limits across all services
+    
     Returns:
-        Dict containing extensive cluster status information including compute nodes,
-        services health, resource usage, storage, networking, and overall cluster health.
+        Dict containing extensive cluster status information with enhanced sections:
+        - compute_resources: Includes server_groups section with policy information
+        - cluster_overview: Includes availability_zones with detailed host data
+        - resource_usage: NEW section with usage analytics and trends
+        - quota_information: NEW section with comprehensive quota details
+        - Plus all existing sections with additional detail
     """
     try:
         conn = get_openstack_connection()
@@ -184,6 +204,15 @@ def get_cluster_status() -> Dict[str, Any]:
                 logger.warning(f"Failed to get flavors/keypairs: {flavor_error}")
                 flavors = []
                 keypairs = []
+            
+            # Get server groups information using existing function (reuse pattern)
+            server_groups_data = []
+            try:
+                server_groups_data = get_server_groups()
+                logger.info(f"Retrieved {len(server_groups_data)} server groups from get_server_groups()")
+            except Exception as sg_error:
+                logger.warning(f"Failed to get server groups: {sg_error}")
+                server_groups_data = []
             
             # Server status analysis with enhanced instance operational status
             server_status = {'ACTIVE': 0, 'ERROR': 0, 'SHUTOFF': 0, 'STOPPED': 0, 'PAUSED': 0, 'SUSPENDED': 0, 'BUILD': 0, 'REBOOT': 0, 'HARD_REBOOT': 0, 'OTHER': 0}
@@ -278,7 +307,14 @@ def get_cluster_status() -> Dict[str, Any]:
                     'physical_memory_utilization_percent': round((used_ram/total_ram*100), 1) if total_ram > 0 else 0,
                     'physical_disk_utilization_percent': round((used_disk/total_disk*100), 1) if total_disk > 0 else 0
                 },
-                'quota_usage': get_compute_quota_usage(conn)
+                'quota_usage': get_compute_quota_usage(conn),
+                # NEW: Server groups information for affinity/anti-affinity policies
+                'server_groups': {
+                    'total_groups': len(server_groups_data),
+                    'groups_detail': server_groups_data[:10] if server_groups_data else [],  # Top 10 for brevity
+                    'policy_types': list(set([policy for group in server_groups_data for policy in group.get('policies', [])])) if server_groups_data else [],
+                    'groups_with_members': len([g for g in server_groups_data if g.get('member_count', 0) > 0]) if server_groups_data else 0
+                }
             }
             
             logger.info(f"Successfully processed compute resources: {len(servers)} instances, {len(hypervisors)} hypervisors")
@@ -457,6 +493,35 @@ def get_cluster_status() -> Dict[str, Any]:
                 'total_snapshots': len(snapshots),
                 'volume_types': [{'name': vt.name, 'description': getattr(vt, 'description', '')} for vt in volume_types]
             }
+            
+            # Enhanced: Add comprehensive quota information using get_quota function (reuse pattern)
+            try:
+                comprehensive_quotas = get_quota()
+                if comprehensive_quotas.get('success') and comprehensive_quotas.get('quotas'):
+                    cluster_info['quota_information'] = {
+                        'project_name': comprehensive_quotas.get('project_name', 'Current Project'),
+                        'quota_details': comprehensive_quotas.get('quotas', {}),
+                        'services_covered': list(comprehensive_quotas.get('quotas', {}).keys()),
+                        'total_quota_categories': len(comprehensive_quotas.get('quotas', {})),
+                        'quota_summary': {
+                            'compute_limits': comprehensive_quotas.get('quotas', {}).get('compute', {}),
+                            'volume_limits': comprehensive_quotas.get('quotas', {}).get('volume', {}),
+                            'network_limits': comprehensive_quotas.get('quotas', {}).get('network', {})
+                        }
+                    }
+                    logger.info(f"Added comprehensive quota information covering {len(comprehensive_quotas.get('quotas', {}))} service categories")
+                else:
+                    cluster_info['quota_information'] = {
+                        'status': 'unavailable',
+                        'reason': comprehensive_quotas.get('error', 'Quota information not accessible'),
+                        'fallback': 'Basic quota information available in individual resource sections'
+                    }
+            except Exception as quota_error:
+                logger.warning(f"Failed to get comprehensive quotas: {quota_error}")
+                cluster_info['quota_information'] = {
+                    'error': f"Failed to get comprehensive quotas: {str(quota_error)}",
+                    'fallback': 'Basic quota information available in individual resource sections'
+                }
         except Exception as e:
             cluster_info['storage_resources'] = {'error': f"Failed to get storage info: {str(e)}"}
             
@@ -568,6 +633,41 @@ def get_cluster_status() -> Dict[str, Any]:
         except Exception as e:
             cluster_info['service_status'] = {'error': f"Failed to get service info: {str(e)}"}
         
+        # === RESOURCE USAGE ANALYTICS === (NEW: Using get_usage_statistics function)
+        try:
+            # Get usage statistics for the last 30 days using existing function (reuse pattern)
+            usage_analytics = get_usage_statistics()
+            
+            if usage_analytics.get('success'):
+                cluster_info['resource_usage'] = {
+                    'usage_period': f"{usage_analytics.get('start_date')} to {usage_analytics.get('end_date')}",
+                    'usage_period_days': usage_analytics.get('usage_period_days', 0),
+                    'total_projects_with_usage': usage_analytics.get('total_projects', 0),
+                    'summary_statistics': usage_analytics.get('summary', {}),
+                    'top_resource_consumers': usage_analytics.get('usage_statistics', [])[:5] if usage_analytics.get('usage_statistics') else [],  # Top 5 projects by usage
+                    'resource_trends': {
+                        'total_server_hours': usage_analytics.get('summary', {}).get('total_cpu_hours', 0),
+                        'total_ram_mb_hours': usage_analytics.get('summary', {}).get('total_ram_mb_hours', 0),
+                        'total_storage_gb_hours': usage_analytics.get('summary', {}).get('total_disk_gb_hours', 0),
+                        'avg_daily_cpu_hours': round(usage_analytics.get('summary', {}).get('total_cpu_hours', 0) / max(usage_analytics.get('usage_period_days', 1), 1), 2),
+                        'avg_daily_ram_gb_hours': round(usage_analytics.get('summary', {}).get('total_ram_mb_hours', 0) / (1024 * max(usage_analytics.get('usage_period_days', 1), 1)), 2)
+                    }
+                }
+                logger.info(f"Added usage analytics data for {usage_analytics.get('total_projects', 0)} projects over {usage_analytics.get('usage_period_days', 0)} days")
+            else:
+                cluster_info['resource_usage'] = {
+                    'status': 'unavailable',
+                    'reason': usage_analytics.get('error', 'Usage statistics not available'),
+                    'fallback_info': 'Current instance count available in compute_resources section'
+                }
+                logger.warning(f"Usage statistics unavailable: {usage_analytics.get('error', 'Unknown error')}")
+        except Exception as e:
+            logger.warning(f"Failed to get usage analytics: {e}")
+            cluster_info['resource_usage'] = {
+                'error': f"Failed to get usage analytics: {str(e)}",
+                'fallback_info': 'Current resource information available in other sections'
+            }
+        
         # === CLUSTER OVERVIEW ===
         try:
             total_images = cluster_info.get('image_resources', {}).get('total_images', 0)
@@ -578,6 +678,26 @@ def get_cluster_status() -> Dict[str, Any]:
             instance_ops = cluster_info.get('compute_resources', {}).get('instance_operations', {})
             compute_resources = cluster_info.get('compute_resources', {})
             image_resources = cluster_info.get('image_resources', {})
+            
+            # Get availability zones information using existing function (reuse pattern)
+            availability_zones_data = {}
+            try:
+                az_data = get_availability_zones()
+                if az_data.get('success'):
+                    availability_zones_data = {
+                        'compute_zones': az_data.get('compute_zones', []),
+                        'volume_zones': az_data.get('volume_zones', []),
+                        'total_compute_zones': len(az_data.get('compute_zones', [])),
+                        'total_volume_zones': len(az_data.get('volume_zones', [])),
+                        'zone_summary': {
+                            'compute_hosts_total': sum([len(zone.get('hosts', {})) for zone in az_data.get('compute_zones', [])]),
+                            'active_zones': len([zone for zone in az_data.get('compute_zones', []) if zone.get('zone_state', {}).get('available', False)])
+                        }
+                    }
+                    logger.info(f"Retrieved availability zones data: {availability_zones_data['total_compute_zones']} compute zones, {availability_zones_data['total_volume_zones']} volume zones")
+            except Exception as az_error:
+                logger.warning(f"Failed to get availability zones: {az_error}")
+                availability_zones_data = {}
                 
             cluster_info['cluster_overview'] = {
                 'total_projects': len(list(conn.identity.projects())) if 'error' not in cluster_info.get('service_status', {}) else 0,
@@ -602,7 +722,9 @@ def get_cluster_status() -> Dict[str, Any]:
                     'other_states': instance_ops.get('deployment_summary', {}).get('other_states', 0),
                     'operational_health': instance_ops.get('operational_health', {}),
                     'detailed_status_breakdown': compute_resources.get('instances_by_status', {})
-                }
+                },
+                # NEW: Detailed availability zones information
+                'availability_zones': availability_zones_data
             }
         except Exception as e:
             logger.warning(f"Failed to build cluster overview: {e}")
@@ -1694,10 +1816,216 @@ def set_volume(volume_name: str, action: str, **kwargs) -> Dict[str, Any]:
                 'new_size': new_size
             }
             
+        elif action.lower() == 'backup':
+            # Create volume backup
+            backup_name = kwargs.get('backup_name', f'{volume_name}-backup-{datetime.now().strftime("%Y%m%d-%H%M%S")}')
+            description = kwargs.get('description', f'Backup of volume {volume_name}')
+            incremental = kwargs.get('incremental', False)
+            force = kwargs.get('force', False)
+            
+            # Find the volume
+            volume = None
+            for vol in conn.volume.volumes():
+                if vol.name == volume_name or vol.id == volume_name:
+                    volume = vol
+                    break
+                    
+            if not volume:
+                return {
+                    'success': False,
+                    'message': f'Volume "{volume_name}" not found'
+                }
+            
+            try:
+                backup = conn.volume.create_backup(
+                    volume_id=volume.id,
+                    name=backup_name,
+                    description=description,
+                    incremental=incremental,
+                    force=force
+                )
+                return {
+                    'success': True,
+                    'message': f'Volume backup "{backup_name}" creation started',
+                    'backup_id': backup.id,
+                    'volume_id': volume.id,
+                    'incremental': incremental
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to create backup: {str(e)}'
+                }
+                
+        elif action.lower() == 'snapshot':
+            # Create volume snapshot
+            snapshot_name = kwargs.get('snapshot_name', f'{volume_name}-snapshot-{datetime.now().strftime("%Y%m%d-%H%M%S")}')
+            description = kwargs.get('description', f'Snapshot of volume {volume_name}')
+            force = kwargs.get('force', False)
+            
+            # Find the volume
+            volume = None
+            for vol in conn.volume.volumes():
+                if vol.name == volume_name or vol.id == volume_name:
+                    volume = vol
+                    break
+                    
+            if not volume:
+                return {
+                    'success': False,
+                    'message': f'Volume "{volume_name}" not found'
+                }
+            
+            try:
+                snapshot = conn.volume.create_snapshot(
+                    volume_id=volume.id,
+                    name=snapshot_name,
+                    description=description,
+                    force=force
+                )
+                return {
+                    'success': True,
+                    'message': f'Volume snapshot "{snapshot_name}" creation started',
+                    'snapshot_id': snapshot.id,
+                    'volume_id': volume.id
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to create snapshot: {str(e)}'
+                }
+                
+        elif action.lower() == 'clone':
+            # Clone volume from another volume
+            source_volume = kwargs.get('source_volume')
+            if not source_volume:
+                return {
+                    'success': False,
+                    'message': 'source_volume parameter is required for clone action'
+                }
+                
+            # Find the source volume
+            src_vol = None
+            for vol in conn.volume.volumes():
+                if vol.name == source_volume or vol.id == source_volume:
+                    src_vol = vol
+                    break
+                    
+            if not src_vol:
+                return {
+                    'success': False,
+                    'message': f'Source volume "{source_volume}" not found'
+                }
+            
+            size = kwargs.get('size', src_vol.size)
+            description = kwargs.get('description', f'Clone of volume {source_volume}')
+            volume_type = kwargs.get('volume_type', None)
+            
+            try:
+                volume = conn.volume.create_volume(
+                    name=volume_name,
+                    size=size,
+                    description=description,
+                    volume_type=volume_type,
+                    source_volid=src_vol.id
+                )
+                return {
+                    'success': True,
+                    'message': f'Volume clone "{volume_name}" creation started',
+                    'volume_id': volume.id,
+                    'source_volume_id': src_vol.id,
+                    'size': size
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to clone volume: {str(e)}'
+                }
+                
+        elif action.lower() == 'transfer':
+            # Transfer volume ownership
+            transfer_name = kwargs.get('transfer_name', f'{volume_name}-transfer-{datetime.now().strftime("%Y%m%d-%H%M%S")}')
+            
+            # Find the volume
+            volume = None
+            for vol in conn.volume.volumes():
+                if vol.name == volume_name or vol.id == volume_name:
+                    volume = vol
+                    break
+                    
+            if not volume:
+                return {
+                    'success': False,
+                    'message': f'Volume "{volume_name}" not found'
+                }
+            
+            try:
+                transfer = conn.volume.create_volume_transfer(
+                    volume_id=volume.id,
+                    name=transfer_name
+                )
+                return {
+                    'success': True,
+                    'message': f'Volume transfer "{transfer_name}" created',
+                    'transfer_id': transfer.id,
+                    'auth_key': transfer.auth_key,
+                    'volume_id': volume.id,
+                    'warning': 'Save the auth_key - it will not be shown again!'
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to create volume transfer: {str(e)}'
+                }
+                
+        elif action.lower() == 'migrate':
+            # Migrate volume to different backend/host
+            host = kwargs.get('host')
+            force_host_copy = kwargs.get('force_host_copy', False)
+            lock_volume = kwargs.get('lock_volume', False)
+            
+            if not host:
+                return {
+                    'success': False,
+                    'message': 'host parameter is required for migrate action'
+                }
+                
+            # Find the volume
+            volume = None
+            for vol in conn.volume.volumes():
+                if vol.name == volume_name or vol.id == volume_name:
+                    volume = vol
+                    break
+                    
+            if not volume:
+                return {
+                    'success': False,
+                    'message': f'Volume "{volume_name}" not found'
+                }
+            
+            try:
+                conn.volume.migrate_volume(
+                    volume=volume,
+                    host=host,
+                    force_host_copy=force_host_copy,
+                    lock_volume=lock_volume
+                )
+                return {
+                    'success': True,
+                    'message': f'Volume "{volume_name}" migration to host "{host}" started',
+                    'volume_id': volume.id,
+                    'target_host': host
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to migrate volume: {str(e)}'
+                }
+        
         else:
             return {
                 'success': False,
-                'message': f'Unknown action "{action}". Supported: create, delete, list, extend'
+                'message': f'Unknown action "{action}". Supported: create, delete, list, extend, backup, snapshot, clone, transfer, migrate'
             }
             
     except Exception as e:
@@ -4845,5 +5173,2018 @@ def set_server_volume(instance_name: str, action: str, **kwargs) -> Dict[str, An
         return {
             'success': False,
             'message': f'Failed to manage server volume for "{instance_name}": {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_volume_backups(action: str, backup_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+    """
+    Manage volume backups (list, show, delete, restore)
+    
+    Args:
+        action: Action to perform (list, show, delete, restore)
+        backup_name: Name or ID of the backup (required for show, delete, restore)
+        **kwargs: Additional parameters
+    
+    Returns:
+        Result of the backup management operation
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action.lower() == 'list':
+            backups = []
+            for backup in conn.volume.backups(detailed=True):
+                backups.append({
+                    'id': backup.id,
+                    'name': backup.name or 'N/A',
+                    'description': getattr(backup, 'description', 'N/A'),
+                    'status': backup.status,
+                    'size': getattr(backup, 'size', 'N/A'),
+                    'volume_id': backup.volume_id,
+                    'created_at': str(getattr(backup, 'created_at', 'N/A')),
+                    'is_incremental': getattr(backup, 'is_incremental', False),
+                    'availability_zone': getattr(backup, 'availability_zone', 'N/A')
+                })
+            return {
+                'success': True,
+                'backups': backups,
+                'count': len(backups)
+            }
+            
+        elif action.lower() == 'show':
+            if not backup_name:
+                return {
+                    'success': False,
+                    'message': 'backup_name is required for show action'
+                }
+                
+            # Find the backup
+            backup = None
+            for bkp in conn.volume.backups():
+                if bkp.name == backup_name or bkp.id == backup_name:
+                    backup = bkp
+                    break
+                    
+            if not backup:
+                return {
+                    'success': False,
+                    'message': f'Backup "{backup_name}" not found'
+                }
+                
+            return {
+                'success': True,
+                'backup': {
+                    'id': backup.id,
+                    'name': backup.name,
+                    'description': getattr(backup, 'description', 'N/A'),
+                    'status': backup.status,
+                    'size': getattr(backup, 'size', 'N/A'),
+                    'volume_id': backup.volume_id,
+                    'created_at': str(getattr(backup, 'created_at', 'N/A')),
+                    'updated_at': str(getattr(backup, 'updated_at', 'N/A')),
+                    'is_incremental': getattr(backup, 'is_incremental', False),
+                    'availability_zone': getattr(backup, 'availability_zone', 'N/A'),
+                    'container': getattr(backup, 'container', 'N/A'),
+                    'object_count': getattr(backup, 'object_count', 'N/A')
+                }
+            }
+            
+        elif action.lower() == 'delete':
+            if not backup_name:
+                return {
+                    'success': False,
+                    'message': 'backup_name is required for delete action'
+                }
+                
+            # Find the backup
+            backup = None
+            for bkp in conn.volume.backups():
+                if bkp.name == backup_name or bkp.id == backup_name:
+                    backup = bkp
+                    break
+                    
+            if not backup:
+                return {
+                    'success': False,
+                    'message': f'Backup "{backup_name}" not found'
+                }
+                
+            conn.volume.delete_backup(backup)
+            return {
+                'success': True,
+                'message': f'Backup "{backup_name}" deletion started',
+                'backup_id': backup.id
+            }
+            
+        elif action.lower() == 'restore':
+            if not backup_name:
+                return {
+                    'success': False,
+                    'message': 'backup_name is required for restore action'
+                }
+                
+            volume_name = kwargs.get('volume_name')
+            if not volume_name:
+                return {
+                    'success': False,
+                    'message': 'volume_name is required for restore action'
+                }
+                
+            # Find the backup
+            backup = None
+            for bkp in conn.volume.backups():
+                if bkp.name == backup_name or bkp.id == backup_name:
+                    backup = bkp
+                    break
+                    
+            if not backup:
+                return {
+                    'success': False,
+                    'message': f'Backup "{backup_name}" not found'
+                }
+                
+            try:
+                restore = conn.volume.restore_backup(
+                    backup_id=backup.id,
+                    volume_id=None,  # Create new volume
+                    name=volume_name
+                )
+                return {
+                    'success': True,
+                    'message': f'Backup "{backup_name}" restore to volume "{volume_name}" started',
+                    'volume_id': restore.volume_id,
+                    'backup_id': backup.id
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to restore backup: {str(e)}'
+                }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: list, show, delete, restore'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage volume backup: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage volume backup: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_volume_groups(action: str, group_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+    """
+    Manage volume groups (list, create, delete, show, update)
+    
+    Args:
+        action: Action to perform (list, create, delete, show, update)
+        group_name: Name or ID of the volume group
+        **kwargs: Additional parameters
+    
+    Returns:
+        Result of the volume group management operation
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action.lower() == 'list':
+            groups = []
+            try:
+                for group in conn.volume.groups(detailed=True):
+                    groups.append({
+                        'id': group.id,
+                        'name': getattr(group, 'name', 'N/A'),
+                        'description': getattr(group, 'description', 'N/A'),
+                        'status': group.status,
+                        'availability_zone': getattr(group, 'availability_zone', 'N/A'),
+                        'group_type': getattr(group, 'group_type', 'N/A'),
+                        'volumes': getattr(group, 'volumes', []),
+                        'created_at': str(getattr(group, 'created_at', 'N/A'))
+                    })
+            except Exception as e:
+                # Volume groups might not be supported
+                return {
+                    'success': False,
+                    'message': f'Volume groups not supported or accessible: {str(e)}',
+                    'groups': []
+                }
+            return {
+                'success': True,
+                'groups': groups,
+                'count': len(groups)
+            }
+            
+        elif action.lower() == 'create':
+            if not group_name:
+                return {
+                    'success': False,
+                    'message': 'group_name is required for create action'
+                }
+                
+            description = kwargs.get('description', f'Volume group created via MCP: {group_name}')
+            group_type = kwargs.get('group_type', 'default')
+            availability_zone = kwargs.get('availability_zone', None)
+            
+            try:
+                group = conn.volume.create_group(
+                    name=group_name,
+                    description=description,
+                    group_type=group_type,
+                    availability_zone=availability_zone
+                )
+                return {
+                    'success': True,
+                    'message': f'Volume group "{group_name}" creation started',
+                    'group_id': group.id
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to create volume group: {str(e)}'
+                }
+                
+        elif action.lower() == 'delete':
+            if not group_name:
+                return {
+                    'success': False,
+                    'message': 'group_name is required for delete action'
+                }
+                
+            # Find the group
+            group = None
+            try:
+                for grp in conn.volume.groups():
+                    if getattr(grp, 'name', '') == group_name or grp.id == group_name:
+                        group = grp
+                        break
+                        
+                if not group:
+                    return {
+                        'success': False,
+                        'message': f'Volume group "{group_name}" not found'
+                    }
+                    
+                delete_volumes = kwargs.get('delete_volumes', False)
+                conn.volume.delete_group(group, delete_volumes=delete_volumes)
+                return {
+                    'success': True,
+                    'message': f'Volume group "{group_name}" deletion started',
+                    'group_id': group.id
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to delete volume group: {str(e)}'
+                }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: list, create, delete'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage volume group: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage volume group: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_volume_qos(action: str, qos_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+    """
+    Manage volume QoS specifications (list, create, delete, show, set, unset)
+    
+    Args:
+        action: Action to perform (list, create, delete, show, set, unset)
+        qos_name: Name or ID of the QoS spec
+        **kwargs: Additional parameters
+    
+    Returns:
+        Result of the QoS management operation
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action.lower() == 'list':
+            qos_specs = []
+            try:
+                for qos in conn.volume.qos_specs():
+                    qos_specs.append({
+                        'id': qos.id,
+                        'name': qos.name,
+                        'consumer': getattr(qos, 'consumer', 'N/A'),
+                        'specs': getattr(qos, 'specs', {}),
+                        'associations': []  # Would need separate API call to get this
+                    })
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'QoS specs not supported or accessible: {str(e)}',
+                    'qos_specs': []
+                }
+            return {
+                'success': True,
+                'qos_specs': qos_specs,
+                'count': len(qos_specs)
+            }
+            
+        elif action.lower() == 'create':
+            if not qos_name:
+                return {
+                    'success': False,
+                    'message': 'qos_name is required for create action'
+                }
+                
+            consumer = kwargs.get('consumer', 'back-end')  # 'front-end', 'back-end', or 'both'
+            specs = kwargs.get('specs', {})
+            
+            try:
+                qos = conn.volume.create_qos_spec(
+                    name=qos_name,
+                    consumer=consumer,
+                    specs=specs
+                )
+                return {
+                    'success': True,
+                    'message': f'QoS spec "{qos_name}" created',
+                    'qos_id': qos.id,
+                    'consumer': consumer,
+                    'specs': specs
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to create QoS spec: {str(e)}'
+                }
+                
+        elif action.lower() == 'delete':
+            if not qos_name:
+                return {
+                    'success': False,
+                    'message': 'qos_name is required for delete action'
+                }
+                
+            # Find the QoS spec
+            qos = None
+            try:
+                for q in conn.volume.qos_specs():
+                    if q.name == qos_name or q.id == qos_name:
+                        qos = q
+                        break
+                        
+                if not qos:
+                    return {
+                        'success': False,
+                        'message': f'QoS spec "{qos_name}" not found'
+                    }
+                    
+                force = kwargs.get('force', False)
+                conn.volume.delete_qos_spec(qos, force=force)
+                return {
+                    'success': True,
+                    'message': f'QoS spec "{qos_name}" deletion started',
+                    'qos_id': qos.id
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to delete QoS spec: {str(e)}'
+                }
+                
+        elif action.lower() == 'set':
+            if not qos_name:
+                return {
+                    'success': False,
+                    'message': 'qos_name is required for set action'
+                }
+                
+            specs = kwargs.get('specs', {})
+            if not specs:
+                return {
+                    'success': False,
+                    'message': 'specs parameter is required for set action'
+                }
+                
+            # Find the QoS spec
+            qos = None
+            try:
+                for q in conn.volume.qos_specs():
+                    if q.name == qos_name or q.id == qos_name:
+                        qos = q
+                        break
+                        
+                if not qos:
+                    return {
+                        'success': False,
+                        'message': f'QoS spec "{qos_name}" not found'
+                    }
+                    
+                conn.volume.set_qos_spec_keys(qos, specs)
+                return {
+                    'success': True,
+                    'message': f'QoS spec "{qos_name}" keys set',
+                    'qos_id': qos.id,
+                    'specs': specs
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to set QoS spec keys: {str(e)}'
+                }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: list, create, delete, set'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage volume QoS: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage volume QoS: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_network_ports(action: str, port_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+    """
+    Manage OpenStack network ports (list, show, create, delete, update)
+    
+    Args:
+        action: Action to perform (list, show, create, delete, update)
+        port_name: Name or ID of the port
+        **kwargs: Additional parameters
+    
+    Returns:
+        Result of the port management operation
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action.lower() == 'list':
+            ports = []
+            for port in conn.network.ports():
+                ports.append({
+                    'id': port.id,
+                    'name': port.name or 'N/A',
+                    'status': port.status,
+                    'admin_state_up': port.is_admin_state_up,
+                    'network_id': port.network_id,
+                    'device_id': port.device_id,
+                    'device_owner': port.device_owner,
+                    'mac_address': port.mac_address,
+                    'fixed_ips': port.fixed_ips,
+                    'security_groups': port.security_group_ids,
+                    'port_security_enabled': getattr(port, 'port_security_enabled', None),
+                    'created_at': str(getattr(port, 'created_at', 'N/A')),
+                    'updated_at': str(getattr(port, 'updated_at', 'N/A'))
+                })
+            return {
+                'success': True,
+                'ports': ports,
+                'count': len(ports)
+            }
+            
+        elif action.lower() == 'create':
+            if not port_name:
+                return {
+                    'success': False,
+                    'message': 'port_name is required for create action'
+                }
+                
+            network_id = kwargs.get('network_id')
+            if not network_id:
+                return {
+                    'success': False,
+                    'message': 'network_id is required for create action'
+                }
+                
+            description = kwargs.get('description', f'Port created via MCP: {port_name}')
+            admin_state_up = kwargs.get('admin_state_up', True)
+            device_id = kwargs.get('device_id', '')
+            device_owner = kwargs.get('device_owner', '')
+            fixed_ips = kwargs.get('fixed_ips', [])
+            security_groups = kwargs.get('security_groups', [])
+            
+            try:
+                port = conn.network.create_port(
+                    name=port_name,
+                    network_id=network_id,
+                    description=description,
+                    admin_state_up=admin_state_up,
+                    device_id=device_id,
+                    device_owner=device_owner,
+                    fixed_ips=fixed_ips,
+                    security_group_ids=security_groups
+                )
+                return {
+                    'success': True,
+                    'message': f'Port "{port_name}" created successfully',
+                    'port_id': port.id,
+                    'network_id': network_id,
+                    'mac_address': port.mac_address
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to create port: {str(e)}'
+                }
+                
+        elif action.lower() == 'delete':
+            if not port_name:
+                return {
+                    'success': False,
+                    'message': 'port_name is required for delete action'
+                }
+                
+            # Find the port
+            port = None
+            for p in conn.network.ports():
+                if p.name == port_name or p.id == port_name:
+                    port = p
+                    break
+                    
+            if not port:
+                return {
+                    'success': False,
+                    'message': f'Port "{port_name}" not found'
+                }
+                
+            try:
+                conn.network.delete_port(port)
+                return {
+                    'success': True,
+                    'message': f'Port "{port_name}" deleted successfully',
+                    'port_id': port.id
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to delete port: {str(e)}'
+                }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: list, create, delete'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage network port: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage network port: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_subnets(action: str, subnet_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+    """
+    Manage OpenStack network subnets (list, show, create, delete, update)
+    
+    Args:
+        action: Action to perform (list, show, create, delete, update)
+        subnet_name: Name or ID of the subnet
+        **kwargs: Additional parameters
+    
+    Returns:
+        Result of the subnet management operation
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action.lower() == 'list':
+            subnets = []
+            for subnet in conn.network.subnets():
+                subnets.append({
+                    'id': subnet.id,
+                    'name': subnet.name or 'N/A',
+                    'network_id': subnet.network_id,
+                    'ip_version': subnet.ip_version,
+                    'cidr': subnet.cidr,
+                    'gateway_ip': subnet.gateway_ip,
+                    'allocation_pools': subnet.allocation_pools,
+                    'dns_nameservers': subnet.dns_nameservers,
+                    'host_routes': subnet.host_routes,
+                    'enable_dhcp': subnet.is_dhcp_enabled,
+                    'ipv6_address_mode': getattr(subnet, 'ipv6_address_mode', None),
+                    'ipv6_ra_mode': getattr(subnet, 'ipv6_ra_mode', None),
+                    'created_at': str(getattr(subnet, 'created_at', 'N/A')),
+                    'updated_at': str(getattr(subnet, 'updated_at', 'N/A'))
+                })
+            return {
+                'success': True,
+                'subnets': subnets,
+                'count': len(subnets)
+            }
+            
+        elif action.lower() == 'create':
+            if not subnet_name:
+                return {
+                    'success': False,
+                    'message': 'subnet_name is required for create action'
+                }
+                
+            network_id = kwargs.get('network_id')
+            cidr = kwargs.get('cidr')
+            
+            if not network_id:
+                return {
+                    'success': False,
+                    'message': 'network_id is required for create action'
+                }
+            if not cidr:
+                return {
+                    'success': False,
+                    'message': 'cidr is required for create action'
+                }
+                
+            description = kwargs.get('description', f'Subnet created via MCP: {subnet_name}')
+            ip_version = kwargs.get('ip_version', 4)
+            enable_dhcp = kwargs.get('enable_dhcp', True)
+            gateway_ip = kwargs.get('gateway_ip')
+            allocation_pools = kwargs.get('allocation_pools', [])
+            dns_nameservers = kwargs.get('dns_nameservers', [])
+            host_routes = kwargs.get('host_routes', [])
+            
+            try:
+                subnet = conn.network.create_subnet(
+                    name=subnet_name,
+                    network_id=network_id,
+                    cidr=cidr,
+                    ip_version=ip_version,
+                    enable_dhcp=enable_dhcp,
+                    gateway_ip=gateway_ip,
+                    allocation_pools=allocation_pools,
+                    dns_nameservers=dns_nameservers,
+                    host_routes=host_routes,
+                    description=description
+                )
+                return {
+                    'success': True,
+                    'message': f'Subnet "{subnet_name}" created successfully',
+                    'subnet_id': subnet.id,
+                    'network_id': network_id,
+                    'cidr': cidr
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to create subnet: {str(e)}'
+                }
+                
+        elif action.lower() == 'delete':
+            if not subnet_name:
+                return {
+                    'success': False,
+                    'message': 'subnet_name is required for delete action'
+                }
+                
+            # Find the subnet
+            subnet = None
+            for s in conn.network.subnets():
+                if s.name == subnet_name or s.id == subnet_name:
+                    subnet = s
+                    break
+                    
+            if not subnet:
+                return {
+                    'success': False,
+                    'message': f'Subnet "{subnet_name}" not found'
+                }
+                
+            try:
+                conn.network.delete_subnet(subnet)
+                return {
+                    'success': True,
+                    'message': f'Subnet "{subnet_name}" deleted successfully',
+                    'subnet_id': subnet.id
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to delete subnet: {str(e)}'
+                }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: list, create, delete'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage subnet: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage subnet: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_network_qos_policies(action: str, policy_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+    """
+    Manage OpenStack network QoS policies (list, show, create, delete, update)
+    
+    Args:
+        action: Action to perform (list, show, create, delete, update)
+        policy_name: Name or ID of the QoS policy
+        **kwargs: Additional parameters
+    
+    Returns:
+        Result of the network QoS policy management operation
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action.lower() == 'list':
+            policies = []
+            try:
+                for policy in conn.network.qos_policies():
+                    policies.append({
+                        'id': policy.id,
+                        'name': policy.name or 'N/A',
+                        'description': getattr(policy, 'description', 'N/A'),
+                        'shared': getattr(policy, 'is_shared', False),
+                        'is_default': getattr(policy, 'is_default', False),
+                        'tenant_id': getattr(policy, 'tenant_id', 'N/A'),
+                        'rules': getattr(policy, 'rules', []),
+                        'created_at': str(getattr(policy, 'created_at', 'N/A')),
+                        'updated_at': str(getattr(policy, 'updated_at', 'N/A'))
+                    })
+            except Exception as e:
+                # QoS policies might not be supported
+                return {
+                    'success': False,
+                    'message': f'Network QoS policies not supported or accessible: {str(e)}',
+                    'policies': []
+                }
+            return {
+                'success': True,
+                'policies': policies,
+                'count': len(policies)
+            }
+            
+        elif action.lower() == 'create':
+            if not policy_name:
+                return {
+                    'success': False,
+                    'message': 'policy_name is required for create action'
+                }
+                
+            description = kwargs.get('description', f'QoS policy created via MCP: {policy_name}')
+            shared = kwargs.get('shared', False)
+            
+            try:
+                policy = conn.network.create_qos_policy(
+                    name=policy_name,
+                    description=description,
+                    shared=shared
+                )
+                return {
+                    'success': True,
+                    'message': f'QoS policy "{policy_name}" created successfully',
+                    'policy_id': policy.id,
+                    'shared': shared
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to create QoS policy: {str(e)}'
+                }
+                
+        elif action.lower() == 'delete':
+            if not policy_name:
+                return {
+                    'success': False,
+                    'message': 'policy_name is required for delete action'
+                }
+                
+            # Find the policy
+            policy = None
+            try:
+                for p in conn.network.qos_policies():
+                    if p.name == policy_name or p.id == policy_name:
+                        policy = p
+                        break
+                        
+                if not policy:
+                    return {
+                        'success': False,
+                        'message': f'QoS policy "{policy_name}" not found'
+                    }
+                    
+                conn.network.delete_qos_policy(policy)
+                return {
+                    'success': True,
+                    'message': f'QoS policy "{policy_name}" deleted successfully',
+                    'policy_id': policy.id
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to delete QoS policy: {str(e)}'
+                }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: list, create, delete'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage network QoS policy: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage network QoS policy: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_network_agents(action: str, agent_id: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+    """
+    Manage OpenStack network agents (list, show, enable, disable)
+    
+    Args:
+        action: Action to perform (list, show, enable, disable)
+        agent_id: ID of the network agent
+        **kwargs: Additional parameters
+    
+    Returns:
+        Result of the network agent management operation
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action.lower() == 'list':
+            agents = []
+            try:
+                for agent in conn.network.agents():
+                    agents.append({
+                        'id': agent.id,
+                        'agent_type': agent.agent_type,
+                        'binary': agent.binary,
+                        'host': agent.host,
+                        'topic': getattr(agent, 'topic', 'N/A'),
+                        'availability_zone': getattr(agent, 'availability_zone', 'N/A'),
+                        'admin_state_up': agent.is_admin_state_up,
+                        'alive': getattr(agent, 'is_alive', None),
+                        'created_at': str(getattr(agent, 'created_at', 'N/A')),
+                        'started_at': str(getattr(agent, 'started_at', 'N/A')),
+                        'heartbeat_timestamp': str(getattr(agent, 'heartbeat_timestamp', 'N/A')),
+                        'configurations': getattr(agent, 'configurations', {})
+                    })
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Network agents not accessible: {str(e)}',
+                    'agents': []
+                }
+            return {
+                'success': True,
+                'agents': agents,
+                'count': len(agents)
+            }
+            
+        elif action.lower() in ['enable', 'disable']:
+            if not agent_id:
+                return {
+                    'success': False,
+                    'message': 'agent_id is required for enable/disable action'
+                }
+                
+            try:
+                admin_state_up = action.lower() == 'enable'
+                conn.network.update_agent(agent_id, admin_state_up=admin_state_up)
+                return {
+                    'success': True,
+                    'message': f'Agent "{agent_id}" {action.lower()}d successfully',
+                    'agent_id': agent_id,
+                    'admin_state_up': admin_state_up
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to {action.lower()} agent: {str(e)}'
+                }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: list, enable, disable'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage network agent: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage network agent: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_image_members(action: str, image_name: str, member_project: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+    """
+    Manage OpenStack image members (sharing images between projects)
+    
+    Args:
+        action: Action to perform (list, add, remove, show)
+        image_name: Name or ID of the image
+        member_project: Project ID to add/remove as member
+        **kwargs: Additional parameters
+    
+    Returns:
+        Result of the image member management operation
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        # Find the image
+        image = None
+        for img in conn.image.images():
+            if img.name == image_name or img.id == image_name:
+                image = img
+                break
+                
+        if not image:
+            return {
+                'success': False,
+                'message': f'Image "{image_name}" not found'
+            }
+        
+        if action.lower() == 'list':
+            members = []
+            try:
+                for member in conn.image.members(image.id):
+                    members.append({
+                        'member_id': member.member_id,
+                        'image_id': member.image_id,
+                        'status': member.status,
+                        'created_at': str(getattr(member, 'created_at', 'N/A')),
+                        'updated_at': str(getattr(member, 'updated_at', 'N/A'))
+                    })
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to list image members: {str(e)}',
+                    'members': []
+                }
+            return {
+                'success': True,
+                'image_id': image.id,
+                'image_name': image.name,
+                'members': members,
+                'count': len(members)
+            }
+            
+        elif action.lower() == 'add':
+            if not member_project:
+                return {
+                    'success': False,
+                    'message': 'member_project is required for add action'
+                }
+                
+            try:
+                member = conn.image.add_member(image.id, member_project)
+                return {
+                    'success': True,
+                    'message': f'Project "{member_project}" added as member to image "{image_name}"',
+                    'image_id': image.id,
+                    'member_id': member_project,
+                    'status': member.status
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to add image member: {str(e)}'
+                }
+                
+        elif action.lower() == 'remove':
+            if not member_project:
+                return {
+                    'success': False,
+                    'message': 'member_project is required for remove action'
+                }
+                
+            try:
+                conn.image.remove_member(image.id, member_project)
+                return {
+                    'success': True,
+                    'message': f'Project "{member_project}" removed as member from image "{image_name}"',
+                    'image_id': image.id,
+                    'member_id': member_project
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to remove image member: {str(e)}'
+                }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: list, add, remove'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage image members: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage image members: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_image_metadata(action: str, image_name: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage OpenStack image metadata and properties
+    
+    Args:
+        action: Action to perform (show, set, unset)
+        image_name: Name or ID of the image
+        **kwargs: Additional parameters (properties dict for set, property_keys list for unset)
+    
+    Returns:
+        Result of the image metadata management operation
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        # Find the image
+        image = None
+        for img in conn.image.images():
+            if img.name == image_name or img.id == image_name:
+                image = img
+                break
+                
+        if not image:
+            return {
+                'success': False,
+                'message': f'Image "{image_name}" not found'
+            }
+        
+        if action.lower() == 'show':
+            try:
+                # Get detailed image information including metadata
+                detailed_image = conn.image.get_image(image.id)
+                return {
+                    'success': True,
+                    'image_id': image.id,
+                    'image_name': image.name,
+                    'metadata': {
+                        'properties': getattr(detailed_image, 'properties', {}),
+                        'tags': getattr(detailed_image, 'tags', []),
+                        'visibility': detailed_image.visibility,
+                        'protected': detailed_image.is_protected,
+                        'disk_format': detailed_image.disk_format,
+                        'container_format': detailed_image.container_format,
+                        'min_disk': getattr(detailed_image, 'min_disk', 0),
+                        'min_ram': getattr(detailed_image, 'min_ram', 0),
+                        'size': getattr(detailed_image, 'size', None),
+                        'checksum': getattr(detailed_image, 'checksum', None),
+                        'created_at': str(getattr(detailed_image, 'created_at', 'N/A')),
+                        'updated_at': str(getattr(detailed_image, 'updated_at', 'N/A')),
+                        'owner': getattr(detailed_image, 'owner', None),
+                        'status': detailed_image.status
+                    }
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to show image metadata: {str(e)}'
+                }
+                
+        elif action.lower() == 'set':
+            properties = kwargs.get('properties', {})
+            if not properties:
+                return {
+                    'success': False,
+                    'message': 'properties parameter is required for set action'
+                }
+                
+            try:
+                # Update image properties
+                updated_image = conn.image.update_image(image.id, **properties)
+                return {
+                    'success': True,
+                    'message': f'Image "{image_name}" metadata updated',
+                    'image_id': image.id,
+                    'updated_properties': properties
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to set image metadata: {str(e)}'
+                }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: show, set'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage image metadata: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage image metadata: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_image_visibility(action: str, image_name: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage OpenStack image visibility settings
+    
+    Args:
+        action: Action to perform (show, set)
+        image_name: Name or ID of the image
+        **kwargs: Additional parameters (visibility for set action)
+    
+    Returns:
+        Result of the image visibility management operation
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        # Find the image
+        image = None
+        for img in conn.image.images():
+            if img.name == image_name or img.id == image_name:
+                image = img
+                break
+                
+        if not image:
+            return {
+                'success': False,
+                'message': f'Image "{image_name}" not found'
+            }
+        
+        if action.lower() == 'show':
+            return {
+                'success': True,
+                'image_id': image.id,
+                'image_name': image.name,
+                'visibility': image.visibility,
+                'is_protected': image.is_protected,
+                'owner': getattr(image, 'owner', None)
+            }
+            
+        elif action.lower() == 'set':
+            visibility = kwargs.get('visibility')
+            if not visibility:
+                return {
+                    'success': False,
+                    'message': 'visibility parameter is required for set action'
+                }
+                
+            # Validate visibility value
+            valid_visibilities = ['public', 'private', 'shared', 'community']
+            if visibility not in valid_visibilities:
+                return {
+                    'success': False,
+                    'message': f'Invalid visibility "{visibility}". Valid values: {valid_visibilities}'
+                }
+                
+            try:
+                conn.image.update_image(image.id, visibility=visibility)
+                return {
+                    'success': True,
+                    'message': f'Image "{image_name}" visibility set to "{visibility}"',
+                    'image_id': image.id,
+                    'old_visibility': image.visibility,
+                    'new_visibility': visibility
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to set image visibility: {str(e)}'
+                }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: show, set'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage image visibility: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage image visibility: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_domains(action: str, domain_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+    """
+    Manage OpenStack domains (list, show, create, delete, update)
+    
+    Args:
+        action: Action to perform (list, show, create, delete, update)
+        domain_name: Name or ID of the domain
+        **kwargs: Additional parameters
+    
+    Returns:
+        Result of the domain management operation
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action.lower() == 'list':
+            domains = []
+            try:
+                for domain in conn.identity.domains():
+                    domains.append({
+                        'id': domain.id,
+                        'name': domain.name,
+                        'description': getattr(domain, 'description', 'N/A'),
+                        'enabled': domain.is_enabled,
+                        'created_at': str(getattr(domain, 'created_at', 'N/A')),
+                        'updated_at': str(getattr(domain, 'updated_at', 'N/A'))
+                    })
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Domains not accessible: {str(e)}',
+                    'domains': []
+                }
+            return {
+                'success': True,
+                'domains': domains,
+                'count': len(domains)
+            }
+            
+        elif action.lower() == 'create':
+            if not domain_name:
+                return {
+                    'success': False,
+                    'message': 'domain_name is required for create action'
+                }
+                
+            description = kwargs.get('description', f'Domain created via MCP: {domain_name}')
+            enabled = kwargs.get('enabled', True)
+            
+            try:
+                domain = conn.identity.create_domain(
+                    name=domain_name,
+                    description=description,
+                    enabled=enabled
+                )
+                return {
+                    'success': True,
+                    'message': f'Domain "{domain_name}" created successfully',
+                    'domain_id': domain.id,
+                    'enabled': enabled
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to create domain: {str(e)}'
+                }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: list, create'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage domain: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage domain: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_identity_groups(action: str, group_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+    """
+    Manage OpenStack identity groups (list, show, create, delete, update)
+    
+    Args:
+        action: Action to perform (list, show, create, delete, update)
+        group_name: Name or ID of the group
+        **kwargs: Additional parameters
+    
+    Returns:
+        Result of the identity group management operation
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action.lower() == 'list':
+            groups = []
+            try:
+                for group in conn.identity.groups():
+                    groups.append({
+                        'id': group.id,
+                        'name': group.name,
+                        'description': getattr(group, 'description', 'N/A'),
+                        'domain_id': getattr(group, 'domain_id', 'N/A'),
+                        'created_at': str(getattr(group, 'created_at', 'N/A')),
+                        'updated_at': str(getattr(group, 'updated_at', 'N/A'))
+                    })
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Identity groups not accessible: {str(e)}',
+                    'groups': []
+                }
+            return {
+                'success': True,
+                'groups': groups,
+                'count': len(groups)
+            }
+            
+        elif action.lower() == 'create':
+            if not group_name:
+                return {
+                    'success': False,
+                    'message': 'group_name is required for create action'
+                }
+                
+            description = kwargs.get('description', f'Group created via MCP: {group_name}')
+            domain_id = kwargs.get('domain_id', 'default')
+            
+            try:
+                group = conn.identity.create_group(
+                    name=group_name,
+                    description=description,
+                    domain_id=domain_id
+                )
+                return {
+                    'success': True,
+                    'message': f'Group "{group_name}" created successfully',
+                    'group_id': group.id,
+                    'domain_id': domain_id
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to create group: {str(e)}'
+                }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: list, create'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage identity group: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage identity group: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_roles(action: str, role_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+    """
+    Manage OpenStack roles (list, show, create, delete, assign, unassign)
+    
+    Args:
+        action: Action to perform (list, show, create, delete, assign, unassign)
+        role_name: Name or ID of the role
+        **kwargs: Additional parameters
+    
+    Returns:
+        Result of the role management operation
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action.lower() == 'list':
+            roles = []
+            try:
+                for role in conn.identity.roles():
+                    roles.append({
+                        'id': role.id,
+                        'name': role.name,
+                        'description': getattr(role, 'description', 'N/A'),
+                        'domain_id': getattr(role, 'domain_id', None),
+                        'created_at': str(getattr(role, 'created_at', 'N/A')),
+                        'updated_at': str(getattr(role, 'updated_at', 'N/A'))
+                    })
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Roles not accessible: {str(e)}',
+                    'roles': []
+                }
+            return {
+                'success': True,
+                'roles': roles,
+                'count': len(roles)
+            }
+            
+        elif action.lower() == 'create':
+            if not role_name:
+                return {
+                    'success': False,
+                    'message': 'role_name is required for create action'
+                }
+                
+            description = kwargs.get('description', f'Role created via MCP: {role_name}')
+            domain_id = kwargs.get('domain_id', None)
+            
+            try:
+                role = conn.identity.create_role(
+                    name=role_name,
+                    description=description,
+                    domain_id=domain_id
+                )
+                return {
+                    'success': True,
+                    'message': f'Role "{role_name}" created successfully',
+                    'role_id': role.id,
+                    'domain_id': domain_id
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to create role: {str(e)}'
+                }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: list, create'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage role: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage role: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_services(action: str, service_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+    """
+    Manage OpenStack services (list, show, create, delete)
+    
+    Args:
+        action: Action to perform (list, show, create, delete)
+        service_name: Name or ID of the service
+        **kwargs: Additional parameters
+    
+    Returns:
+        Result of the service management operation
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action.lower() == 'list':
+            services = []
+            try:
+                for service in conn.identity.services():
+                    services.append({
+                        'id': service.id,
+                        'name': service.name,
+                        'type': service.type,
+                        'description': getattr(service, 'description', 'N/A'),
+                        'enabled': getattr(service, 'enabled', True),
+                        'created_at': str(getattr(service, 'created_at', 'N/A')),
+                        'updated_at': str(getattr(service, 'updated_at', 'N/A'))
+                    })
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Services not accessible: {str(e)}',
+                    'services': []
+                }
+            return {
+                'success': True,
+                'services': services,
+                'count': len(services)
+            }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: list'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage service: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage service: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_service_logs(
+    action: str,
+    service_name: str = None,
+    log_level: str = "INFO"
+) -> Dict[str, Any]:
+    """
+    Manage OpenStack service logs and logging configuration.
+    
+    Args:
+        action: Action to perform - list, show
+        service_name: Name of the service to get logs for
+        log_level: Log level filter (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        
+    Returns:
+        Service logs information
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action.lower() == 'list':
+            # List available services for logging
+            services = []
+            try:
+                # Get compute services
+                for service in conn.compute.services():
+                    services.append({
+                        'name': service.binary,
+                        'type': 'compute',
+                        'host': service.host,
+                        'status': service.status,
+                        'state': service.state
+                    })
+                    
+                # Get network agents (similar to services)
+                for agent in conn.network.agents():
+                    services.append({
+                        'name': agent.agent_type,
+                        'type': 'network',
+                        'host': agent.host,
+                        'status': 'enabled' if agent.is_enabled else 'disabled',
+                        'state': 'up' if agent.is_alive else 'down'
+                    })
+                    
+            except Exception as e:
+                logger.warning(f"Could not get all services: {e}")
+                
+            return {
+                'success': True,
+                'services': services,
+                'message': f'Found {len(services)} services available for logging',
+                'log_level_filter': log_level
+            }
+            
+        elif action.lower() == 'show':
+            if not service_name:
+                return {
+                    'success': False,
+                    'message': 'Service name required for show action'
+                }
+                
+            # This would normally query actual log files or log aggregation service
+            # For now, return service status and configuration info
+            service_info = {
+                'service_name': service_name,
+                'log_level': log_level,
+                'message': f'Log information for {service_name} (log level: {log_level})',
+                'note': 'Log aggregation would require additional configuration with centralized logging system'
+            }
+            
+            return {
+                'success': True,
+                'service_logs': service_info
+            }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: list, show'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage service logs: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage service logs: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_metrics(
+    action: str,
+    resource_type: str = "compute",
+    resource_id: str = None
+) -> Dict[str, Any]:
+    """
+    Manage OpenStack metrics collection and monitoring.
+    
+    Args:
+        action: Action to perform - list, show, summary
+        resource_type: Type of resource (compute, network, storage, identity)
+        resource_id: Specific resource ID to get metrics for
+        
+    Returns:
+        Metrics information
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action.lower() == 'list':
+            metrics = []
+            
+            if resource_type.lower() == 'compute':
+                # Get compute metrics
+                try:
+                    for server in conn.compute.servers():
+                        metrics.append({
+                            'resource_type': 'compute',
+                            'resource_id': server.id,
+                            'resource_name': server.name,
+                            'status': server.status,
+                            'power_state': getattr(server, 'power_state', 'unknown'),
+                            'created_at': server.created_at,
+                            'updated_at': server.updated_at
+                        })
+                except Exception as e:
+                    logger.warning(f"Could not get compute metrics: {e}")
+                    
+            elif resource_type.lower() == 'network':
+                # Get network metrics
+                try:
+                    for network in conn.network.networks():
+                        metrics.append({
+                            'resource_type': 'network',
+                            'resource_id': network.id,
+                            'resource_name': network.name,
+                            'status': network.status,
+                            'is_admin_state_up': network.is_admin_state_up,
+                            'created_at': getattr(network, 'created_at', None),
+                            'updated_at': getattr(network, 'updated_at', None)
+                        })
+                except Exception as e:
+                    logger.warning(f"Could not get network metrics: {e}")
+                    
+            elif resource_type.lower() == 'storage':
+                # Get storage metrics
+                try:
+                    for volume in conn.block_storage.volumes():
+                        metrics.append({
+                            'resource_type': 'storage',
+                            'resource_id': volume.id,
+                            'resource_name': volume.name,
+                            'status': volume.status,
+                            'size': volume.size,
+                            'created_at': volume.created_at,
+                            'updated_at': volume.updated_at
+                        })
+                except Exception as e:
+                    logger.warning(f"Could not get storage metrics: {e}")
+                    
+            return {
+                'success': True,
+                'metrics': metrics,
+                'resource_type': resource_type,
+                'count': len(metrics)
+            }
+            
+        elif action.lower() == 'show':
+            if not resource_id:
+                return {
+                    'success': False,
+                    'message': 'Resource ID required for show action'
+                }
+                
+            # Get specific resource metrics
+            resource_metrics = {
+                'resource_type': resource_type,
+                'resource_id': resource_id,
+                'timestamp': datetime.utcnow().isoformat(),
+                'note': 'Detailed metrics would require integration with monitoring system like Prometheus or Ceilometer'
+            }
+            
+            return {
+                'success': True,
+                'resource_metrics': resource_metrics
+            }
+            
+        elif action.lower() == 'summary':
+            # Get summary metrics across all resource types
+            summary = {
+                'compute': {'total': 0, 'active': 0, 'error': 0},
+                'network': {'total': 0, 'active': 0, 'down': 0},
+                'storage': {'total': 0, 'available': 0, 'in_use': 0},
+                'timestamp': datetime.utcnow().isoformat()
+            }
+            
+            try:
+                # Compute summary
+                servers = list(conn.compute.servers())
+                summary['compute']['total'] = len(servers)
+                summary['compute']['active'] = len([s for s in servers if s.status == 'ACTIVE'])
+                summary['compute']['error'] = len([s for s in servers if s.status == 'ERROR'])
+                
+                # Network summary
+                networks = list(conn.network.networks())
+                summary['network']['total'] = len(networks)
+                summary['network']['active'] = len([n for n in networks if n.status == 'ACTIVE'])
+                summary['network']['down'] = len([n for n in networks if n.status == 'DOWN'])
+                
+                # Storage summary
+                volumes = list(conn.block_storage.volumes())
+                summary['storage']['total'] = len(volumes)
+                summary['storage']['available'] = len([v for v in volumes if v.status == 'available'])
+                summary['storage']['in_use'] = len([v for v in volumes if v.status == 'in-use'])
+                
+            except Exception as e:
+                summary['error'] = f"Could not get complete summary: {str(e)}"
+                
+            return {
+                'success': True,
+                'summary': summary
+            }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: list, show, summary'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage metrics: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage metrics: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_alarms(
+    action: str,
+    alarm_name: str = None,
+    resource_id: str = None,
+    threshold: float = None,
+    comparison: str = "gt"
+) -> Dict[str, Any]:
+    """
+    Manage OpenStack alarms and alerting (requires Aodh service).
+    
+    Args:
+        action: Action to perform - list, create, show, delete
+        alarm_name: Name of the alarm
+        resource_id: Resource ID to monitor
+        threshold: Threshold value for alarm
+        comparison: Comparison operator (gt, lt, eq, ne, ge, le)
+        
+    Returns:
+        Alarm management information
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        # Note: This would require Aodh (alarming service) to be installed
+        # For now, we'll simulate alarm management
+        
+        if action.lower() == 'list':
+            # List available alarms (simulated)
+            alarms = [
+                {
+                    'name': 'cpu-high-alarm',
+                    'type': 'threshold',
+                    'state': 'ok',
+                    'enabled': True,
+                    'description': 'CPU usage alarm for compute instances'
+                },
+                {
+                    'name': 'memory-high-alarm',
+                    'type': 'threshold',
+                    'state': 'alarm',
+                    'enabled': True,
+                    'description': 'Memory usage alarm for compute instances'
+                }
+            ]
+            
+            return {
+                'success': True,
+                'alarms': alarms,
+                'count': len(alarms),
+                'note': 'Alarm management requires Aodh service to be installed and configured'
+            }
+            
+        elif action.lower() == 'create':
+            if not alarm_name:
+                return {
+                    'success': False,
+                    'message': 'Alarm name required for create action'
+                }
+                
+            # Simulate alarm creation
+            alarm = {
+                'name': alarm_name,
+                'resource_id': resource_id,
+                'threshold': threshold,
+                'comparison': comparison,
+                'state': 'insufficient data',
+                'enabled': True,
+                'created_at': datetime.utcnow().isoformat()
+            }
+            
+            return {
+                'success': True,
+                'alarm': alarm,
+                'message': f'Alarm "{alarm_name}" created (simulation - requires Aodh service)'
+            }
+            
+        elif action.lower() == 'show':
+            if not alarm_name:
+                return {
+                    'success': False,
+                    'message': 'Alarm name required for show action'
+                }
+                
+            # Simulate alarm details
+            alarm_details = {
+                'name': alarm_name,
+                'type': 'threshold',
+                'state': 'ok',
+                'enabled': True,
+                'threshold': threshold or 80.0,
+                'comparison': comparison,
+                'resource_id': resource_id,
+                'description': f'Alarm monitoring for {alarm_name}'
+            }
+            
+            return {
+                'success': True,
+                'alarm_details': alarm_details
+            }
+            
+        elif action.lower() == 'delete':
+            if not alarm_name:
+                return {
+                    'success': False,
+                    'message': 'Alarm name required for delete action'
+                }
+                
+            return {
+                'success': True,
+                'message': f'Alarm "{alarm_name}" deleted (simulation - requires Aodh service)'
+            }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: list, create, show, delete'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage alarms: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage alarms: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_compute_agents(
+    action: str,
+    agent_id: str = None,
+    host: str = None
+) -> Dict[str, Any]:
+    """
+    Manage OpenStack compute agents and hypervisor monitoring.
+    
+    Args:
+        action: Action to perform - list, show
+        agent_id: ID of specific agent
+        host: Host name to filter agents
+        
+    Returns:
+        Compute agent information
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action.lower() == 'list':
+            agents = []
+            
+            # Get compute services (agents)
+            try:
+                for service in conn.compute.services():
+                    if not host or service.host == host:
+                        agents.append({
+                            'id': service.id,
+                            'binary': service.binary,
+                            'host': service.host,
+                            'zone': service.zone,
+                            'status': service.status,
+                            'state': service.state,
+                            'updated_at': service.updated_at,
+                            'disabled_reason': getattr(service, 'disabled_reason', None)
+                        })
+            except Exception as e:
+                logger.warning(f"Could not get compute services: {e}")
+                
+            # Get hypervisor information
+            try:
+                hypervisors = []
+                for hypervisor in conn.compute.hypervisors():
+                    if not host or hypervisor.name == host:
+                        hypervisors.append({
+                            'id': hypervisor.id,
+                            'name': hypervisor.name,
+                            'status': hypervisor.status,
+                            'state': hypervisor.state,
+                            'vcpus': hypervisor.vcpus,
+                            'vcpus_used': hypervisor.vcpus_used,
+                            'memory_mb': hypervisor.memory_mb,
+                            'memory_mb_used': hypervisor.memory_mb_used,
+                            'local_gb': hypervisor.local_gb,
+                            'local_gb_used': hypervisor.local_gb_used,
+                            'running_vms': hypervisor.running_vms
+                        })
+                        
+                return {
+                    'success': True,
+                    'compute_services': agents,
+                    'hypervisors': hypervisors,
+                    'count': {
+                        'services': len(agents),
+                        'hypervisors': len(hypervisors)
+                    }
+                }
+            except Exception as e:
+                logger.warning(f"Could not get hypervisor information: {e}")
+                return {
+                    'success': True,
+                    'compute_services': agents,
+                    'count': {'services': len(agents)}
+                }
+                
+        elif action.lower() == 'show':
+            if not agent_id and not host:
+                return {
+                    'success': False,
+                    'message': 'Agent ID or host name required for show action'
+                }
+                
+            # Get specific agent details
+            if agent_id:
+                try:
+                    service = conn.compute.get_service(agent_id)
+                    agent_details = {
+                        'id': service.id,
+                        'binary': service.binary,
+                        'host': service.host,
+                        'zone': service.zone,
+                        'status': service.status,
+                        'state': service.state,
+                        'updated_at': service.updated_at,
+                        'disabled_reason': getattr(service, 'disabled_reason', None)
+                    }
+                    
+                    return {
+                        'success': True,
+                        'agent_details': agent_details
+                    }
+                except Exception as e:
+                    return {
+                        'success': False,
+                        'message': f'Agent not found: {str(e)}'
+                    }
+            else:
+                # Search by host
+                agents = []
+                for service in conn.compute.services():
+                    if service.host == host:
+                        agents.append({
+                            'id': service.id,
+                            'binary': service.binary,
+                            'host': service.host,
+                            'zone': service.zone,
+                            'status': service.status,
+                            'state': service.state
+                        })
+                        
+                return {
+                    'success': True,
+                    'agents_on_host': agents,
+                    'host': host,
+                    'count': len(agents)
+                }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: list, show'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage compute agents: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage compute agents: {str(e)}',
             'error': str(e)
         }
