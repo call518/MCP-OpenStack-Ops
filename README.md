@@ -360,11 +360,17 @@ ALLOW_MODIFY_OPERATIONS=false
 ALLOW_MODIFY_OPERATIONS=true
 ```
 
+**Tool Registration Behavior:**
+- When `ALLOW_MODIFY_OPERATIONS=false`: Only read-only tools are registered with the MCP server
+- When `ALLOW_MODIFY_OPERATIONS=true`: All tools (read-only + modify operations) are registered
+- Tool availability is determined at server startup - restart required after changing this setting
+
 **Best Practices:**
 - Keep `ALLOW_MODIFY_OPERATIONS=false` in production environments
 - Enable modify operations only in development/testing environments
 - Use separate configurations for different environments
 - Review operations before enabling modify capabilities
+- Restart the MCP server after changing the `ALLOW_MODIFY_OPERATIONS` setting
 
 ---
 

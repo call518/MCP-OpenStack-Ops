@@ -5,6 +5,12 @@
 - No hypothetical responses or manual check suggestions; leverage the tools for every query.
 - Validate and normalize all input parameters (instance names, volume names, network names) before use.
 - For management operations (start/stop/restart), confirm user intent before executing.
+- **IMPORTANT: Tool Availability Based on Configuration**:
+  - Available tools depend on `ALLOW_MODIFY_OPERATIONS` environment variable setting
+  - When `ALLOW_MODIFY_OPERATIONS=false`: Only read-only tools are available (get_*, search_*, monitor_*)  
+  - When `ALLOW_MODIFY_OPERATIONS=true`: All tools including modify operations are available (manage_*)
+  - If a manage_* tool is not available, inform user that modify operations are disabled for safety
+  - Check available tools in your current context - do not assume all tools from this template are available
 - **IMPORTANT CPU/Memory Terminology**: 
   - Use **pCPU** for physical CPUs (allocated to instances/VMs)
   - Use **pCPU** for physical CPUs (hypervisor hardware resources)
@@ -65,6 +71,12 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 ## 3. Tool Map (Complete & Updated - 24 Tools Total)
 
+**⚠️ Tool Availability Notice:**
+- **Read-Only Tools**: Always available (get_*, search_*, monitor_* tools)
+- **Modify Operations**: Available only when `ALLOW_MODIFY_OPERATIONS=true` (manage_* tools)
+- **Current Context**: Check your available tools - not all tools listed below may be accessible
+- **Safety Control**: modify operations are conditionally registered for security
+
 ### 🔍 Monitoring & Status Tools (7 tools)
 | User Intent / Keywords | Tool | Output Focus | Notes |
 |------------------------|------|--------------|-------|
@@ -88,7 +100,7 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 | **"Show all network configurations"** / **"List networks"** / **"Network details"** | **get_network_details** | **PRIORITY**: All networks with subnets | **network_name="all" parameter** |
 | Network details / subnet info | get_network_details | Network, subnet, router details | Use "all" for all networks |
 | Floating IP status | get_floating_ips | Floating IP allocation and status | IP addresses, associations |
-| Floating IP operations | manage_floating_ip | Create/delete/associate floating IPs | Requires network/port IDs |
+| Floating IP operations | manage_floating_ip | Create/delete/associate floating IPs | **Conditional Tool** - Requires network/port IDs |
 | Router information | get_routers | Router status and configuration | Network connectivity |
 | Security group details | get_security_groups | Security rules and policies | Access control information |
 
@@ -96,17 +108,17 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 | User Intent / Keywords | Tool | Output Focus | Notes |
 |------------------------|------|--------------|-------|
 | **"List volumes"** / **"Show all volumes"** / **"List all volumes in project"** | **manage_volume** | **PRIORITY**: List all volumes with status | **action="list", volume_name="" parameter** |
-| Volume operations | manage_volume | Volume management results | create/delete/list/extend actions |
+| Volume operations | manage_volume | Volume management results | **Conditional Tool** - create/delete/list/extend actions |
 | Volume types | get_volume_types | Available storage types | Performance characteristics |
 | Volume snapshots | get_volume_snapshots | Snapshot status and details | Backup information |
-| Snapshot management | manage_snapshot | Create/delete snapshots | Volume backup operations |
+| Snapshot management | manage_snapshot | Create/delete snapshots | **Conditional Tool** - Volume backup operations |
 
-### ⚙️ Instance & Compute Management (3 tools)
+### ⚙️ Instance & Compute Management (3 tools) - ⚠️ Requires ALLOW_MODIFY_OPERATIONS=true
 | User Intent / Keywords | Tool | Output Focus | Notes |
 |------------------------|------|--------------|-------|
-| Start/Stop/Restart instance | manage_instance | Operation result, status | Confirm user intent |
+| Start/Stop/Restart instance | manage_instance | Operation result, status | **Conditional Tool** - Confirm user intent |
 | SSH keypairs | get_keypair_list | Available keypairs | Instance access keys |
-| Keypair management | manage_keypair | Create/delete keypairs | SSH key operations |
+| Keypair management | manage_keypair | Create/delete keypairs | **Conditional Tool** - SSH key operations |
 
 ### 👥 Identity & Access Management (2 tools)
 | User Intent / Keywords | Tool | Output Focus | Notes |
@@ -118,13 +130,13 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 | User Intent / Keywords | Tool | Output Focus | Notes |
 |------------------------|------|--------------|-------|
 | **"List images"** / **"Show available images"** / **"Available VM images"** | **manage_image** | **PRIORITY**: List all images with details | **action="list", image_name="" parameter** |
-| Image operations | manage_image | Create/delete/update images | VM template management |
+| Image operations | manage_image | Create/delete/update images | **Conditional Tool** - VM template management |
 
 ### 🔥 Orchestration Tools (2 tools)
 | User Intent / Keywords | Tool | Output Focus | Notes |
 |------------------------|------|--------------|-------|
 | Heat stacks | get_stacks | Stack status and info | Infrastructure as Code |
-| Stack management | manage_stack | Create/delete/update stacks | Orchestration operations |
+| Stack management | manage_stack | Create/delete/update stacks | **Conditional Tool** - Orchestration operations |
 
 **Total: 24 comprehensive OpenStack management tools**
 
