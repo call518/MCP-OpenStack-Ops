@@ -15,7 +15,7 @@
 
 - ✅ **OpenStack Epoxy Integration**: Direct integration with OpenStack SDK 4.1.0-4.4.0 for real-time cluster operations.
 - ✅ **Comprehensive Monitoring**: Enhanced cluster status reports with hypervisor health, resource utilization, and health scoring.
-- ✅ **Complete Service Coverage**: 29 comprehensive tools covering Identity, Compute, Network, Storage, Image, and Orchestration services.
+- ✅ **Complete Service Coverage**: 31 comprehensive tools covering Identity, Compute, Network, Storage, Image, and Orchestration services.
 - ✅ **Advanced Instance Management**: Start, stop, restart, pause/unpause OpenStack instances with pagination support.
 - ✅ **Large-Scale Environment Support**: Pagination and limits for environments with thousands of instances.
 - ✅ **Enterprise Features**: User management, role assignments, keypair management, floating IP operations, volume snapshots.
@@ -73,21 +73,21 @@
 ### 🌐 Network Management Tools  
 9. **`get_network_details`** - Network, subnet, router, and security group details
 10. **`get_floating_ips`** - Floating IP allocation and status information
-11. **`manage_floating_ip`** - Create, delete, associate/disassociate floating IPs
+11. **`set_floating_ip`** - Create, delete, associate/disassociate floating IPs
 12. **`get_routers`** - Router status and configuration details
 13. **`get_security_groups`** - Security group rules and configuration
 
 ### 💾 Storage Management Tools
 14. **`get_volume_list`** - List all volumes with detailed information (read-only)
-15. **`manage_volume`** - Volume management operations (create/delete/list/extend)
+15. **`set_volume`** - Volume management operations (create/delete/list/extend)
 16. **`get_volume_types`** - Available volume types and specifications
 17. **`get_volume_snapshots`** - Volume snapshot status and management
-18. **`manage_snapshot`** - Create, delete, and manage volume snapshots
+18. **`set_snapshot`** - Create, delete, and manage volume snapshots
 
 ### ⚙️ Instance & Compute Management
-19. **`manage_instance`** - Instance lifecycle operations (start/stop/restart/pause/unpause)
+19. **`set_instance`** - Instance lifecycle operations (start/stop/restart/pause/unpause)
 20. **`get_keypair_list`** - SSH keypair management and listing
-21. **`manage_keypair`** - Create, delete SSH keypairs for instance access
+21. **`set_keypair`** - Create, delete SSH keypairs for instance access
 
 ### 👥 Identity & Access Management
 22. **`get_user_list`** - OpenStack user accounts and details
@@ -95,15 +95,19 @@
 
 ### 🖼️ Image Management
 24. **`get_image_detail_list`** - Detailed list of all images with metadata (read-only)
-25. **`manage_image`** - Create, delete, list, and manage OpenStack images
+25. **`set_image`** - Create, delete, list, and manage OpenStack images
 
 ### 🔥 Orchestration (Heat) Tools
 26. **`get_heat_stacks`** - Heat stack status and information
-27. **`manage_heat_stack`** - Create, delete, and manage Heat orchestration stacks
+27. **`set_heat_stack`** - Create, delete, and manage Heat orchestration stacks
 
 ### 📊 Quota Management
 28. **`get_quota`** - View project quotas for compute, storage, and network resources (read-only)
-29. **`manage_quota`** - Set, delete, and list project quota limits
+29. **`set_quota`** - Set, delete, and list project quota limits
+
+### 👥 Project Management  
+30. **`get_project_details`** - List and show OpenStack project details with roles and quotas (read-only)
+31. **`set_project`** - Create, delete, update, and cleanup OpenStack projects
 
 ---
 

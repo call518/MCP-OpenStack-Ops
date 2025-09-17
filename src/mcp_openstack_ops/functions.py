@@ -1392,7 +1392,7 @@ def get_network_details(network_name: str = "all") -> List[Dict[str, Any]]:
         ]
 
 
-def manage_instance(instance_name: str, action: str) -> Dict[str, Any]:
+def set_instance(instance_name: str, action: str) -> Dict[str, Any]:
     """
     Manages OpenStack instances (start, stop, restart, etc.)
     
@@ -1473,7 +1473,7 @@ def manage_instance(instance_name: str, action: str) -> Dict[str, Any]:
         }
 
 
-def manage_volume(volume_name: str, action: str, **kwargs) -> Dict[str, Any]:
+def set_volume(volume_name: str, action: str, **kwargs) -> Dict[str, Any]:
     """
     Manages OpenStack volumes (create, delete, attach, detach)
     
@@ -2075,7 +2075,7 @@ def get_keypair_list() -> List[Dict[str, Any]]:
         ]
 
 
-def manage_keypair(keypair_name: str, action: str, **kwargs) -> Dict[str, Any]:
+def set_keypair(keypair_name: str, action: str, **kwargs) -> Dict[str, Any]:
     """
     Manage SSH keypairs (create, delete, import).
     
@@ -2232,7 +2232,7 @@ def get_floating_ips() -> List[Dict[str, Any]]:
         ]
 
 
-def manage_floating_ip(action: str, **kwargs) -> Dict[str, Any]:
+def set_floating_ip(action: str, **kwargs) -> Dict[str, Any]:
     """
     Manage floating IPs (create, delete, associate, disassociate).
     
@@ -2443,7 +2443,7 @@ def get_volume_snapshots() -> List[Dict[str, Any]]:
         ]
 
 
-def manage_snapshot(snapshot_name: str, action: str, **kwargs) -> Dict[str, Any]:
+def set_snapshot(snapshot_name: str, action: str, **kwargs) -> Dict[str, Any]:
     """
     Manage volume snapshots (create, delete).
     
@@ -2521,7 +2521,7 @@ def manage_snapshot(snapshot_name: str, action: str, **kwargs) -> Dict[str, Any]
 # Image Service (Glance) Functions - Enhanced
 # =============================================================================
 
-def manage_image(image_name: str, action: str, **kwargs) -> Dict[str, Any]:
+def set_image(image_name: str, action: str, **kwargs) -> Dict[str, Any]:
     """
     Manage images (create, delete, update, list).
     
@@ -2693,7 +2693,7 @@ def get_heat_stacks() -> List[Dict[str, Any]]:
         ]
 
 
-def manage_heat_stack(stack_name: str, action: str, **kwargs) -> Dict[str, Any]:
+def set_heat_stack(stack_name: str, action: str, **kwargs) -> Dict[str, Any]:
     """
     Manage Heat stacks (create, delete, update).
     
@@ -3354,7 +3354,7 @@ def get_quota(project_name: str = "") -> Dict[str, Any]:
         }
 
 
-def manage_quota(project_name: str, action: str, **kwargs) -> Dict[str, Any]:
+def set_quota(project_name: str, action: str, **kwargs) -> Dict[str, Any]:
     """
     Manage project quotas (set, delete, list).
     
@@ -3536,4 +3536,405 @@ def manage_quota(project_name: str, action: str, **kwargs) -> Dict[str, Any]:
             'success': False,
             'error': str(e),
             'message': 'Failed to manage quota'
+        }
+
+
+def get_project_details(project_name: str = "") -> Dict[str, Any]:
+    """
+    Get OpenStack project details (similar to 'openstack project list/show').
+    
+    Args:
+        project_name: Name of specific project to show details for (optional, lists all if empty)
+    
+    Returns:
+        Project information including details, roles, and quotas
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if not project_name or project_name.strip() == "":
+            # List all projects
+            projects = []
+            try:
+                for project in conn.identity.projects():
+                    projects.append({
+                        'id': project.id,
+                        'name': project.name,
+                        'description': getattr(project, 'description', ''),
+                        'domain_id': getattr(project, 'domain_id', ''),
+                        'enabled': getattr(project, 'is_enabled', True),
+                        'parent_id': getattr(project, 'parent_id', None),
+                        'created_at': str(getattr(project, 'created_at', 'unknown')),
+                        'updated_at': str(getattr(project, 'updated_at', 'unknown')),
+                        'tags': getattr(project, 'tags', [])
+                    })
+                
+                return {
+                    'success': True,
+                    'operation': 'list',
+                    'projects': projects,
+                    'total_projects': len(projects)
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'error': f'Failed to list projects: {str(e)}'
+                }
+        else:
+            # Show specific project details
+            try:
+                project = conn.identity.find_project(project_name)
+                if not project:
+                    return {
+                        'success': False,
+                        'error': f'Project "{project_name}" not found'
+                    }
+                
+                project_details = {
+                    'id': project.id,
+                    'name': project.name,
+                    'description': getattr(project, 'description', ''),
+                    'domain_id': getattr(project, 'domain_id', ''),
+                    'enabled': getattr(project, 'is_enabled', True),
+                    'parent_id': getattr(project, 'parent_id', None),
+                    'created_at': str(getattr(project, 'created_at', 'unknown')),
+                    'updated_at': str(getattr(project, 'updated_at', 'unknown')),
+                    'tags': getattr(project, 'tags', [])
+                }
+                
+                # Get role assignments for this project
+                role_assignments = []
+                try:
+                    for assignment in conn.identity.role_assignments(project=project.id):
+                        user_info = {}
+                        if hasattr(assignment, 'user') and assignment.user:
+                            try:
+                                user = conn.identity.get_user(assignment.user['id'])
+                                user_info = {
+                                    'id': user.id,
+                                    'name': user.name,
+                                    'email': getattr(user, 'email', ''),
+                                    'enabled': getattr(user, 'is_enabled', True)
+                                }
+                            except Exception:
+                                user_info = assignment.user
+                        
+                        role_info = {}
+                        if hasattr(assignment, 'role') and assignment.role:
+                            try:
+                                role = conn.identity.get_role(assignment.role['id'])
+                                role_info = {
+                                    'id': role.id,
+                                    'name': role.name,
+                                    'description': getattr(role, 'description', '')
+                                }
+                            except Exception:
+                                role_info = assignment.role
+                        
+                        role_assignments.append({
+                            'user': user_info,
+                            'role': role_info,
+                            'scope': getattr(assignment, 'scope', {})
+                        })
+                except Exception as e:
+                    logger.warning(f"Failed to get role assignments: {e}")
+                    role_assignments = [{'error': f'Failed to get role assignments: {str(e)}'}]
+                
+                # Get quota information
+                quota_info = get_quota(project_name)
+                
+                return {
+                    'success': True,
+                    'operation': 'show',
+                    'project': project_details,
+                    'role_assignments': role_assignments,
+                    'quota_info': quota_info.get('quota_details', {}) if quota_info.get('success') else {'error': 'Failed to get quota info'},
+                    'total_role_assignments': len(role_assignments)
+                }
+                
+            except Exception as e:
+                return {
+                    'success': False,
+                    'error': f'Failed to get project details: {str(e)}'
+                }
+        
+    except Exception as e:
+        logger.error(f"Failed to get project details: {e}")
+        return {
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to retrieve project information'
+        }
+
+
+def set_project(project_name: str, action: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage OpenStack projects (create, delete, set, cleanup).
+    
+    Args:
+        project_name: Name of the project
+        action: Action to perform (create, delete, set, cleanup)
+        **kwargs: Additional parameters for project operations
+            - description: Project description
+            - domain: Domain name or ID
+            - enable/disable: Enable or disable project
+            - parent: Parent project name or ID
+            - tags: List of tags
+    
+    Returns:
+        Result of the project management operation
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action.lower() == 'create':
+            # Create new project
+            try:
+                # Check if project already exists
+                existing_project = conn.identity.find_project(project_name)
+                if existing_project:
+                    return {
+                        'success': False,
+                        'error': f'Project "{project_name}" already exists',
+                        'existing_project_id': existing_project.id
+                    }
+                
+                # Prepare creation parameters
+                create_params = {
+                    'name': project_name,
+                    'description': kwargs.get('description', f'Project {project_name}'),
+                    'is_enabled': kwargs.get('enable', True)
+                }
+                
+                # Handle domain
+                if 'domain' in kwargs:
+                    domain = conn.identity.find_domain(kwargs['domain'])
+                    if domain:
+                        create_params['domain_id'] = domain.id
+                    else:
+                        create_params['domain_id'] = kwargs['domain']  # Assume it's an ID
+                
+                # Handle parent project
+                if 'parent' in kwargs:
+                    parent_project = conn.identity.find_project(kwargs['parent'])
+                    if parent_project:
+                        create_params['parent_id'] = parent_project.id
+                    else:
+                        create_params['parent_id'] = kwargs['parent']  # Assume it's an ID
+                
+                # Handle tags
+                if 'tags' in kwargs:
+                    if isinstance(kwargs['tags'], list):
+                        create_params['tags'] = kwargs['tags']
+                    else:
+                        create_params['tags'] = [tag.strip() for tag in str(kwargs['tags']).split(',')]
+                
+                new_project = conn.identity.create_project(**create_params)
+                
+                return {
+                    'success': True,
+                    'action': 'create',
+                    'project': {
+                        'id': new_project.id,
+                        'name': new_project.name,
+                        'description': getattr(new_project, 'description', ''),
+                        'enabled': getattr(new_project, 'is_enabled', True),
+                        'domain_id': getattr(new_project, 'domain_id', ''),
+                        'parent_id': getattr(new_project, 'parent_id', None)
+                    },
+                    'message': f'Project "{project_name}" created successfully'
+                }
+                
+            except Exception as e:
+                return {
+                    'success': False,
+                    'error': f'Failed to create project: {str(e)}'
+                }
+        
+        elif action.lower() == 'delete':
+            # Delete project
+            try:
+                project = conn.identity.find_project(project_name)
+                if not project:
+                    return {
+                        'success': False,
+                        'error': f'Project "{project_name}" not found'
+                    }
+                
+                # Check if project has resources (optional safety check)
+                resource_check = {
+                    'instances': 0,
+                    'volumes': 0,
+                    'networks': 0,
+                    'users': 0
+                }
+                
+                try:
+                    # Count instances
+                    instances = list(conn.compute.servers(project_id=project.id))
+                    resource_check['instances'] = len(instances)
+                    
+                    # Count volumes  
+                    volumes = list(conn.volume.volumes(project_id=project.id))
+                    resource_check['volumes'] = len(volumes)
+                    
+                    # Count networks (if accessible)
+                    networks = list(conn.network.networks(project_id=project.id))
+                    resource_check['networks'] = len(networks)
+                    
+                    # Count role assignments (users)
+                    assignments = list(conn.identity.role_assignments(project=project.id))
+                    resource_check['users'] = len(assignments)
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to check project resources: {e}")
+                
+                conn.identity.delete_project(project.id)
+                
+                return {
+                    'success': True,
+                    'action': 'delete',
+                    'project_name': project_name,
+                    'project_id': project.id,
+                    'resource_check': resource_check,
+                    'message': f'Project "{project_name}" deleted successfully'
+                }
+                
+            except Exception as e:
+                return {
+                    'success': False,
+                    'error': f'Failed to delete project: {str(e)}'
+                }
+        
+        elif action.lower() == 'set':
+            # Update project settings
+            try:
+                project = conn.identity.find_project(project_name)
+                if not project:
+                    return {
+                        'success': False,
+                        'error': f'Project "{project_name}" not found'
+                    }
+                
+                # Prepare update parameters
+                update_params = {}
+                
+                if 'description' in kwargs:
+                    update_params['description'] = kwargs['description']
+                
+                if 'enable' in kwargs:
+                    update_params['is_enabled'] = kwargs['enable']
+                elif 'disable' in kwargs:
+                    update_params['is_enabled'] = not kwargs['disable']
+                
+                if 'tags' in kwargs:
+                    if isinstance(kwargs['tags'], list):
+                        update_params['tags'] = kwargs['tags']
+                    else:
+                        update_params['tags'] = [tag.strip() for tag in str(kwargs['tags']).split(',')]
+                
+                if not update_params:
+                    return {
+                        'success': False,
+                        'error': 'No valid parameters provided for update',
+                        'message': 'Specify description, enable/disable, or tags'
+                    }
+                
+                updated_project = conn.identity.update_project(project.id, **update_params)
+                
+                return {
+                    'success': True,
+                    'action': 'set',
+                    'project_name': project_name,
+                    'project_id': project.id,
+                    'updated_fields': list(update_params.keys()),
+                    'project': {
+                        'id': updated_project.id,
+                        'name': updated_project.name,
+                        'description': getattr(updated_project, 'description', ''),
+                        'enabled': getattr(updated_project, 'is_enabled', True),
+                        'tags': getattr(updated_project, 'tags', [])
+                    },
+                    'message': f'Project "{project_name}" updated successfully'
+                }
+                
+            except Exception as e:
+                return {
+                    'success': False,
+                    'error': f'Failed to update project: {str(e)}'
+                }
+        
+        elif action.lower() == 'cleanup':
+            # Cleanup project resources
+            try:
+                project = conn.identity.find_project(project_name)
+                if not project:
+                    return {
+                        'success': False,
+                        'error': f'Project "{project_name}" not found'
+                    }
+                
+                cleanup_results = {
+                    'instances': {'count': 0, 'success': True, 'errors': []},
+                    'volumes': {'count': 0, 'success': True, 'errors': []},
+                    'networks': {'count': 0, 'success': True, 'errors': []},
+                    'security_groups': {'count': 0, 'success': True, 'errors': []}
+                }
+                
+                # Cleanup instances
+                try:
+                    instances = list(conn.compute.servers(project_id=project.id))
+                    cleanup_results['instances']['count'] = len(instances)
+                    for instance in instances:
+                        try:
+                            conn.compute.delete_server(instance.id, force=True)
+                        except Exception as e:
+                            cleanup_results['instances']['errors'].append(f"Instance {instance.name}: {str(e)}")
+                            cleanup_results['instances']['success'] = False
+                except Exception as e:
+                    cleanup_results['instances']['errors'].append(f"Failed to list instances: {str(e)}")
+                    cleanup_results['instances']['success'] = False
+                
+                # Cleanup volumes
+                try:
+                    volumes = list(conn.volume.volumes(project_id=project.id))
+                    cleanup_results['volumes']['count'] = len(volumes)
+                    for volume in volumes:
+                        try:
+                            conn.volume.delete_volume(volume.id, force=True)
+                        except Exception as e:
+                            cleanup_results['volumes']['errors'].append(f"Volume {volume.name}: {str(e)}")
+                            cleanup_results['volumes']['success'] = False
+                except Exception as e:
+                    cleanup_results['volumes']['errors'].append(f"Failed to list volumes: {str(e)}")
+                    cleanup_results['volumes']['success'] = False
+                
+                return {
+                    'success': True,
+                    'action': 'cleanup',
+                    'project_name': project_name,
+                    'project_id': project.id,
+                    'cleanup_results': cleanup_results,
+                    'message': f'Cleanup completed for project "{project_name}"'
+                }
+                
+            except Exception as e:
+                return {
+                    'success': False,
+                    'error': f'Failed to cleanup project: {str(e)}'
+                }
+        
+        else:
+            return {
+                'success': False,
+                'error': f'Unknown action: {action}',
+                'message': 'Valid actions are: create, delete, set, cleanup'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage project: {e}")
+        return {
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to manage project'
         }

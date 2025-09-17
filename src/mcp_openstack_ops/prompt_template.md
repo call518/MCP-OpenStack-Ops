@@ -5,17 +5,40 @@
 | User Intent / Keywords | Tool | Output Focus | Notes |
 |------------------------|------|--------------|-------|
 | **"List volumes"** / **"Show all volumes"** / **"List all volumes in project"** | **get_volume_list** | **PRIORITY**: List all volumes with status (read-only) | **Always available - detailed volume information** |
-| Volume operations | manage_volume | Volume management results | **Conditional Tool** - create/delete/list/extend actions |
+| Volume operations | set_volume |**set_quota**
+- "Set quotas for project service."
+- "Increase cores limit to 50 for project admin."
+- "Reset project quotas to default."
+- "List quotas for all projects."
+- "Update storage quota to 2TB."
+
+### 👥 Project Management
+
+**get_project_details**
+- "List all OpenStack projects."
+- "Show project details for admin."
+- "Display project information with roles."
+- "What projects are available?"
+- "Show project quotas and assignments."
+
+**set_project**
+- "Create project development."
+- "Delete unused project test."
+- "Update project description."
+- "Enable disabled project."
+- "Cleanup project resources before deletion."
+
+### 📈 Monitoring & Resourcesmanagement results | **Conditional Tool** - create/delete/list/extend actions |
 | Volume types | get_volume_types | Available storage types | Performance characteristics |
 | Volume snapshots | get_volume_snapshots | Snapshot status and details | Backup information |
-| Snapshot management | manage_snapshot | Create/delete snapshots | **Conditional Tool** - Volume backup operations |
+| Snapshot management | set_snapshot | Create/delete snapshots | **Conditional Tool** - Volume backup operations |
 
 ### ⚙️ Instance & Compute Management (3 tools) - ⚠️ Requires ALLOW_MODIFY_OPERATIONS=true
 | User Intent / Keywords | Tool | Output Focus | Notes |
 |------------------------|------|--------------|-------|
-| Start/Stop/Restart instance | manage_instance | Operation result, status | **Conditional Tool** - Confirm user intent |
+| Start/Stop/Restart instance | set_instance | Operation result, status | **Conditional Tool** - Confirm user intent |
 | SSH keypairs | get_keypair_list | Available keypairs | Instance access keys |
-| Keypair management | manage_keypair | Create/delete keypairs | **Conditional Tool** - SSH key operations |
+| Keypair management | set_keypair | Create/delete keypairs | **Conditional Tool** - SSH key operations |
 
 ### 👥 Identity & Access Management (2 tools)
 | User Intent / Keywords | Tool | Output Focus | Notes |
@@ -27,15 +50,15 @@
 | User Intent / Keywords | Tool | Output Focus | Notes |
 |------------------------|------|--------------|-------|
 | **"List images"** / **"Show available images"** / **"Available VM images"** | **get_image_detail_list** | **PRIORITY**: List all images with detailed metadata (read-only) | **Always available - comprehensive image information** |
-| Image operations | manage_image | Create/delete/update images | **Conditional Tool** - VM template management |d API tools for real data retrieval; never guess or reference external interfaces.
+| Image operations | set_image | Create/delete/update images | **Conditional Tool** - VM template management |d API tools for real data retrieval; never guess or reference external interfaces.
 - No hypothetical responses or manual check suggestions; leverage the tools for every query.
 - Validate and normalize all input parameters (instance names, volume names, network names, stack names) before use.
 - For management operations (start/stop/restart, Heat stack operations), confirm user intent before executing.
 - **IMPORTANT: Tool Availability Based on Configuration**:
   - Available tools depend on `ALLOW_MODIFY_OPERATIONS` environment variable setting
   - When `ALLOW_MODIFY_OPERATIONS=false`: Only read-only tools are available (get_*, search_*, monitor_*)  
-  - When `ALLOW_MODIFY_OPERATIONS=true`: All tools including modify operations are available (manage_*)
-  - If a manage_* tool is not available, inform user that modify operations are disabled for safety
+  - When `ALLOW_MODIFY_OPERATIONS=true`: All tools including modify operations are available (set_*)
+  - If a set_* tool is not available, inform user that modify operations are disabled for safety
   - Check available tools in your current context - do not assume all tools from this template are available
 - **IMPORTANT CPU/Memory Terminology**: 
   - Use **pCPU** for physical CPUs (allocated to instances/VMs)
@@ -99,7 +122,7 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 **⚠️ Tool Availability Notice:**
 - **Read-Only Tools**: Always available (get_*, search_*, monitor_* tools)
-- **Modify Operations**: Available only when `ALLOW_MODIFY_OPERATIONS=true` (manage_* tools)
+- **Modify Operations**: Available only when `ALLOW_MODIFY_OPERATIONS=true` (set_* tools)
 - **Current Context**: Check your available tools - not all tools listed below may be accessible
 - **Safety Control**: modify operations are conditionally registered for security
 
@@ -128,25 +151,25 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 | **"Show all network configurations"** / **"List networks"** / **"Network details"** | **get_network_details** | **PRIORITY**: All networks with subnets | **network_name="all" parameter** |
 | Network details / subnet info | get_network_details | Network, subnet, router details | Use "all" for all networks |
 | Floating IP status | get_floating_ips | Floating IP allocation and status | IP addresses, associations |
-| Floating IP operations | manage_floating_ip | Create/delete/associate floating IPs | **Conditional Tool** - Requires network/port IDs |
+| Floating IP operations | set_floating_ip | Create/delete/associate floating IPs | **Conditional Tool** - Requires network/port IDs |
 | Router information | get_routers | Router status and configuration | Network connectivity |
 | Security group details | get_security_groups | Security rules and policies | Access control information |
 
 ### 💾 Storage Management Tools (4 tools)
 | User Intent / Keywords | Tool | Output Focus | Notes |
 |------------------------|------|--------------|-------|
-| **"List volumes"** / **"Show all volumes"** / **"List all volumes in project"** | **manage_volume** | **PRIORITY**: List all volumes with status | **action="list", volume_name="" parameter** |
-| Volume operations | manage_volume | Volume management results | **Conditional Tool** - create/delete/list/extend actions |
+| **"List volumes"** / **"Show all volumes"** / **"List all volumes in project"** | **set_volume** | **PRIORITY**: List all volumes with status | **action="list", volume_name="" parameter** |
+| Volume operations | set_volume | Volume management results | **Conditional Tool** - create/delete/list/extend actions |
 | Volume types | get_volume_types | Available storage types | Performance characteristics |
 | Volume snapshots | get_volume_snapshots | Snapshot status and details | Backup information |
-| Snapshot management | manage_snapshot | Create/delete snapshots | **Conditional Tool** - Volume backup operations |
+| Snapshot management | set_snapshot | Create/delete snapshots | **Conditional Tool** - Volume backup operations |
 
 ### ⚙️ Instance & Compute Management (3 tools) - ⚠️ Requires ALLOW_MODIFY_OPERATIONS=true
 | User Intent / Keywords | Tool | Output Focus | Notes |
 |------------------------|------|--------------|-------|
-| Start/Stop/Restart instance | manage_instance | Operation result, status | **Conditional Tool** - Confirm user intent |
+| Start/Stop/Restart instance | set_instance | Operation result, status | **Conditional Tool** - Confirm user intent |
 | SSH keypairs | get_keypair_list | Available keypairs | Instance access keys |
-| Keypair management | manage_keypair | Create/delete keypairs | **Conditional Tool** - SSH key operations |
+| Keypair management | set_keypair | Create/delete keypairs | **Conditional Tool** - SSH key operations |
 
 ### 👥 Identity & Access Management (2 tools)
 | User Intent / Keywords | Tool | Output Focus | Notes |
@@ -157,22 +180,28 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 ### 🖼️ Image Management (1 tool)
 | User Intent / Keywords | Tool | Output Focus | Notes |
 |------------------------|------|--------------|-------|
-| **"List images"** / **"Show available images"** / **"Available VM images"** | **manage_image** | **PRIORITY**: List all images with details | **action="list", image_name="" parameter** |
-| Image operations | manage_image | Create/delete/update images | **Conditional Tool** - VM template management |
+| **"List images"** / **"Show available images"** / **"Available VM images"** | **set_image** | **PRIORITY**: List all images with details | **action="list", image_name="" parameter** |
+| Image operations | set_image | Create/delete/update images | **Conditional Tool** - VM template management |
 
 ### 🔥 Heat Stack Management (2 tools)
 | User Intent / Keywords | Tool | Output Focus | Notes |
 |------------------------|------|--------------|-------|
 | Heat stacks | get_heat_stacks | Stack status and info | Infrastructure as Code |
-| Stack management | manage_heat_stack | Create/delete/update stacks | **Conditional Tool** - Orchestration operations |
+| Stack management | set_heat_stack | Create/delete/update stacks | **Conditional Tool** - Orchestration operations |
 
 ### 📊 Quota Management (2 tools)
 | User Intent / Keywords | Tool | Output Focus | Notes |
 |------------------------|------|--------------|-------|
 | **"Show quotas"** / **"Project limits"** / **"Check quota"** / **"Current quotas"** | **get_quota** | **PRIORITY**: Project quota information (read-only) | **Always available - compute/storage/network quotas** |
-| Quota management | manage_quota | Set/delete/list project quotas | **Conditional Tool** - requires project_name and action parameters |
+| Quota management | set_quota | Set/delete/list project quotas | **Conditional Tool** - requires project_name and action parameters |
 
-**Total: 29 comprehensive OpenStack management tools**
+### 👥 Project Management (2 tools)
+| User Intent / Keywords | Tool | Output Focus | Notes |
+|------------------------|------|--------------|-------|
+| **"List projects"** / **"Show project details"** / **"Project information"** | **get_project_details** | **PRIORITY**: Project list and details with roles/quotas (read-only) | **Always available - comprehensive project information** |
+| Project management | set_project | Create/delete/update/cleanup projects | **Conditional Tool** - requires project_name and action parameters |
+
+**Total: 31 comprehensive OpenStack management tools**
 
 **Enhanced Features:**
 - **Pagination Support**: get_instance_details and search_instances support limit/offset parameters
@@ -213,18 +242,26 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
   - Also include virtual_resources data from get_resource_monitoring when available
 
 ### 🔧 **Management Operations**
-- "Start/stop/restart instance X" → **manage_instance("X", "action")**
-- "Pause/unpause instance X" → **manage_instance("X", "action")**
+- "Start/stop/restart instance X" → **set_instance("X", "action")**
+- "Pause/unpause instance X" → **set_instance("X", "action")**
 - "Show Heat stacks" / "List orchestration stacks" → **get_heat_stacks**
-- "Create/delete/update stack X" → **manage_heat_stack("X", "action")**
-- "Deploy Heat template" → **manage_heat_stack("stack_name", "create")**
+- "Create/delete/update stack X" → **set_heat_stack("X", "action")**
+- "Deploy Heat template" → **set_heat_stack("stack_name", "create")**
 
 ### 📊 **Quota & Resource Limit Operations**
 - "Show quotas" / "Check quotas" / "Project limits" → **get_quota("")** (current project)
 - "Show quota for project X" → **get_quota("X")**
-- "Set quota for project X" → **manage_quota("X", "set", cores=N, instances=N, ram=N)**
-- "Reset quota for project X" → **manage_quota("X", "delete")**
-- "List all project quotas" → **manage_quota("", "list")**
+- "Set quota for project X" → **set_quota("X", "set", cores=N, instances=N, ram=N)**
+- "Reset quota for project X" → **set_quota("X", "delete")**
+- "List all project quotas" → **set_quota("", "list")**
+
+### 👥 **Project Management Operations**  
+- "List projects" / "Show all projects" → **get_project_details("")**
+- "Show project details for X" → **get_project_details("X")**
+- "Create project X" → **set_project("X", "create", description="...", domain="...")**
+- "Delete project X" → **set_project("X", "delete")**
+- "Update project X" → **set_project("X", "set", description="...", enable=true)**
+- "Cleanup project X resources" → **set_project("X", "cleanup")**
 
 ### 🌐 **Network & Infrastructure**
 - "Show network details" → **get_network_details("all")**
@@ -247,12 +284,13 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 3. **Cluster/overview keywords** → get_cluster_status
 4. **Service/health keywords** → get_service_status
 5. **Usage/billing keywords** → get_usage_statistics
-6. **Quota/limit keywords** → get_quota or manage_quota
-7. **Management action keywords** → manage_instance, manage_volume, or manage_heat_stack
-7. **Heat stack keywords** → get_heat_stacks or manage_heat_stack
-8. **Resource/hypervisor specific** → get_resource_monitoring
-9. **Volume listing** → get_volume_list (read-only)
-10. **Image listing** → get_image_detail_list (read-only)
+6. **Quota/limit keywords** → get_quota or set_quota
+7. **Project/tenant keywords** → get_project_details or set_project
+8. **Management action keywords** → set_instance, set_volume, or set_heat_stack
+9. **Heat stack keywords** → get_heat_stacks or set_heat_stack
+10. **Resource/hypervisor specific** → get_resource_monitoring
+11. **Volume listing** → get_volume_list (read-only)
+12. **Image listing** → get_image_detail_list (read-only)
 
 **Pagination Guidelines:**
 - For large environments: always use reasonable limits (default 50, max 200)
@@ -313,19 +351,19 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 ### 🔥 **CRITICAL: Resource Listing Requests**
 **User: "List available VM images"**
-→ Call: **manage_image("", "list")**
+→ Call: **set_image("", "list")**
 
 **User: "Show all volumes in the project"**
-→ Call: **manage_volume("", "list")**
+→ Call: **set_volume("", "list")**
 
 **User: "Show all network configurations"**
 → Call: **get_network_details("all")**
 
 **User: "List all volumes"**
-→ Call: **manage_volume("", "list")**
+→ Call: **set_volume("", "list")**
 
 **User: "What images are available"**
-→ Call: **manage_image("", "list")**
+→ Call: **set_image("", "list")**
 
 ### A. User: "Show cluster status"
 → Call: get_cluster_status()
@@ -343,13 +381,13 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 → Call: search_instances("compute-01", "host") AND search_instances("ACTIVE", "status")
 
 ### F. User: "Start the database server"
-→ Call: manage_instance("database-server", "start")
+→ Call: set_instance("database-server", "start")
 
 ### G. User: "Show all network details"
 → Call: get_network_details("all")
 
 ### H. User: "Create a 50GB volume named backup-vol"
-→ Call: manage_volume("backup-vol", "create", size=50)
+→ Call: set_volume("backup-vol", "create", size=50)
 
 ### I. User: "What's the resource utilization?"
 → Call: get_resource_monitoring()
@@ -408,7 +446,7 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - "Find all stopped instances."
 - "Show ERROR state instances."
 
-**manage_instance**
+**set_instance**
 - "Start the web-server-01 instance."
 - "Stop the test-vm instance."
 - "Restart the database server."
@@ -423,7 +461,7 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - "List all networks, subnets, and routers."
 - "Get security group information."
 
-**get_floating_ips & manage_floating_ip**
+**get_floating_ips & set_floating_ip**
 - "Show all floating IP addresses."
 - "List available floating IPs."
 - "Create a new floating IP from external network."
@@ -437,14 +475,14 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 ### 💾 Storage Management
 
-**manage_volume**
+**set_volume**
 - "Create a 100GB volume named data-vol."
 - "Extend backup-vol to 200GB size."
 - "Delete the old-backup volume."
 - "List all volumes in the project."
 - "Show volume information and usage."
 
-**get_volume_types & get_volume_snapshots & manage_snapshot**
+**get_volume_types & get_volume_snapshots & set_snapshot**
 - "Show available volume types."
 - "List all volume snapshots."
 - "Create a snapshot of data-volume."
@@ -453,7 +491,7 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 ### ⚙️ Compute Management
 
-**get_keypair_list & manage_keypair**
+**get_keypair_list & set_keypair**
 - "Show all SSH keypairs."
 - "Create a new keypair for servers."
 - "Delete unused keypair."
@@ -469,7 +507,7 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 ### 🖼️ Image Management
 
-**manage_image**
+**set_image**
 - "List available VM images."
 - "Show all OpenStack images."
 - "What images are available for deployment?"
@@ -479,7 +517,7 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 ### 🔥 Heat Stack Management
 
-**get_heat_stacks & manage_heat_stack**
+**get_heat_stacks & set_heat_stack**
 - "Show all Heat stacks."
 - "List orchestration stacks."
 - "Create a new stack from template."
@@ -496,7 +534,7 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - "What are the resource limits?"
 - "Show compute and storage quotas."
 
-**manage_quota**
+**set_quota**
 - "Set quotas for project service."
 - "Increase cores limit to 50 for project admin."
 - "Reset project quotas to default."
@@ -559,7 +597,7 @@ For volume operations with delete action:
 ## 10. Sample Multi-step Strategy
 
 Query: "Restart web-server-01 and show its status"
-1. manage_instance("web-server-01", "restart") → capture result
+1. set_instance("web-server-01", "restart") → capture result
 2. get_instance_details(instance_names=["web-server-01"]) → show current state
 3. Answer: restart triggered + current status + operation outcome
 

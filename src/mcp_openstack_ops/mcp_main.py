@@ -19,8 +19,8 @@ from functions import (
     search_instances as _search_instances,
     get_instances_by_status as _get_instances_by_status,
     get_network_details as _get_network_details,
-    manage_instance as _manage_instance,
-    manage_volume as _manage_volume,
+    set_instance as _set_instance,
+    set_volume as _set_volume,
     get_resource_monitoring as _get_resource_monitoring,
     get_project_info as _get_project_info,
     get_flavor_list as _get_flavor_list,
@@ -31,27 +31,30 @@ from functions import (
     get_role_assignments as _get_role_assignments,
     # Compute (Nova) enhanced functions
     get_keypair_list as _get_keypair_list,
-    manage_keypair as _manage_keypair,
+    set_keypair as _set_keypair,
     get_security_groups as _get_security_groups,
     # Network (Neutron) enhanced functions
     get_floating_ips as _get_floating_ips,
-    manage_floating_ip as _manage_floating_ip,
+    set_floating_ip as _set_floating_ip,
     get_routers as _get_routers,
     # Block Storage (Cinder) enhanced functions
     get_volume_types as _get_volume_types,
     get_volume_snapshots as _get_volume_snapshots,
-    manage_snapshot as _manage_snapshot,
+    set_snapshot as _set_snapshot,
     # Image Service (Glance) enhanced functions
-    manage_image as _manage_image,
+    set_image as _set_image,
     # Heat Stack functions
     get_heat_stacks as _get_heat_stacks,
-    manage_heat_stack as _manage_heat_stack,
-    # Read-only functions extracted from manage_* functions
+    set_heat_stack as _set_heat_stack,
+    # Read-only functions extracted from set_* functions
     get_volume_list as _get_volume_list,
     get_image_detail_list as _get_image_detail_list,
     get_usage_statistics as _get_usage_statistics,
+    # Quota and Project Management
     get_quota as _get_quota,
-    manage_quota as _manage_quota
+    set_quota as _set_quota,
+    get_project_details as _get_project_details,
+    set_project as _set_project
 )
 
 import json
@@ -126,7 +129,7 @@ ALLOW_MODIFY_OPERATIONS=true
 - get_floating_ips, get_routers, get_volume_types
 - get_volume_snapshots, get_heat_stacks
 - get_resource_monitoring, get_usage_statistics, get_quota
-- get_volume_list, get_image_detail_list
+- get_volume_list, get_image_detail_list, get_project_details
 """
     return ""
 
@@ -503,7 +506,7 @@ async def get_network_details(network_name: str = "all") -> str:
 
 
 @conditional_tool
-async def manage_instance(instance_name: str, action: str) -> str:
+async def set_instance(instance_name: str, action: str) -> str:
     """
     Manages OpenStack instances with operations like start, stop, restart, pause, and unpause.
     
@@ -530,7 +533,7 @@ async def manage_instance(instance_name: str, action: str) -> str:
             return "Error: Action is required (start, stop, restart, pause, unpause)"
             
         logger.info(f"Managing instance '{instance_name}' with action '{action}'")
-        result = _manage_instance(instance_name.strip(), action.strip())
+        result = _set_instance(instance_name.strip(), action.strip())
         
         response = {
             "timestamp": datetime.now().isoformat(),
@@ -548,7 +551,7 @@ async def manage_instance(instance_name: str, action: str) -> str:
 
 
 @conditional_tool
-async def manage_volume(volume_name: str, action: str, size: int = 1, instance_name: str = "") -> str:
+async def set_volume(volume_name: str, action: str, size: int = 1, instance_name: str = "") -> str:
     """
     Manages OpenStack volumes with operations like create, delete, list, and attach.
     
@@ -582,14 +585,14 @@ async def manage_volume(volume_name: str, action: str, size: int = 1, instance_n
             
         logger.info(f"Managing volume with action '{action}'" + (f" for volume '{volume_name}'" if volume_name and volume_name.strip() else ""))
         
-        # Prepare kwargs for manage_volume function
+        # Prepare kwargs for set_volume function
         kwargs = {'size': size}
         if instance_name:
             kwargs['instance_name'] = instance_name.strip()
         
         # For list action, use empty string if no volume_name provided
         volume_name_param = volume_name.strip() if volume_name and volume_name.strip() else ""
-        result = _manage_volume(volume_name_param, action, **kwargs)
+        result = _set_volume(volume_name_param, action, **kwargs)
         
         response = {
             "timestamp": datetime.now().isoformat(),
@@ -991,7 +994,7 @@ async def get_keypair_list() -> str:
 
 
 @conditional_tool
-async def manage_keypair(keypair_name: str, action: str, public_key: str = "") -> str:
+async def set_keypair(keypair_name: str, action: str, public_key: str = "") -> str:
     """
     Manage SSH keypairs (create, delete, import).
     
@@ -1018,7 +1021,7 @@ async def manage_keypair(keypair_name: str, action: str, public_key: str = "") -
         if public_key.strip():
             kwargs['public_key'] = public_key.strip()
             
-        result_data = _manage_keypair(keypair_name, action, **kwargs)
+        result_data = _set_keypair(keypair_name, action, **kwargs)
         
         result = {
             "timestamp": datetime.now().isoformat(),
@@ -1105,7 +1108,7 @@ async def get_floating_ips() -> str:
 
 
 @conditional_tool
-async def manage_floating_ip(action: str, floating_network_id: str = "", port_id: str = "", floating_ip_id: str = "") -> str:
+async def set_floating_ip(action: str, floating_network_id: str = "", port_id: str = "", floating_ip_id: str = "") -> str:
     """
     Manage floating IPs (create, delete, associate, disassociate).
     
@@ -1137,7 +1140,7 @@ async def manage_floating_ip(action: str, floating_network_id: str = "", port_id
         if floating_ip_id.strip():
             kwargs['floating_ip_id'] = floating_ip_id.strip()
             
-        result_data = _manage_floating_ip(action, **kwargs)
+        result_data = _set_floating_ip(action, **kwargs)
         
         result = {
             "timestamp": datetime.now().isoformat(),
@@ -1258,7 +1261,7 @@ async def get_volume_snapshots() -> str:
 
 
 @conditional_tool
-async def manage_snapshot(snapshot_name: str, action: str, volume_id: str = "", description: str = "") -> str:
+async def set_snapshot(snapshot_name: str, action: str, volume_id: str = "", description: str = "") -> str:
     """
     Manage volume snapshots (create, delete).
     
@@ -1289,7 +1292,7 @@ async def manage_snapshot(snapshot_name: str, action: str, volume_id: str = "", 
         if description.strip():
             kwargs['description'] = description.strip()
             
-        result_data = _manage_snapshot(snapshot_name, action, **kwargs)
+        result_data = _set_snapshot(snapshot_name, action, **kwargs)
         
         result = {
             "timestamp": datetime.now().isoformat(),
@@ -1309,7 +1312,7 @@ async def manage_snapshot(snapshot_name: str, action: str, volume_id: str = "", 
 
 # Image Service (Glance) Enhanced Tools
 @conditional_tool
-async def manage_image(image_name: str, action: str, container_format: str = "bare", disk_format: str = "qcow2", visibility: str = "private") -> str:
+async def set_image(image_name: str, action: str, container_format: str = "bare", disk_format: str = "qcow2", visibility: str = "private") -> str:
     """
     Manage images (create, delete, update, list).
     
@@ -1348,7 +1351,7 @@ async def manage_image(image_name: str, action: str, container_format: str = "ba
         
         # For list action, use empty string if no image_name provided
         image_name_param = image_name.strip() if image_name and image_name.strip() else ""
-        result_data = _manage_image(image_name_param, action, **kwargs)
+        result_data = _set_image(image_name_param, action, **kwargs)
         
         result = {
             "timestamp": datetime.now().isoformat(),
@@ -1402,7 +1405,7 @@ async def get_heat_stacks() -> str:
 
 
 @conditional_tool
-async def manage_heat_stack(stack_name: str, action: str, template: str = "", parameters: str = "") -> str:
+async def set_heat_stack(stack_name: str, action: str, template: str = "", parameters: str = "") -> str:
     """
     Manage Heat orchestration stacks (create, delete, update).
     
@@ -1445,7 +1448,7 @@ async def manage_heat_stack(stack_name: str, action: str, template: str = "", pa
                     "message": "Parameters must be valid JSON format"
                 }, indent=2, ensure_ascii=False)
             
-        result_data = _manage_heat_stack(stack_name, action, **kwargs)
+        result_data = _set_heat_stack(stack_name, action, **kwargs)
         
         result = {
             "timestamp": datetime.now().isoformat(),
@@ -1463,7 +1466,7 @@ async def manage_heat_stack(stack_name: str, action: str, template: str = "", pa
 
 
 # =============================================================================
-# Read-only Tools (Always Available - Extracted from manage_* functions)
+# Read-only Tools (Always Available - Extracted from set_* functions)
 # =============================================================================
 
 @mcp.tool()
@@ -1615,7 +1618,7 @@ async def get_quota(project_name: str = "") -> str:
 
 
 @conditional_tool
-async def manage_quota(
+async def set_quota(
     project_name: str, 
     action: str, 
     cores: int = None,
@@ -1683,11 +1686,11 @@ async def manage_quota(
         if security_group_rules is not None:
             quota_params['security_group_rules'] = security_group_rules
         
-        quota_result = _manage_quota(project_name=project_name, action=action, **quota_params)
+        quota_result = _set_quota(project_name=project_name, action=action, **quota_params)
         
         response = {
             "timestamp": datetime.now().isoformat(),
-            "operation": "manage_quota",
+            "operation": "set_quota",
             "parameters": {
                 "project_name": project_name,
                 "action": action,
@@ -1700,6 +1703,108 @@ async def manage_quota(
         
     except Exception as e:
         error_msg = f"Error: Failed to manage quota - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+@mcp.tool()
+async def get_project_details(project_name: str = "") -> str:
+    """
+    Get OpenStack project details (similar to 'openstack project list/show').
+    
+    Args:
+        project_name: Name of specific project to show details for (optional, lists all if empty)
+    
+    Returns:
+        JSON string containing project information including details, roles, and quotas
+    """
+    try:
+        if not project_name.strip():
+            logger.info("Getting list of all projects")
+        else:
+            logger.info(f"Getting project details for: {project_name}")
+            
+        project_info = _get_project_details(project_name=project_name)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "operation": "get_project_details",
+            "parameters": {
+                "project_name": project_name or "all projects"
+            },
+            "project_data": project_info
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to get project details - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+@conditional_tool
+async def set_project(
+    project_name: str, 
+    action: str, 
+    description: str = "",
+    enable: bool = None,
+    disable: bool = None,
+    domain: str = "",
+    parent: str = "",
+    tags: str = ""
+) -> str:
+    """
+    Manage OpenStack projects (create, delete, set, cleanup).
+    
+    Args:
+        project_name: Name of the project (required)
+        action: Action to perform (create, delete, set, cleanup)
+        description: Project description (optional, for create/set)
+        enable: Enable project (optional, for set action)
+        disable: Disable project (optional, for set action)
+        domain: Domain name or ID (optional, for create)
+        parent: Parent project name or ID (optional, for create)
+        tags: Comma-separated list of tags (optional, for create/set)
+    
+    Returns:
+        JSON string containing the result of the project management operation
+    """
+    try:
+        logger.info(f"Managing project - Action: {action}, Project: {project_name}")
+        
+        # Build project parameters
+        project_params = {}
+        if description:
+            project_params['description'] = description
+        if enable is not None:
+            project_params['enable'] = enable
+        if disable is not None:
+            project_params['disable'] = disable
+        if domain:
+            project_params['domain'] = domain
+        if parent:
+            project_params['parent'] = parent
+        if tags:
+            project_params['tags'] = [tag.strip() for tag in tags.split(',')]
+        
+        project_result = _set_project(project_name=project_name, action=action, **project_params)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "operation": "set_project",
+            "parameters": {
+                "project_name": project_name,
+                "action": action,
+                "project_params": project_params if project_params else "none"
+            },
+            "result": project_result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage project - {str(e)}"
         logger.error(error_msg)
         return error_msg
 
