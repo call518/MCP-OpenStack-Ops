@@ -21,7 +21,7 @@ from functions import (
     get_network_details as _get_network_details,
     manage_instance as _manage_instance,
     manage_volume as _manage_volume,
-    monitor_resources as _monitor_resources,
+    get_resource_monitoring as _get_resource_monitoring,
     get_project_info as _get_project_info,
     get_flavor_list as _get_flavor_list,
     get_image_list as _get_image_list,
@@ -45,7 +45,11 @@ from functions import (
     manage_image as _manage_image,
     # Heat Stack functions
     get_heat_stacks as _get_heat_stacks,
-    manage_heat_stack as _manage_heat_stack
+    manage_heat_stack as _manage_heat_stack,
+    # Read-only functions extracted from manage_* functions
+    get_volume_list as _get_volume_list,
+    get_image_detail_list as _get_image_detail_list,
+    get_usage_statistics as _get_usage_statistics
 )
 
 import json
@@ -119,7 +123,8 @@ ALLOW_MODIFY_OPERATIONS=true
 - get_keypair_list, get_security_groups
 - get_floating_ips, get_routers, get_volume_types
 - get_volume_snapshots, get_heat_stacks
-- monitor_resources
+- get_resource_monitoring, get_usage_statistics
+- get_volume_list, get_image_detail_list
 """
     return ""
 
@@ -600,7 +605,7 @@ async def manage_volume(volume_name: str, action: str, size: int = 1, instance_n
 
 
 @mcp.tool()
-async def monitor_resources() -> str:
+async def get_resource_monitoring() -> str:
     """
     Monitors real-time resource usage across the OpenStack cluster.
     
@@ -617,7 +622,7 @@ async def monitor_resources() -> str:
     """
     try:
         logger.info("Monitoring OpenStack cluster resources")
-        monitoring_data = _monitor_resources()
+        monitoring_data = _get_resource_monitoring()
         
         result = {
             "timestamp": datetime.now().isoformat(),
@@ -1453,3 +1458,187 @@ async def manage_heat_stack(stack_name: str, action: str, template: str = "", pa
         error_msg = f"Error: Failed to manage stack - {str(e)}"
         logger.error(error_msg)
         return error_msg
+
+
+# =============================================================================
+# Read-only Tools (Always Available - Extracted from manage_* functions)
+# =============================================================================
+
+@mcp.tool()
+async def get_volume_list() -> str:
+    """
+    Get list of all volumes with detailed information.
+    
+    Functions:
+    - List all volumes in the project
+    - Show volume status, size, and type information
+    - Display attachment information for volumes
+    - Provide detailed metadata for each volume
+    
+    Use when user requests volume listing, volume information, or storage overview.
+    
+    Returns:
+        Detailed volume list in JSON format with volume information, attachments, and metadata.
+    """
+    try:
+        logger.info("Fetching volume list")
+        volumes = _get_volume_list()
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "volumes": volumes,
+            "count": len(volumes),
+            "operation": "list_volumes"
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to fetch volume list - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+@mcp.tool()
+async def get_image_detail_list() -> str:
+    """
+    Get detailed list of all images with comprehensive metadata.
+    
+    Functions:
+    - List all images available in the project
+    - Show image status, size, and format information
+    - Display image properties and metadata
+    - Provide ownership and visibility details
+    
+    Use when user requests image listing, image information, or image metadata details.
+    
+    Returns:
+        Comprehensive image list in JSON format with detailed metadata, properties, and status information.
+    """
+    try:
+        logger.info("Fetching detailed image list")
+        images = _get_image_detail_list()
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "images": images,
+            "count": len(images),
+            "operation": "list_images_detailed"
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to fetch detailed image list - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+@mcp.tool()
+async def get_usage_statistics(start_date: str = "", end_date: str = "") -> str:
+    """
+    Get usage statistics for projects (similar to 'openstack usage list' command).
+    
+    Functions:
+    - Show project usage statistics over a specified time period
+    - Display servers, RAM MB-Hours, CPU Hours, and Disk GB-Hours
+    - Provide detailed server usage breakdown when available
+    - Calculate usage summary across all projects
+    
+    Use when user requests usage statistics, billing information, resource consumption analysis, or project usage reports.
+    
+    Args:
+        start_date: Start date in YYYY-MM-DD format (optional, defaults to 30 days ago)
+        end_date: End date in YYYY-MM-DD format (optional, defaults to today)
+        
+    Returns:
+        Usage statistics in JSON format with project usage data, server details, and summary information.
+    """
+    try:
+        logger.info(f"Fetching usage statistics from {start_date or 'default'} to {end_date or 'default'}")
+        usage_stats = _get_usage_statistics(start_date=start_date, end_date=end_date)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "operation": "get_usage_statistics",
+            "parameters": {
+                "start_date": start_date or "auto (30 days ago)",
+                "end_date": end_date or "auto (today)"
+            },
+            "usage_data": usage_stats
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to fetch usage statistics - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+# =============================================================================
+# Main execution
+# =============================================================================
+
+if __name__ == "__main__":
+    import asyncio
+    
+    parser = argparse.ArgumentParser(description="OpenStack MCP Server")
+    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], 
+                        default=os.environ.get("MCP_LOG_LEVEL", "INFO"), help="Logging level")
+    parser.add_argument("--type", choices=["stdio", "streamable-http"], default="stdio", 
+                        help="Transport type (default: stdio)")
+    parser.add_argument("--host", default="127.0.0.1", help="Host address for HTTP transport (default: 127.0.0.1)")
+    parser.add_argument("--port", type=int, default=8080, help="Port number for HTTP transport (default: 8080)")
+    parser.add_argument("--auth-enable", action="store_true", 
+                        help="Enable Bearer token authentication for streamable-http mode")
+    parser.add_argument("--secret-key", help="Secret key for Bearer token authentication")
+    
+    args = parser.parse_args()
+    
+    # Set log level (CLI overrides environment)
+    logger.setLevel(args.log_level)
+    
+    # Update authentication if provided via CLI
+    if args.auth_enable and args.secret_key:
+        logger.info("Authentication enabled via CLI arguments")
+        
+        tokens = {
+            args.secret_key: {
+                "client_id": "openstack-ops-client",
+                "user": "admin",
+                "scopes": ["read", "write"],
+                "description": "CLI-provided access token"
+            }
+        }
+        
+        auth = StaticTokenVerifier(tokens=tokens)
+        # Note: CLI auth override requires server restart to take full effect
+        logger.warning("CLI auth override requires server restart to take full effect")
+    
+    # Validate OpenStack connection early
+    try:
+        conn = get_openstack_connection()
+        logger.info("✓ OpenStack connection validated successfully")
+    except Exception as e:
+        logger.error(f"✗ Failed to connect to OpenStack: {e}")
+        logger.error("Please check your OpenStack credentials in .env file")
+        sys.exit(1)
+    
+    logger.info(f"Starting MCP server with {args.type} transport")
+    logger.info(f"Log level set via {'CLI' if 'log-level' in sys.argv else 'environment'} to {args.log_level}")
+    logger.info(f"Modify operations allowed: {_is_modify_operation_allowed()}")
+    
+    # Get auth status for logging
+    auth_enabled = _auth_enable or (args.auth_enable and args.secret_key)
+    logger.info(f"Authentication: {'Enabled' if auth_enabled else 'Disabled'}")
+    
+    if args.type == "stdio":
+        logger.info("MCP server running with stdio transport")
+        mcp.run()
+    elif args.type == "streamable-http":
+        logger.info(f"MCP server running with HTTP transport on {args.host}:{args.port}")
+        mcp.run(transport="streamable-http", host=args.host, port=args.port)
+    else:
+        logger.error(f"Unknown transport type: {args.type}")
+        sys.exit(1)

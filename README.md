@@ -64,36 +64,42 @@
    - Optimized 2-phase search for large environments
 5. **`get_instance_by_name`** - Quick lookup for specific instance by name
 6. **`get_instances_by_status`** - Filter instances by operational status
-7. **`monitor_resources`** - Real-time resource usage and capacity monitoring
+7. **`get_resource_monitoring`** - Real-time resource usage and capacity monitoring
+8. **`get_usage_statistics`** - Project usage statistics (servers, RAM MB-Hours, CPU Hours, Disk GB-Hours)
+   - Similar to 'openstack usage list' command
+   - Configurable time periods with start/end dates
+   - Detailed server usage breakdown and project summaries
 
 ### 🌐 Network Management Tools  
-8. **`get_network_details`** - Network, subnet, router, and security group details
-9. **`get_floating_ips`** - Floating IP allocation and status information
-10. **`manage_floating_ip`** - Create, delete, associate/disassociate floating IPs
-11. **`get_routers`** - Router status and configuration details
-12. **`get_security_groups`** - Security group rules and configuration
+9. **`get_network_details`** - Network, subnet, router, and security group details
+10. **`get_floating_ips`** - Floating IP allocation and status information
+11. **`manage_floating_ip`** - Create, delete, associate/disassociate floating IPs
+12. **`get_routers`** - Router status and configuration details
+13. **`get_security_groups`** - Security group rules and configuration
 
 ### 💾 Storage Management Tools
-13. **`manage_volume`** - Volume management operations (create/delete/list/extend)
-14. **`get_volume_types`** - Available volume types and specifications
-15. **`get_volume_snapshots`** - Volume snapshot status and management
-16. **`manage_snapshot`** - Create, delete, and manage volume snapshots
+14. **`get_volume_list`** - List all volumes with detailed information (read-only)
+15. **`manage_volume`** - Volume management operations (create/delete/list/extend)
+16. **`get_volume_types`** - Available volume types and specifications
+17. **`get_volume_snapshots`** - Volume snapshot status and management
+18. **`manage_snapshot`** - Create, delete, and manage volume snapshots
 
 ### ⚙️ Instance & Compute Management
-17. **`manage_instance`** - Instance lifecycle operations (start/stop/restart/pause/unpause)
-18. **`get_keypair_list`** - SSH keypair management and listing
-19. **`manage_keypair`** - Create, delete SSH keypairs for instance access
+19. **`manage_instance`** - Instance lifecycle operations (start/stop/restart/pause/unpause)
+20. **`get_keypair_list`** - SSH keypair management and listing
+21. **`manage_keypair`** - Create, delete SSH keypairs for instance access
 
 ### 👥 Identity & Access Management
-20. **`get_user_list`** - OpenStack user accounts and details
-21. **`get_role_assignments`** - User role assignments and permissions
+22. **`get_user_list`** - OpenStack user accounts and details
+23. **`get_role_assignments`** - User role assignments and permissions
 
 ### 🖼️ Image Management
-22. **`manage_image`** - Create, delete, list, and manage OpenStack images
+24. **`get_image_detail_list`** - Detailed list of all images with metadata (read-only)
+25. **`manage_image`** - Create, delete, list, and manage OpenStack images
 
 ### 🔥 Orchestration (Heat) Tools
-23. **`get_heat_stacks`** - Heat stack status and information
-24. **`manage_heat_stack`** - Create, delete, and manage Heat orchestration stacks
+26. **`get_heat_stacks`** - Heat stack status and information
+27. **`manage_heat_stack`** - Create, delete, and manage Heat orchestration stacks
 
 ---
 

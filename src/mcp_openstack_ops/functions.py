@@ -119,23 +119,23 @@ def get_cluster_status() -> Dict[str, Any]:
             servers = list(conn.compute.servers(details=True))
             logger.info(f"Retrieved {len(servers)} servers from OpenStack")
             
-            # Try to get hypervisor info using monitor_resources() function (Refactored)
+            # Try to get hypervisor info using get_resource_monitoring() function (Refactored)
             compute_nodes = {}
             total_vcpus = total_ram = total_disk = 0
             used_vcpus = used_ram = used_disk = 0
             hypervisors = []
             
             try:
-                # Get hypervisor and resource data from monitor_resources() function
-                resource_data = monitor_resources()
+                # Get hypervisor and resource data from get_resource_monitoring() function
+                resource_data = get_resource_monitoring()
                 
                 if 'error' not in resource_data:
                     hypervisors = resource_data.get('hypervisors', [])
                     cluster_summary = resource_data.get('cluster_summary', {})
                     
-                    logger.info(f"Retrieved {len(hypervisors)} hypervisors from monitor_resources()")
+                    logger.info(f"Retrieved {len(hypervisors)} hypervisors from get_resource_monitoring()")
                     
-                    # Extract totals from monitor_resources data
+                    # Extract totals from get_resource_monitoring() data
                     physical_resources = cluster_summary.get('physical_resources', {})
                     
                     total_vcpus = physical_resources.get('pCPU', {}).get('total', 0)
@@ -162,7 +162,7 @@ def get_cluster_status() -> Dict[str, Any]:
                             'hypervisor_version': hv.get('hypervisor_version', 'Unknown')
                         }
                 else:
-                    logger.warning(f"monitor_resources() returned error: {resource_data.get('error', 'Unknown error')}")
+                    logger.warning(f"get_resource_monitoring() returned error: {resource_data.get('error', 'Unknown error')}")
                     # Fall back to minimal hypervisor processing
                     hypervisors_raw = list(conn.compute.hypervisors(details=True))
                     for hv in hypervisors_raw:
@@ -173,7 +173,7 @@ def get_cluster_status() -> Dict[str, Any]:
                         })
                     
             except Exception as hv_error:
-                logger.warning(f"Failed to get hypervisor details from monitor_resources(): {hv_error}")
+                logger.warning(f"Failed to get hypervisor details from get_resource_monitoring(): {hv_error}")
                 # Continue without hypervisor info
             
             # Get other compute resources
@@ -1606,7 +1606,7 @@ def manage_volume(volume_name: str, action: str, **kwargs) -> Dict[str, Any]:
         }
 
 
-def monitor_resources() -> Dict[str, Any]:
+def get_resource_monitoring() -> Dict[str, Any]:
     """
     Monitors resource usage across the OpenStack cluster
     
@@ -2941,4 +2941,248 @@ def get_compute_quota_usage(conn) -> Dict[str, Any]:
             'instances': {'used': 0, 'limit': 'unknown'},
             'vcpus': {'used': 0, 'limit': 'unknown', 'description': 'Virtual CPUs (vCPU) - data unavailable'},
             'memory': {'used_mb': 0, 'limit_mb': 'unknown', 'description': 'Virtual memory - data unavailable'}
+        }
+
+
+# =============================================================================
+# Read-only functions extracted from manage_* functions for ALLOW_MODIFY_OPERATIONS=false
+# =============================================================================
+
+def get_volume_list() -> List[Dict[str, Any]]:
+    """
+    Get list of all volumes (read-only operation extracted from manage_volume).
+    
+    Returns:
+        List of volume information dictionaries
+    """
+    try:
+        conn = get_openstack_connection()
+        volumes = []
+        
+        for volume in conn.volume.volumes(detailed=True):
+            attachments = []
+            for attachment in getattr(volume, 'attachments', []):
+                attachments.append({
+                    'server_id': attachment.get('server_id'),
+                    'device': attachment.get('device'),
+                    'attachment_id': attachment.get('attachment_id')
+                })
+            
+            volumes.append({
+                'id': volume.id,
+                'name': volume.name,
+                'size': volume.size,
+                'status': volume.status,
+                'volume_type': getattr(volume, 'volume_type', 'unknown'),
+                'bootable': getattr(volume, 'bootable', False),
+                'encrypted': getattr(volume, 'encrypted', False),
+                'attachments': attachments,
+                'created_at': str(getattr(volume, 'created_at', 'unknown')),
+                'availability_zone': getattr(volume, 'availability_zone', 'unknown')
+            })
+        
+        logger.info(f"Retrieved {len(volumes)} volumes")
+        return volumes
+        
+    except Exception as e:
+        logger.error(f"Failed to get volume list: {e}")
+        return []
+
+
+def get_image_detail_list() -> List[Dict[str, Any]]:
+    """
+    Get detailed list of all images (read-only operation extracted from manage_image).
+    
+    Returns:
+        List of detailed image information dictionaries
+    """
+    try:
+        conn = get_openstack_connection()
+        images = []
+        
+        for image in conn.image.images():
+            images.append({
+                'id': image.id,
+                'name': image.name,
+                'status': image.status,
+                'visibility': image.visibility,
+                'size': getattr(image, 'size', 0),
+                'disk_format': getattr(image, 'disk_format', 'unknown'),
+                'container_format': getattr(image, 'container_format', 'unknown'),
+                'min_disk': getattr(image, 'min_disk', 0),
+                'min_ram': getattr(image, 'min_ram', 0),
+                'owner': getattr(image, 'owner', 'unknown'),
+                'created_at': str(getattr(image, 'created_at', 'unknown')),
+                'updated_at': str(getattr(image, 'updated_at', 'unknown')),
+                'protected': getattr(image, 'is_protected', False),
+                'checksum': getattr(image, 'checksum', None),
+                'properties': getattr(image, 'properties', {})
+            })
+        
+        logger.info(f"Retrieved {len(images)} detailed images")
+        return images
+        
+    except Exception as e:
+        logger.error(f"Failed to get detailed image list: {e}")
+        return []
+
+
+def get_usage_statistics(start_date: str = "", end_date: str = "") -> Dict[str, Any]:
+    """
+    Get usage statistics for projects (similar to 'openstack usage list').
+    
+    Args:
+        start_date: Start date in YYYY-MM-DD format (optional, defaults to 30 days ago)
+        end_date: End date in YYYY-MM-DD format (optional, defaults to today)
+    
+    Returns:
+        Usage statistics including servers, RAM MB-Hours, CPU Hours, and Disk GB-Hours
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        # Set default date range if not provided
+        from datetime import datetime, timedelta
+        if not end_date:
+            end_time = datetime.now()
+        else:
+            end_time = datetime.strptime(end_date, '%Y-%m-%d')
+            
+        if not start_date:
+            start_time = end_time - timedelta(days=30)
+        else:
+            start_time = datetime.strptime(start_date, '%Y-%m-%d')
+        
+        logger.info(f"Getting usage statistics from {start_time.strftime('%Y-%m-%d')} to {end_time.strftime('%Y-%m-%d')}")
+        
+        # Try to get usage statistics using the simple tenant usage API
+        try:
+            start_iso = start_time.isoformat()
+            end_iso = end_time.isoformat()
+            
+            usage_response = conn.compute.get(f'/os-simple-tenant-usage?start={start_iso}&end={end_iso}&detailed=1')
+            
+            if usage_response.status_code == 200:
+                usage_data = usage_response.json()
+                tenant_usages = usage_data.get('tenant_usages', [])
+                
+                usage_list = []
+                for usage in tenant_usages:
+                    # Get project name from project ID
+                    project_name = "Unknown"
+                    try:
+                        project = conn.identity.get_project(usage.get('tenant_id'))
+                        project_name = project.name if project else usage.get('tenant_id', 'Unknown')
+                    except Exception as e:
+                        logger.warning(f"Could not get project name for {usage.get('tenant_id')}: {e}")
+                        project_name = usage.get('tenant_id', 'Unknown')
+                    
+                    usage_info = {
+                        'project': project_name,
+                        'project_id': usage.get('tenant_id'),
+                        'servers': len(usage.get('server_usages', [])),
+                        'ram_mb_hours': round(usage.get('total_memory_mb_usage', 0), 2),
+                        'cpu_hours': round(usage.get('total_vcpus_usage', 0), 2),
+                        'disk_gb_hours': round(usage.get('total_local_gb_usage', 0), 2),
+                        'uptime_hours': round(usage.get('total_hours', 0), 2),
+                        'server_details': []
+                    }
+                    
+                    # Add server details if available
+                    for server_usage in usage.get('server_usages', []):
+                        usage_info['server_details'].append({
+                            'name': server_usage.get('name', 'Unknown'),
+                            'instance_id': server_usage.get('instance_id'),
+                            'uptime_hours': round(server_usage.get('hours', 0), 2),
+                            'ram_mb_hours': round(server_usage.get('memory_mb', 0) * server_usage.get('hours', 0), 2),
+                            'cpu_hours': round(server_usage.get('vcpus', 0) * server_usage.get('hours', 0), 2),
+                            'disk_gb_hours': round(server_usage.get('local_gb', 0) * server_usage.get('hours', 0), 2),
+                            'flavor': server_usage.get('flavor', 'Unknown')
+                        })
+                    
+                    usage_list.append(usage_info)
+                
+                return {
+                    'success': True,
+                    'start_date': start_time.strftime('%Y-%m-%d'),
+                    'end_date': end_time.strftime('%Y-%m-%d'),
+                    'usage_period_days': (end_time - start_time).days,
+                    'total_projects': len(usage_list),
+                    'usage_statistics': usage_list,
+                    'summary': {
+                        'total_servers': sum(u['servers'] for u in usage_list),
+                        'total_ram_mb_hours': sum(u['ram_mb_hours'] for u in usage_list),
+                        'total_cpu_hours': sum(u['cpu_hours'] for u in usage_list),
+                        'total_disk_gb_hours': sum(u['disk_gb_hours'] for u in usage_list)
+                    }
+                }
+                
+            else:
+                logger.warning(f"Usage API returned status {usage_response.status_code}")
+                return {
+                    'success': False,
+                    'error': f'Usage API returned status {usage_response.status_code}',
+                    'message': 'Simple tenant usage API not available or accessible'
+                }
+                
+        except Exception as api_error:
+            logger.warning(f"Failed to get usage statistics from API: {api_error}")
+            
+            # Fallback: Calculate basic usage from current instances
+            logger.info("Falling back to basic instance-based usage calculation")
+            
+            instances = []
+            for server in conn.compute.servers(detailed=True):
+                created_time = getattr(server, 'created_at', None)
+                if created_time:
+                    try:
+                        if isinstance(created_time, str):
+                            created_dt = datetime.fromisoformat(created_time.replace('Z', '+00:00'))
+                        else:
+                            created_dt = created_time
+                        
+                        # Calculate uptime in hours
+                        uptime_hours = (end_time - max(created_dt, start_time)).total_seconds() / 3600
+                        uptime_hours = max(0, uptime_hours)  # Don't allow negative hours
+                        
+                        if uptime_hours > 0:
+                            flavor_info = getattr(server, 'flavor', {})
+                            instances.append({
+                                'name': server.name,
+                                'id': server.id,
+                                'status': server.status,
+                                'created_at': str(created_dt),
+                                'uptime_hours': round(uptime_hours, 2),
+                                'flavor_id': flavor_info.get('id', 'unknown') if isinstance(flavor_info, dict) else 'unknown'
+                            })
+                    except Exception as dt_error:
+                        logger.warning(f"Could not parse creation time for {server.name}: {dt_error}")
+            
+            # Get current project info
+            project_info = conn.identity.get_project(conn.auth.auth.project_name)
+            project_name = project_info.name if project_info else conn.auth.auth.project_name
+            
+            return {
+                'success': True,
+                'method': 'fallback_calculation',
+                'start_date': start_time.strftime('%Y-%m-%d'),
+                'end_date': end_time.strftime('%Y-%m-%d'),
+                'usage_period_days': (end_time - start_time).days,
+                'total_projects': 1,
+                'usage_statistics': [{
+                    'project': project_name,
+                    'project_id': conn.auth.auth.project_name,
+                    'servers': len(instances),
+                    'note': 'Fallback calculation - actual usage data not available from API',
+                    'active_instances': instances
+                }],
+                'warning': 'This is a fallback calculation. For accurate usage statistics, ensure the simple-tenant-usage API is available.'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to get usage statistics: {e}")
+        return {
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to retrieve usage statistics'
         }
