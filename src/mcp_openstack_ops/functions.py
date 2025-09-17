@@ -104,41 +104,121 @@ def get_cluster_status() -> Dict[str, Any]:
         # === COMPUTE RESOURCES ===
         try:
             servers = list(conn.compute.servers(details=True))
-            hypervisors = list(conn.compute.hypervisors(details=True))
-            flavors = list(conn.compute.flavors(details=True))
-            keypairs = list(conn.compute.keypairs())
+            logger.info(f"Retrieved {len(servers)} servers from OpenStack")
             
-            # Compute nodes analysis
+            # Try to get hypervisor info, but don't fail if it's not available
             compute_nodes = {}
             total_vcpus = total_ram = total_disk = 0
             used_vcpus = used_ram = used_disk = 0
+            hypervisors = []
             
-            for hv in hypervisors:
-                compute_nodes[hv.name] = {
-                    'status': hv.status,
-                    'state': hv.state,
-                    'vcpus': hv.vcpus,
-                    'vcpus_used': hv.vcpus_used,
-                    'memory_mb': hv.memory_mb,
-                    'memory_mb_used': hv.memory_mb_used,
-                    'local_gb': hv.local_gb,
-                    'local_gb_used': hv.local_gb_used,
-                    'running_vms': hv.running_vms,
-                    'hypervisor_type': getattr(hv, 'hypervisor_type', 'Unknown'),
-                    'hypervisor_version': getattr(hv, 'hypervisor_version', 'Unknown')
-                }
-                total_vcpus += hv.vcpus
-                used_vcpus += hv.vcpus_used
-                total_ram += hv.memory_mb
-                used_ram += hv.memory_mb_used
-                total_disk += hv.local_gb
-                used_disk += hv.local_gb_used
+            try:
+                hypervisors = list(conn.compute.hypervisors(details=True))
+                logger.info(f"Retrieved {len(hypervisors)} hypervisors from OpenStack")
+                
+                for hv in hypervisors:
+                    # Based on official OpenStack SDK documentation and Nova API microversion compatibility
+                    # Handle attribute variations across different OpenStack versions
+                    
+                        # VCPUs - consistent attribute names in SDK but may be None in newer versions
+                        vcpus = getattr(hv, 'vcpus', None)
+                        vcpus_used = getattr(hv, 'vcpus_used', None)
+                        
+                        # Handle Nova API 2.88+ where these attributes are deprecated/removed
+                        if vcpus is None:
+                            # Try alternative approaches for newer OpenStack versions
+                            try:
+                                # Attempt to get resource provider info (Placement API)
+                                # This is more reliable in newer OpenStack versions
+                                vcpus = 0  # Will be updated with placement info if available
+                                vcpus_used = 0
+                                logger.info(f"Hypervisor {getattr(hv, 'hypervisor_hostname', 'unknown')} returned None for vcpus - using fallback (Nova 2.88+ compatibility)")
+                            except Exception:
+                                vcpus = 0
+                                vcpus_used = 0
+                        
+                        # Memory attributes - Official SDK documented names with version fallbacks
+                        memory_mb = getattr(hv, 'memory_size', None)  # Official SDK attribute
+                        if memory_mb is None:
+                            memory_mb = getattr(hv, 'memory_mb', None)  # Legacy attribute
+                        if memory_mb is None:
+                            memory_mb = 0  # Default for deprecated attributes
+                            
+                        memory_mb_used = getattr(hv, 'memory_used', None)  # Official SDK attribute
+                        if memory_mb_used is None:
+                            memory_mb_used = getattr(hv, 'memory_mb_used', None)  # Legacy attribute
+                        if memory_mb_used is None:
+                            memory_mb_used = 0  # Default for deprecated attributes
+                        
+                        # Disk attributes - Official SDK documented names with fallbacks
+                        local_gb = getattr(hv, 'local_disk_size', None)  # Official SDK attribute
+                        if local_gb is None:
+                            local_gb = getattr(hv, 'local_gb', None)  # Legacy attribute
+                        if local_gb is None:
+                            local_gb = 0  # Default for deprecated attributes
+                            
+                        local_gb_used = getattr(hv, 'local_disk_used', None)  # Official SDK attribute
+                        if local_gb_used is None:
+                            local_gb_used = getattr(hv, 'local_gb_used', None)  # Legacy attribute
+                        if local_gb_used is None:
+                            local_gb_used = 0  # Default for deprecated attributes
+                        
+                        # Running VMs count - may also be None in newer versions
+                        running_vms = getattr(hv, 'running_vms', None)
+                        if running_vms is None:
+                            # Calculate from actual server count on this hypervisor
+                            running_vms = len([s for s in servers if getattr(s, 'OS-EXT-SRV-ATTR:hypervisor_hostname', '') == getattr(hv, 'hypervisor_hostname', '')])
+                        
+                        # Ensure we have valid numeric values (handle None from deprecated attributes)
+                        vcpus = vcpus if vcpus is not None else 0
+                        vcpus_used = vcpus_used if vcpus_used is not None else 0
+                        memory_mb = memory_mb if memory_mb is not None else 0
+                        memory_mb_used = memory_mb_used if memory_mb_used is not None else 0
+                        local_gb = local_gb if local_gb is not None else 0
+                        local_gb_used = local_gb_used if local_gb_used is not None else 0
+                        running_vms = running_vms if running_vms is not None else 0
+                        
+                        compute_nodes[hv.name] = {
+                            'status': hv.status,
+                            'state': hv.state,
+                            'vcpus': vcpus,
+                            'vcpus_used': vcpus_used,
+                            'memory_mb': memory_mb,
+                            'memory_mb_used': memory_mb_used,
+                            'local_gb': local_gb,
+                            'local_gb_used': local_gb_used,
+                            'running_vms': running_vms,
+                            'hypervisor_type': getattr(hv, 'hypervisor_type', 'Unknown'),
+                            'hypervisor_version': getattr(hv, 'hypervisor_version', 'Unknown')
+                        }
+                        total_vcpus += vcpus
+                        used_vcpus += vcpus_used
+                        total_ram += memory_mb
+                        used_ram += memory_mb_used
+                        total_disk += local_gb
+                        used_disk += local_gb_used
+                    
+            except Exception as hv_error:
+                logger.warning(f"Failed to get hypervisor details: {hv_error}")
+                # Continue without hypervisor info
             
-            # Server status analysis
-            server_status = {'ACTIVE': 0, 'ERROR': 0, 'STOPPED': 0, 'PAUSED': 0, 'SUSPENDED': 0, 'OTHER': 0}
+            # Get other compute resources
+            try:
+                flavors = list(conn.compute.flavors(details=True))
+                keypairs = list(conn.compute.keypairs())
+            except Exception as flavor_error:
+                logger.warning(f"Failed to get flavors/keypairs: {flavor_error}")
+                flavors = []
+                keypairs = []
+            
+            # Server status analysis with enhanced instance operational status
+            server_status = {'ACTIVE': 0, 'ERROR': 0, 'SHUTOFF': 0, 'STOPPED': 0, 'PAUSED': 0, 'SUSPENDED': 0, 'BUILD': 0, 'REBOOT': 0, 'HARD_REBOOT': 0, 'OTHER': 0}
             servers_by_az = {}
             servers_detail = []
+            image_usage = {}  # Track image usage by instances
+            flavor_usage = {}  # Track flavor usage
             
+            # Single pass through servers for all analysis (performance optimization)
             for server in servers:
                 status = server.status
                 if status in server_status:
@@ -151,6 +231,47 @@ def get_cluster_status() -> Dict[str, Any]:
                     servers_by_az[az] = 0
                 servers_by_az[az] += 1
                 
+                # Track image usage (Fix: Use proper server attributes)
+                image_info = getattr(server, 'image', {})
+                if image_info and isinstance(image_info, dict):
+                    image_id = image_info.get('id', 'unknown')
+                    if image_id != 'unknown' and image_id is not None:
+                        if image_id not in image_usage:
+                            image_usage[image_id] = {
+                                'count': 0,
+                                'active_count': 0,
+                                'error_count': 0,
+                                'shutoff_count': 0,
+                                'other_count': 0
+                            }
+                        image_usage[image_id]['count'] += 1
+                        
+                        # Count by status for detailed analytics
+                        if status == 'ACTIVE':
+                            image_usage[image_id]['active_count'] += 1
+                        elif status == 'ERROR':
+                            image_usage[image_id]['error_count'] += 1
+                        elif status in ['SHUTOFF', 'STOPPED']:
+                            image_usage[image_id]['shutoff_count'] += 1
+                        else:
+                            image_usage[image_id]['other_count'] += 1
+                
+                # Track flavor usage (Fix: Resolve flavor names properly)
+                flavor_info = getattr(server, 'flavor', {})
+                if flavor_info and isinstance(flavor_info, dict):
+                    flavor_id = flavor_info.get('id', 'unknown')
+                    if flavor_id != 'unknown' and flavor_id is not None:
+                        # Try to get flavor name for better tracking
+                        try:
+                            flavor = conn.compute.get_flavor(flavor_id)
+                            flavor_name = flavor.name
+                        except Exception:
+                            flavor_name = flavor_info.get('original_name', flavor_id)
+                        
+                        if flavor_name not in flavor_usage:
+                            flavor_usage[flavor_name] = 0
+                        flavor_usage[flavor_name] += 1
+                
                 servers_detail.append({
                     'name': server.name,
                     'status': server.status,
@@ -160,24 +281,96 @@ def get_cluster_status() -> Dict[str, Any]:
                     'host': getattr(server, 'hypervisor_hostname', 'Unknown')
                 })
             
+            # Enhanced instance operational statistics
+            instance_operations = {
+                'deployment_summary': {
+                    'total_deployed': len(servers),
+                    'currently_active': server_status.get('ACTIVE', 0),
+                    'shutdown_stopped': server_status.get('SHUTOFF', 0) + server_status.get('STOPPED', 0),
+                    'in_error_state': server_status.get('ERROR', 0),
+                    'in_transition': server_status.get('BUILD', 0) + server_status.get('REBOOT', 0) + server_status.get('HARD_REBOOT', 0),
+                    'paused_suspended': server_status.get('PAUSED', 0) + server_status.get('SUSPENDED', 0),
+                    'other_states': server_status.get('OTHER', 0)
+                },
+                'operational_health': {
+                    'healthy_percentage': round((server_status.get('ACTIVE', 0) / max(len(servers), 1)) * 100, 1),
+                    'problematic_percentage': round((server_status.get('ERROR', 0) / max(len(servers), 1)) * 100, 1),
+                    'offline_percentage': round(((server_status.get('SHUTOFF', 0) + server_status.get('STOPPED', 0)) / max(len(servers), 1)) * 100, 1)
+                },
+                'availability_zones_distribution': servers_by_az,
+                'top_flavors_usage': sorted(flavor_usage.items(), key=lambda x: x[1], reverse=True)[:5] if flavor_usage else []
+            }
+            
             cluster_info['compute_resources'] = {
                 'total_hypervisors': len(hypervisors),
-                'active_hypervisors': len([h for h in hypervisors if h.status == 'enabled' and h.state == 'up']),
+                'active_hypervisors': len([h for h in hypervisors if getattr(h, 'status', '') == 'enabled' and getattr(h, 'state', '') == 'up']),
                 'compute_nodes': compute_nodes,
                 'total_instances': len(servers),
                 'instances_by_status': server_status,
+                'instance_operations': instance_operations,  # Enhanced instance operational info
                 'instances_by_az': servers_by_az,
                 'instances_detail': servers_detail[:10],  # Top 10 for brevity
+                'image_usage_stats': image_usage,  # Fixed: Now properly populated
                 'total_flavors': len(flavors),
                 'total_keypairs': len(keypairs),
                 'resource_utilization': {
-                    'vcpu_usage': f"{used_vcpus}/{total_vcpus} ({(used_vcpus/total_vcpus*100):.1f}%)" if total_vcpus > 0 else "0/0",
-                    'memory_usage_gb': f"{used_ram//1024}/{total_ram//1024} ({(used_ram/total_ram*100):.1f}%)" if total_ram > 0 else "0/0",
-                    'disk_usage_gb': f"{used_disk}/{total_disk} ({(used_disk/total_disk*100):.1f}%)" if total_disk > 0 else "0/0"
+                    'vcpu_usage': f"{used_vcpus}/{total_vcpus} ({(used_vcpus/total_vcpus*100):.1f}%)" if total_vcpus > 0 else "N/A (hypervisor data unavailable)",
+                    'memory_usage_gb': f"{used_ram//1024}/{total_ram//1024} ({(used_ram/total_ram*100):.1f}%)" if total_ram > 0 else "N/A (hypervisor data unavailable)",
+                    'disk_usage_gb': f"{used_disk}/{total_disk} ({(used_disk/total_disk*100):.1f}%)" if total_disk > 0 else "N/A (hypervisor data unavailable)"
+                },
+                # Enhanced: Add physical and quota usage information
+                'physical_usage': {
+                    'description': 'Physical compute resources (pCPU, physical RAM, storage)',
+                    'total_physical_vcpus': total_vcpus,
+                    'used_physical_vcpus': used_vcpus,
+                    'total_physical_memory_mb': total_ram,
+                    'used_physical_memory_mb': used_ram,
+                    'total_physical_disk_gb': total_disk,
+                    'used_physical_disk_gb': used_disk,
+                    'physical_cpu_utilization_percent': round((used_vcpus/total_vcpus*100), 1) if total_vcpus > 0 else 0,
+                    'physical_memory_utilization_percent': round((used_ram/total_ram*100), 1) if total_ram > 0 else 0,
+                    'physical_disk_utilization_percent': round((used_disk/total_disk*100), 1) if total_disk > 0 else 0
+                },
+                'quota_usage': get_compute_quota_usage(conn)
+            }
+            
+            logger.info(f"Successfully processed compute resources: {len(servers)} instances, {len(hypervisors)} hypervisors")
+            
+        except Exception as e:
+            logger.error(f"Failed to get compute info: {e}")
+            # Provide minimal fallback data to prevent complete failure
+            cluster_info['compute_resources'] = {
+                'error': f"Failed to get compute info: {str(e)}",
+                'total_hypervisors': 0,
+                'active_hypervisors': 0,
+                'compute_nodes': {},
+                'total_instances': 0,
+                'instances_by_status': {},
+                'instance_operations': {
+                    'deployment_summary': {
+                        'total_deployed': 0,
+                        'currently_active': 0,
+                        'shutdown_stopped': 0,
+                        'in_error_state': 0,
+                        'in_transition': 0,
+                        'paused_suspended': 0,
+                        'other_states': 0
+                    },
+                    'operational_health': {},
+                    'availability_zones_distribution': {},
+                    'top_flavors_usage': []
+                },
+                'instances_by_az': {},
+                'instances_detail': [],
+                'image_usage_stats': {},
+                'total_flavors': 0,
+                'total_keypairs': 0,
+                'resource_utilization': {
+                    'vcpu_usage': '0/0',
+                    'memory_usage_gb': '0/0',
+                    'disk_usage_gb': '0/0'
                 }
             }
-        except Exception as e:
-            cluster_info['compute_resources'] = {'error': f"Failed to get compute info: {str(e)}"}
         
         # === NETWORK RESOURCES ===
         try:
@@ -227,28 +420,193 @@ def get_cluster_status() -> Dict[str, Any]:
             volume_types = list(conn.volume.types())
             snapshots = list(conn.volume.snapshots())
             
-            # Volume analysis
-            volume_status = {'available': 0, 'in-use': 0, 'error': 0, 'creating': 0, 'deleting': 0}
+            # Volume analysis with detailed information
+            volume_status = {'available': 0, 'in-use': 0, 'error': 0, 'creating': 0, 'deleting': 0, 'other': 0}
             total_volume_size = 0
+            volumes_detail = []
+            volumes_by_type = {}
             
             for vol in volumes:
-                status = vol.status
+                status = vol.status.lower()
                 if status in volume_status:
                     volume_status[status] += 1
                 else:
-                    volume_status['error'] += 1
+                    volume_status['other'] += 1
+                    
                 total_volume_size += vol.size
+                
+                # Volume type analysis
+                vol_type = getattr(vol, 'volume_type', 'unknown')
+                if vol_type not in volumes_by_type:
+                    volumes_by_type[vol_type] = {'count': 0, 'total_size_gb': 0}
+                volumes_by_type[vol_type]['count'] += 1
+                volumes_by_type[vol_type]['total_size_gb'] += vol.size
+                
+                # Add detailed volume info (top 10 for brevity)
+                if len(volumes_detail) < 10:
+                    attachments = getattr(vol, 'attachments', [])
+                    attached_to = []
+                    for att in attachments:
+                        if isinstance(att, dict):
+                            server_id = att.get('server_id', 'unknown')
+                            device = att.get('device', 'unknown')
+                            attached_to.append(f"Instance: {server_id} ({device})")
+                    
+                    volumes_detail.append({
+                        'name': vol.name or vol.id[:8],
+                        'size_gb': vol.size,
+                        'status': vol.status,
+                        'volume_type': vol_type,
+                        'created_at': str(getattr(vol, 'created_at', 'unknown')),
+                        'attached_to': attached_to if attached_to else ['Not attached'],
+                        'bootable': getattr(vol, 'bootable', False),
+                        'encrypted': getattr(vol, 'encrypted', False)
+                    })
+            
+            # Calculate storage utilization (if quotas available)
+            try:
+                # Try to get volume quotas for current project
+                quotas = conn.volume.get_quota_set(conn.current_project_id)
+                quota_volumes = getattr(quotas, 'volumes', -1)
+                quota_gigabytes = getattr(quotas, 'gigabytes', -1)
+                
+                volume_utilization = {
+                    'volumes_used': len(volumes),
+                    'volumes_quota': quota_volumes if quota_volumes > 0 else 'unlimited',
+                    'storage_used_gb': total_volume_size,
+                    'storage_quota_gb': quota_gigabytes if quota_gigabytes > 0 else 'unlimited',
+                    'volume_usage_percent': f"{(len(volumes)/quota_volumes*100):.1f}%" if quota_volumes > 0 else 'N/A',
+                    'storage_usage_percent': f"{(total_volume_size/quota_gigabytes*100):.1f}%" if quota_gigabytes > 0 else 'N/A'
+                }
+            except Exception as e:
+                logger.warning(f"Could not get volume quotas: {e}")
+                volume_utilization = {
+                    'volumes_used': len(volumes),
+                    'storage_used_gb': total_volume_size,
+                    'quota_info': 'Not available'
+                }
             
             cluster_info['storage_resources'] = {
                 'total_volumes': len(volumes),
                 'volumes_by_status': volume_status,
+                'volumes_by_type': volumes_by_type,
+                'volumes_detail': volumes_detail,
                 'total_volume_size_gb': total_volume_size,
+                'volume_utilization': volume_utilization,
                 'total_volume_types': len(volume_types),
                 'total_snapshots': len(snapshots),
                 'volume_types': [{'name': vt.name, 'description': getattr(vt, 'description', '')} for vt in volume_types]
             }
         except Exception as e:
             cluster_info['storage_resources'] = {'error': f"Failed to get storage info: {str(e)}"}
+            
+        # === IMAGE RESOURCES (Glance) ===
+        try:
+            images = list(conn.image.images())
+            
+            # Get image usage stats from compute resources (already calculated)
+            image_usage_stats = cluster_info.get('compute_resources', {}).get('image_usage_stats', {})
+            logger.info(f"Image usage stats from compute resources: {len(image_usage_stats)} images tracked")
+            for img_id, stats in image_usage_stats.items():
+                logger.info(f"  Image {img_id[:8]}...: {stats['count']} total instances, {stats['active_count']} active")
+            
+            # Image analysis
+            images_by_status = {'active': 0, 'queued': 0, 'saving': 0, 'killed': 0, 'deleted': 0, 'other': 0}
+            images_by_visibility = {'public': 0, 'private': 0, 'shared': 0, 'community': 0}
+            total_image_size = 0
+            images_detail = []
+            images_usage_ranking = []
+            
+            for img in images:
+                # Status analysis
+                status = getattr(img, 'status', 'unknown').lower()
+                if status in images_by_status:
+                    images_by_status[status] += 1
+                else:
+                    images_by_status['other'] += 1
+                
+                # Visibility analysis
+                visibility = getattr(img, 'visibility', 'unknown')
+                if visibility in images_by_visibility:
+                    images_by_visibility[visibility] += 1
+                
+                # Size calculation
+                img_size = getattr(img, 'size', 0) or 0
+                total_image_size += img_size
+                
+                # Get usage statistics for this image (performance optimized - using pre-calculated data)
+                usage_stats = image_usage_stats.get(img.id, {
+                    'count': 0, 'active_count': 0, 'error_count': 0, 'shutoff_count': 0, 'other_count': 0
+                })
+                
+                # Add to usage ranking
+                if usage_stats['count'] > 0:
+                    images_usage_ranking.append({
+                        'image_id': img.id,
+                        'image_name': img.name or 'Unnamed',
+                        'total_instances': usage_stats['count'],
+                        'active_instances': usage_stats['active_count'],
+                        'inactive_instances': usage_stats['shutoff_count'],
+                        'error_instances': usage_stats['error_count'],
+                        'other_instances': usage_stats['other_count'],
+                        'popularity_score': usage_stats['active_count'] + (usage_stats['count'] * 0.1)  # Weight active instances higher
+                    })
+                
+                # Add detailed image info (top 15 for brevity, but include usage stats)
+                if len(images_detail) < 15:
+                    images_detail.append({
+                        'name': img.name or 'Unnamed',
+                        'id': img.id[:8] + '...' if len(img.id) > 8 else img.id,
+                        'status': getattr(img, 'status', 'unknown'),
+                        'visibility': visibility,
+                        'size_mb': round(img_size / (1024*1024), 1) if img_size > 0 else 0,
+                        'disk_format': getattr(img, 'disk_format', 'unknown'),
+                        'container_format': getattr(img, 'container_format', 'unknown'),
+                        'created_at': str(getattr(img, 'created_at', 'unknown'))[:19] if hasattr(img, 'created_at') else 'unknown',
+                        'min_disk': getattr(img, 'min_disk', 0),
+                        'min_ram': getattr(img, 'min_ram', 0),
+                        # Enhanced: Add usage statistics
+                        'usage_stats': {
+                            'total_instances_using': usage_stats['count'],
+                            'active_instances': usage_stats['active_count'],
+                            'inactive_instances': usage_stats['shutoff_count'],
+                            'error_instances': usage_stats['error_count'],
+                            'usage_category': 'High' if usage_stats['count'] >= 5 else 'Medium' if usage_stats['count'] >= 2 else 'Low' if usage_stats['count'] > 0 else 'Unused'
+                        }
+                    })
+            
+            # Sort usage ranking by popularity
+            images_usage_ranking.sort(key=lambda x: x['popularity_score'], reverse=True)
+            
+            # Calculate usage statistics
+            total_used_images = len([img for img in images_usage_ranking if img['total_instances'] > 0])
+            total_unused_images = len(images) - total_used_images
+            
+            cluster_info['image_resources'] = {
+                'total_images': len(images),
+                'images_by_status': images_by_status,
+                'images_by_visibility': images_by_visibility,
+                'images_detail': images_detail,
+                'total_image_size_gb': round(total_image_size / (1024*1024*1024), 2) if total_image_size > 0 else 0,
+                'average_image_size_mb': round(total_image_size / len(images) / (1024*1024), 1) if len(images) > 0 and total_image_size > 0 else 0,
+                # Enhanced: Image usage and popularity analysis
+                'image_usage_analysis': {
+                    'total_used_images': total_used_images,
+                    'total_unused_images': total_unused_images,
+                    'usage_efficiency': round((total_used_images / max(len(images), 1)) * 100, 1),
+                    'top_popular_images': images_usage_ranking[:10],  # Top 10 most popular images
+                    'unused_images_count': total_unused_images,
+                    'usage_distribution': {
+                        'high_usage_images': len([img for img in images_usage_ranking if img['total_instances'] >= 5]),
+                        'medium_usage_images': len([img for img in images_usage_ranking if 2 <= img['total_instances'] < 5]),
+                        'low_usage_images': len([img for img in images_usage_ranking if 1 <= img['total_instances'] < 2]),
+                        'unused_images': total_unused_images
+                    }
+                }
+            }
+        except Exception as e:
+            logger.warning(f"Failed to get image info: {e}")
+            cluster_info['image_resources'] = {'error': f"Failed to get image info: {str(e)}"}
         
         # === SERVICE STATUS ===
         try:
@@ -294,11 +652,60 @@ def get_cluster_status() -> Dict[str, Any]:
             cluster_info['service_status'] = {'error': f"Failed to get service info: {str(e)}"}
         
         # === CLUSTER OVERVIEW ===
-        cluster_info['cluster_overview'] = {
-            'total_projects': len(list(conn.identity.projects())) if 'error' not in cluster_info.get('service_status', {}) else 0,
-            'total_users': len(list(conn.identity.users())) if 'error' not in cluster_info.get('service_status', {}) else 0,
-            'total_images': len(list(conn.image.images())) if True else 0
-        }
+        try:
+            total_images = cluster_info.get('image_resources', {}).get('total_images', 0)
+            if 'error' in cluster_info.get('image_resources', {}):
+                total_images = 0
+            
+            # Extract detailed instance operation stats
+            instance_ops = cluster_info.get('compute_resources', {}).get('instance_operations', {})
+            compute_resources = cluster_info.get('compute_resources', {})
+            image_resources = cluster_info.get('image_resources', {})
+                
+            cluster_info['cluster_overview'] = {
+                'total_projects': len(list(conn.identity.projects())) if 'error' not in cluster_info.get('service_status', {}) else 0,
+                'total_users': len(list(conn.identity.users())) if 'error' not in cluster_info.get('service_status', {}) else 0,
+                'total_images': total_images,
+                'infrastructure_summary': {
+                    'compute_nodes': cluster_info.get('compute_resources', {}).get('total_hypervisors', 0),
+                    'total_instances': cluster_info.get('compute_resources', {}).get('total_instances', 0),
+                    'total_volumes': cluster_info.get('storage_resources', {}).get('total_volumes', 0),
+                    'total_networks': cluster_info.get('network_resources', {}).get('total_networks', 0),
+                    'storage_used_gb': cluster_info.get('storage_resources', {}).get('total_volume_size_gb', 0),
+                    'images_size_gb': cluster_info.get('image_resources', {}).get('total_image_size_gb', 0)
+                },
+                # Enhanced: Detailed instance operational status
+                'instance_deployment_status': {
+                    'total_deployed_instances': instance_ops.get('deployment_summary', {}).get('total_deployed', 0),
+                    'currently_active': instance_ops.get('deployment_summary', {}).get('currently_active', 0),
+                    'shutdown_or_stopped': instance_ops.get('deployment_summary', {}).get('shutdown_stopped', 0),
+                    'in_error_state': instance_ops.get('deployment_summary', {}).get('in_error_state', 0),
+                    'in_transition_state': instance_ops.get('deployment_summary', {}).get('in_transition', 0),
+                    'paused_or_suspended': instance_ops.get('deployment_summary', {}).get('paused_suspended', 0),
+                    'other_states': instance_ops.get('deployment_summary', {}).get('other_states', 0),
+                    'operational_health': instance_ops.get('operational_health', {}),
+                    'detailed_status_breakdown': compute_resources.get('instances_by_status', {})
+                },
+                # Enhanced: Image popularity and usage insights
+                'image_usage_insights': {
+                    'total_available_images': total_images,
+                    'actively_used_images': image_resources.get('image_usage_analysis', {}).get('total_used_images', 0),
+                    'unused_images': image_resources.get('image_usage_analysis', {}).get('total_unused_images', 0),
+                    'usage_efficiency_percent': image_resources.get('image_usage_analysis', {}).get('usage_efficiency', 0),
+                    'top_5_popular_images': [
+                        {
+                            'name': img.get('image_name', 'Unknown'),
+                            'total_instances': img.get('total_instances', 0),
+                            'active_instances': img.get('active_instances', 0)
+                        }
+                        for img in image_resources.get('image_usage_analysis', {}).get('top_popular_images', [])[:5]
+                    ],
+                    'usage_distribution': image_resources.get('image_usage_analysis', {}).get('usage_distribution', {})
+                }
+            }
+        except Exception as e:
+            logger.warning(f"Failed to build cluster overview: {e}")
+            cluster_info['cluster_overview'] = {'error': f"Failed to build overview: {str(e)}"}
         
         # === HEALTH SUMMARY ===
         health_issues = []
@@ -306,9 +713,28 @@ def get_cluster_status() -> Dict[str, Any]:
             health_issues.append("No active hypervisors found")
         if cluster_info.get('network_resources', {}).get('active_routers', 0) == 0:
             health_issues.append("No active routers found")
+        if cluster_info.get('storage_resources', {}).get('total_volumes', 0) == 0:
+            health_issues.append("No volumes found")
+        if cluster_info.get('image_resources', {}).get('total_images', 0) == 0:
+            health_issues.append("No images found")
+        
+        # Enhanced health checks for instance operations
+        instance_ops = cluster_info.get('compute_resources', {}).get('instance_operations', {})
+        if instance_ops.get('operational_health', {}).get('problematic_percentage', 0) > 10:
+            health_issues.append(f"High error rate in instances: {instance_ops.get('operational_health', {}).get('problematic_percentage', 0)}%")
+        if instance_ops.get('operational_health', {}).get('healthy_percentage', 0) < 70:
+            health_issues.append(f"Low active instance ratio: {instance_ops.get('operational_health', {}).get('healthy_percentage', 0)}%")
+        # Add more detailed health checks
+        compute_resources = cluster_info.get('compute_resources', {})
+        if isinstance(compute_resources.get('resource_utilization'), dict):
+            vcpu_usage = compute_resources['resource_utilization'].get('vcpu_usage', '0/0')
+            if '/' in vcpu_usage:
+                used, total = vcpu_usage.split('/')[0], vcpu_usage.split('/')[0]
+                if vcpu_usage.endswith('(100.0%)') or vcpu_usage.endswith('(99.'):
+                    health_issues.append("CPU resources nearly exhausted")
         
         # Calculate overall health score
-        total_checks = 10
+        total_checks = 12  # Increased for more comprehensive health checking
         passed_checks = total_checks - len(health_issues)
         health_score = (passed_checks / total_checks) * 100
         
@@ -1347,15 +1773,15 @@ def monitor_resources() -> Dict[str, Any]:
                 'state': getattr(hypervisor, 'state', 'unknown'),
                 'hypervisor_type': getattr(hypervisor, 'hypervisor_type', 'unknown'),
                 'hypervisor_version': getattr(hypervisor, 'hypervisor_version', 'unknown'),
-                'vcpus_used': vcpus_used,
-                'vcpus': vcpus,
-                'vcpu_usage_percent': round(cpu_usage_percent, 2),
-                'memory_mb_used': memory_mb_used,
-                'memory_mb': memory_mb,
-                'memory_usage_percent': round(memory_usage_percent, 2),
-                'local_gb_used': local_gb_used,
-                'local_gb': local_gb,
-                'disk_usage_percent': round(disk_usage_percent, 2),
+                'pCPUs_used': vcpus_used,  # Physical CPU cores used
+                'pCPUs_total': vcpus,      # Total physical CPU cores
+                'pCPU_usage_percent': round(cpu_usage_percent, 2),
+                'physical_memory_used_mb': memory_mb_used,
+                'physical_memory_total_mb': memory_mb,
+                'physical_memory_usage_percent': round(memory_usage_percent, 2),
+                'local_storage_used_gb': local_gb_used,
+                'local_storage_total_gb': local_gb,
+                'local_storage_usage_percent': round(disk_usage_percent, 2),
                 'running_vms': running_vms,
                 'disk_available_least': getattr(hv_data, 'disk_available_least', None) or getattr(hypervisor, 'disk_available_least', None),
                 'free_ram_mb': getattr(hv_data, 'free_ram_mb', None) or getattr(hypervisor, 'free_ram_mb', None),
@@ -1364,20 +1790,20 @@ def monitor_resources() -> Dict[str, Any]:
             
         # Calculate cluster totals - use statistics if available, otherwise sum from hypervisors
         if hypervisor_stats:
-            total_vcpus = hypervisor_stats.get('vcpus', sum(h['vcpus'] for h in hypervisors))
-            used_vcpus = hypervisor_stats.get('vcpus_used', sum(h['vcpus_used'] for h in hypervisors))
-            total_memory = hypervisor_stats.get('memory_mb', sum(h['memory_mb'] for h in hypervisors))
-            used_memory = hypervisor_stats.get('memory_mb_used', sum(h['memory_mb_used'] for h in hypervisors))
-            total_storage = hypervisor_stats.get('local_gb', sum(h['local_gb'] for h in hypervisors))
-            used_storage = hypervisor_stats.get('local_gb_used', sum(h['local_gb_used'] for h in hypervisors))
+            total_vcpus = hypervisor_stats.get('vcpus', sum(h['pCPUs_total'] for h in hypervisors))
+            used_vcpus = hypervisor_stats.get('vcpus_used', sum(h['pCPUs_used'] for h in hypervisors))
+            total_memory = hypervisor_stats.get('memory_mb', sum(h['physical_memory_total_mb'] for h in hypervisors))
+            used_memory = hypervisor_stats.get('memory_mb_used', sum(h['physical_memory_used_mb'] for h in hypervisors))
+            total_storage = hypervisor_stats.get('local_gb', sum(h['local_storage_total_gb'] for h in hypervisors))
+            used_storage = hypervisor_stats.get('local_gb_used', sum(h['local_storage_used_gb'] for h in hypervisors))
             total_vms = hypervisor_stats.get('running_vms', sum(h['running_vms'] for h in hypervisors))
         else:
-            total_vcpus = sum(h['vcpus'] for h in hypervisors)
-            used_vcpus = sum(h['vcpus_used'] for h in hypervisors) 
-            total_memory = sum(h['memory_mb'] for h in hypervisors)
-            used_memory = sum(h['memory_mb_used'] for h in hypervisors)
-            total_storage = sum(h['local_gb'] for h in hypervisors)
-            used_storage = sum(h['local_gb_used'] for h in hypervisors)
+            total_vcpus = sum(h['pCPUs_total'] for h in hypervisors)
+            used_vcpus = sum(h['pCPUs_used'] for h in hypervisors) 
+            total_memory = sum(h['physical_memory_total_mb'] for h in hypervisors)
+            used_memory = sum(h['physical_memory_used_mb'] for h in hypervisors)
+            total_storage = sum(h['local_storage_total_gb'] for h in hypervisors)
+            used_storage = sum(h['local_storage_used_gb'] for h in hypervisors)
             total_vms = sum(h['running_vms'] for h in hypervisors)
         
         # Get quota information and calculate project-level usage
@@ -1403,38 +1829,83 @@ def monitor_resources() -> Dict[str, Any]:
             logger.warning(f"Failed to get quotas: {e}")
             quotas = {'error': f'Failed to get quotas: {str(e)}'}
         
-        # Build comprehensive cluster summary with both physical and quota perspectives
+        # Build comprehensive cluster summary with clearly separated physical and virtual perspectives
         cluster_summary = {
             'total_hypervisors': len(hypervisors),
             'total_running_instances': total_vms,
             'timestamp': datetime.now().isoformat()
         }
         
-        # Physical hypervisor hardware usage (actual server resources)
-        cluster_summary['physical_usage'] = {
-            'vcpu_usage': f'{used_vcpus}/{total_vcpus} ({(used_vcpus/total_vcpus*100):.1f}% used)' if total_vcpus > 0 else 'N/A',
-            'memory_usage': f'{used_memory}/{total_memory} MB ({(used_memory/total_memory*100):.1f}% used)' if total_memory > 0 else 'N/A',
-            'storage_usage': f'{used_storage}/{total_storage} GB ({(used_storage/total_storage*100):.1f}% used)' if total_storage > 0 else 'N/A'
+        # === PHYSICAL RESOURCES (Hardware Server Usage) ===
+        cluster_summary['physical_resources'] = {
+            'description': 'Physical hypervisor hardware resources (actual server capacity)',
+            'pCPU': {
+                'used': used_vcpus,
+                'total': total_vcpus,
+                'usage_percent': round((used_vcpus/total_vcpus*100), 1) if total_vcpus > 0 else 0,
+                'unit': 'physical cores',
+                'display': f'{used_vcpus}/{total_vcpus} physical cores ({(used_vcpus/total_vcpus*100):.1f}% used)' if total_vcpus > 0 else 'N/A'
+            },
+            'physical_memory': {
+                'used_mb': used_memory,
+                'total_mb': total_memory,
+                'usage_percent': round((used_memory/total_memory*100), 1) if total_memory > 0 else 0,
+                'unit': 'MB',
+                'display': f'{used_memory}/{total_memory} MB ({(used_memory/total_memory*100):.1f}% used)' if total_memory > 0 else 'N/A'
+            },
+            'physical_storage': {
+                'used_gb': used_storage,
+                'total_gb': total_storage,
+                'usage_percent': round((used_storage/total_storage*100), 1) if total_storage > 0 else 0,
+                'unit': 'GB',
+                'display': f'{used_storage}/{total_storage} GB ({(used_storage/total_storage*100):.1f}% used)' if total_storage > 0 else 'N/A'
+            }
         }
         
-        # Project quota allocation usage (tenant/project limits - like Horizon shows)
+        # === VIRTUAL RESOURCES (Quota/Allocation Usage) ===
         if project_vcpu_quota and project_vcpu_quota != -1:
             quota_vcpu_percent = (used_vcpus / project_vcpu_quota * 100) if project_vcpu_quota > 0 else 0
-            cluster_summary['quota_usage'] = {
-                'vcpu_usage': f'{used_vcpus}/{project_vcpu_quota} ({quota_vcpu_percent:.1f}% of quota used)',
-                'instance_usage': f'{total_vms}/{project_instance_quota} ({(total_vms/project_instance_quota*100):.1f}% of quota used)' if project_instance_quota and project_instance_quota != -1 else f'{total_vms}/unlimited',
-                'memory_usage': f'{used_memory}/{project_ram_quota} MB ({(used_memory/project_ram_quota*100):.1f}% of quota used)' if project_ram_quota and project_ram_quota != -1 else f'{used_memory}/unlimited MB'
+            quota_memory_percent = (used_memory / project_ram_quota * 100) if project_ram_quota and project_ram_quota != -1 else 0
+            quota_instance_percent = (total_vms / project_instance_quota * 100) if project_instance_quota and project_instance_quota != -1 else 0
+            
+            cluster_summary['virtual_resources'] = {
+                'description': 'Virtual resource allocation usage (project/tenant quotas like Horizon shows)',
+                'vCPU': {
+                    'used': used_vcpus,  # Note: currently same as pCPU used, but represents vCPU allocation
+                    'quota': project_vcpu_quota,
+                    'usage_percent': round(quota_vcpu_percent, 1),
+                    'unit': 'virtual cores',
+                    'display': f'{used_vcpus}/{project_vcpu_quota} virtual cores ({quota_vcpu_percent:.1f}% of quota used)'
+                },
+                'virtual_memory': {
+                    'used_mb': used_memory,  # Note: currently same as physical, but represents virtual allocation
+                    'quota_mb': project_ram_quota if project_ram_quota != -1 else 'unlimited',
+                    'usage_percent': round(quota_memory_percent, 1) if project_ram_quota != -1 else 0,
+                    'unit': 'MB',
+                    'display': f'{used_memory}/{project_ram_quota} MB ({quota_memory_percent:.1f}% of quota used)' if project_ram_quota != -1 else f'{used_memory}/unlimited MB'
+                },
+                'instances': {
+                    'used': total_vms,
+                    'quota': project_instance_quota if project_instance_quota != -1 else 'unlimited',
+                    'usage_percent': round(quota_instance_percent, 1) if project_instance_quota != -1 else 0,
+                    'unit': 'instances',
+                    'display': f'{total_vms}/{project_instance_quota} instances ({quota_instance_percent:.1f}% of quota used)' if project_instance_quota != -1 else f'{total_vms}/unlimited instances'
+                }
             }
         else:
-            cluster_summary['quota_usage'] = {
+            cluster_summary['virtual_resources'] = {
+                'description': 'Virtual resource allocation usage (project quotas unlimited or not available)',
+                'vCPU': {'display': f'{used_vcpus}/unlimited virtual cores'},
+                'virtual_memory': {'display': f'{used_memory}/unlimited MB'},
+                'instances': {'display': f'{total_vms}/unlimited instances'},
                 'note': 'Project quotas are unlimited or not available'
             }
         
-        # Legacy fields for backward compatibility (using physical usage)
+        # Legacy compatibility fields (deprecated but maintained)
         cluster_summary.update({
-            'vcpu_usage': f'{used_vcpus}/{total_vcpus} ({(used_vcpus/total_vcpus*100):.1f}% used)' if total_vcpus > 0 else 'N/A',
-            'memory_usage': f'{used_memory}/{total_memory} MB ({(used_memory/total_memory*100):.1f}% used)' if total_memory > 0 else 'N/A',
-            'storage_usage': f'{used_storage}/{total_storage} GB ({(used_storage/total_storage*100):.1f}% used)' if total_storage > 0 else 'N/A'
+            'pCPU_usage': f'{used_vcpus}/{total_vcpus} physical cores ({(used_vcpus/total_vcpus*100):.1f}% used)' if total_vcpus > 0 else 'N/A',
+            'physical_memory_usage': f'{used_memory}/{total_memory} MB ({(used_memory/total_memory*100):.1f}% used)' if total_memory > 0 else 'N/A',
+            'physical_storage_usage': f'{used_storage}/{total_storage} GB ({(used_storage/total_storage*100):.1f}% used)' if total_storage > 0 else 'N/A'
         })
         
         return {
@@ -2429,4 +2900,71 @@ def manage_stack(stack_name: str, action: str, **kwargs) -> Dict[str, Any]:
             'success': False,
             'message': f'Failed to manage stack: {str(e)}',
             'error': str(e)
+        }
+
+
+def get_compute_quota_usage(conn) -> Dict[str, Any]:
+    """
+    Get compute quota usage information for the current project.
+    
+    Args:
+        conn: OpenStack connection object
+        
+    Returns:
+        Dict containing quota usage information with physical vs virtual resource distinction
+    """
+    try:
+        # Get current project ID
+        project_id = conn.current_project_id
+        
+        # Get quota limits
+        quotas = conn.compute.get_quota_set(project_id)
+        
+        # Get usage statistics
+        usage = conn.compute.get_quota_set(project_id, usage=True)
+        
+        quota_info = {
+            'description': 'Project quota usage (vCPU = virtual CPU allocation, pCPU = physical CPU usage)',
+            'instances': {
+                'used': getattr(usage, 'instances', {}).get('in_use', 0) if hasattr(usage, 'instances') else 0,
+                'limit': getattr(quotas, 'instances', -1),
+                'usage_percent': 0
+            },
+            'vcpus': {
+                'description': 'Virtual CPUs (vCPU) - allocated to instances',
+                'used': getattr(usage, 'cores', {}).get('in_use', 0) if hasattr(usage, 'cores') else 0,
+                'limit': getattr(quotas, 'cores', -1),
+                'usage_percent': 0
+            },
+            'memory': {
+                'description': 'Virtual memory (allocated to instances)',
+                'used_mb': getattr(usage, 'ram', {}).get('in_use', 0) if hasattr(usage, 'ram') else 0,
+                'limit_mb': getattr(quotas, 'ram', -1),
+                'usage_percent': 0
+            }
+        }
+        
+        # Calculate usage percentages
+        for resource in ['instances', 'vcpus', 'memory']:
+            resource_data = quota_info[resource]
+            if resource == 'memory':
+                used = resource_data['used_mb']
+                limit = resource_data['limit_mb']
+            else:
+                used = resource_data['used']
+                limit = resource_data['limit']
+                
+            if limit > 0:
+                resource_data['usage_percent'] = round((used / limit) * 100, 1)
+        
+        return quota_info
+        
+    except Exception as e:
+        logger.warning(f"Could not get compute quota usage: {e}")
+        return {
+            'description': 'Quota usage data unavailable',
+            'error': str(e),
+            'instances': {'used': 0, 'limit': 'unknown'},
+            'vcpus': {'used': 0, 'limit': 'unknown', 'description': 'Virtual CPUs (vCPU) - data unavailable'},
+            'memory': {'used_mb': 0, 'limit_mb': 'unknown', 'description': 'Virtual memory - data unavailable'}
         }

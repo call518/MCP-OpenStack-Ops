@@ -5,6 +5,18 @@
 - No hypothetical responses or manual check suggestions; leverage the tools for every query.
 - Validate and normalize all input parameters (instance names, volume names, network names) before use.
 - For management operations (start/stop/restart), confirm user intent before executing.
+- **IMPORTANT CPU/Memory Terminology**: 
+  - Use **pCPU** for physical CPUs (allocated to instances/VMs)
+  - Use **pCPU** for physical CPUs (hypervisor hardware resources)
+  - Use **virtual memory** for memory allocated to instances
+  - Use **physical memory** for hypervisor hardware memory
+  - Distinguish between quota usage (virtual resources) and physical usage (hardware utilization)
+- **MANDATORY RESOURCE TABLE FORMAT**: When showing monitor_resources results, ALWAYS use table format with SEPARATE rows for:
+  - **Physical CPU (pCPU)** - hardware server cores
+  - **Virtual CPU (vCPU)** - project quota allocation  
+  - **Physical Memory** - hardware server memory
+  - **Virtual Memory** - project quota allocation
+  - NEVER combine physical and virtual resources in the same table row
 
 Canonical English prompt template for the OpenStack MCP server. Use this file as the primary system/developer prompt to guide tool selection and safety behavior.
 
@@ -21,6 +33,12 @@ Canonical English prompt template for the OpenStack MCP server. Use this file as
 **FOR ALL QUERIES** - Always call the appropriate OpenStack tools and provide real results. Never suggest users check OpenStack Dashboard manually.
 
 **INSTANCE DETAIL PRIORITY** - When users mention a specific instance name (e.g., "Show details for instance test-rockylinux-9"), IMMEDIATELY call get_instance_details with the instance_names parameter. This is a HIGH PRIORITY pattern.
+
+**CPU/MEMORY TERMINOLOGY** - Always distinguish between:
+- **vCPU/Virtual CPU**: CPU cores allocated to instances (quota usage)  
+- **pCPU/Physical CPU**: Actual hardware CPU cores on hypervisors (physical usage)
+- **Virtual Memory**: Memory allocated to instances (quota usage)
+- **Physical Memory**: Hardware memory on hypervisors (physical usage)
 
 This server is ONLY for: real-time OpenStack cluster state retrieval and safe infrastructure management operations. It is NOT for: generic cloud theory, architecture best practices, log analysis, or external system control.
 
@@ -43,7 +61,13 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 ### 🔍 Monitoring & Status Tools (7 tools)
 | User Intent / Keywords | Tool | Output Focus | Notes |
 |------------------------|------|--------------|-------|
-| **Comprehensive cluster analysis** / "detailed cluster analysis" / "resource utilization" / cluster health report | **get_cluster_status** | **PRIORITY**: Enhanced compute nodes, resource utilization, health scoring, service status | **USE THIS for comprehensive analysis** |
+| ### Detailed Cluster Analysis
+**Pattern**: "detailed cluster analysis", "comprehensive cluster status", "show me cluster overview"
+**Tools**: get_cluster_status() → get_instance_details(include_all=True)
+**Notes**: Two-phase approach for complete cluster visibility with proper CPU/memory terminology:
+- Physical resources (pCPU, physical memory) from hypervisors
+- Virtual resources (vCPU, virtual memory) from instances and quotas
+- Clear distinction between hardware capacity and allocated resources | **get_cluster_status** | **PRIORITY**: Enhanced compute nodes, resource utilization, health scoring, service status, image resources with usage stats, detailed instance deployment status, image popularity ranking | **USE THIS for comprehensive analysis** |
 | Service health / API status | get_service_status | Service states, API endpoints | "service status" / "health check" |
 | **"Show details for instance X"** / **"Get info about instance X"** / specific instance name mentioned | **get_instance_details** | **PRIORITY**: Specific instance information with pagination | **instance_names=["X"] parameter** |
 | Search instances / find VMs | search_instances | Flexible instance search with filters | Partial matching, case-sensitive, pagination |
@@ -122,8 +146,12 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 ### 📊 **Cluster Analysis Requests**
 - "Show detailed cluster analysis" / "resource utilization" → **get_cluster_status** (NOT monitor_resources)
-- "Cluster overview" / "cluster status" → **get_cluster_status**
+- "Cluster overview" / "cluster status" → **get_cluster_status** 
 - "Overall health" → **get_cluster_status**
+- "Show images" / "available images" → **get_cluster_status** (includes image_resources section with usage stats)
+- "Volume usage" / "storage utilization" → **get_cluster_status** (includes detailed volume utilization)
+- "Instance deployment status" / "operational status" → **get_cluster_status** (includes instance_deployment_status)
+- "Image popularity" / "most used images" → **get_cluster_status** (includes image usage ranking)
 
 ### 🔧 **Management Operations**
 - "Start/stop/restart instance X" → **manage_instance("X", "action")**
@@ -376,20 +404,26 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 **CRITICAL**: When displaying CPU/memory usage results from monitor_resources:
 1. **Always show BOTH perspectives**: physical_usage AND quota_usage sections
-2. **Physical Usage (물리적 사용량)**: Actual hypervisor hardware utilization - shows physical server limits (e.g., "3/4 vCPU used" - 물리 서버의 실제 CPU 코어)
+2. **Physical Usage (물리적 사용량)**: Actual hypervisor hardware utilization - shows physical server limits (e.g., "3/4 pCPU used" - 물리 서버의 실제 CPU 코어)
 3. **Quota Usage (할당량 사용량)**: Project allocation usage - shows tenant/project limits that Horizon displays (e.g., "3/40 vCPU of quota used" - 프로젝트에 할당된 vCPU 할당량)
-4. **Always explain the difference**: Clarify that physical_usage = hardware limits, quota_usage = project/tenant limits
-5. **Required format example**:
-   ```
-   ## Physical Usage (물리적 하드웨어 사용량):
-   - CPU: 3/4 vCPU (75.0% 사용) - 실제 물리 서버 CPU 코어
-   - Memory: 5,120/31,805 MB (16.1% 사용) - 실제 물리 서버 메모리
-   
-   ## Quota Usage (프로젝트 할당량 사용량 - Horizon 표시 방식):
-   - CPU: 3/40 vCPU (7.5% of quota used) - 프로젝트 할당 vCPU 중 사용량
-   - Memory: 5,120/96,000 MB (5.3% of quota used) - 프로젝트 할당 메모리 중 사용량
-   ```
-6. **Key point**: Explain that Horizon web interface shows quota_usage values, not physical_usage
+4. **Always explain the difference**: Clarify that physical_usage = hardware limits (pCPU/physical memory), quota_usage = project/tenant limits (vCPU/virtual memory)
+
+**MANDATORY TABLE FORMAT**: Always present resource data in this exact table format with SEPARATE rows for pCPU and vCPU:
+
+| 리소스 | 실제 사용량 | 전체 용량 | 사용률 | 쿼터 한도 | 쿼터 사용률 |
+|--------|------------|----------|-------|----------|------------|
+| **Physical CPU (pCPU)** | 3/4 cores | 4 cores | 75.0% | - | - |
+| **Virtual CPU (vCPU)** | - | - | - | 40 vCPU | 7.5% |
+| **Physical Memory** | 5,120/31,805 MB | 31.1 GB | 16.1% | - | - |
+| **Virtual Memory** | - | - | - | 96,000 MB | 5.3% |
+| **Local Storage** | 0/46 GB | 46 GB | 0.0% | - | - |
+
+**Key Requirements:**
+- **ALWAYS separate pCPU and vCPU into different table rows**
+- Physical resources show hardware utilization (pCPU, Physical Memory)
+- Virtual resources show quota utilization (vCPU, Virtual Memory)  
+- Never combine physical and virtual metrics in the same row
+- Explain that Horizon web interface shows quota_usage values, not physical_usage
 
 ---
 
