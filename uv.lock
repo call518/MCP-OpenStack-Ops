@@ -662,7 +662,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastmcp", specifier = ">=2.11.1" },
-    { name = "openstacksdk", specifier = ">=4.7.1" },
+    { name = "openstacksdk", specifier = ">=4.1.0,<=4.4.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.0" },
     { name = "python-dotenv", specifier = ">=1.1.1" },
@@ -750,7 +750,7 @@ wheels = [
 
 [[package]]
 name = "openstacksdk"
-version = "4.7.1"
+version = "4.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
@@ -768,9 +768,9 @@ dependencies = [
     { name = "requestsexceptions" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6c/e7/4921e513dc00e2b052b196e4a7055351b74192a680470ab287b2332b0c6a/openstacksdk-4.7.1.tar.gz", hash = "sha256:23348aa69c6cc6c1ed0e8f03fb42b156519ed8cfcd143e783ef5c1dd800ad9f1", size = 1297628, upload-time = "2025-09-11T12:49:45.831Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c2/9e/dc50e3821ba3dda7e94071a25f8daa34575d92752e94e0d3e8583064856e/openstacksdk-4.4.0.tar.gz", hash = "sha256:157437563d64f3f6feec1796fbd8552d56277332461778c4dbe76d1828fd31e0", size = 1266578, upload-time = "2025-02-27T11:09:39.076Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ed/30/4f827787b0f82bb18b45f14e775d36b3ba6e54f2d219493c1e97931700c6/openstacksdk-4.7.1-py3-none-any.whl", hash = "sha256:953d5549f4a06928e82335e5f404cedd2f1138d5ddfd68ec502f2b800d30d88f", size = 1825943, upload-time = "2025-09-11T12:49:43.833Z" },
+    { url = "https://files.pythonhosted.org/packages/51/a7/66d37beaf62222e27eee2ebac53ea20339463cb475f721f4b0437e5650a4/openstacksdk-4.4.0-py3-none-any.whl", hash = "sha256:a0c8a0c2a1cd4589ce4a9bd812df4d48f538b4bb4b7c4b19ff7b0ef9423a28b0", size = 1783436, upload-time = "2025-02-27T11:09:36.662Z" },
 ]
 
 [[package]]

@@ -1,6 +1,6 @@
 # MCP-OpenStack-Ops
 
-> **MCP OpenStack Operations Server**: A comprehensive MCP (Model Context Protocol) server providing OpenStack cluster management and monitoring capabilities. This server enables AI assistants to interact with OpenStack infrastructure through standardized tools for real-time monitoring, resource management, and operational tasks.
+> **MCP OpenStack Operations Server**: A comprehensive MCP (Model Context Protocol) server providing OpenStack cluster management and monitoring capabilities. Optimized for **OpenStack Epoxy (2025.1)** with SDK version 4.1.0-4.4.0.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Deploy to PyPI with tag](https://github.com/call518/MCP-OpenStack-Ops/actions/workflows/pypi-publish.yml/badge.svg)](https://github.com/call518/MCP-OpenStack-Ops/actions/workflows/pypi-publish.yml)
@@ -9,26 +9,21 @@
 
 ---
 
-> **⚠️ Important**: This project supports multiple OpenStack releases (Stein to Flamingo). **Always use the correct OpenStack SDK version** that matches your deployment. See the [Version Compatibility Matrix](#version-compatibility-matrix) for detailed version mappings.
+> **🎯 Target Environment**: This MCP server is specifically designed and tested for **OpenStack Epoxy (2025.1)** using OpenStack SDK 4.1.0-4.4.0. For optimal compatibility and performance, ensure your OpenStack environment is running Epoxy release.
 
 ## Features
 
-- ✅ **OpenStack Integration**: Direct integration with OpenStack SDK for real-time cluster operations with **version-aware compatibility**.
-- ✅ **Large-Scale Environment Support**: Pagination and limits for environments with thousands of instances.
-- ✅ **Comprehensive Monitoring**: **Enhanced cluster status reports** with hypervisor health, resource utilization (CPU/memory/disk), service monitoring, health scoring, and issue detection.
-- ✅ **Complete Service Coverage**: **24 comprehensive tools** covering Identity, Compute, Network, Storage, Image, and Orchestration services.
+- ✅ **OpenStack Epoxy Integration**: Direct integration with OpenStack SDK 4.1.0-4.4.0 for real-time cluster operations.
+- ✅ **Comprehensive Monitoring**: Enhanced cluster status reports with hypervisor health, resource utilization, and health scoring.
+- ✅ **Complete Service Coverage**: 24 comprehensive tools covering Identity, Compute, Network, Storage, Image, and Orchestration services.
 - ✅ **Advanced Instance Management**: Start, stop, restart, pause/unpause OpenStack instances with pagination support.
-- ✅ **Enterprise Features**: User management, role assignments, keypair management, floating IP operations, volume snapshots, Heat orchestration.
+- ✅ **Large-Scale Environment Support**: Pagination and limits for environments with thousands of instances.
+- ✅ **Enterprise Features**: User management, role assignments, keypair management, floating IP operations, volume snapshots.
 - ✅ **Intelligent Search**: Flexible instance search with partial matching and case-sensitive options.
-- ✅ **Volume Operations**: Create, delete, list, and manage OpenStack volumes.
-- ✅ **Network Analysis**: Detailed network, subnet, router, and security group information.
+- ✅ **Network & Volume Operations**: Comprehensive network analysis and volume management capabilities.
 - ✅ **Connection Optimization**: Global connection caching and automatic retry mechanisms.
-- ✅ **Flexible Transport**: Support for both `stdio` and `streamable-http` transports.
-- ✅ **Comprehensive Logging**: Configurable logging levels with structured output and performance tracking.
-- ✅ **Environment Configuration**: Support for environment variables and CLI arguments.
-- ✅ **Error Handling**: Robust error handling and configuration validation with fallback data.
-- ✅ **Docker Support**: Containerized deployment with Docker Compose and **release-specific images**.
-- ✅ **Multi-Release Support**: **8 Docker images** optimized for different OpenStack releases (Yoga to Flamingo).
+- ✅ **Docker Support**: Containerized deployment optimized for OpenStack Epoxy environments.
+- ✅ **Flexible Transport**: Support for both `stdio` and `streamable-http` transports with comprehensive logging.
 
 ---
 
@@ -99,105 +94,41 @@ uv sync
 
 # Configure environment
 cp .env.example .env
-# Edit .env with your OpenStack credentials and select appropriate release
-# OPENSTACK_RELEASE=epoxy  # Choose: flamingo, epoxy, dalmatian, caracal, bobcat, antelope, zed, yoga
+# Edit .env with your OpenStack credentials
 ```
 
-### 2. OpenStack Compatibility & Configuration
+### 2. OpenStack Requirements
 
-#### Version Compatibility Matrix
+**Supported OpenStack Version**: **Epoxy (2025.1)**
 
-This project is designed to work with various OpenStack versions. **It's crucial to use the correct OpenStack SDK version that matches your OpenStack deployment:**
-
-| OpenStack Release | Release Date | Supported SDK Versions | Recommended | Status |
-|-------------------|--------------|------------------------|-------------|---------|
-| **Flamingo (2025.2)** | 2025 | `4.5.0` - `4.7.1` | `4.7.1` | Future |
-| **Epoxy (2025.1)** | 2025 | `4.1.0` - `4.4.0` | `4.4.0` | Current |
-| **Dalmatian (2024.2)** | Oct 2024 | `3.1.0` - `4.0.1` | `4.0.1` | Stable |
-| **Caracal (2024.1)** | Apr 2024 | `2.0.0` - `3.0.0` | `3.0.0` | Stable |
-| **Bobcat (2023.2)** | Oct 2023 | `1.1.0` - `1.5.1` | `1.5.1` | Stable |
-| **Antelope (2023.1)** | Mar 2023 | `0.103.0` - `1.0.2` | `1.0.2` | Supported |
-| **Zed (2022.2)** | Oct 2022 | `0.99.0` - `0.101.0` | `0.101.0` | Extended Support |
-| **Yoga (2022.1)** | Mar 2022 | `0.60.0` - `0.62.0` | `0.62.0` | Extended Support |
-| **Xena (2021.2)** | Oct 2021 | `0.56.0` - `0.59.0` | `0.59.0` | EOL |
-| **Wallaby (2021.1)** | Apr 2021 | `0.51.0` - `0.55.1` | `0.55.1` | EOL |
-| **Victoria (2020.2)** | Oct 2020 | `0.47.0` - `0.50.0` | `0.50.0` | EOL |
-| **Ussuri (2020.1)** | May 2020 | `0.37.0` - `0.46.1` | `0.46.1` | EOL |
-| **Train (2019.2)** | Oct 2019 | `0.28.0` - `0.36.5` | `0.36.5` | EOL |
-| **Stein (2019.1)** | Apr 2019 | `0.18.0` - `0.27.1` | `0.27.1` | EOL |
-
-**Legend:**
-- **Current**: Latest stable release with active development
-- **Stable**: Supported releases with regular maintenance updates  
-- **Supported**: Receives security and critical bug fixes only
-- **Extended Support**: Limited support for critical issues
-- **EOL**: End of Life - no longer supported
-
-**⚠️ Important**: Check your OpenStack version and install the appropriate SDK version:
+**Required OpenStack SDK Version**: `4.1.0 - 4.4.0`
 
 ```bash
-# Check your OpenStack version first (see methods below)
-# Most reliable: check your cloud provider documentation
-
-# Install SDK based on your OpenStack version:
-
-# For Epoxy (2025.1) - Current Release
+# Install the correct SDK version (automatically handled by uv sync)
 uv add "openstacksdk>=4.1.0,<=4.4.0"
-
-# For Dalmatian (2024.2) - Stable
-uv add "openstacksdk>=3.1.0,<=4.0.1"  
-
-# For Caracal (2024.1) - Stable  
-uv add "openstacksdk>=2.0.0,<=3.0.0"
-
-# For Bobcat (2023.2) - Stable
-uv add "openstacksdk>=1.1.0,<=1.5.1"
-
-# For older versions (check the table above)
-uv add "openstacksdk==X.Y.Z"  # Use specific recommended version
 ```
 
-**How to determine your OpenStack version:**
+**How to verify your OpenStack version:**
 ```bash
 # Method 1: Check with OpenStack CLI (if installed)
 openstack --version
-# Note: Requires python-openstackclient package installation
 
 # Method 2: Check API version directly
-curl -s $OS_AUTH_URL | jq '.version.id' 2>/dev/null || curl -s $OS_AUTH_URL
+curl -s $OS_AUTH_URL
 
-# Method 3: Check Horizon dashboard footer (web interface)
+# Method 3: Check Horizon dashboard footer
 # Look for version info at the bottom of your OpenStack web dashboard
 
-# Method 4: Check deployment documentation or ask administrator
-# Most reliable method - check your cloud provider's documentation
-
-# Method 5: Try detecting via Python (if you have credentials)
-python3 -c "
-import requests, os
-auth_url = os.environ.get('OS_AUTH_URL', 'your-auth-url-here')
-try:
-    resp = requests.get(auth_url, timeout=5)
-    print('OpenStack endpoint response:', resp.json())
-except Exception as e:
-    print('Check your OpenStack documentation or contact admin')
-    print('Auth URL should be something like: https://openstack.example.com:5000/v3')
-"
+# Method 4: Check deployment documentation
+# Most reliable method - consult your cloud provider's documentation
 ```
 
-**Reference**: [OpenStack SDK Release Matrix](https://releases.openstack.org/teams/openstacksdk.html)
-
-#### Environment Configuration
+**Environment Configuration**
 
 Configure your `.env` file with OpenStack credentials:
 
 ```bash
-# OpenStack Release Configuration (for Docker deployment)
-# Available releases: flamingo, epoxy, dalmatian, caracal, bobcat, antelope, zed, yoga
-# Choose the release that matches your OpenStack environment for optimal SDK compatibility
-OPENSTACK_RELEASE=epoxy
-
-# OpenStack Authentication
+# OpenStack Authentication (required)
 OS_AUTH_URL=https://your-openstack:5000/v3
 OS_IDENTITY_API_VERSION=3
 OS_USERNAME=your-username
@@ -227,29 +158,26 @@ uv run python -m mcp_openstack_ops --log-level DEBUG
 
 #### For Production (Docker)
 
-**Release-specific Docker Images**: Each OpenStack release has its own optimized Docker image with the appropriate SDK version:
-
 ```bash
-# Available images with release-specific SDK versions:
-# call518/mcp-server-openstack-ops:flamingo   (SDK 4.5.0-4.7.1)
-# call518/mcp-server-openstack-ops:epoxy      (SDK 4.1.0-4.4.0) 
-# call518/mcp-server-openstack-ops:dalmatian  (SDK 3.1.0-4.0.1)
-# call518/mcp-server-openstack-ops:caracal    (SDK 2.0.0-3.0.0)
-# call518/mcp-server-openstack-ops:bobcat     (SDK 1.1.0-1.5.1)
-# call518/mcp-server-openstack-ops:antelope   (SDK 0.103.0-1.0.2)
-# call518/mcp-server-openstack-ops:zed        (SDK 0.99.0-0.101.0)
-# call518/mcp-server-openstack-ops:yoga       (SDK 0.60.0-0.62.0)
+# 1. Build the MCP server image for Epoxy
+./build-mcp-server-docker-image.sh
 
-# 1. Configure your OpenStack release in .env
-cp .env.example .env
-# Edit OPENSTACK_RELEASE=epoxy  # Change to match your environment
-
-# 2. Start services (automatically uses the correct image)
+# 2. Start all services
 docker-compose up -d
 
 # 3. Check logs
 docker-compose logs -f mcp-server
 ```
+
+**Container Architecture**:
+- **mcp-server**: OpenStack MCP server with 24 tools
+- **mcpo-proxy**: HTTP proxy for OpenStack APIs  
+- **open-webui**: Web interface for testing and interaction
+
+**Service URLs**:
+- MCP Server: `localhost:8080` (HTTP transport)
+- MCPO Proxy: `localhost:8000` (OpenStack API proxy)
+- Open WebUI: `localhost:3000` (Web interface)
 
 #### For Claude Desktop Integration
 Add to your Claude Desktop configuration:
@@ -317,67 +245,19 @@ export OS_PROJECT_NAME=admin
 ModuleNotFoundError: No module named 'openstack.xyz'
 AttributeError: 'Resource' object has no attribute 'abc'
 API version mismatch errors
-Unexpected JSON response format
 ```
 
-**Diagnosis Steps**:
+**Solution for Epoxy**:
 ```bash
-# 1. Check current SDK version
-pip show openstacksdk
-
-# 2. Check your OpenStack release version (see methods above)
-# Most reliable: check your deployment documentation
-
-# 3. Verify API endpoint responses (if credentials available)
-curl -H "X-Auth-Token: $OS_TOKEN" $OS_AUTH_URL/ 2>/dev/null || echo "Need valid credentials"
-
-# 4. Install OpenStack CLI to check versions (optional)
-pip install python-openstackclient
-openstack versions show
-```
-
-**Solutions by OpenStack Version**:
-```bash
-# Epoxy (2025.1) - Most Recent
+# Ensure correct SDK version for Epoxy (2025.1)
 uv add "openstacksdk>=4.1.0,<=4.4.0"
 
-# Dalmatian (2024.2) - Stable  
-uv add "openstacksdk>=3.1.0,<=4.0.1"
+# Check current version
+pip show openstacksdk
 
-# Caracal (2024.1) - Stable
-uv add "openstacksdk>=2.0.0,<=3.0.0"
-
-# Bobcat (2023.2) - Stable
-uv add "openstacksdk>=1.1.0,<=1.5.1"
-
-# Antelope (2023.1) - Supported
-uv add "openstacksdk>=0.103.0,<=1.0.2"
-
-# Zed (2022.2) - Extended Support
-uv add "openstacksdk>=0.99.0,<=0.101.0"
-
-# For older versions, use specific versions from compatibility matrix
+# Verify installation
+python -c "import openstack; print(openstack.__version__)"
 ```
-
-**Version Detection Script**:
-```bash
-# Create a quick version detection script
-cat > check_openstack_version.py << 'EOF'
-import openstack
-try:
-    conn = openstack.connect()
-    # Try to get version info
-    versions = conn.identity.get('/').json()
-    print("OpenStack Version Info:", versions)
-except Exception as e:
-    print(f"Error detecting version: {e}")
-    print("Check your OpenStack deployment documentation")
-EOF
-
-python check_openstack_version.py
-```
-
-**Reference**: See the [complete compatibility matrix](#version-compatibility-matrix) above for detailed version mappings.
 
 ---
 
