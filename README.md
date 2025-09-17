@@ -118,7 +118,7 @@ uv add "openstacksdk>=4.1.0,<=4.4.0"
 openstack --version
 
 # Method 2: Check API version directly
-curl -s $OS_AUTH_URL
+curl -s http://$OS_AUTH_HOST:$OS_AUTH_PORT
 
 # Method 3: Check Horizon dashboard footer
 # Look for version info at the bottom of your OpenStack web dashboard
@@ -133,7 +133,8 @@ Configure your `.env` file with OpenStack credentials:
 
 ```bash
 # OpenStack Authentication (required)
-OS_AUTH_URL=https://your-openstack:5000/v3
+OS_AUTH_HOST=your-openstack-host
+OS_AUTH_PORT=5000
 OS_IDENTITY_API_VERSION=3
 OS_USERNAME=your-username
 OS_PASSWORD=your-password
@@ -141,6 +142,13 @@ OS_PROJECT_NAME=your-project
 OS_PROJECT_DOMAIN_NAME=default
 OS_USER_DOMAIN_NAME=default
 OS_REGION_NAME=RegionOne
+
+# OpenStack Service Ports (customizable)
+OS_COMPUTE_PORT=8774
+OS_NETWORK_PORT=9696
+OS_VOLUME_PORT=8776
+OS_IMAGE_PORT=9292
+OS_PLACEMENT_PORT=8780
 
 # MCP Server Configuration (optional)
 MCP_LOG_LEVEL=INFO
@@ -236,9 +244,10 @@ export OS_PROJECT_NAME=admin
 **Problem**: Cannot connect to OpenStack API endpoints.
 
 **Solutions**:
-- Verify your `OS_AUTH_URL` and network connectivity
+- Verify your `OS_AUTH_HOST` and `OS_AUTH_PORT` and network connectivity
 - Check if you're using the correct proxy configuration
 - Ensure firewall rules allow access to OpenStack ports (5000, 8774, 9696, etc.)
+- Verify service ports configuration (`OS_AUTH_PORT`, `OS_COMPUTE_PORT`, etc.)
 
 #### 3. SDK Compatibility Issues
 
@@ -288,7 +297,8 @@ Options:
 | Variable | Description | Default | Usage |
 |----------|-------------|---------|--------|
 | **OpenStack Authentication** |
-| `OS_AUTH_URL` | OpenStack Identity service URL | Required | Authentication endpoint |
+| `OS_AUTH_HOST` | OpenStack Identity service host | Required | Authentication host address |
+| `OS_AUTH_PORT` | OpenStack Identity service port | Required | Authentication port |
 | `OS_USERNAME` | OpenStack username | Required | User credentials |
 | `OS_PASSWORD` | OpenStack password | Required | User credentials |
 | `OS_PROJECT_NAME` | OpenStack project name | Required | Project scope |
@@ -296,6 +306,12 @@ Options:
 | `OS_PROJECT_DOMAIN_NAME` | Project domain name | `default` | Domain scope |
 | `OS_USER_DOMAIN_NAME` | User domain name | `default` | Domain scope |
 | `OS_REGION_NAME` | OpenStack region | `RegionOne` | Regional scope |
+| **OpenStack Service Ports** |
+| `OS_COMPUTE_PORT` | Compute service port | `8774` | Nova endpoint |
+| `OS_NETWORK_PORT` | Network service port | `9696` | Neutron endpoint |
+| `OS_VOLUME_PORT` | Volume service port | `8776` | Cinder endpoint |
+| `OS_IMAGE_PORT` | Image service port | `9292` | Glance endpoint |
+| `OS_PLACEMENT_PORT` | Placement service port | `8780` | Placement endpoint |
 | **MCP Server Configuration** |
 | `MCP_LOG_LEVEL` | Logging level | `INFO` | Development debugging |
 | `FASTMCP_TYPE` | Transport type | `stdio` | Rarely needed to change |
@@ -557,10 +573,16 @@ Add to your Claude Desktop configuration (`claude_desktop_config.json`):
       "args": ["run", "python", "-m", "mcp_openstack_ops"],
       "cwd": "/path/to/MCP-OpenStack-Ops",
       "env": {
-        "OS_AUTH_URL": "https://your-openstack:5000/v3",
+        "OS_AUTH_HOST": "your-openstack-host",
+        "OS_AUTH_PORT": "5000",
         "OS_USERNAME": "your-username",
         "OS_PASSWORD": "your-password",
         "OS_PROJECT_NAME": "your-project",
+        "OS_COMPUTE_PORT": "8774",
+        "OS_NETWORK_PORT": "9696",
+        "OS_VOLUME_PORT": "8776",
+        "OS_IMAGE_PORT": "9292",
+        "OS_PLACEMENT_PORT": "8780",
         "MCP_LOG_LEVEL": "INFO"
       }
     }

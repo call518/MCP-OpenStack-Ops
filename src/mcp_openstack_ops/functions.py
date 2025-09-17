@@ -31,7 +31,7 @@ def get_openstack_connection():
     load_dotenv()
     
     # Check required environment variables
-    required_vars = ["OS_PROJECT_NAME", "OS_USERNAME", "OS_PASSWORD"]
+    required_vars = ["OS_PROJECT_NAME", "OS_USERNAME", "OS_PASSWORD", "OS_AUTH_HOST", "OS_AUTH_PORT"]
     missing_vars = [var for var in required_vars if not os.environ.get(var)]
     
     if missing_vars:
@@ -40,12 +40,22 @@ def get_openstack_connection():
         logger.error("Please ensure your .env file contains OpenStack authentication credentials")
         raise ValueError(error_msg)
     
-    proxy_host = os.environ.get("OS_PROXY_HOST", "192.168.35.2")
+    # Get OpenStack connection parameters
+    os_auth_host = os.environ.get("OS_AUTH_HOST")
+    os_auth_port = os.environ.get("OS_AUTH_PORT")
+    
+    # Get configurable service ports (with defaults)
+    # Note: OS_AUTH_PORT is used for Identity service endpoint
+    compute_port = os.environ.get("OS_COMPUTE_PORT", "8774") 
+    network_port = os.environ.get("OS_NETWORK_PORT", "9696")
+    volume_port = os.environ.get("OS_VOLUME_PORT", "8776")
+    image_port = os.environ.get("OS_IMAGE_PORT", "9292")
+    placement_port = os.environ.get("OS_PLACEMENT_PORT", "8780")
     
     try:
-        logger.info(f"Creating OpenStack connection with proxy host: {proxy_host}")
+        logger.info(f"Creating OpenStack connection with proxy host: {os_auth_host}")
         _connection_cache = connection.Connection(
-            auth_url=f"http://{proxy_host}:5555",
+            auth_url=f"http://{os_auth_host}:{os_auth_port}",
             project_name=os.environ.get("OS_PROJECT_NAME"),
             username=os.environ.get("OS_USERNAME"),
             password=os.environ.get("OS_PASSWORD"),
@@ -55,12 +65,12 @@ def get_openstack_connection():
             identity_api_version=os.environ.get("OS_IDENTITY_API_VERSION", "3"),
             interface="internal",
             # Override all service endpoints to use proxy
-            identity_endpoint=f"http://{proxy_host}:5555",
-            compute_endpoint=f"http://{proxy_host}:8774/v2.1",
-            network_endpoint=f"http://{proxy_host}:9696",
-            volume_endpoint=f"http://{proxy_host}:8776/v3",
-            image_endpoint=f"http://{proxy_host}:9292",
-            placement_endpoint=f"http://{proxy_host}:8780",
+            identity_endpoint=f"http://{os_auth_host}:{os_auth_port}",
+            compute_endpoint=f"http://{os_auth_host}:{compute_port}/v2.1",
+            network_endpoint=f"http://{os_auth_host}:{network_port}",
+            volume_endpoint=f"http://{os_auth_host}:{volume_port}/v3",
+            image_endpoint=f"http://{os_auth_host}:{image_port}",
+            placement_endpoint=f"http://{os_auth_host}:{placement_port}",
             timeout=10
         )
         

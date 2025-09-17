@@ -5,7 +5,8 @@
       "args": ["-m", "mcp_openstack_ops"],
       "env": {
         "PYTHONPATH": "/app/src",
-        "OS_AUTH_URL": "http://192.168.35.2:5555",
+        "OS_AUTH_HOST": "127.0.0.1",
+        "OS_AUTH_PORT": "5000",
         "OS_PROJECT_NAME": "demo",
         "OS_USERNAME": "demo",
         "OS_PASSWORD": "demo",
@@ -14,6 +15,11 @@
         "OS_REGION_NAME": "RegionOne",
         "OS_IDENTITY_API_VERSION": "3",
         "OS_INTERFACE": "internal",
+        "OS_COMPUTE_PORT": "8774",
+        "OS_NETWORK_PORT": "9696",
+        "OS_VOLUME_PORT": "8776",
+        "OS_IMAGE_PORT": "9292",
+        "OS_PLACEMENT_PORT": "8780",
         "MCP_LOG_LEVEL": "INFO"
       }
     }
