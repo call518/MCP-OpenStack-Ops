@@ -358,8 +358,6 @@ Options:
 | `REMOTE_AUTH_ENABLE` | Enable Bearer token authentication for streamable-http mode | `false` | Production security |
 | `REMOTE_SECRET_KEY` | Secret key for Bearer token authentication | Required when auth enabled | Production security |
 
-**Note**: MCP servers typically use `stdio` transport. HTTP mode is mainly for testing and development.
-
 ---
 
 ## Safety Controls
