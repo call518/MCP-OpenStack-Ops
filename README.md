@@ -43,7 +43,7 @@
 
 **MCP Query Example - Cluster Status**
 
-![Example Cluster Status](img/screenshot-example-cluster-status.png)
+![Example Cluster Status](img/screenshot-claude-desktop.png)
 
 ---
 
