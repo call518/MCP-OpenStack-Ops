@@ -9,8 +9,6 @@
 
 ---
 
-> **🎯 Target Environment**: This MCP server is specifically designed and tested for **OpenStack Epoxy (2025.1)** using OpenStack SDK 4.1.0-4.4.0. For optimal compatibility and performance, ensure your OpenStack environment is running Epoxy release.
-
 ## Features
 
 - ✅ **OpenStack Epoxy Integration**: Direct integration with OpenStack SDK 4.1.0-4.4.0 for real-time cluster operations.
