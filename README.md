@@ -11,7 +11,7 @@
 
 ## Features
 
-- ✅ **OpenStack Epoxy Integration**: Direct integration with OpenStack SDK 4.1.0-4.4.0 for real-time cluster operations.
+- ✅ **OpenStack SDK Integration**: Direct integration with OpenStack SDK for real-time cluster operations.
 - ✅ **Production-Safe Operations**: Built-in safety controls with `ALLOW_MODIFY_OPERATIONS` environment variable to prevent destructive actions in production environments.
 - ✅ **Comprehensive Monitoring**: Enhanced cluster status reports with hypervisor health, resource utilization, and health scoring.
 - ✅ **Complete Service Coverage**: 39 comprehensive tools covering Identity, Compute, Network, Storage, Image, and Orchestration services.
