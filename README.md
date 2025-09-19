@@ -19,7 +19,7 @@
 - ✅ **OpenStack SDK Integration**: Direct integration with OpenStack SDK for real-time cluster operations.
 - ✅ **Production-Safe Operations**: Built-in safety controls with `ALLOW_MODIFY_OPERATIONS` environment variable to prevent modification operations in production environments.
 - ✅ **Comprehensive Monitoring**: Enhanced cluster status reports with hypervisor health, resource utilization, and health scoring.
-- ✅ **Complete Service Coverage**: 65+ comprehensive tools covering Identity, Compute, Network, Storage, Image, Orchestration, Load Balancer, and Monitoring services.
+- ✅ **Complete Service Coverage**: 90+ comprehensive tools covering Identity, Compute, Network, Storage, Image, Orchestration, Load Balancer, and Monitoring services.
 - ✅ **Advanced Instance Management**: Enhanced server lifecycle operations with backup, migration, rescue, and administrative functions.
 - ✅ **Server Event Tracking**: Detailed server event history and lifecycle monitoring with comprehensive logging.
 - ✅ **Hypervisor Monitoring**: Real-time hypervisor resource statistics with utilization tracking and cluster totals.
@@ -54,7 +54,7 @@
 
 **Detailed Mapping by Category**
 
-### 1. 🖥️ **Compute (Nova) - 95% Implementation**
+### 1. 🖥️ **Compute (Nova)**
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
@@ -106,19 +106,31 @@
 | `openstack hypervisor list` | `get_hypervisor_details` | ✅ | Hypervisor querying |
 | `openstack availability zone list` | `get_availability_zones` | ✅ | Availability zone listing |
 
-### 2. 🌐 **Network (Neutron) - 80% Implementation**
+### 2. 🌐 **Network (Neutron)**
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
 | `openstack network list` | `get_network_details` | ✅ | Detailed network information |
 | `openstack network show` | `get_network_details` (name param) | ✅ | Specific network query |
-| `openstack network create/delete` | (Not yet implemented) | 🚧 | Network creation/deletion |
+| `openstack network create` | `set_networks` (action="create") | ✅ | Network creation |
+| `openstack network delete` | `set_networks` (action="delete") | ✅ | Network deletion |
+| `openstack network set` | `set_networks` (action="update") | ✅ | Network property updates |
 | `openstack subnet list` | `get_network_details` (includes subnets) | ✅ | Subnet information included |
 | `openstack subnet create/delete` | `set_subnets` | ✅ | Subnet management |
 | `openstack router list` | `get_routers` | ✅ | Router listing |
 | `openstack router create/delete` | (Not yet implemented) | 🚧 | Router management |
 | `openstack floating ip list` | `get_floating_ips` | ✅ | Floating IP listing |
-| `openstack floating ip create/delete` | `set_floating_ip` | ✅ | Floating IP management |
+| `openstack floating ip create` | `set_floating_ip` (action="create") | ✅ | Floating IP creation |
+| `openstack floating ip delete` | `set_floating_ip` (action="delete") | ✅ | Floating IP deletion |
+| `openstack floating ip set` | `set_floating_ip` (action="set") | ✅ | Floating IP property setting |
+| `openstack floating ip show` | `set_floating_ip` (action="show") | ✅ | Floating IP details |
+| `openstack floating ip unset` | `set_floating_ip` (action="unset") | ✅ | Floating IP property clearing |
+| `openstack floating ip pool list` | `get_floating_ip_pools` | ✅ | Floating IP pool listing |
+| `openstack floating ip port forwarding create` | `set_floating_ip_port_forwarding` (action="create") | ✅ | Port forwarding creation |
+| `openstack floating ip port forwarding delete` | `set_floating_ip_port_forwarding` (action="delete") | ✅ | Port forwarding deletion |
+| `openstack floating ip port forwarding list` | `set_floating_ip_port_forwarding` (action="list") | ✅ | Port forwarding listing |
+| `openstack floating ip port forwarding set` | `set_floating_ip_port_forwarding` (action="set") | ✅ | Port forwarding updates |
+| `openstack floating ip port forwarding show` | `set_floating_ip_port_forwarding` (action="show") | ✅ | Port forwarding details |
 | `openstack security group list` | `get_security_groups` | ✅ | Security group listing |
 | `openstack security group create/delete` | (Not yet implemented) | 🚧 | Security group management |
 | `openstack port list` | `get_network_details` (includes ports) | ✅ | Port information included |
@@ -128,7 +140,7 @@
 | `openstack network agent list` | `get_service_status` (includes agents) | ✅ | Network agents |
 | `openstack network agent set` | `set_network_agents` | ✅ | Network agent management |
 
-### 3. 💾 **Storage (Cinder) - 90% Implementation**
+### 3. 💾 **Storage (Cinder)**
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
@@ -150,13 +162,13 @@
 | `openstack volume qos list` | (Not yet implemented) | 🚧 | QoS listing |
 | `openstack volume qos create` | `set_volume_qos` | ✅ | QoS management |
 
-### 4. 🖼️ **Image (Glance) - 75% Implementation**
+### 4. 🖼️ **Image (Glance)**
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
 | `openstack image list` | `get_image_detail_list` | ✅ | Image listing |
 | `openstack image show` | `get_image_detail_list` (filtering) | ✅ | Specific image query |
-| `openstack image create` | `set_image` (action="create") | ✅ | Image creation |
+| `openstack image create` | `set_image` (action="create") | ✅ | Enhanced image creation with min_disk, min_ram, properties |
 | `openstack image delete` | `set_image` (action="delete") | ✅ | Image deletion |
 | `openstack image set` | `set_image` (action="update") | ✅ | Image property modification |
 | `openstack image save` | `set_image` (action="save") | ✅ | Image download |
@@ -166,7 +178,7 @@
 | `openstack image set --property` | `set_image_metadata` | ✅ | Image metadata |
 | `openstack image set --public/private` | `set_image_visibility` | ✅ | Image visibility setting |
 
-### 5. 👥 **Identity (Keystone) - 70% Implementation**
+### 5. 👥 **Identity (Keystone)**
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
@@ -187,7 +199,7 @@
 | `openstack service create/delete` | `set_services` | ✅ | Service management |
 | `openstack endpoint list` | `get_service_status` (includes endpoints) | ✅ | Endpoint information |
 
-### 6. 🔥 **Orchestration (Heat) - 40% Implementation**
+### 6. 🔥 **Orchestration (Heat)**
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
@@ -202,9 +214,7 @@
 | `openstack stack template show` | (Not yet implemented) | 🚧 | Template query |
 | `openstack stack output list` | (Not yet implemented) | 🚧 | Stack output listing |
 
-### 7. ⚖️ **Load Balancer (Octavia) - 96% Implementation**
-
-**🎉 Major Update: Comprehensive LoadBalancer implementation now covers 79/82 CLI commands (96% coverage)**
+### 7. ⚖️ **Load Balancer (Octavia)**
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
@@ -298,7 +308,7 @@
 | `openstack loadbalancer quota set` | `set_load_balancer_quota` (action="set") | ✅ | Quota setting |
 | `openstack loadbalancer quota reset` | `set_load_balancer_quota` (action="reset") | ✅ | Quota reset |
 
-### 8. 📊 **Monitoring & Logging - 60% Implementation**
+### 8. 📊 **Monitoring & Logging**
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
@@ -311,7 +321,7 @@
 | Compute agents | `set_compute_agents` | ✅ | Compute agent management |
 | Usage statistics | `get_usage_statistics` | ✅ | Usage statistics |
 
-### 9. 📏 **Usage & Quota - 80% Implementation**
+### 9. 📏 **Usage & Quota**
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|

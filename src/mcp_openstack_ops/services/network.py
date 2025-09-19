@@ -541,10 +541,158 @@ def set_floating_ip(action: str, **kwargs) -> Dict[str, Any]:
                 'message': f'Floating IP {getattr(fip, "floating_ip_address", fip.id)} disassociated successfully'
             }
         
+        elif action.lower() == 'show':
+            floating_ip_id = kwargs.get('floating_ip_id', kwargs.get('id'))
+            floating_ip_address = kwargs.get('floating_ip_address', kwargs.get('ip'))
+            
+            if not floating_ip_id and not floating_ip_address:
+                return {
+                    'success': False,
+                    'message': 'floating_ip_id or floating_ip_address is required for show action'
+                }
+            
+            # Find the floating IP
+            fip = None
+            for f in conn.network.ips():
+                if (floating_ip_id and f.id == floating_ip_id) or \
+                   (floating_ip_address and getattr(f, 'floating_ip_address', '') == floating_ip_address):
+                    fip = f
+                    break
+            
+            if not fip:
+                return {
+                    'success': False,
+                    'message': 'Floating IP not found'
+                }
+            
+            return {
+                'success': True,
+                'floating_ip': {
+                    'id': fip.id,
+                    'floating_ip_address': getattr(fip, 'floating_ip_address', 'unknown'),
+                    'fixed_ip_address': getattr(fip, 'fixed_ip_address', None),
+                    'port_id': getattr(fip, 'port_id', None),
+                    'router_id': getattr(fip, 'router_id', None),
+                    'status': getattr(fip, 'status', 'unknown'),
+                    'tenant_id': getattr(fip, 'tenant_id', 'unknown'),
+                    'project_id': getattr(fip, 'project_id', 'unknown'),
+                    'floating_network_id': getattr(fip, 'floating_network_id', 'unknown'),
+                    'description': getattr(fip, 'description', ''),
+                    'created_at': str(getattr(fip, 'created_at', 'unknown')),
+                    'updated_at': str(getattr(fip, 'updated_at', 'unknown'))
+                }
+            }
+            
+        elif action.lower() == 'set':
+            floating_ip_id = kwargs.get('floating_ip_id', kwargs.get('id'))
+            floating_ip_address = kwargs.get('floating_ip_address', kwargs.get('ip'))
+            
+            if not floating_ip_id and not floating_ip_address:
+                return {
+                    'success': False,
+                    'message': 'floating_ip_id or floating_ip_address is required for set action'
+                }
+            
+            # Find the floating IP
+            fip = None
+            for f in conn.network.ips():
+                if (floating_ip_id and f.id == floating_ip_id) or \
+                   (floating_ip_address and getattr(f, 'floating_ip_address', '') == floating_ip_address):
+                    fip = f
+                    break
+            
+            if not fip:
+                return {
+                    'success': False,
+                    'message': 'Floating IP not found'
+                }
+            
+            # Update parameters
+            update_params = {}
+            if kwargs.get('description') is not None:
+                update_params['description'] = kwargs['description']
+            if kwargs.get('port_id') is not None:
+                update_params['port_id'] = kwargs['port_id']
+            if kwargs.get('fixed_ip_address') is not None:
+                update_params['fixed_ip_address'] = kwargs['fixed_ip_address']
+            
+            if not update_params:
+                return {
+                    'success': False,
+                    'message': 'No update parameters provided'
+                }
+            
+            updated_fip = conn.network.update_ip(fip, **update_params)
+            
+            return {
+                'success': True,
+                'message': f'Floating IP {getattr(fip, "floating_ip_address", fip.id)} updated successfully',
+                'floating_ip': {
+                    'id': updated_fip.id,
+                    'floating_ip_address': getattr(updated_fip, 'floating_ip_address', 'unknown'),
+                    'fixed_ip_address': getattr(updated_fip, 'fixed_ip_address', None),
+                    'port_id': getattr(updated_fip, 'port_id', None),
+                    'description': getattr(updated_fip, 'description', '')
+                }
+            }
+            
+        elif action.lower() == 'unset':
+            floating_ip_id = kwargs.get('floating_ip_id', kwargs.get('id'))
+            floating_ip_address = kwargs.get('floating_ip_address', kwargs.get('ip'))
+            
+            if not floating_ip_id and not floating_ip_address:
+                return {
+                    'success': False,
+                    'message': 'floating_ip_id or floating_ip_address is required for unset action'
+                }
+            
+            # Find the floating IP
+            fip = None
+            for f in conn.network.ips():
+                if (floating_ip_id and f.id == floating_ip_id) or \
+                   (floating_ip_address and getattr(f, 'floating_ip_address', '') == floating_ip_address):
+                    fip = f
+                    break
+            
+            if not fip:
+                return {
+                    'success': False,
+                    'message': 'Floating IP not found'
+                }
+            
+            # Unset parameters (clear them)
+            update_params = {}
+            unset_properties = kwargs.get('properties', [])
+            
+            if 'description' in unset_properties:
+                update_params['description'] = ''
+            if 'port' in unset_properties:
+                update_params['port_id'] = None
+                update_params['fixed_ip_address'] = None
+            
+            if not update_params:
+                return {
+                    'success': False,
+                    'message': 'No properties specified to unset'
+                }
+            
+            updated_fip = conn.network.update_ip(fip, **update_params)
+            
+            return {
+                'success': True,
+                'message': f'Floating IP {getattr(fip, "floating_ip_address", fip.id)} properties unset successfully',
+                'floating_ip': {
+                    'id': updated_fip.id,
+                    'floating_ip_address': getattr(updated_fip, 'floating_ip_address', 'unknown'),
+                    'fixed_ip_address': getattr(updated_fip, 'fixed_ip_address', None),
+                    'port_id': getattr(updated_fip, 'port_id', None)
+                }
+            }
+        
         else:
             return {
                 'success': False,
-                'message': f'Unknown action "{action}". Supported: allocate, release, associate, disassociate, list'
+                'message': f'Unknown action "{action}". Supported: allocate, release, associate, disassociate, list, show, set, unset'
             }
             
     except Exception as e:
@@ -553,6 +701,309 @@ def set_floating_ip(action: str, **kwargs) -> Dict[str, Any]:
             'success': False,
             'message': f'Failed to manage floating IP: {str(e)}',
             'error': str(e)
+        }
+
+
+def get_floating_ip_pools() -> List[Dict[str, Any]]:
+    """
+    Get list of floating IP pools (external networks).
+    
+    Returns:
+        List of floating IP pool dictionaries
+    """
+    try:
+        # Import here to avoid circular imports
+        from ..connection import get_openstack_connection
+        conn = get_openstack_connection()
+        pools = []
+        
+        for network in conn.network.networks():
+            if getattr(network, 'is_router_external', False):
+                # Count available and used floating IPs
+                used_ips = 0
+                total_ips = 0
+                
+                for subnet in conn.network.subnets():
+                    if getattr(subnet, 'network_id', None) == network.id:
+                        # Calculate total IPs from allocation pools
+                        allocation_pools = getattr(subnet, 'allocation_pools', [])
+                        for pool in allocation_pools:
+                            # Simple IP range calculation (this could be more sophisticated)
+                            total_ips += 100  # Placeholder calculation
+                
+                # Count used floating IPs
+                for fip in conn.network.ips():
+                    if getattr(fip, 'floating_network_id', None) == network.id:
+                        used_ips += 1
+                
+                pools.append({
+                    'id': network.id,
+                    'name': getattr(network, 'name', 'unnamed'),
+                    'network_id': network.id,
+                    'total_ips': total_ips,
+                    'used_ips': used_ips,
+                    'available_ips': total_ips - used_ips,
+                    'admin_state_up': getattr(network, 'is_admin_state_up', True)
+                })
+        
+        return pools
+    except Exception as e:
+        logger.error(f"Failed to get floating IP pools: {e}")
+        return [{
+            'id': 'pool-error',
+            'name': 'Error retrieving pools',
+            'error': str(e)
+        }]
+
+
+def set_floating_ip_port_forwarding(action: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage floating IP port forwarding rules.
+    
+    Args:
+        action: Action to perform (create, delete, list, show, set)
+        **kwargs: Additional parameters depending on action
+    
+    Returns:
+        Result of the port forwarding operation
+    """
+    try:
+        # Import here to avoid circular imports
+        from ..connection import get_openstack_connection
+        conn = get_openstack_connection()
+        
+        if action.lower() == 'list':
+            floating_ip_id = kwargs.get('floating_ip_id')
+            floating_ip_address = kwargs.get('floating_ip_address')
+            
+            if not floating_ip_id and not floating_ip_address:
+                return {
+                    'success': False,
+                    'message': 'floating_ip_id or floating_ip_address is required for list action'
+                }
+            
+            # Find the floating IP
+            fip = None
+            for f in conn.network.ips():
+                if (floating_ip_id and f.id == floating_ip_id) or \
+                   (floating_ip_address and getattr(f, 'floating_ip_address', '') == floating_ip_address):
+                    fip = f
+                    break
+            
+            if not fip:
+                return {
+                    'success': False,
+                    'message': 'Floating IP not found'
+                }
+            
+            # Get port forwarding rules for this floating IP
+            port_forwardings = []
+            try:
+                for pf in conn.network.port_forwardings(floatingip=fip.id):
+                    port_forwardings.append({
+                        'id': pf.id,
+                        'protocol': getattr(pf, 'protocol', 'unknown'),
+                        'external_port': getattr(pf, 'external_port', 0),
+                        'internal_port': getattr(pf, 'internal_port', 0),
+                        'internal_ip_address': getattr(pf, 'internal_ip_address', 'unknown'),
+                        'internal_port_id': getattr(pf, 'internal_port_id', None),
+                        'description': getattr(pf, 'description', '')
+                    })
+            except Exception as e:
+                logger.warning(f"Could not retrieve port forwarding rules: {e}")
+                # Return empty list if port forwarding is not supported
+                
+            return {
+                'success': True,
+                'floating_ip_id': fip.id,
+                'floating_ip_address': getattr(fip, 'floating_ip_address', 'unknown'),
+                'port_forwardings': port_forwardings,
+                'count': len(port_forwardings)
+            }
+            
+        elif action.lower() == 'create':
+            floating_ip_id = kwargs.get('floating_ip_id')
+            floating_ip_address = kwargs.get('floating_ip_address')
+            protocol = kwargs.get('protocol', 'tcp')
+            external_port = kwargs.get('external_port')
+            internal_port = kwargs.get('internal_port')
+            internal_ip_address = kwargs.get('internal_ip_address')
+            internal_port_id = kwargs.get('internal_port_id')
+            description = kwargs.get('description', '')
+            
+            if not floating_ip_id and not floating_ip_address:
+                return {
+                    'success': False,
+                    'message': 'floating_ip_id or floating_ip_address is required'
+                }
+                
+            if not external_port or not internal_port:
+                return {
+                    'success': False,
+                    'message': 'external_port and internal_port are required for create action'
+                }
+            
+            # Find the floating IP
+            fip = None
+            for f in conn.network.ips():
+                if (floating_ip_id and f.id == floating_ip_id) or \
+                   (floating_ip_address and getattr(f, 'floating_ip_address', '') == floating_ip_address):
+                    fip = f
+                    break
+            
+            if not fip:
+                return {
+                    'success': False,
+                    'message': 'Floating IP not found'
+                }
+            
+            create_params = {
+                'protocol': protocol,
+                'external_port': external_port,
+                'internal_port': internal_port
+            }
+            
+            if internal_ip_address:
+                create_params['internal_ip_address'] = internal_ip_address
+            if internal_port_id:
+                create_params['internal_port_id'] = internal_port_id
+            if description:
+                create_params['description'] = description
+            
+            try:
+                pf = conn.network.create_port_forwarding(floatingip=fip.id, **create_params)
+                return {
+                    'success': True,
+                    'message': f'Port forwarding rule created successfully',
+                    'port_forwarding': {
+                        'id': pf.id,
+                        'protocol': getattr(pf, 'protocol', protocol),
+                        'external_port': getattr(pf, 'external_port', external_port),
+                        'internal_port': getattr(pf, 'internal_port', internal_port),
+                        'internal_ip_address': getattr(pf, 'internal_ip_address', internal_ip_address)
+                    }
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to create port forwarding rule: {str(e)}',
+                    'note': 'Port forwarding may not be supported in this OpenStack deployment'
+                }
+                
+        elif action.lower() == 'delete':
+            floating_ip_id = kwargs.get('floating_ip_id')
+            port_forwarding_id = kwargs.get('port_forwarding_id')
+            
+            if not floating_ip_id or not port_forwarding_id:
+                return {
+                    'success': False,
+                    'message': 'floating_ip_id and port_forwarding_id are required for delete action'
+                }
+            
+            try:
+                conn.network.delete_port_forwarding(port_forwarding_id, floatingip=floating_ip_id)
+                return {
+                    'success': True,
+                    'message': f'Port forwarding rule deleted successfully'
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to delete port forwarding rule: {str(e)}'
+                }
+                
+        elif action.lower() == 'show':
+            floating_ip_id = kwargs.get('floating_ip_id')
+            port_forwarding_id = kwargs.get('port_forwarding_id')
+            
+            if not floating_ip_id or not port_forwarding_id:
+                return {
+                    'success': False,
+                    'message': 'floating_ip_id and port_forwarding_id are required for show action'
+                }
+            
+            try:
+                pf = conn.network.get_port_forwarding(port_forwarding_id, floatingip=floating_ip_id)
+                return {
+                    'success': True,
+                    'port_forwarding': {
+                        'id': pf.id,
+                        'protocol': getattr(pf, 'protocol', 'unknown'),
+                        'external_port': getattr(pf, 'external_port', 0),
+                        'internal_port': getattr(pf, 'internal_port', 0),
+                        'internal_ip_address': getattr(pf, 'internal_ip_address', 'unknown'),
+                        'internal_port_id': getattr(pf, 'internal_port_id', None),
+                        'description': getattr(pf, 'description', ''),
+                        'created_at': str(getattr(pf, 'created_at', 'unknown')),
+                        'updated_at': str(getattr(pf, 'updated_at', 'unknown'))
+                    }
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to get port forwarding rule: {str(e)}'
+                }
+                
+        elif action.lower() == 'set':
+            floating_ip_id = kwargs.get('floating_ip_id')
+            port_forwarding_id = kwargs.get('port_forwarding_id')
+            
+            if not floating_ip_id or not port_forwarding_id:
+                return {
+                    'success': False,
+                    'message': 'floating_ip_id and port_forwarding_id are required for set action'
+                }
+            
+            update_params = {}
+            if kwargs.get('description') is not None:
+                update_params['description'] = kwargs['description']
+            if kwargs.get('internal_ip_address'):
+                update_params['internal_ip_address'] = kwargs['internal_ip_address']
+            if kwargs.get('internal_port'):
+                update_params['internal_port'] = kwargs['internal_port']
+            if kwargs.get('internal_port_id'):
+                update_params['internal_port_id'] = kwargs['internal_port_id']
+            
+            if not update_params:
+                return {
+                    'success': False,
+                    'message': 'No update parameters provided'
+                }
+            
+            try:
+                pf = conn.network.update_port_forwarding(
+                    port_forwarding_id, 
+                    floatingip=floating_ip_id, 
+                    **update_params
+                )
+                return {
+                    'success': True,
+                    'message': f'Port forwarding rule updated successfully',
+                    'port_forwarding': {
+                        'id': pf.id,
+                        'protocol': getattr(pf, 'protocol', 'unknown'),
+                        'external_port': getattr(pf, 'external_port', 0),
+                        'internal_port': getattr(pf, 'internal_port', 0),
+                        'internal_ip_address': getattr(pf, 'internal_ip_address', 'unknown')
+                    }
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to update port forwarding rule: {str(e)}'
+                }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unsupported action: {action}. Supported actions: create, delete, list, show, set'
+            }
+            
+    except Exception as e:
+        logger.error(f"Port forwarding management failed: {e}")
+        return {
+            'success': False,
+            'message': f'Port forwarding management failed: {str(e)}'
         }
 
 

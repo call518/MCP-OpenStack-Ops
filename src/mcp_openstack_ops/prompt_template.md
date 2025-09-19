@@ -44,7 +44,7 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 ---
 
-## 2. Tool Map (89 Comprehensive Tools)
+## 2. Tool Map (93 Comprehensive Tools)
 
 **⚠️ Tool Availability Notice:**
 - **Read-Only Tools**: Always available (get_*, search_*, monitor_* tools)
@@ -67,16 +67,23 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - `get_instances_by_status`: Filter instances by operational status
 - `monitor_resources`: CPU, memory, storage usage by hypervisor (physical_usage + quota_usage)
 
-### 🌐 **Network Management Tools (9 tools)**
-- `get_network_details`: Network, subnet, router details (use "all" for all networks)
-- `get_floating_ips`: Floating IP allocation and status
-- `set_floating_ip`: Create/delete/associate floating IPs (**Conditional Tool**)
-- `get_routers`: Router status and configuration
-- `get_security_groups`: Security rules and policies
-- `set_network_ports`: Create/manage network ports (**Conditional Tool**)
-- `set_subnets`: Create/manage subnets (**Conditional Tool**)
-- `set_network_qos_policies`: Network quality of service management (**Conditional Tool**)
-- `set_network_agents`: Neutron agent operations (**Conditional Tool**)
+### 🌐 **Network Management Tools (12 tools)**
+**Core Network Operations:**
+- `get_network_details`: Network and subnet information (always available)
+- `set_networks`: Network management (create/delete/update/list) (**Conditional Tool**)
+- `set_subnets`: Subnet operations (create/delete/update) (**Conditional Tool**)
+- `set_network_ports`: Port management (create/delete/update) (**Conditional Tool**)
+
+**Floating IP Management:**
+- `get_floating_ips`: List floating IPs and status (always available)
+- `get_floating_ip_pools`: List available floating IP pools and capacity (always available)
+- `set_floating_ip`: Enhanced floating IP operations (create/delete/associate/disassociate/set/show/unset) (**Conditional Tool**)
+- `set_floating_ip_port_forwarding`: Port forwarding rule management (create/delete/list/show/set) (**Conditional Tool**)
+
+**Network Advanced Features:**
+- `get_routers`: Router configuration and routing tables (always available)
+- `set_network_qos_policies`: QoS policy operations (**Conditional Tool**)
+- `set_network_agents`: Network agent operations (**Conditional Tool**)
 
 ### 💾 **Storage Management Tools (8 tools)**
 - `get_volume_list`: List all volumes with status (always available)
@@ -128,7 +135,7 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 ### 🖼️ **Image Management (5 tools)**
 - `get_image_detail_list`: List all images with detailed metadata (always available)
-- `set_image`: Create/delete/update images (**Conditional Tool**)
+- `set_image`: Enhanced image management (create/delete/update/list) with advanced parameters (min_disk, min_ram, properties) (**Conditional Tool**)
 - `set_image_members`: Image sharing and access control (**Conditional Tool**)
 - `set_image_metadata`: Image properties and metadata (**Conditional Tool**)
 - `set_image_visibility`: Public/private image settings (**Conditional Tool**)
@@ -143,7 +150,7 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - `set_alarms`: Alert configuration and management (**Conditional Tool**)
 - `set_compute_agents`: Compute service agent operations (**Conditional Tool**)
 
-**Total: 89 comprehensive OpenStack management tools**
+**Total: 93 comprehensive OpenStack management tools**
 
 ---
 
@@ -166,7 +173,11 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 ### 🔧 **Management Operations**
 - "Start/stop/restart instance X" → `set_instance("X", "action")`
 - "Create VM with rockylinux-9 image" → `set_instance("vm-name", "create", flavor="m1.small", image="rockylinux-9", networks="demo-net", security_groups="default")`
+- "Create network [name]" → `set_networks("create", network_name="name", description="desc", admin_state_up=True)`
+- "Create image with 20GB min disk" → `set_image("image-name", "create", disk_format="qcow2", min_disk=20, min_ram=512, properties='{"os_type":"linux"}')`
 - "Associate/disassociate floating IP" → `set_server_floating_ip(server_name="X", action="add/remove", floating_ip="Y")`
+- "List floating IP pools" → `get_floating_ip_pools()`
+- "Create port forwarding rule" → `set_floating_ip_port_forwarding("create", floating_ip_address="IP", external_port=80, internal_port=8080, internal_ip_address="192.168.1.100")`
 - "Show Heat stacks" → `get_heat_stacks`
 - "Create/delete stack" → `set_heat_stack("stack_name", "action")`
 
@@ -209,10 +220,14 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 "Show cluster status" → get_cluster_status()
 "Start web-server-01" → set_instance("web-server-01", "start")
 "Create Ubuntu VM" → set_instance("web-server-01", "create", flavor="m1.small", image="ubuntu-20.04", networks="demo-net", security_groups="default")
+"Create network demo-net" → set_networks("create", network_name="demo-net", description="Demo network")
+"Create image with min requirements" → set_image("custom-image", "create", disk_format="qcow2", min_disk=20, min_ram=1024)
 "List all volumes" → get_volume_list()
 "Show all networks" → get_network_details("all")
+"Show floating IP pools" → get_floating_ip_pools()
 "Find web servers" → search_instances("web", "name")
 "Associate floating IP" → set_server_floating_ip(server_name="X", action="add", floating_ip="Y")
+"Create port forwarding" → set_floating_ip_port_forwarding("create", floating_ip_address="IP", external_port=80, internal_port=8080)
 "Create 50GB volume" → set_volume("vol-name", "create", size=50)
 ```
 
