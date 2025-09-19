@@ -9,8 +9,17 @@
 
 ### **Python Execution Requirements:**
 - **MANDATORY**: Always use `.venv/bin/python` for all Python execution
-- **NEVER use**: `python`, `python3`, `/usr/bin/python`, or system Python
+- **MANDATORY**: Always use `.venv/bin/pip` for all package management
+- **NEVER use**: `python`, `python3`, `/usr/bin/python`, `pip`, `pip3`, or system Python/pip
 - **Example**: Use `.venv/bin/python -m mcp_openstack_ops` instead of `python -m mcp_openstack_ops`
+- **Example**: Use `.venv/bin/pip install package` instead of `pip install package`
+
+### **MCP Tool Safety Control Requirements:**
+- **MANDATORY**: When adding new MCP tools with modify operations, always use `@conditional_tool` decorator
+- **MANDATORY**: Verify that ALLOW_MODIFY_OPERATIONS=false properly hides modify tools from registration
+- **NEVER use**: `@mcp.tool()` for operations that can modify/delete OpenStack resources
+- **Always test**: Tool visibility with both `ALLOW_MODIFY_OPERATIONS=true` and `ALLOW_MODIFY_OPERATIONS=false`
+- **Pattern**: Read-only tools use `@mcp.tool()`, modify tools use `@conditional_tool`
 
 ---
 
@@ -26,7 +35,7 @@ The codebase implements a **conditional tool registration pattern** via `ALLOW_M
 
 ```python
 @conditional_tool  # Only registers when ALLOW_MODIFY_OPERATIONS=true
-async def manage_instance(instance_name: str, action: str) -> str:
+async def set_instance(instance_name: str, action: str) -> str:
 ```
 
 vs.
@@ -95,8 +104,9 @@ Always distinguish **physical vs. virtual resources** in monitoring results:
 - Use separate table rows, never combine in single row
 
 ## Function Naming Conventions
-- Core functions: `get_*()`, `manage_*()`, `search_*()`, `monitor_*()`  
-- Heat-specific: `get_heat_stacks()`, `manage_heat_stack()` (not generic `stack`)
+- Core functions: `get_*()`, `set_*()`, `search_*()`, `monitor_*()`  
+- Heat-specific: `get_heat_stacks()`, `set_heat_stack()` (not generic `stack`)
+- Load Balancer: `get_load_balancer_*()`, `set_load_balancer*()` (Octavia operations)
 - MCP tools: Must exactly match underlying function names
 
 ## Docker Multi-Service Architecture
@@ -125,6 +135,7 @@ except Exception as e:
 - **Docker operations**: `docker build`, `docker-compose up/down`, `docker push` - ask user to run manually  
 - **Package management**: `uv add`, `pip install`, `uv sync` - ask user to run manually
 - **Python execution**: Only use `.venv/bin/python`, never system Python
+- **Pip commands**: Only use `.venv/bin/pip`, never system pip
 
 ## Pagination Support
 Large-scale environments require pagination in data-heavy functions:

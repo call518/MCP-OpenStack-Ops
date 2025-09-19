@@ -48,6 +48,13 @@ from functions import (
     set_subnets as _set_subnets,
     set_network_qos_policies as _set_network_qos_policies,
     set_network_agents as _set_network_agents,
+    # Load Balancer (Octavia) functions
+    get_load_balancer_list as _get_load_balancer_list,
+    get_load_balancer_details as _get_load_balancer_details,
+    set_load_balancer as _set_load_balancer,
+    get_load_balancer_listeners as _get_load_balancer_listeners,
+    set_load_balancer_listener as _set_load_balancer_listener,
+    get_load_balancer_pools as _get_load_balancer_pools,
     set_image_members as _set_image_members,
     set_image_metadata as _set_image_metadata,
     set_image_visibility as _set_image_visibility,
@@ -2305,7 +2312,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
 
-@mcp.tool()
+@conditional_tool
 async def set_volume_backups(
     action: str,
     backup_name: str = "",
@@ -2354,7 +2361,7 @@ async def set_volume_backups(
         }, indent=2)
 
 
-@mcp.tool()
+@conditional_tool
 async def set_volume_groups(
     action: str,
     group_name: str = "",
@@ -2403,7 +2410,7 @@ async def set_volume_groups(
         }, indent=2)
 
 
-@mcp.tool()
+@conditional_tool
 async def set_volume_qos(
     action: str,
     qos_name: str = "",
@@ -2459,7 +2466,7 @@ async def set_volume_qos(
         }, indent=2)
 
 
-@mcp.tool()
+@conditional_tool
 async def set_network_ports(
     action: str,
     port_name: str = "",
@@ -2518,7 +2525,7 @@ async def set_network_ports(
         }, indent=2)
 
 
-@mcp.tool()
+@conditional_tool
 async def set_subnets(
     action: str,
     subnet_name: str = "",
@@ -2586,7 +2593,7 @@ async def set_subnets(
         }, indent=2)
 
 
-@mcp.tool()
+@conditional_tool
 async def set_network_qos_policies(
     action: str,
     policy_name: str = "",
@@ -2629,7 +2636,7 @@ async def set_network_qos_policies(
         }, indent=2)
 
 
-@mcp.tool()
+@conditional_tool
 async def set_network_agents(
     action: str,
     agent_id: str = ""
@@ -2666,7 +2673,7 @@ async def set_network_agents(
         }, indent=2)
 
 
-@mcp.tool()
+@conditional_tool
 async def set_image_members(
     action: str,
     image_name: str,
@@ -2706,7 +2713,7 @@ async def set_image_members(
         }, indent=2)
 
 
-@mcp.tool()
+@conditional_tool
 async def set_image_metadata(
     action: str,
     image_name: str,
@@ -2756,7 +2763,7 @@ async def set_image_metadata(
         }, indent=2)
 
 
-@mcp.tool()
+@conditional_tool
 async def set_image_visibility(
     action: str,
     image_name: str,
@@ -2796,7 +2803,7 @@ async def set_image_visibility(
         }, indent=2)
 
 
-@mcp.tool()
+@conditional_tool
 async def set_domains(
     action: str,
     domain_name: str = "",
@@ -2839,7 +2846,7 @@ async def set_domains(
         }, indent=2)
 
 
-@mcp.tool()
+@conditional_tool
 async def set_identity_groups(
     action: str,
     group_name: str = "",
@@ -2882,7 +2889,7 @@ async def set_identity_groups(
         }, indent=2)
 
 
-@mcp.tool()
+@conditional_tool
 async def set_roles(
     action: str,
     role_name: str = "",
@@ -2925,7 +2932,7 @@ async def set_roles(
         }, indent=2)
 
 
-@mcp.tool()
+@conditional_tool
 async def set_services(
     action: str,
     service_name: str = ""
@@ -2955,7 +2962,7 @@ async def set_services(
         }, indent=2)
 
 
-@mcp.tool()
+@conditional_tool
 async def set_service_logs(
     action: str,
     service_name: str = "",
@@ -2988,7 +2995,7 @@ async def set_service_logs(
         }, indent=2)
 
 
-@mcp.tool()
+@conditional_tool
 async def set_metrics(
     action: str,
     resource_type: str = "compute",
@@ -3021,7 +3028,7 @@ async def set_metrics(
         }, indent=2)
 
 
-@mcp.tool()
+@conditional_tool
 async def set_alarms(
     action: str,
     alarm_name: str = "",
@@ -3067,7 +3074,7 @@ async def set_alarms(
         }, indent=2)
 
 
-@mcp.tool()
+@conditional_tool
 async def set_compute_agents(
     action: str,
     agent_id: str = "",
@@ -3097,4 +3104,359 @@ async def set_compute_agents(
             'success': False,
             'message': f'Failed to manage compute agents: {str(e)}',
             'error': str(e)
+        }, indent=2)
+
+
+# =============================================================================
+# LOAD BALANCER (OCTAVIA) TOOLS
+# =============================================================================
+
+@mcp.tool()
+async def get_load_balancer_list(
+    limit: int = 50,
+    offset: int = 0,
+    include_all: bool = False
+) -> str:
+    """
+    Retrieve comprehensive list of OpenStack load balancers with detailed information.
+    
+    Functions:
+    - Lists all load balancers in the OpenStack cluster
+    - Provides detailed load balancer information including VIP, status, listeners
+    - Supports pagination for large environments (limit/offset)
+    - Shows listener count and basic listener information for each load balancer
+    - Displays provisioning and operating status for troubleshooting
+    
+    Use when user requests:
+    - "Show me all load balancers"
+    - "List load balancers with details"
+    - "What load balancers are available?"
+    - "Show load balancer status"
+    
+    Args:
+        limit: Maximum load balancers to return (1-200, default: 50)
+        offset: Number of load balancers to skip for pagination (default: 0)  
+        include_all: Return all load balancers ignoring limit/offset (default: False)
+        
+    Returns:
+        JSON string containing load balancer details with summary statistics
+    """
+    try:
+        logger.info(f"Getting load balancer list (limit={limit}, offset={offset}, include_all={include_all})")
+        result = _get_load_balancer_list(
+            limit=limit,
+            offset=offset, 
+            include_all=include_all
+        )
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to get load balancer list - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+@mcp.tool()
+async def get_load_balancer_details(lb_name_or_id: str) -> str:
+    """
+    Get detailed information about a specific OpenStack load balancer.
+    
+    Functions:
+    - Shows comprehensive load balancer details including VIP configuration
+    - Lists all listeners with their protocols and ports
+    - Shows pools and members for each listener
+    - Displays health monitor information if configured
+    - Provides provisioning and operating status
+    
+    Use when user requests:
+    - "Show details for load balancer [name/id]"
+    - "Get load balancer configuration"
+    - "Show load balancer listeners and pools"
+    - "What's the status of load balancer [name]?"
+    
+    Args:
+        lb_name_or_id: Load balancer name or ID to query
+        
+    Returns:
+        JSON string containing detailed load balancer information
+    """
+    try:
+        logger.info(f"Getting load balancer details for: {lb_name_or_id}")
+        result = _get_load_balancer_details(lb_name_or_id)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to get load balancer details - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+@conditional_tool
+async def set_load_balancer(
+    action: str,
+    lb_name_or_id: str = "",
+    name: str = "",
+    vip_subnet_id: str = "",
+    description: str = "",
+    admin_state_up: bool = True,
+    provider: str = ""
+) -> str:
+    """
+    Manage OpenStack load balancer operations (create, delete, update, stats, status).
+    
+    Functions:
+    - Create new load balancers with VIP configuration
+    - Delete existing load balancers
+    - Update load balancer properties (name, description, admin state)
+    - Get load balancer statistics (bytes in/out, connections)
+    - Get load balancer status tree (detailed operational status)
+    
+    Use when user requests:
+    - "Create a load balancer named [name] on subnet [id]"
+    - "Delete load balancer [name/id]"
+    - "Update load balancer [name] description to [text]"
+    - "Show load balancer [name] statistics"
+    - "Get load balancer [name] status tree"
+    
+    Args:
+        action: Operation to perform (create, delete, update, stats, status)
+        lb_name_or_id: Load balancer name or ID (required for delete/update/stats/status)
+        name: Name for new load balancer (required for create)
+        vip_subnet_id: VIP subnet ID (required for create)
+        description: Description for load balancer (optional)
+        admin_state_up: Administrative state (default: True)
+        provider: Load balancer provider (optional, defaults to configured provider)
+        
+    Returns:
+        JSON string with operation results and load balancer details
+    """
+    if not _is_modify_operation_allowed() and action.lower() in ['create', 'delete', 'update']:
+        return json.dumps({
+            'success': False,
+            'message': f'Modify operations are not allowed in current environment for action: {action}',
+            'error': f'MODIFY_OPERATIONS_DISABLED'
+        })
+    
+    try:
+        logger.info(f"Managing load balancer with action: {action}")
+        
+        kwargs = {
+            'lb_name_or_id': lb_name_or_id if lb_name_or_id else None,
+            'name': name if name else None,
+            'vip_subnet_id': vip_subnet_id if vip_subnet_id else None,
+            'description': description if description else None,
+            'admin_state_up': admin_state_up,
+            'provider': provider if provider else None
+        }
+        
+        # Remove None values
+        kwargs = {k: v for k, v in kwargs.items() if v is not None}
+        
+        result = _set_load_balancer(action=action, **kwargs)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage load balancer - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+@mcp.tool()
+async def get_load_balancer_listeners(lb_name_or_id: str) -> str:
+    """
+    Get listeners for a specific OpenStack load balancer.
+    
+    Functions:
+    - Lists all listeners attached to a load balancer
+    - Shows listener protocols, ports, and configurations
+    - Displays admin state and default pool associations
+    - Provides creation and update timestamps
+    
+    Use when user requests:
+    - "Show listeners for load balancer [name/id]"
+    - "List load balancer listeners"
+    - "What ports are configured on load balancer [name]?"
+    - "Show listener configuration for [lb_name]"
+    
+    Args:
+        lb_name_or_id: Load balancer name or ID
+        
+    Returns:
+        JSON string containing listener details for the load balancer
+    """
+    try:
+        logger.info(f"Getting listeners for load balancer: {lb_name_or_id}")
+        result = _get_load_balancer_listeners(lb_name_or_id)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to get load balancer listeners - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+@conditional_tool
+async def set_load_balancer_listener(
+    action: str,
+    listener_name_or_id: str = "",
+    name: str = "",
+    lb_name_or_id: str = "",
+    protocol: str = "",
+    protocol_port: int = 0,
+    description: str = "",
+    admin_state_up: bool = True
+) -> str:
+    """
+    Manage OpenStack load balancer listener operations (create, delete, show).
+    
+    Functions:
+    - Create new listeners on load balancers
+    - Delete existing listeners
+    - Show detailed listener information
+    - Configure protocol and port settings
+    
+    Use when user requests:
+    - "Create listener [name] on load balancer [lb_name] for HTTP on port 80"
+    - "Delete listener [name/id]"
+    - "Show listener [name/id] details"
+    - "Add HTTPS listener to load balancer [name]"
+    
+    Args:
+        action: Operation to perform (create, delete, show)
+        listener_name_or_id: Listener name or ID (required for delete/show)
+        name: Name for new listener (required for create)
+        lb_name_or_id: Load balancer name or ID (required for create)
+        protocol: Listener protocol - HTTP, HTTPS, TCP, UDP (required for create)
+        protocol_port: Port number for listener (required for create)
+        description: Description for listener (optional)
+        admin_state_up: Administrative state (default: True)
+        
+    Returns:
+        JSON string with operation results and listener details
+    """
+    if not _is_modify_operation_allowed() and action.lower() in ['create', 'delete']:
+        return json.dumps({
+            'success': False,
+            'message': f'Modify operations are not allowed in current environment for action: {action}',
+            'error': f'MODIFY_OPERATIONS_DISABLED'
+        })
+    
+    try:
+        logger.info(f"Managing load balancer listener with action: {action}")
+        
+        kwargs = {
+            'listener_name_or_id': listener_name_or_id if listener_name_or_id else None,
+            'name': name if name else None,
+            'lb_name_or_id': lb_name_or_id if lb_name_or_id else None,
+            'protocol': protocol if protocol else None,
+            'protocol_port': protocol_port if protocol_port > 0 else None,
+            'description': description if description else None,
+            'admin_state_up': admin_state_up
+        }
+        
+        # Remove None values
+        kwargs = {k: v for k, v in kwargs.items() if v is not None}
+        
+        result = _set_load_balancer_listener(action=action, **kwargs)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage load balancer listener - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+@mcp.tool()
+async def get_load_balancer_pools(listener_name_or_id: str = "") -> str:
+    """
+    Get load balancer pools, optionally filtered by listener.
+    
+    Functions:
+    - Lists all pools or pools for a specific listener
+    - Shows pool protocols, load balancing algorithms
+    - Displays members in each pool with their status
+    - Provides health monitor associations
+    
+    Use when user requests:
+    - "Show all load balancer pools"
+    - "List pools for listener [name/id]"
+    - "What pools are configured on [listener_name]?"
+    - "Show pool members and their status"
+    
+    Args:
+        listener_name_or_id: Optional listener name or ID to filter pools
+        
+    Returns:
+        JSON string containing pool details with member information
+    """
+    try:
+        logger.info(f"Getting load balancer pools (listener filter: {listener_name_or_id if listener_name_or_id else 'none'})")
+        result = _get_load_balancer_pools(
+            listener_name_or_id=listener_name_or_id if listener_name_or_id else None
+        )
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to get load balancer pools - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
         }, indent=2)

@@ -7188,3 +7188,658 @@ def set_compute_agents(
             'message': f'Failed to manage compute agents: {str(e)}',
             'error': str(e)
         }
+
+
+# =============================================================================
+# OCTAVIA (LOAD BALANCER) FUNCTIONS
+# =============================================================================
+
+def get_load_balancer_list(limit: int = 50, offset: int = 0, include_all: bool = False) -> Dict[str, Any]:
+    """
+    Get list of load balancers with comprehensive details.
+    
+    Args:
+        limit: Maximum number of load balancers to return (1-200, default: 50)
+        offset: Number of load balancers to skip (default: 0)
+        include_all: If True, return all load balancers (ignores limit/offset)
+    
+    Returns:
+        Dictionary containing load balancers list with details
+    """
+    try:
+        conn = get_openstack_connection()
+        start_time = datetime.now()
+        
+        logger.info(f"Fetching load balancers (limit={limit}, offset={offset}, include_all={include_all})")
+        
+        # Validate limit
+        if not include_all:
+            limit = max(1, min(limit, 200))
+        
+        # Get load balancers
+        if include_all:
+            load_balancers = list(conn.load_balancer.load_balancers())
+        else:
+            # Get all and manually paginate (OpenStack SDK pagination varies by service)
+            all_lbs = list(conn.load_balancer.load_balancers())
+            load_balancers = all_lbs[offset:offset + limit]
+        
+        # Build detailed load balancer information
+        lb_details = []
+        for lb in load_balancers:
+            try:
+                # Get listeners for this load balancer
+                listeners = list(conn.load_balancer.listeners(loadbalancer_id=lb.id))
+                listener_summary = []
+                
+                for listener in listeners:
+                    listener_info = {
+                        'id': listener.id,
+                        'name': listener.name,
+                        'protocol': listener.protocol,
+                        'protocol_port': listener.protocol_port,
+                        'admin_state_up': listener.admin_state_up
+                    }
+                    listener_summary.append(listener_info)
+                
+                lb_info = {
+                    'id': lb.id,
+                    'name': lb.name,
+                    'description': lb.description,
+                    'vip_address': lb.vip_address,
+                    'vip_port_id': lb.vip_port_id,
+                    'vip_subnet_id': lb.vip_subnet_id,
+                    'vip_network_id': lb.vip_network_id,
+                    'provisioning_status': lb.provisioning_status,
+                    'operating_status': lb.operating_status,
+                    'admin_state_up': lb.admin_state_up,
+                    'project_id': lb.project_id,
+                    'provider': getattr(lb, 'provider', 'Unknown'),
+                    'created_at': str(lb.created_at) if hasattr(lb, 'created_at') else 'N/A',
+                    'updated_at': str(lb.updated_at) if hasattr(lb, 'updated_at') else 'N/A',
+                    'listeners': listener_summary,
+                    'listener_count': len(listener_summary)
+                }
+                lb_details.append(lb_info)
+                
+            except Exception as e:
+                logger.warning(f"Failed to get details for load balancer {lb.id}: {e}")
+                # Add basic info even if detailed fetch fails
+                lb_details.append({
+                    'id': lb.id,
+                    'name': lb.name,
+                    'vip_address': getattr(lb, 'vip_address', 'N/A'),
+                    'provisioning_status': getattr(lb, 'provisioning_status', 'Unknown'),
+                    'operating_status': getattr(lb, 'operating_status', 'Unknown'),
+                    'error': f'Failed to fetch details: {str(e)}'
+                })
+        
+        end_time = datetime.now()
+        processing_time = (end_time - start_time).total_seconds()
+        
+        result = {
+            'success': True,
+            'load_balancers': lb_details,
+            'summary': {
+                'total_returned': len(lb_details),
+                'limit': limit if not include_all else 'all',
+                'offset': offset if not include_all else 0,
+                'processing_time_seconds': round(processing_time, 2)
+            }
+        }
+        
+        if not include_all:
+            all_count = len(list(conn.load_balancer.load_balancers()))
+            result['summary']['total_available'] = all_count
+            result['summary']['has_more'] = (offset + limit) < all_count
+        
+        logger.info(f"Successfully retrieved {len(lb_details)} load balancers in {processing_time:.2f}s")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Failed to get load balancers: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to get load balancers: {str(e)}',
+            'error': str(e)
+        }
+
+
+def get_load_balancer_details(lb_name_or_id: str) -> Dict[str, Any]:
+    """
+    Get detailed information about a specific load balancer.
+    
+    Args:
+        lb_name_or_id: Load balancer name or ID
+    
+    Returns:
+        Dictionary containing detailed load balancer information
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        logger.info(f"Fetching load balancer details for: {lb_name_or_id}")
+        
+        # Try to find load balancer by ID or name
+        lb = conn.load_balancer.find_load_balancer(lb_name_or_id)
+        if not lb:
+            return {
+                'success': False,
+                'message': f'Load balancer not found: {lb_name_or_id}'
+            }
+        
+        # Get comprehensive load balancer details
+        lb_details = {
+            'id': lb.id,
+            'name': lb.name,
+            'description': lb.description,
+            'vip_address': lb.vip_address,
+            'vip_port_id': lb.vip_port_id,
+            'vip_subnet_id': lb.vip_subnet_id,
+            'vip_network_id': lb.vip_network_id,
+            'provisioning_status': lb.provisioning_status,
+            'operating_status': lb.operating_status,
+            'admin_state_up': lb.admin_state_up,
+            'project_id': lb.project_id,
+            'provider': getattr(lb, 'provider', 'Unknown'),
+            'created_at': str(lb.created_at) if hasattr(lb, 'created_at') else 'N/A',
+            'updated_at': str(lb.updated_at) if hasattr(lb, 'updated_at') else 'N/A'
+        }
+        
+        # Get listeners
+        listeners = list(conn.load_balancer.listeners(loadbalancer_id=lb.id))
+        listener_details = []
+        
+        for listener in listeners:
+            # Get pools for this listener
+            pools = list(conn.load_balancer.pools(listener_id=listener.id))
+            pool_summary = []
+            
+            for pool in pools:
+                # Get members for this pool
+                members = list(conn.load_balancer.members(pool_id=pool.id))
+                member_summary = [{'id': m.id, 'address': m.address, 'protocol_port': m.protocol_port} for m in members]
+                
+                pool_info = {
+                    'id': pool.id,
+                    'name': pool.name,
+                    'protocol': pool.protocol,
+                    'lb_algorithm': pool.lb_algorithm,
+                    'admin_state_up': pool.admin_state_up,
+                    'members': member_summary,
+                    'member_count': len(member_summary)
+                }
+                pool_summary.append(pool_info)
+            
+            listener_info = {
+                'id': listener.id,
+                'name': listener.name,
+                'protocol': listener.protocol,
+                'protocol_port': listener.protocol_port,
+                'admin_state_up': listener.admin_state_up,
+                'pools': pool_summary,
+                'pool_count': len(pool_summary)
+            }
+            listener_details.append(listener_info)
+        
+        lb_details['listeners'] = listener_details
+        lb_details['listener_count'] = len(listener_details)
+        
+        return {
+            'success': True,
+            'load_balancer': lb_details
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get load balancer details: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to get load balancer details: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_load_balancer(action: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage load balancer operations (create, delete, update).
+    
+    Args:
+        action: Action to perform (create, delete, update, stats, status)
+        **kwargs: Additional parameters based on action
+    
+    Returns:
+        Dictionary containing operation results
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        logger.info(f"Managing load balancer with action: {action}")
+        
+        if action == "create":
+            # Create load balancer
+            name = kwargs.get('name')
+            vip_subnet_id = kwargs.get('vip_subnet_id')
+            
+            if not name or not vip_subnet_id:
+                return {
+                    'success': False,
+                    'message': 'name and vip_subnet_id are required for load balancer creation'
+                }
+            
+            lb_params = {
+                'name': name,
+                'vip_subnet_id': vip_subnet_id,
+                'description': kwargs.get('description', ''),
+                'admin_state_up': kwargs.get('admin_state_up', True),
+                'provider': kwargs.get('provider')
+            }
+            
+            # Remove None values
+            lb_params = {k: v for k, v in lb_params.items() if v is not None}
+            
+            lb = conn.load_balancer.create_load_balancer(**lb_params)
+            
+            return {
+                'success': True,
+                'message': f'Load balancer created successfully: {lb.name}',
+                'load_balancer': {
+                    'id': lb.id,
+                    'name': lb.name,
+                    'vip_address': lb.vip_address,
+                    'provisioning_status': lb.provisioning_status
+                }
+            }
+        
+        elif action == "delete":
+            lb_name_or_id = kwargs.get('lb_name_or_id')
+            if not lb_name_or_id:
+                return {
+                    'success': False,
+                    'message': 'lb_name_or_id is required for deletion'
+                }
+            
+            lb = conn.load_balancer.find_load_balancer(lb_name_or_id)
+            if not lb:
+                return {
+                    'success': False,
+                    'message': f'Load balancer not found: {lb_name_or_id}'
+                }
+            
+            conn.load_balancer.delete_load_balancer(lb.id)
+            return {
+                'success': True,
+                'message': f'Load balancer deleted successfully: {lb.name}'
+            }
+        
+        elif action == "update":
+            lb_name_or_id = kwargs.get('lb_name_or_id')
+            if not lb_name_or_id:
+                return {
+                    'success': False,
+                    'message': 'lb_name_or_id is required for update'
+                }
+            
+            lb = conn.load_balancer.find_load_balancer(lb_name_or_id)
+            if not lb:
+                return {
+                    'success': False,
+                    'message': f'Load balancer not found: {lb_name_or_id}'
+                }
+            
+            update_params = {}
+            if 'name' in kwargs:
+                update_params['name'] = kwargs['name']
+            if 'description' in kwargs:
+                update_params['description'] = kwargs['description']
+            if 'admin_state_up' in kwargs:
+                update_params['admin_state_up'] = kwargs['admin_state_up']
+            
+            if not update_params:
+                return {
+                    'success': False,
+                    'message': 'No update parameters provided'
+                }
+            
+            updated_lb = conn.load_balancer.update_load_balancer(lb.id, **update_params)
+            return {
+                'success': True,
+                'message': f'Load balancer updated successfully: {updated_lb.name}',
+                'load_balancer': {
+                    'id': updated_lb.id,
+                    'name': updated_lb.name,
+                    'description': updated_lb.description
+                }
+            }
+        
+        elif action == "stats":
+            lb_name_or_id = kwargs.get('lb_name_or_id')
+            if not lb_name_or_id:
+                return {
+                    'success': False,
+                    'message': 'lb_name_or_id is required for stats'
+                }
+            
+            lb = conn.load_balancer.find_load_balancer(lb_name_or_id)
+            if not lb:
+                return {
+                    'success': False,
+                    'message': f'Load balancer not found: {lb_name_or_id}'
+                }
+            
+            # Get load balancer statistics
+            try:
+                stats = conn.load_balancer.get_load_balancer_statistics(lb.id)
+                return {
+                    'success': True,
+                    'load_balancer_stats': {
+                        'bytes_in': getattr(stats, 'bytes_in', 0),
+                        'bytes_out': getattr(stats, 'bytes_out', 0),
+                        'active_connections': getattr(stats, 'active_connections', 0),
+                        'total_connections': getattr(stats, 'total_connections', 0)
+                    }
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to get load balancer statistics: {str(e)}'
+                }
+        
+        elif action == "status":
+            lb_name_or_id = kwargs.get('lb_name_or_id')
+            if not lb_name_or_id:
+                return {
+                    'success': False,
+                    'message': 'lb_name_or_id is required for status'
+                }
+            
+            lb = conn.load_balancer.find_load_balancer(lb_name_or_id)
+            if not lb:
+                return {
+                    'success': False,
+                    'message': f'Load balancer not found: {lb_name_or_id}'
+                }
+            
+            # Get load balancer status tree
+            try:
+                status = conn.load_balancer.get_load_balancer_status(lb.id)
+                return {
+                    'success': True,
+                    'load_balancer_status': status.to_dict() if hasattr(status, 'to_dict') else str(status)
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to get load balancer status: {str(e)}'
+                }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: create, delete, update, stats, status'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage load balancer: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage load balancer: {str(e)}',
+            'error': str(e)
+        }
+
+
+def get_load_balancer_listeners(lb_name_or_id: str) -> Dict[str, Any]:
+    """
+    Get listeners for a specific load balancer.
+    
+    Args:
+        lb_name_or_id: Load balancer name or ID
+    
+    Returns:
+        Dictionary containing listeners information
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        # Find load balancer
+        lb = conn.load_balancer.find_load_balancer(lb_name_or_id)
+        if not lb:
+            return {
+                'success': False,
+                'message': f'Load balancer not found: {lb_name_or_id}'
+            }
+        
+        # Get listeners
+        listeners = list(conn.load_balancer.listeners(loadbalancer_id=lb.id))
+        listener_details = []
+        
+        for listener in listeners:
+            listener_info = {
+                'id': listener.id,
+                'name': listener.name,
+                'description': listener.description,
+                'protocol': listener.protocol,
+                'protocol_port': listener.protocol_port,
+                'admin_state_up': listener.admin_state_up,
+                'loadbalancer_id': listener.loadbalancer_id,
+                'default_pool_id': getattr(listener, 'default_pool_id', None),
+                'created_at': str(listener.created_at) if hasattr(listener, 'created_at') else 'N/A',
+                'updated_at': str(listener.updated_at) if hasattr(listener, 'updated_at') else 'N/A'
+            }
+            listener_details.append(listener_info)
+        
+        return {
+            'success': True,
+            'load_balancer': {
+                'id': lb.id,
+                'name': lb.name
+            },
+            'listeners': listener_details,
+            'listener_count': len(listener_details)
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get load balancer listeners: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to get load balancer listeners: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_load_balancer_listener(action: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage load balancer listener operations.
+    
+    Args:
+        action: Action to perform (create, delete, update, show)
+        **kwargs: Additional parameters based on action
+    
+    Returns:
+        Dictionary containing operation results
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        logger.info(f"Managing load balancer listener with action: {action}")
+        
+        if action == "create":
+            name = kwargs.get('name')
+            lb_name_or_id = kwargs.get('lb_name_or_id')
+            protocol = kwargs.get('protocol')
+            protocol_port = kwargs.get('protocol_port')
+            
+            if not all([name, lb_name_or_id, protocol, protocol_port]):
+                return {
+                    'success': False,
+                    'message': 'name, lb_name_or_id, protocol, and protocol_port are required'
+                }
+            
+            # Find load balancer
+            lb = conn.load_balancer.find_load_balancer(lb_name_or_id)
+            if not lb:
+                return {
+                    'success': False,
+                    'message': f'Load balancer not found: {lb_name_or_id}'
+                }
+            
+            listener_params = {
+                'name': name,
+                'loadbalancer_id': lb.id,
+                'protocol': protocol.upper(),
+                'protocol_port': int(protocol_port),
+                'description': kwargs.get('description', ''),
+                'admin_state_up': kwargs.get('admin_state_up', True)
+            }
+            
+            listener = conn.load_balancer.create_listener(**listener_params)
+            
+            return {
+                'success': True,
+                'message': f'Listener created successfully: {listener.name}',
+                'listener': {
+                    'id': listener.id,
+                    'name': listener.name,
+                    'protocol': listener.protocol,
+                    'protocol_port': listener.protocol_port
+                }
+            }
+        
+        elif action == "delete":
+            listener_name_or_id = kwargs.get('listener_name_or_id')
+            if not listener_name_or_id:
+                return {
+                    'success': False,
+                    'message': 'listener_name_or_id is required for deletion'
+                }
+            
+            listener = conn.load_balancer.find_listener(listener_name_or_id)
+            if not listener:
+                return {
+                    'success': False,
+                    'message': f'Listener not found: {listener_name_or_id}'
+                }
+            
+            conn.load_balancer.delete_listener(listener.id)
+            return {
+                'success': True,
+                'message': f'Listener deleted successfully: {listener.name}'
+            }
+        
+        elif action == "show":
+            listener_name_or_id = kwargs.get('listener_name_or_id')
+            if not listener_name_or_id:
+                return {
+                    'success': False,
+                    'message': 'listener_name_or_id is required'
+                }
+            
+            listener = conn.load_balancer.find_listener(listener_name_or_id)
+            if not listener:
+                return {
+                    'success': False,
+                    'message': f'Listener not found: {listener_name_or_id}'
+                }
+            
+            return {
+                'success': True,
+                'listener': {
+                    'id': listener.id,
+                    'name': listener.name,
+                    'description': listener.description,
+                    'protocol': listener.protocol,
+                    'protocol_port': listener.protocol_port,
+                    'admin_state_up': listener.admin_state_up,
+                    'loadbalancer_id': listener.loadbalancer_id,
+                    'default_pool_id': getattr(listener, 'default_pool_id', None)
+                }
+            }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: create, delete, show'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage listener: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage listener: {str(e)}',
+            'error': str(e)
+        }
+
+
+def get_load_balancer_pools(listener_name_or_id: str = None) -> Dict[str, Any]:
+    """
+    Get load balancer pools, optionally filtered by listener.
+    
+    Args:
+        listener_name_or_id: Optional listener name or ID to filter pools
+    
+    Returns:
+        Dictionary containing pools information
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if listener_name_or_id:
+            # Find listener and get its pools
+            listener = conn.load_balancer.find_listener(listener_name_or_id)
+            if not listener:
+                return {
+                    'success': False,
+                    'message': f'Listener not found: {listener_name_or_id}'
+                }
+            
+            pools = list(conn.load_balancer.pools(listener_id=listener.id))
+        else:
+            # Get all pools
+            pools = list(conn.load_balancer.pools())
+        
+        pool_details = []
+        for pool in pools:
+            # Get members for this pool
+            members = list(conn.load_balancer.members(pool_id=pool.id))
+            member_summary = []
+            
+            for member in members:
+                member_info = {
+                    'id': member.id,
+                    'name': getattr(member, 'name', ''),
+                    'address': member.address,
+                    'protocol_port': member.protocol_port,
+                    'weight': getattr(member, 'weight', 1),
+                    'admin_state_up': member.admin_state_up,
+                    'operating_status': getattr(member, 'operating_status', 'Unknown')
+                }
+                member_summary.append(member_info)
+            
+            pool_info = {
+                'id': pool.id,
+                'name': pool.name,
+                'description': pool.description,
+                'protocol': pool.protocol,
+                'lb_algorithm': pool.lb_algorithm,
+                'admin_state_up': pool.admin_state_up,
+                'listener_id': getattr(pool, 'listener_id', None),
+                'members': member_summary,
+                'member_count': len(member_summary),
+                'created_at': str(pool.created_at) if hasattr(pool, 'created_at') else 'N/A',
+                'updated_at': str(pool.updated_at) if hasattr(pool, 'updated_at') else 'N/A'
+            }
+            pool_details.append(pool_info)
+        
+        return {
+            'success': True,
+            'pools': pool_details,
+            'pool_count': len(pool_details),
+            'filter': f'listener: {listener_name_or_id}' if listener_name_or_id else 'all pools'
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get pools: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to get pools: {str(e)}',
+            'error': str(e)
+        }
