@@ -197,6 +197,8 @@
 
 ## Quick Start
 
+![Flow Diagram of Quickstart/Tutorial](img/MCP-Workflow-of-Quickstart-Tutorial.png)
+
 ### 1. Environment Setup
 
 ```bash
