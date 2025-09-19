@@ -4,7 +4,35 @@
 - Always use the provided API tools for real data retrieval; never guess or reference external interfaces.
 - No hypothetical responses or manual check suggestions; leverage the tools for every query.
 - Validate and normalize all input parameters (instance names, volume names, network names, stack names) before use.
-- For management operations (start/stop/restart, Heat stack operations), confirm user intent before executing.
+- For ### M. User: "Show load balancers in my project"
+→ Call: get_load_balancer_status()
+
+### N. User: "Create a load balancer pool for web servers"
+→ Call: set_load_balancer_pool("create", pool_name="web-pool", protocol="HTTP", lb_algorithm="ROUND_ROBIN")
+
+### O. User: "Add web-01 instance to the load balancer pool"
+→ Call: set_load_balancer_member("create", pool_name="web-pool", address="192.168.1.10", protocol_port=80)
+
+### P. User: "Show health monitors for load balancer"
+→ Call: get_load_balancer_health_monitors()
+
+### Q. User: "Show L7 rules for policy redirect-to-https" 🆕
+→ Call: get_load_balancer_l7_rules("redirect-to-https")
+
+### R. User: "Create L7 rule to redirect HTTP traffic" 🆕
+→ Call: set_load_balancer_l7_rule("create", policy_id="policy-id", compare_type="EQUAL_TO", type="PATH", value="/")
+
+### S. User: "List amphora instances for load balancer web-lb" 🆕
+→ Call: get_load_balancer_amphorae(loadbalancer_id="web-lb")
+
+### T. User: "Show availability zones for load balancer" 🆕
+→ Call: get_load_balancer_availability_zones()
+
+### U. User: "Create flavor for high-performance load balancer" 🆕
+→ Call: set_load_balancer_flavor("create", flavor_name="high-perf", flavor_profile_id="profile-id")
+
+### V. User: "Show load balancer quotas for project" 🆕
+→ Call: get_load_balancer_quotas("project-id")operations (start/stop/restart, Heat stack operations), confirm user intent before executing.
 - **IMPORTANT: Tool Availability Based on Configuration**:
   - Available tools depend on `ALLOW_MODIFY_OPERATIONS` environment variable setting
   - When `ALLOW_MODIFY_OPERATIONS=false`: Only read-only tools are available (get_*, search_*, monitor_*)  
@@ -165,6 +193,37 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 | Heat stacks | get_heat_stacks | Stack status and info | Infrastructure as Code |
 | Stack management | set_heat_stack | Create/delete/update stacks | **Conditional Tool** - Orchestration operations |
 
+### ⚖️ Load Balancer Management (24 tools - 96% CLI Coverage)
+**🎉 Major Update: Comprehensive LoadBalancer implementation now covers 79/82 CLI commands**
+
+| User Intent / Keywords | Tool | Output Focus | Notes |
+|------------------------|------|--------------|-------|
+| **"List load balancers"** / **"Show all load balancers"** / **"LB status"** | **get_load_balancer_status** | **PRIORITY**: All load balancers with pagination, VIP, status, listener count | **Always available - comprehensive LB listing** |
+| Load balancer management | set_load_balancer | Create/delete/update/failover/unset LBs, stats, status tree | **Conditional Tool** - LB lifecycle operations |
+| **"Show listeners for LB X"** / **"List LB listeners"** | **get_load_balancer_listeners** | **PRIORITY**: All listeners for specific LB, protocols, ports | **Always available - listener information** |
+| Listener management | set_load_balancer_listener | Create/delete/update/unset listeners (HTTP/HTTPS/TCP/UDP) | **Conditional Tool** - Listener operations |
+| **"Show pools"** / **"List LB pools"** / **"Pool members"** | **get_load_balancer_pools** | **PRIORITY**: Pool listing with members, algorithms, stats | **Always available - pool information** |
+| Pool management | set_load_balancer_pool | Create/delete/update/unset pools with algorithms | **Conditional Tool** - Pool lifecycle operations |
+| **"Show pool members"** / **"List members for pool X"** | **get_load_balancer_members** | **PRIORITY**: Members in specific pool, health status | **Always available - member listing** |
+| Pool member management | set_load_balancer_member | Create/delete/update/unset pool members | **Conditional Tool** - Member operations |
+| **"Show health monitors"** / **"List health checks"** | **get_load_balancer_health_monitors** | **PRIORITY**: Health monitor configuration, types | **Always available - health check info** |
+| Health monitor management | set_load_balancer_health_monitor | Create/delete/update/unset health monitors | **Conditional Tool** - Health check operations |
+| **"Show L7 policies"** / **"List L7 policies for listener"** | **get_load_balancer_l7_policies** | **PRIORITY**: L7 policies with actions, redirect rules | **Always available - L7 policy info** |
+| L7 policy management | set_load_balancer_l7_policy | Create/delete/update/unset L7 policies | **Conditional Tool** - L7 policy operations |
+| **"Show L7 rules"** / **"List L7 rules for policy X"** 🆕 | **get_load_balancer_l7_rules** | **PRIORITY**: L7 rules with compare types, values | **Always available - L7 rule info** |
+| L7 rule management 🆕 | set_load_balancer_l7_rule | Create/delete/update/unset L7 rules | **Conditional Tool** - L7 rule operations |
+| **"Show amphorae"** / **"List amphora instances"** 🆕 | **get_load_balancer_amphorae** | **PRIORITY**: Amphora status, roles, network IPs | **Always available - amphora info** |
+| Amphora management 🆕 | set_load_balancer_amphora | Configure/failover/show amphora (delete/stats not supported) | **Conditional Tool** - Amphora operations |
+| **"Show providers"** / **"List LB providers"** | **get_load_balancer_providers** | **PRIORITY**: Available providers and capabilities | **Always available - provider info** |
+| **"Show availability zones"** / **"List AZs for LB"** 🆕 | **get_load_balancer_availability_zones** | **PRIORITY**: AZ listing with availability status | **Always available - AZ info** |
+| Availability zone management 🆕 | set_load_balancer_availability_zone | Create/delete/update/unset availability zones | **Conditional Tool** - AZ operations |
+| **"Show flavors"** / **"List LB flavors"** 🆕 | **get_load_balancer_flavors** | **PRIORITY**: Flavor listing with specifications | **Always available - flavor info** |
+| Flavor management 🆕 | set_load_balancer_flavor | Create/delete/update/unset flavors | **Conditional Tool** - Flavor operations |
+| **"Show flavor profiles"** / **"List flavor profiles"** | **get_load_balancer_flavor_profiles** | **PRIORITY**: Flavor profile configurations | **Always available - profile info** |
+| Flavor profile management | set_load_balancer_flavor_profile | Create/update/unset flavor profiles | **Conditional Tool** - Profile operations |
+| **"Show quotas"** / **"List LB quotas"** 🆕 | **get_load_balancer_quotas** | **PRIORITY**: Quota limits for LB resources | **Always available - quota info** |
+| Quota management 🆕 | set_load_balancer_quota | Set/reset quotas for LB resources | **Conditional Tool** - Quota operations |
+
 ### 📊 Monitoring & Logging (4 tools)
 | User Intent / Keywords | Tool | Output Focus | Notes |
 |------------------------|------|--------------|-------|
@@ -173,7 +232,7 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 | Alarm management | set_alarms | Alert configuration and management | **Conditional Tool** - Monitoring alerts and notifications |
 | Compute agent management | set_compute_agents | Compute service agent operations | **Conditional Tool** - Nova agent management |
 
-**Total: 57 comprehensive OpenStack management tools**
+**Total: 67 comprehensive OpenStack management tools**
 
 **Enhanced Features:**
 - **Pagination Support**: get_instance_details and search_instances support limit/offset parameters
@@ -229,6 +288,35 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - "Show network details" → **get_network_details("all")**
 - "Service health" / "API status" → **get_service_status**
 
+### ⚖️ **Load Balancer Operations** (96% CLI Coverage - 79/82 commands)
+**🆕 Recent additions: L7 rules, amphora management, availability zones, flavors, quotas**
+
+- "Show load balancers" / "List LBs" → **get_load_balancer_status**
+- "Create/delete/update/failover load balancer X" → **set_load_balancer("action", "X")**
+- "Show listeners for LB X" → **get_load_balancer_listeners("X")**
+- "Create/delete/update listener Y on LB X" → **set_load_balancer_listener("action", "Y", lb_name_or_id="X")**
+- "Show pools" / "List LB pools" → **get_load_balancer_pools()**
+- "Create/delete/update pool X" → **set_load_balancer_pool("action", "X")**
+- "Show pool X members" → **get_load_balancer_members("X")**
+- "Add member A:B to pool X" → **set_load_balancer_member("create", "X", address="A", protocol_port=B)**
+- "Show health monitors" → **get_load_balancer_health_monitors()**
+- "Create/delete/update health monitor for pool X" → **set_load_balancer_health_monitor("action", pool_name_or_id="X")**
+- "Show L7 policies for listener X" → **get_load_balancer_l7_policies("X")**
+- "Create/delete/update L7 policy Y" → **set_load_balancer_l7_policy("action", "Y")**
+- "Show L7 rules for policy X" 🆕 → **get_load_balancer_l7_rules("X")**
+- "Create/delete/update L7 rule" 🆕 → **set_load_balancer_l7_rule("action", policy_id="X")**
+- "Show amphorae" / "List amphora instances" 🆕 → **get_load_balancer_amphorae()**
+- "Configure/failover/show amphora X" 🆕 → **set_load_balancer_amphora("action", "X")**
+- "Show providers" / "List LB providers" → **get_load_balancer_providers()**
+- "Show availability zones" 🆕 → **get_load_balancer_availability_zones()**
+- "Create/delete/update availability zone X" 🆕 → **set_load_balancer_availability_zone("action", "X")**
+- "Show flavors" / "List LB flavors" 🆕 → **get_load_balancer_flavors()**
+- "Create/delete/update flavor X" 🆕 → **set_load_balancer_flavor("action", "X")**
+- "Show flavor profiles" → **get_load_balancer_flavor_profiles()**
+- "Create/update flavor profile X" → **set_load_balancer_flavor_profile("action", "X")**
+- "Show quotas" / "List LB quotas" 🆕 → **get_load_balancer_quotas()**
+- "Set/reset quota for project X" 🆕 → **set_load_balancer_quota("action", project_id="X")**
+
 ### 📈 **Monitoring & Resources**
 - "Hypervisor statistics" / "resource monitoring" → **monitor_resources**
 - "CPU/memory usage by hypervisor" → **monitor_resources**
@@ -236,11 +324,12 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 **Decision Priority Order:**
 1. **Specific instance name mentioned** → get_instance_details with instance_names parameter
 2. **Search/find keywords** → search_instances with appropriate parameters  
-3. **Cluster/overview keywords** → get_cluster_status
-4. **Service/health keywords** → get_service_status
-5. **Management action keywords** → set_instance, set_volume, or set_heat_stack
-6. **Heat stack keywords** → get_heat_stacks or set_heat_stack
-7. **Resource/hypervisor specific** → monitor_resources
+3. **Load balancer specific requests** → get_load_balancer_list, get_load_balancer_details, or related LB tools
+4. **Cluster/overview keywords** → get_cluster_status
+5. **Service/health keywords** → get_service_status
+6. **Management action keywords** → set_instance, set_volume, set_heat_stack, or set_load_balancer_*
+7. **Heat stack keywords** → get_heat_stacks or set_heat_stack
+8. **Resource/hypervisor specific** → monitor_resources
 
 **Pagination Guidelines:**
 - For large environments: always use reasonable limits (default 50, max 200)
@@ -350,6 +439,18 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 ### L. User: "Find instances containing 'DB' case-sensitively"
 → Call: search_instances("DB", "all", case_sensitive=True)
+
+### M. User: "Show load balancers in my project"
+→ Call: get_load_balancer_details()
+
+### N. User: "Create a load balancer pool for web servers"
+→ Call: set_load_balancer_pool("web-pool", "HTTP", "ROUND_ROBIN", "create")
+
+### O. User: "Add web-01 instance to the load balancer pool"
+→ Call: set_load_balancer_pool_member("web-pool", "192.168.1.10", "add")
+
+### P. User: "Show health monitors for load balancer"
+→ Call: get_load_balancer_health_monitors()
 
 ---
 
@@ -548,6 +649,114 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - "Delete completed stack."
 - "Display stack status and resources."
 - "Update stack configuration."
+
+### 🌐 Load Balancer Management (96% CLI Coverage - Comprehensive Implementation)
+**🎉 Major Update: Now supports 79/82 OpenStack LoadBalancer CLI commands**
+
+**get_load_balancer_status & set_load_balancer**
+- "Show all load balancers in project."
+- "List load balancer status and configuration."
+- "Display load balancer VIP and provisioning status."
+- "Create a new load balancer named web-lb."
+- "Delete unused load balancer."
+- "Update load balancer description."
+- "Failover load balancer instances."
+
+**get_load_balancer_listeners & set_load_balancer_listener**
+- "Show listeners for load balancer web-lb."
+- "Create HTTP listener on port 80 for web-lb."
+- "Add HTTPS listener with SSL certificate."
+- "Delete listener from load balancer."
+- "Update listener configuration."
+
+**get_load_balancer_pools & set_load_balancer_pool**
+- "List pools for load balancer."
+- "Show pool members and health status."
+- "Create pool with ROUND_ROBIN algorithm."
+- "Delete empty pool from load balancer."
+- "Update pool session persistence."
+
+**get_load_balancer_members & set_load_balancer_member**
+- "Show members in pool web-pool."
+- "Add server 192.168.1.10:80 to pool."
+- "Remove unhealthy member from pool."
+- "Update member weight and backup status."
+
+**get_load_balancer_health_monitors & set_load_balancer_health_monitor**
+- "Show health monitors for pools."
+- "Create HTTP health check for web-pool."
+- "Delete unused health monitor."
+- "Update health check interval and timeout."
+
+**get_load_balancer_l7_policies & set_load_balancer_l7_policy**
+- "Show L7 policies for HTTPS listener."
+- "Create redirect policy for HTTP to HTTPS."
+- "Delete unused L7 policy."
+- "Update L7 policy redirect URL."
+
+**get_load_balancer_l7_rules & set_load_balancer_l7_rule** 🆕
+- "Show L7 rules for redirect policy."
+- "Create rule to match PATH /api/*."
+- "Add header-based routing rule."
+- "Delete specific L7 rule."
+- "Update rule compare type and value."
+
+**get_load_balancer_amphorae & set_load_balancer_amphora** 🆕
+- "List amphora instances for load balancer."
+- "Show amphora status and network details."
+- "Configure amphora instance."
+- "Failover amphora to backup."
+- "Display amphora compute and network info."
+
+**get_load_balancer_providers**
+- "List available load balancer providers."
+- "Show provider capabilities and features."
+- "Display Octavia driver information."
+
+**get_load_balancer_availability_zones & set_load_balancer_availability_zone** 🆕
+- "Show availability zones for load balancers."
+- "Create new availability zone."
+- "Delete unused availability zone."
+- "Update availability zone configuration."
+
+**get_load_balancer_flavors & set_load_balancer_flavor** 🆕
+- "List load balancer flavors."
+- "Show flavor specifications."
+- "Create high-performance flavor."
+- "Delete unused flavor."
+- "Update flavor profile association."
+
+**get_load_balancer_flavor_profiles & set_load_balancer_flavor_profile**
+- "Show flavor profiles."
+- "Create custom flavor profile."
+- "Update profile configuration."
+- "Display profile provider settings."
+
+**get_load_balancer_quotas & set_load_balancer_quota** 🆕
+- "Show load balancer quotas."
+- "Display project quota limits."
+- "Set quota for load balancer resources."
+- "Reset quota to default values."
+- "Update project LB resource limits."
+- "Configure listener protocol and port."
+
+**set_load_balancer_pool & get_load_balancer_pool_members**
+- "Create a pool for HTTP traffic with round-robin algorithm."
+- "Show all members in web-pool."
+- "Configure pool session persistence."
+- "Delete empty load balancer pool."
+
+**set_load_balancer_pool_member**
+- "Add web-server-01 (192.168.1.10:80) to web-pool."
+- "Remove failed member from pool."
+- "Update member weight in load balancer pool."
+- "Configure backup member for pool."
+
+**get_load_balancer_health_monitors & set_load_balancer_health_monitor**
+- "Show all health monitors for pools."
+- "Create HTTP health monitor for web-pool."
+- "Configure health check interval and timeout."
+- "Delete unused health monitor."
 
 ### 📊 Monitoring & Logging
 

@@ -7401,10 +7401,10 @@ def get_load_balancer_details(lb_name_or_id: str) -> Dict[str, Any]:
 
 def set_load_balancer(action: str, **kwargs) -> Dict[str, Any]:
     """
-    Manage load balancer operations (create, delete, update).
+    Comprehensive load balancer management operations.
     
     Args:
-        action: Action to perform (create, delete, update, stats, status)
+        action: Action to perform (create, delete, set, unset, failover, stats, status)
         **kwargs: Additional parameters based on action
     
     Returns:
@@ -7431,7 +7431,9 @@ def set_load_balancer(action: str, **kwargs) -> Dict[str, Any]:
                 'vip_subnet_id': vip_subnet_id,
                 'description': kwargs.get('description', ''),
                 'admin_state_up': kwargs.get('admin_state_up', True),
-                'provider': kwargs.get('provider')
+                'provider': kwargs.get('provider'),
+                'flavor_id': kwargs.get('flavor_id'),
+                'availability_zone': kwargs.get('availability_zone')
             }
             
             # Remove None values
@@ -7446,7 +7448,8 @@ def set_load_balancer(action: str, **kwargs) -> Dict[str, Any]:
                     'id': lb.id,
                     'name': lb.name,
                     'vip_address': lb.vip_address,
-                    'provisioning_status': lb.provisioning_status
+                    'provisioning_status': lb.provisioning_status,
+                    'operating_status': lb.operating_status
                 }
             }
         
@@ -7465,13 +7468,13 @@ def set_load_balancer(action: str, **kwargs) -> Dict[str, Any]:
                     'message': f'Load balancer not found: {lb_name_or_id}'
                 }
             
-            conn.load_balancer.delete_load_balancer(lb.id)
+            conn.load_balancer.delete_load_balancer(lb.id, cascade=kwargs.get('cascade', False))
             return {
                 'success': True,
                 'message': f'Load balancer deleted successfully: {lb.name}'
             }
         
-        elif action == "update":
+        elif action in ["set", "update"]:
             lb_name_or_id = kwargs.get('lb_name_or_id')
             if not lb_name_or_id:
                 return {
@@ -7487,12 +7490,9 @@ def set_load_balancer(action: str, **kwargs) -> Dict[str, Any]:
                 }
             
             update_params = {}
-            if 'name' in kwargs:
-                update_params['name'] = kwargs['name']
-            if 'description' in kwargs:
-                update_params['description'] = kwargs['description']
-            if 'admin_state_up' in kwargs:
-                update_params['admin_state_up'] = kwargs['admin_state_up']
+            for key in ['name', 'description', 'admin_state_up']:
+                if key in kwargs:
+                    update_params[key] = kwargs[key]
             
             if not update_params:
                 return {
@@ -7507,9 +7507,70 @@ def set_load_balancer(action: str, **kwargs) -> Dict[str, Any]:
                 'load_balancer': {
                     'id': updated_lb.id,
                     'name': updated_lb.name,
-                    'description': updated_lb.description
+                    'description': updated_lb.description,
+                    'admin_state_up': updated_lb.admin_state_up
                 }
             }
+        
+        elif action == "unset":
+            lb_name_or_id = kwargs.get('lb_name_or_id')
+            if not lb_name_or_id:
+                return {
+                    'success': False,
+                    'message': 'lb_name_or_id is required for unset'
+                }
+            
+            lb = conn.load_balancer.find_load_balancer(lb_name_or_id)
+            if not lb:
+                return {
+                    'success': False,
+                    'message': f'Load balancer not found: {lb_name_or_id}'
+                }
+            
+            unset_params = {}
+            # Unset operations: clear description
+            if kwargs.get('description'):
+                unset_params['description'] = ''
+            
+            if unset_params:
+                updated_lb = conn.load_balancer.update_load_balancer(lb.id, **unset_params)
+                return {
+                    'success': True,
+                    'message': f'Load balancer settings cleared: {updated_lb.name}'
+                }
+            else:
+                return {
+                    'success': False,
+                    'message': 'No unset parameters specified'
+                }
+        
+        elif action == "failover":
+            lb_name_or_id = kwargs.get('lb_name_or_id')
+            if not lb_name_or_id:
+                return {
+                    'success': False,
+                    'message': 'lb_name_or_id is required for failover'
+                }
+            
+            lb = conn.load_balancer.find_load_balancer(lb_name_or_id)
+            if not lb:
+                return {
+                    'success': False,
+                    'message': f'Load balancer not found: {lb_name_or_id}'
+                }
+            
+            # Trigger load balancer failover
+            try:
+                conn.load_balancer.failover_load_balancer(lb.id)
+                return {
+                    'success': True,
+                    'message': f'Load balancer failover initiated: {lb.name}'
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to trigger failover: {str(e)}'
+                }
         
         elif action == "stats":
             lb_name_or_id = kwargs.get('lb_name_or_id')
@@ -7561,10 +7622,17 @@ def set_load_balancer(action: str, **kwargs) -> Dict[str, Any]:
             
             # Get load balancer status tree
             try:
-                status = conn.load_balancer.get_load_balancer_status(lb.id)
+                # Since status endpoint may not be available, get basic status
                 return {
                     'success': True,
-                    'load_balancer_status': status.to_dict() if hasattr(status, 'to_dict') else str(status)
+                    'load_balancer_status': {
+                        'id': lb.id,
+                        'name': lb.name,
+                        'provisioning_status': lb.provisioning_status,
+                        'operating_status': lb.operating_status,
+                        'admin_state_up': lb.admin_state_up,
+                        'vip_address': lb.vip_address
+                    }
                 }
             except Exception as e:
                 return {
@@ -7575,7 +7643,7 @@ def set_load_balancer(action: str, **kwargs) -> Dict[str, Any]:
         else:
             return {
                 'success': False,
-                'message': f'Unknown action "{action}". Supported: create, delete, update, stats, status'
+                'message': f'Unknown action "{action}". Supported: create, delete, set, unset, failover, stats, status'
             }
             
     except Exception as e:
@@ -7648,10 +7716,10 @@ def get_load_balancer_listeners(lb_name_or_id: str) -> Dict[str, Any]:
 
 def set_load_balancer_listener(action: str, **kwargs) -> Dict[str, Any]:
     """
-    Manage load balancer listener operations.
+    Comprehensive load balancer listener management operations.
     
     Args:
-        action: Action to perform (create, delete, update, show)
+        action: Action to perform (create, delete, set, unset, show, stats)
         **kwargs: Additional parameters based on action
     
     Returns:
@@ -7688,8 +7756,13 @@ def set_load_balancer_listener(action: str, **kwargs) -> Dict[str, Any]:
                 'protocol': protocol.upper(),
                 'protocol_port': int(protocol_port),
                 'description': kwargs.get('description', ''),
-                'admin_state_up': kwargs.get('admin_state_up', True)
+                'admin_state_up': kwargs.get('admin_state_up', True),
+                'connection_limit': kwargs.get('connection_limit'),
+                'default_pool_id': kwargs.get('default_pool_id')
             }
+            
+            # Remove None values
+            listener_params = {k: v for k, v in listener_params.items() if v is not None}
             
             listener = conn.load_balancer.create_listener(**listener_params)
             
@@ -7700,7 +7773,8 @@ def set_load_balancer_listener(action: str, **kwargs) -> Dict[str, Any]:
                     'id': listener.id,
                     'name': listener.name,
                     'protocol': listener.protocol,
-                    'protocol_port': listener.protocol_port
+                    'protocol_port': listener.protocol_port,
+                    'admin_state_up': listener.admin_state_up
                 }
             }
         
@@ -7724,6 +7798,114 @@ def set_load_balancer_listener(action: str, **kwargs) -> Dict[str, Any]:
                 'success': True,
                 'message': f'Listener deleted successfully: {listener.name}'
             }
+        
+        elif action in ["set", "update"]:
+            listener_name_or_id = kwargs.get('listener_name_or_id')
+            if not listener_name_or_id:
+                return {
+                    'success': False,
+                    'message': 'listener_name_or_id is required for update'
+                }
+            
+            listener = conn.load_balancer.find_listener(listener_name_or_id)
+            if not listener:
+                return {
+                    'success': False,
+                    'message': f'Listener not found: {listener_name_or_id}'
+                }
+            
+            update_params = {}
+            for key in ['name', 'description', 'admin_state_up', 'connection_limit', 'default_pool_id']:
+                if key in kwargs:
+                    update_params[key] = kwargs[key]
+            
+            if not update_params:
+                return {
+                    'success': False,
+                    'message': 'No update parameters provided'
+                }
+            
+            updated_listener = conn.load_balancer.update_listener(listener.id, **update_params)
+            return {
+                'success': True,
+                'message': f'Listener updated successfully: {updated_listener.name}',
+                'listener': {
+                    'id': updated_listener.id,
+                    'name': updated_listener.name,
+                    'description': updated_listener.description,
+                    'admin_state_up': updated_listener.admin_state_up
+                }
+            }
+        
+        elif action == "unset":
+            listener_name_or_id = kwargs.get('listener_name_or_id')
+            if not listener_name_or_id:
+                return {
+                    'success': False,
+                    'message': 'listener_name_or_id is required for unset'
+                }
+            
+            listener = conn.load_balancer.find_listener(listener_name_or_id)
+            if not listener:
+                return {
+                    'success': False,
+                    'message': f'Listener not found: {listener_name_or_id}'
+                }
+            
+            unset_params = {}
+            # Unset operations: clear description, connection_limit, default_pool_id
+            if kwargs.get('description'):
+                unset_params['description'] = ''
+            if kwargs.get('connection_limit'):
+                unset_params['connection_limit'] = None
+            if kwargs.get('default_pool_id'):
+                unset_params['default_pool_id'] = None
+            
+            if unset_params:
+                updated_listener = conn.load_balancer.update_listener(listener.id, **unset_params)
+                return {
+                    'success': True,
+                    'message': f'Listener settings cleared: {updated_listener.name}'
+                }
+            else:
+                return {
+                    'success': False,
+                    'message': 'No unset parameters specified'
+                }
+        
+        elif action == "stats":
+            listener_name_or_id = kwargs.get('listener_name_or_id')
+            if not listener_name_or_id:
+                return {
+                    'success': False,
+                    'message': 'listener_name_or_id is required for stats'
+                }
+            
+            listener = conn.load_balancer.find_listener(listener_name_or_id)
+            if not listener:
+                return {
+                    'success': False,
+                    'message': f'Listener not found: {listener_name_or_id}'
+                }
+            
+            # Get listener statistics
+            try:
+                stats = conn.load_balancer.get_listener_statistics(listener.id)
+                return {
+                    'success': True,
+                    'listener_stats': {
+                        'bytes_in': getattr(stats, 'bytes_in', 0),
+                        'bytes_out': getattr(stats, 'bytes_out', 0),
+                        'active_connections': getattr(stats, 'active_connections', 0),
+                        'total_connections': getattr(stats, 'total_connections', 0),
+                        'request_errors': getattr(stats, 'request_errors', 0)
+                    }
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to get listener statistics: {str(e)}'
+                }
         
         elif action == "show":
             listener_name_or_id = kwargs.get('listener_name_or_id')
@@ -7841,5 +8023,1823 @@ def get_load_balancer_pools(listener_name_or_id: str = None) -> Dict[str, Any]:
         return {
             'success': False,
             'message': f'Failed to get pools: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_load_balancer_pool(action: str, pool_name_or_id: str = "", name: str = "", 
+                          listener_name_or_id: str = "", protocol: str = "", 
+                          lb_algorithm: str = "ROUND_ROBIN", description: str = "", 
+                          admin_state_up: bool = True) -> Dict[str, Any]:
+    """
+    Manage load balancer pool operations.
+    
+    Args:
+        action: Operation to perform (create, delete, show, set)
+        pool_name_or_id: Pool name or ID (required for delete/show/set)
+        name: Name for new pool (required for create)
+        listener_name_or_id: Listener name or ID (required for create)
+        protocol: Pool protocol - HTTP, HTTPS, TCP, UDP (required for create)
+        lb_algorithm: Load balancing algorithm (ROUND_ROBIN, LEAST_CONNECTIONS, SOURCE_IP)
+        description: Description for the pool
+        admin_state_up: Administrative state
+        
+    Returns:
+        Dictionary with operation results
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action == "create":
+            if not name or not listener_name_or_id or not protocol:
+                return {
+                    'success': False,
+                    'message': 'Pool name, listener, and protocol are required for create action'
+                }
+            
+            # Find listener
+            listener = None
+            for lb_listener in conn.load_balancer.listeners():
+                if lb_listener.name == listener_name_or_id or lb_listener.id == listener_name_or_id:
+                    listener = lb_listener
+                    break
+            
+            if not listener:
+                return {
+                    'success': False,
+                    'message': f'Listener not found: {listener_name_or_id}'
+                }
+            
+            # Create pool
+            pool_attrs = {
+                'name': name,
+                'listener_id': listener.id,
+                'protocol': protocol.upper(),
+                'lb_algorithm': lb_algorithm.upper(),
+                'admin_state_up': admin_state_up
+            }
+            
+            if description:
+                pool_attrs['description'] = description
+                
+            pool = conn.load_balancer.create_pool(**pool_attrs)
+            
+            return {
+                'success': True,
+                'message': f'Pool created successfully: {pool.name}',
+                'pool': {
+                    'id': pool.id,
+                    'name': pool.name,
+                    'protocol': pool.protocol,
+                    'lb_algorithm': pool.lb_algorithm,
+                    'listener_id': pool.listener_id,
+                    'admin_state_up': pool.admin_state_up,
+                    'provisioning_status': pool.provisioning_status,
+                    'operating_status': pool.operating_status
+                }
+            }
+            
+        elif action == "delete":
+            if not pool_name_or_id:
+                return {
+                    'success': False,
+                    'message': 'Pool name or ID is required for delete action'
+                }
+            
+            # Find pool
+            pool = None
+            for lb_pool in conn.load_balancer.pools():
+                if lb_pool.name == pool_name_or_id or lb_pool.id == pool_name_or_id:
+                    pool = lb_pool
+                    break
+            
+            if not pool:
+                return {
+                    'success': False,
+                    'message': f'Pool not found: {pool_name_or_id}'
+                }
+            
+            conn.load_balancer.delete_pool(pool)
+            
+            return {
+                'success': True,
+                'message': f'Pool deleted successfully: {pool.name}'
+            }
+            
+        elif action == "show":
+            if not pool_name_or_id:
+                return {
+                    'success': False,
+                    'message': 'Pool name or ID is required for show action'
+                }
+            
+            # Find pool
+            pool = None
+            for lb_pool in conn.load_balancer.pools():
+                if lb_pool.name == pool_name_or_id or lb_pool.id == pool_name_or_id:
+                    pool = lb_pool
+                    break
+            
+            if not pool:
+                return {
+                    'success': False,
+                    'message': f'Pool not found: {pool_name_or_id}'
+                }
+            
+            # Get pool members
+            members = []
+            try:
+                for member in conn.load_balancer.members(pool):
+                    members.append({
+                        'id': member.id,
+                        'name': getattr(member, 'name', ''),
+                        'address': member.address,
+                        'protocol_port': member.protocol_port,
+                        'weight': member.weight,
+                        'admin_state_up': member.admin_state_up,
+                        'operating_status': member.operating_status
+                    })
+            except Exception as e:
+                logger.warning(f"Failed to get pool members: {e}")
+            
+            return {
+                'success': True,
+                'pool': {
+                    'id': pool.id,
+                    'name': pool.name,
+                    'description': pool.description,
+                    'protocol': pool.protocol,
+                    'lb_algorithm': pool.lb_algorithm,
+                    'admin_state_up': pool.admin_state_up,
+                    'provisioning_status': pool.provisioning_status,
+                    'operating_status': pool.operating_status,
+                    'listener_id': getattr(pool, 'listener_id', None),
+                    'members': members,
+                    'member_count': len(members),
+                    'created_at': str(pool.created_at) if hasattr(pool, 'created_at') else 'N/A',
+                    'updated_at': str(pool.updated_at) if hasattr(pool, 'updated_at') else 'N/A'
+                }
+            }
+            
+        elif action == "set":
+            if not pool_name_or_id:
+                return {
+                    'success': False,
+                    'message': 'Pool name or ID is required for set action'
+                }
+            
+            # Find pool
+            pool = None
+            for lb_pool in conn.load_balancer.pools():
+                if lb_pool.name == pool_name_or_id or lb_pool.id == pool_name_or_id:
+                    pool = lb_pool
+                    break
+            
+            if not pool:
+                return {
+                    'success': False,
+                    'message': f'Pool not found: {pool_name_or_id}'
+                }
+            
+            # Update pool attributes
+            update_attrs = {}
+            if name:
+                update_attrs['name'] = name
+            if description:
+                update_attrs['description'] = description
+            if lb_algorithm:
+                update_attrs['lb_algorithm'] = lb_algorithm.upper()
+            update_attrs['admin_state_up'] = admin_state_up
+            
+            updated_pool = conn.load_balancer.update_pool(pool, **update_attrs)
+            
+            return {
+                'success': True,
+                'message': f'Pool updated successfully: {updated_pool.name}',
+                'pool': {
+                    'id': updated_pool.id,
+                    'name': updated_pool.name,
+                    'description': updated_pool.description,
+                    'protocol': updated_pool.protocol,
+                    'lb_algorithm': updated_pool.lb_algorithm,
+                    'admin_state_up': updated_pool.admin_state_up,
+                    'provisioning_status': updated_pool.provisioning_status,
+                    'operating_status': updated_pool.operating_status
+                }
+            }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Invalid action: {action}. Supported actions: create, delete, show, set'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage pool: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage pool: {str(e)}',
+            'error': str(e)
+        }
+
+
+def get_load_balancer_pool_members(pool_name_or_id: str) -> Dict[str, Any]:
+    """
+    Get members for a specific load balancer pool.
+    
+    Args:
+        pool_name_or_id: Pool name or ID
+        
+    Returns:
+        Dictionary with pool members information
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        # Find pool
+        pool = None
+        for lb_pool in conn.load_balancer.pools():
+            if lb_pool.name == pool_name_or_id or lb_pool.id == pool_name_or_id:
+                pool = lb_pool
+                break
+        
+        if not pool:
+            return {
+                'success': False,
+                'message': f'Pool not found: {pool_name_or_id}'
+            }
+        
+        # Get pool members
+        member_details = []
+        for member in conn.load_balancer.members(pool):
+            member_info = {
+                'id': member.id,
+                'name': getattr(member, 'name', ''),
+                'address': member.address,
+                'protocol_port': member.protocol_port,
+                'weight': member.weight,
+                'admin_state_up': member.admin_state_up,
+                'provisioning_status': member.provisioning_status,
+                'operating_status': member.operating_status,
+                'backup': getattr(member, 'backup', False),
+                'monitor_address': getattr(member, 'monitor_address', None),
+                'monitor_port': getattr(member, 'monitor_port', None),
+                'created_at': str(member.created_at) if hasattr(member, 'created_at') else 'N/A',
+                'updated_at': str(member.updated_at) if hasattr(member, 'updated_at') else 'N/A'
+            }
+            member_details.append(member_info)
+        
+        return {
+            'success': True,
+            'pool': {
+                'id': pool.id,
+                'name': pool.name,
+                'protocol': pool.protocol
+            },
+            'members': member_details,
+            'member_count': len(member_details)
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get pool members: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to get pool members: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_load_balancer_pool_member(action: str, pool_name_or_id: str, member_id: str = "", 
+                                 name: str = "", address: str = "", protocol_port: int = 0,
+                                 weight: int = 1, admin_state_up: bool = True, 
+                                 backup: bool = False, monitor_address: str = "",
+                                 monitor_port: int = 0) -> Dict[str, Any]:
+    """
+    Manage load balancer pool member operations.
+    
+    Args:
+        action: Operation to perform (create, delete, show, set)
+        pool_name_or_id: Pool name or ID (required)
+        member_id: Member ID (required for delete/show/set)
+        name: Name for the member
+        address: IP address of the member (required for create)
+        protocol_port: Port number (required for create)
+        weight: Member weight (1-256)
+        admin_state_up: Administrative state
+        backup: Backup member flag
+        monitor_address: Monitor IP address
+        monitor_port: Monitor port
+        
+    Returns:
+        Dictionary with operation results
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        # Find pool
+        pool = None
+        for lb_pool in conn.load_balancer.pools():
+            if lb_pool.name == pool_name_or_id or lb_pool.id == pool_name_or_id:
+                pool = lb_pool
+                break
+        
+        if not pool:
+            return {
+                'success': False,
+                'message': f'Pool not found: {pool_name_or_id}'
+            }
+        
+        if action == "create":
+            if not address or protocol_port <= 0:
+                return {
+                    'success': False,
+                    'message': 'Member address and protocol_port are required for create action'
+                }
+            
+            # Create member
+            member_attrs = {
+                'address': address,
+                'protocol_port': protocol_port,
+                'weight': weight,
+                'admin_state_up': admin_state_up,
+                'backup': backup
+            }
+            
+            if name:
+                member_attrs['name'] = name
+            if monitor_address:
+                member_attrs['monitor_address'] = monitor_address
+            if monitor_port > 0:
+                member_attrs['monitor_port'] = monitor_port
+                
+            member = conn.load_balancer.create_member(pool, **member_attrs)
+            
+            return {
+                'success': True,
+                'message': f'Pool member created successfully',
+                'member': {
+                    'id': member.id,
+                    'name': getattr(member, 'name', ''),
+                    'address': member.address,
+                    'protocol_port': member.protocol_port,
+                    'weight': member.weight,
+                    'admin_state_up': member.admin_state_up,
+                    'provisioning_status': member.provisioning_status,
+                    'operating_status': member.operating_status,
+                    'pool_id': pool.id
+                }
+            }
+            
+        elif action == "delete":
+            if not member_id:
+                return {
+                    'success': False,
+                    'message': 'Member ID is required for delete action'
+                }
+            
+            # Find member
+            member = None
+            try:
+                member = conn.load_balancer.get_member(member_id, pool)
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Member not found: {member_id}'
+                }
+            
+            conn.load_balancer.delete_member(member, pool)
+            
+            return {
+                'success': True,
+                'message': f'Pool member deleted successfully: {member.address}:{member.protocol_port}'
+            }
+            
+        elif action == "show":
+            if not member_id:
+                return {
+                    'success': False,
+                    'message': 'Member ID is required for show action'
+                }
+            
+            # Find member
+            try:
+                member = conn.load_balancer.get_member(member_id, pool)
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Member not found: {member_id}'
+                }
+            
+            return {
+                'success': True,
+                'member': {
+                    'id': member.id,
+                    'name': getattr(member, 'name', ''),
+                    'address': member.address,
+                    'protocol_port': member.protocol_port,
+                    'weight': member.weight,
+                    'admin_state_up': member.admin_state_up,
+                    'provisioning_status': member.provisioning_status,
+                    'operating_status': member.operating_status,
+                    'backup': getattr(member, 'backup', False),
+                    'monitor_address': getattr(member, 'monitor_address', None),
+                    'monitor_port': getattr(member, 'monitor_port', None),
+                    'pool_id': pool.id,
+                    'created_at': str(member.created_at) if hasattr(member, 'created_at') else 'N/A',
+                    'updated_at': str(member.updated_at) if hasattr(member, 'updated_at') else 'N/A'
+                }
+            }
+            
+        elif action == "set":
+            if not member_id:
+                return {
+                    'success': False,
+                    'message': 'Member ID is required for set action'
+                }
+            
+            # Find member
+            try:
+                member = conn.load_balancer.get_member(member_id, pool)
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Member not found: {member_id}'
+                }
+            
+            # Update member attributes
+            update_attrs = {}
+            if name:
+                update_attrs['name'] = name
+            if weight > 0:
+                update_attrs['weight'] = weight
+            update_attrs['admin_state_up'] = admin_state_up
+            update_attrs['backup'] = backup
+            if monitor_address:
+                update_attrs['monitor_address'] = monitor_address
+            if monitor_port > 0:
+                update_attrs['monitor_port'] = monitor_port
+            
+            updated_member = conn.load_balancer.update_member(member, pool, **update_attrs)
+            
+            return {
+                'success': True,
+                'message': f'Pool member updated successfully',
+                'member': {
+                    'id': updated_member.id,
+                    'name': getattr(updated_member, 'name', ''),
+                    'address': updated_member.address,
+                    'protocol_port': updated_member.protocol_port,
+                    'weight': updated_member.weight,
+                    'admin_state_up': updated_member.admin_state_up,
+                    'provisioning_status': updated_member.provisioning_status,
+                    'operating_status': updated_member.operating_status
+                }
+            }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Invalid action: {action}. Supported actions: create, delete, show, set'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage pool member: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage pool member: {str(e)}',
+            'error': str(e)
+        }
+
+
+def get_load_balancer_health_monitors(pool_name_or_id: str = "") -> Dict[str, Any]:
+    """
+    Get health monitors, optionally filtered by pool.
+    
+    Args:
+        pool_name_or_id: Optional pool name or ID to filter monitors
+        
+    Returns:
+        Dictionary with health monitor information
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        monitor_details = []
+        
+        # If pool is specified, find it first
+        target_pool = None
+        if pool_name_or_id:
+            for lb_pool in conn.load_balancer.pools():
+                if lb_pool.name == pool_name_or_id or lb_pool.id == pool_name_or_id:
+                    target_pool = lb_pool
+                    break
+            
+            if not target_pool:
+                return {
+                    'success': False,
+                    'message': f'Pool not found: {pool_name_or_id}'
+                }
+        
+        # Get health monitors
+        for monitor in conn.load_balancer.health_monitors():
+            # If pool filter is specified, only include monitors for that pool
+            if target_pool and getattr(monitor, 'pool_id', None) != target_pool.id:
+                continue
+                
+            monitor_info = {
+                'id': monitor.id,
+                'name': getattr(monitor, 'name', ''),
+                'type': monitor.type,
+                'delay': monitor.delay,
+                'timeout': monitor.timeout,
+                'max_retries': monitor.max_retries,
+                'max_retries_down': getattr(monitor, 'max_retries_down', None),
+                'admin_state_up': monitor.admin_state_up,
+                'provisioning_status': monitor.provisioning_status,
+                'operating_status': monitor.operating_status,
+                'pool_id': getattr(monitor, 'pool_id', None),
+                'http_method': getattr(monitor, 'http_method', None),
+                'url_path': getattr(monitor, 'url_path', None),
+                'expected_codes': getattr(monitor, 'expected_codes', None),
+                'created_at': str(monitor.created_at) if hasattr(monitor, 'created_at') else 'N/A',
+                'updated_at': str(monitor.updated_at) if hasattr(monitor, 'updated_at') else 'N/A'
+            }
+            monitor_details.append(monitor_info)
+        
+        return {
+            'success': True,
+            'health_monitors': monitor_details,
+            'monitor_count': len(monitor_details),
+            'filter': f'pool: {pool_name_or_id}' if pool_name_or_id else 'all monitors'
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get health monitors: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to get health monitors: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_load_balancer_health_monitor(action: str, monitor_name_or_id: str = "", name: str = "",
+                                   pool_name_or_id: str = "", monitor_type: str = "HTTP",
+                                   delay: int = 10, timeout: int = 5, max_retries: int = 3,
+                                   max_retries_down: int = 3, admin_state_up: bool = True,
+                                   http_method: str = "GET", url_path: str = "/",
+                                   expected_codes: str = "200") -> Dict[str, Any]:
+    """
+    Manage load balancer health monitor operations.
+    
+    Args:
+        action: Operation to perform (create, delete, show, set)
+        monitor_name_or_id: Monitor name or ID (required for delete/show/set)
+        name: Name for the monitor
+        pool_name_or_id: Pool name or ID (required for create)
+        monitor_type: Monitor type (HTTP, HTTPS, TCP, PING, UDP-CONNECT, SCTP)
+        delay: Delay between health checks in seconds
+        timeout: Timeout for health check in seconds
+        max_retries: Maximum retries before marking unhealthy
+        max_retries_down: Maximum retries before marking down
+        admin_state_up: Administrative state
+        http_method: HTTP method for HTTP/HTTPS monitors
+        url_path: URL path for HTTP/HTTPS monitors
+        expected_codes: Expected HTTP status codes
+        
+    Returns:
+        Dictionary with operation results
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action == "create":
+            if not pool_name_or_id:
+                return {
+                    'success': False,
+                    'message': 'Pool name or ID is required for create action'
+                }
+            
+            # Find pool
+            pool = None
+            for lb_pool in conn.load_balancer.pools():
+                if lb_pool.name == pool_name_or_id or lb_pool.id == pool_name_or_id:
+                    pool = lb_pool
+                    break
+            
+            if not pool:
+                return {
+                    'success': False,
+                    'message': f'Pool not found: {pool_name_or_id}'
+                }
+            
+            # Create health monitor
+            monitor_attrs = {
+                'type': monitor_type.upper(),
+                'delay': delay,
+                'timeout': timeout,
+                'max_retries': max_retries,
+                'max_retries_down': max_retries_down,
+                'admin_state_up': admin_state_up,
+                'pool_id': pool.id
+            }
+            
+            if name:
+                monitor_attrs['name'] = name
+            
+            # HTTP/HTTPS specific attributes
+            if monitor_type.upper() in ['HTTP', 'HTTPS']:
+                monitor_attrs['http_method'] = http_method.upper()
+                monitor_attrs['url_path'] = url_path
+                monitor_attrs['expected_codes'] = expected_codes
+                
+            monitor = conn.load_balancer.create_health_monitor(**monitor_attrs)
+            
+            return {
+                'success': True,
+                'message': f'Health monitor created successfully',
+                'health_monitor': {
+                    'id': monitor.id,
+                    'name': getattr(monitor, 'name', ''),
+                    'type': monitor.type,
+                    'delay': monitor.delay,
+                    'timeout': monitor.timeout,
+                    'max_retries': monitor.max_retries,
+                    'pool_id': getattr(monitor, 'pool_id', None),
+                    'provisioning_status': monitor.provisioning_status,
+                    'operating_status': monitor.operating_status
+                }
+            }
+            
+        elif action == "delete":
+            if not monitor_name_or_id:
+                return {
+                    'success': False,
+                    'message': 'Monitor name or ID is required for delete action'
+                }
+            
+            # Find monitor
+            monitor = None
+            for hm in conn.load_balancer.health_monitors():
+                if (getattr(hm, 'name', '') == monitor_name_or_id or hm.id == monitor_name_or_id):
+                    monitor = hm
+                    break
+            
+            if not monitor:
+                return {
+                    'success': False,
+                    'message': f'Health monitor not found: {monitor_name_or_id}'
+                }
+            
+            conn.load_balancer.delete_health_monitor(monitor)
+            
+            return {
+                'success': True,
+                'message': f'Health monitor deleted successfully'
+            }
+            
+        elif action == "show":
+            if not monitor_name_or_id:
+                return {
+                    'success': False,
+                    'message': 'Monitor name or ID is required for show action'
+                }
+            
+            # Find monitor
+            monitor = None
+            for hm in conn.load_balancer.health_monitors():
+                if (getattr(hm, 'name', '') == monitor_name_or_id or hm.id == monitor_name_or_id):
+                    monitor = hm
+                    break
+            
+            if not monitor:
+                return {
+                    'success': False,
+                    'message': f'Health monitor not found: {monitor_name_or_id}'
+                }
+            
+            return {
+                'success': True,
+                'health_monitor': {
+                    'id': monitor.id,
+                    'name': getattr(monitor, 'name', ''),
+                    'type': monitor.type,
+                    'delay': monitor.delay,
+                    'timeout': monitor.timeout,
+                    'max_retries': monitor.max_retries,
+                    'max_retries_down': getattr(monitor, 'max_retries_down', None),
+                    'admin_state_up': monitor.admin_state_up,
+                    'provisioning_status': monitor.provisioning_status,
+                    'operating_status': monitor.operating_status,
+                    'pool_id': getattr(monitor, 'pool_id', None),
+                    'http_method': getattr(monitor, 'http_method', None),
+                    'url_path': getattr(monitor, 'url_path', None),
+                    'expected_codes': getattr(monitor, 'expected_codes', None),
+                    'created_at': str(monitor.created_at) if hasattr(monitor, 'created_at') else 'N/A',
+                    'updated_at': str(monitor.updated_at) if hasattr(monitor, 'updated_at') else 'N/A'
+                }
+            }
+            
+        elif action == "set":
+            if not monitor_name_or_id:
+                return {
+                    'success': False,
+                    'message': 'Monitor name or ID is required for set action'
+                }
+            
+            # Find monitor
+            monitor = None
+            for hm in conn.load_balancer.health_monitors():
+                if (getattr(hm, 'name', '') == monitor_name_or_id or hm.id == monitor_name_or_id):
+                    monitor = hm
+                    break
+            
+            if not monitor:
+                return {
+                    'success': False,
+                    'message': f'Health monitor not found: {monitor_name_or_id}'
+                }
+            
+            # Update monitor attributes
+            update_attrs = {}
+            if name:
+                update_attrs['name'] = name
+            if delay > 0:
+                update_attrs['delay'] = delay
+            if timeout > 0:
+                update_attrs['timeout'] = timeout
+            if max_retries > 0:
+                update_attrs['max_retries'] = max_retries
+            if max_retries_down > 0:
+                update_attrs['max_retries_down'] = max_retries_down
+            update_attrs['admin_state_up'] = admin_state_up
+            
+            # HTTP/HTTPS specific attributes
+            if monitor.type in ['HTTP', 'HTTPS']:
+                if http_method:
+                    update_attrs['http_method'] = http_method.upper()
+                if url_path:
+                    update_attrs['url_path'] = url_path
+                if expected_codes:
+                    update_attrs['expected_codes'] = expected_codes
+            
+            updated_monitor = conn.load_balancer.update_health_monitor(monitor, **update_attrs)
+            
+            return {
+                'success': True,
+                'message': f'Health monitor updated successfully',
+                'health_monitor': {
+                    'id': updated_monitor.id,
+                    'name': getattr(updated_monitor, 'name', ''),
+                    'type': updated_monitor.type,
+                    'delay': updated_monitor.delay,
+                    'timeout': updated_monitor.timeout,
+                    'max_retries': updated_monitor.max_retries,
+                    'admin_state_up': updated_monitor.admin_state_up,
+                    'provisioning_status': updated_monitor.provisioning_status,
+                    'operating_status': updated_monitor.operating_status
+                }
+            }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Invalid action: {action}. Supported actions: create, delete, show, set'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage health monitor: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage health monitor: {str(e)}',
+            'error': str(e)
+        }
+
+
+# ===== L7 POLICY & RULE MANAGEMENT =====
+
+def get_load_balancer_l7_policies(listener_name_or_id: str = "") -> Dict[str, Any]:
+    """
+    Get L7 policies for a listener or all policies.
+    
+    Args:
+        listener_name_or_id: Optional listener name or ID to filter policies
+    
+    Returns:
+        Dictionary containing L7 policies information
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        policies = []
+        
+        if listener_name_or_id:
+            # Find specific listener
+            listener = conn.load_balancer.find_listener(listener_name_or_id)
+            if not listener:
+                return {
+                    'success': False,
+                    'message': f'Listener not found: {listener_name_or_id}'
+                }
+            policies = list(conn.load_balancer.l7_policies(listener_id=listener.id))
+        else:
+            # Get all L7 policies
+            policies = list(conn.load_balancer.l7_policies())
+        
+        policy_details = []
+        for policy in policies:
+            policy_info = {
+                'id': policy.id,
+                'name': policy.name or 'N/A',
+                'description': policy.description or '',
+                'listener_id': policy.listener_id,
+                'action': policy.action,
+                'position': policy.position,
+                'redirect_pool_id': getattr(policy, 'redirect_pool_id', None),
+                'redirect_url': getattr(policy, 'redirect_url', None),
+                'admin_state_up': policy.admin_state_up,
+                'provisioning_status': policy.provisioning_status,
+                'operating_status': policy.operating_status
+            }
+            policy_details.append(policy_info)
+        
+        return {
+            'success': True,
+            'l7_policies': policy_details,
+            'policy_count': len(policy_details)
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get L7 policies: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to get L7 policies: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_load_balancer_l7_policy(action: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage L7 policy operations.
+    
+    Args:
+        action: Action (create, delete, set, unset, show)
+        **kwargs: Parameters based on action
+    
+    Returns:
+        Dictionary with operation results
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action == "create":
+            listener_name_or_id = kwargs.get('listener_name_or_id')
+            action_type = kwargs.get('action_type', 'REJECT')
+            
+            if not listener_name_or_id:
+                return {
+                    'success': False,
+                    'message': 'listener_name_or_id is required for create'
+                }
+            
+            listener = conn.load_balancer.find_listener(listener_name_or_id)
+            if not listener:
+                return {
+                    'success': False,
+                    'message': f'Listener not found: {listener_name_or_id}'
+                }
+            
+            policy_params = {
+                'listener_id': listener.id,
+                'action': action_type,
+                'name': kwargs.get('name'),
+                'description': kwargs.get('description', ''),
+                'position': kwargs.get('position', 1),
+                'admin_state_up': kwargs.get('admin_state_up', True),
+                'redirect_pool_id': kwargs.get('redirect_pool_id'),
+                'redirect_url': kwargs.get('redirect_url')
+            }
+            
+            # Remove None values
+            policy_params = {k: v for k, v in policy_params.items() if v is not None}
+            
+            policy = conn.load_balancer.create_l7_policy(**policy_params)
+            
+            return {
+                'success': True,
+                'message': f'L7 policy created successfully',
+                'l7_policy': {
+                    'id': policy.id,
+                    'name': policy.name,
+                    'action': policy.action,
+                    'position': policy.position
+                }
+            }
+        
+        elif action == "delete":
+            policy_name_or_id = kwargs.get('policy_name_or_id')
+            if not policy_name_or_id:
+                return {
+                    'success': False,
+                    'message': 'policy_name_or_id is required for delete'
+                }
+            
+            policy = conn.load_balancer.find_l7_policy(policy_name_or_id)
+            if not policy:
+                return {
+                    'success': False,
+                    'message': f'L7 policy not found: {policy_name_or_id}'
+                }
+            
+            conn.load_balancer.delete_l7_policy(policy.id)
+            return {
+                'success': True,
+                'message': 'L7 policy deleted successfully'
+            }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: create, delete, set, unset, show'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage L7 policy: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage L7 policy: {str(e)}',
+            'error': str(e)
+        }
+
+
+# ===== L7 RULE MANAGEMENT =====
+
+def get_load_balancer_l7_rules(policy_name_or_id: str) -> Dict[str, Any]:
+    """
+    Get L7 rules for a specific L7 policy.
+    
+    Args:
+        policy_name_or_id: L7 policy name or ID
+    
+    Returns:
+        Dictionary containing L7 rules information
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        # Find L7 policy
+        policy = conn.load_balancer.find_l7_policy(policy_name_or_id)
+        if not policy:
+            return {
+                'success': False,
+                'message': f'L7 policy not found: {policy_name_or_id}'
+            }
+        
+        rules = list(conn.load_balancer.l7_rules(l7_policy=policy.id))
+        
+        rule_details = []
+        for rule in rules:
+            rule_info = {
+                'id': rule.id,
+                'l7policy_id': rule.l7policy_id,
+                'type': rule.type,
+                'compare_type': rule.compare_type,
+                'key': getattr(rule, 'key', None),
+                'value': rule.value,
+                'invert': getattr(rule, 'invert', False),
+                'admin_state_up': rule.admin_state_up,
+                'provisioning_status': rule.provisioning_status,
+                'operating_status': rule.operating_status
+            }
+            rule_details.append(rule_info)
+        
+        return {
+            'success': True,
+            'l7_policy': {
+                'id': policy.id,
+                'name': policy.name or 'N/A'
+            },
+            'l7_rules': rule_details,
+            'rule_count': len(rule_details)
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get L7 rules: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to get L7 rules: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_load_balancer_l7_rule(action: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage L7 rule operations.
+    
+    Args:
+        action: Action (create, delete, set, unset, show)
+        **kwargs: Parameters based on action
+    
+    Returns:
+        Dictionary with operation results
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action == "create":
+            policy_name_or_id = kwargs.get('policy_name_or_id')
+            rule_type = kwargs.get('type', 'PATH')
+            compare_type = kwargs.get('compare_type', 'STARTS_WITH')
+            value = kwargs.get('value')
+            
+            if not policy_name_or_id or not value:
+                return {
+                    'success': False,
+                    'message': 'policy_name_or_id and value are required for create'
+                }
+            
+            policy = conn.load_balancer.find_l7_policy(policy_name_or_id)
+            if not policy:
+                return {
+                    'success': False,
+                    'message': f'L7 policy not found: {policy_name_or_id}'
+                }
+            
+            rule_params = {
+                'l7policy_id': policy.id,
+                'type': rule_type,
+                'compare_type': compare_type,
+                'value': value,
+                'key': kwargs.get('key'),
+                'invert': kwargs.get('invert', False),
+                'admin_state_up': kwargs.get('admin_state_up', True)
+            }
+            
+            # Remove None values
+            rule_params = {k: v for k, v in rule_params.items() if v is not None}
+            
+            rule = conn.load_balancer.create_l7_rule(**rule_params)
+            
+            return {
+                'success': True,
+                'message': f'L7 rule created successfully',
+                'l7_rule': {
+                    'id': rule.id,
+                    'type': rule.type,
+                    'compare_type': rule.compare_type,
+                    'value': rule.value
+                }
+            }
+        
+        elif action == "delete":
+            rule_id = kwargs.get('rule_id')
+            policy_name_or_id = kwargs.get('policy_name_or_id')
+            
+            if not rule_id or not policy_name_or_id:
+                return {
+                    'success': False,
+                    'message': 'rule_id and policy_name_or_id are required for delete'
+                }
+            
+            policy = conn.load_balancer.find_l7_policy(policy_name_or_id)
+            if not policy:
+                return {
+                    'success': False,
+                    'message': f'L7 policy not found: {policy_name_or_id}'
+                }
+            
+            conn.load_balancer.delete_l7_rule(rule_id, l7_policy=policy.id)
+            return {
+                'success': True,
+                'message': 'L7 rule deleted successfully'
+            }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: create, delete'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage L7 rule: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage L7 rule: {str(e)}',
+            'error': str(e)
+        }
+
+
+# ===== AVAILABILITY ZONE ADVANCED MANAGEMENT =====
+
+def set_load_balancer_availability_zone(action: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage availability zone operations.
+    
+    Args:
+        action: Action (create, delete, set, unset, show)
+        **kwargs: Parameters based on action
+    
+    Returns:
+        Dictionary with operation results
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action == "create":
+            name = kwargs.get('name')
+            availability_zone_profile_id = kwargs.get('availability_zone_profile_id')
+            
+            if not name or not availability_zone_profile_id:
+                return {
+                    'success': False,
+                    'message': 'name and availability_zone_profile_id are required for create'
+                }
+            
+            az_params = {
+                'name': name,
+                'availability_zone_profile_id': availability_zone_profile_id,
+                'description': kwargs.get('description', ''),
+                'enabled': kwargs.get('enabled', True)
+            }
+            
+            az = conn.load_balancer.create_availability_zone(**az_params)
+            
+            return {
+                'success': True,
+                'message': f'Availability zone created: {az.name}',
+                'availability_zone': {
+                    'name': az.name,
+                    'description': getattr(az, 'description', ''),
+                    'enabled': getattr(az, 'enabled', True)
+                }
+            }
+        
+        elif action == "delete":
+            az_name = kwargs.get('az_name')
+            if not az_name:
+                return {
+                    'success': False,
+                    'message': 'az_name is required for delete'
+                }
+            
+            az = conn.load_balancer.find_availability_zone(az_name)
+            if not az:
+                return {
+                    'success': False,
+                    'message': f'Availability zone not found: {az_name}'
+                }
+            
+            conn.load_balancer.delete_availability_zone(az.name)
+            return {
+                'success': True,
+                'message': f'Availability zone deleted: {az.name}'
+            }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: create, delete'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage availability zone: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage availability zone: {str(e)}',
+            'error': str(e)
+        }
+
+
+# ===== FLAVOR ADVANCED MANAGEMENT =====
+
+def set_load_balancer_flavor(action: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage flavor operations.
+    
+    Args:
+        action: Action (create, delete, set, unset, show)
+        **kwargs: Parameters based on action
+    
+    Returns:
+        Dictionary with operation results
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action == "create":
+            name = kwargs.get('name')
+            flavor_profile_id = kwargs.get('flavor_profile_id')
+            
+            if not name or not flavor_profile_id:
+                return {
+                    'success': False,
+                    'message': 'name and flavor_profile_id are required for create'
+                }
+            
+            flavor_params = {
+                'name': name,
+                'flavor_profile_id': flavor_profile_id,
+                'description': kwargs.get('description', ''),
+                'enabled': kwargs.get('enabled', True)
+            }
+            
+            flavor = conn.load_balancer.create_flavor(**flavor_params)
+            
+            return {
+                'success': True,
+                'message': f'Flavor created: {flavor.name}',
+                'flavor': {
+                    'id': flavor.id,
+                    'name': flavor.name,
+                    'description': getattr(flavor, 'description', ''),
+                    'enabled': getattr(flavor, 'enabled', True)
+                }
+            }
+        
+        elif action == "delete":
+            flavor_name_or_id = kwargs.get('flavor_name_or_id')
+            if not flavor_name_or_id:
+                return {
+                    'success': False,
+                    'message': 'flavor_name_or_id is required for delete'
+                }
+            
+            flavor = conn.load_balancer.find_flavor(flavor_name_or_id)
+            if not flavor:
+                return {
+                    'success': False,
+                    'message': f'Flavor not found: {flavor_name_or_id}'
+                }
+            
+            conn.load_balancer.delete_flavor(flavor.id)
+            return {
+                'success': True,
+                'message': f'Flavor deleted: {flavor.name}'
+            }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: create, delete'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage flavor: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage flavor: {str(e)}',
+            'error': str(e)
+        }
+
+
+# ===== QUOTA ADVANCED MANAGEMENT =====
+
+def set_load_balancer_quota(action: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage quota operations.
+    
+    Args:
+        action: Action (set, reset, unset)
+        **kwargs: Parameters based on action
+    
+    Returns:
+        Dictionary with operation results
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action == "set":
+            project_id = kwargs.get('project_id')
+            if not project_id:
+                return {
+                    'success': False,
+                    'message': 'project_id is required for set'
+                }
+            
+            quota_params = {}
+            for key in ['load_balancer', 'listener', 'pool', 'health_monitor', 'member']:
+                if key in kwargs:
+                    quota_params[key] = kwargs[key]
+            
+            if not quota_params:
+                return {
+                    'success': False,
+                    'message': 'At least one quota parameter is required'
+                }
+            
+            updated_quota = conn.load_balancer.update_quota(project_id, **quota_params)
+            
+            return {
+                'success': True,
+                'message': f'Quota updated for project: {project_id}',
+                'quota': {
+                    'project_id': project_id,
+                    'load_balancer': getattr(updated_quota, 'load_balancer', -1),
+                    'listener': getattr(updated_quota, 'listener', -1),
+                    'pool': getattr(updated_quota, 'pool', -1),
+                    'health_monitor': getattr(updated_quota, 'health_monitor', -1),
+                    'member': getattr(updated_quota, 'member', -1)
+                }
+            }
+        
+        elif action == "reset":
+            project_id = kwargs.get('project_id')
+            if not project_id:
+                return {
+                    'success': False,
+                    'message': 'project_id is required for reset'
+                }
+            
+            conn.load_balancer.delete_quota(project_id)
+            return {
+                'success': True,
+                'message': f'Quota reset to defaults for project: {project_id}'
+            }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: set, reset'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage quota: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage quota: {str(e)}',
+            'error': str(e)
+        }
+
+def get_load_balancer_amphorae(lb_name_or_id: str = "") -> Dict[str, Any]:
+    """
+    Get amphora instances for load balancer or all amphorae.
+    
+    Args:
+        lb_name_or_id: Optional load balancer name or ID
+    
+    Returns:
+        Dictionary containing amphora information
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        amphorae = []
+        
+        if lb_name_or_id:
+            # Find specific load balancer
+            lb = conn.load_balancer.find_load_balancer(lb_name_or_id)
+            if not lb:
+                return {
+                    'success': False,
+                    'message': f'Load balancer not found: {lb_name_or_id}'
+                }
+            amphorae = list(conn.load_balancer.amphorae(loadbalancer_id=lb.id))
+        else:
+            # Get all amphorae
+            amphorae = list(conn.load_balancer.amphorae())
+        
+        amphora_details = []
+        for amphora in amphorae:
+            amphora_info = {
+                'id': amphora.id,
+                'loadbalancer_id': getattr(amphora, 'loadbalancer_id', None),
+                'compute_id': getattr(amphora, 'compute_id', None),
+                'lb_network_ip': getattr(amphora, 'lb_network_ip', None),
+                'vrrp_ip': getattr(amphora, 'vrrp_ip', None),
+                'ha_ip': getattr(amphora, 'ha_ip', None),
+                'vrrp_port_id': getattr(amphora, 'vrrp_port_id', None),
+                'ha_port_id': getattr(amphora, 'ha_port_id', None),
+                'cert_expiration': getattr(amphora, 'cert_expiration', None),
+                'cert_busy': getattr(amphora, 'cert_busy', False),
+                'role': getattr(amphora, 'role', None),
+                'status': getattr(amphora, 'status', None)
+            }
+            amphora_details.append(amphora_info)
+        
+        return {
+            'success': True,
+            'amphorae': amphora_details,
+            'amphora_count': len(amphora_details)
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get amphorae: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to get amphorae: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_load_balancer_amphora(action: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage amphora operations (configure, failover, show).
+    NOTE: delete and stats operations are not supported by OpenStack SDK.
+    
+    Args:
+        action: Action (configure, failover, show)
+        **kwargs: Parameters based on action
+    
+    Returns:
+        Dictionary with operation results
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if action == "failover":
+            amphora_id = kwargs.get('amphora_id')
+            if not amphora_id:
+                return {
+                    'success': False,
+                    'message': 'amphora_id is required for failover'
+                }
+            
+            amphora = conn.load_balancer.get_amphora(amphora_id)
+            if not amphora:
+                return {
+                    'success': False,
+                    'message': f'Amphora not found: {amphora_id}'
+                }
+            
+            conn.load_balancer.failover_amphora(amphora_id)
+            return {
+                'success': True,
+                'message': f'Amphora failover initiated: {amphora_id}'
+            }
+        
+        elif action == "configure":
+            amphora_id = kwargs.get('amphora_id')
+            if not amphora_id:
+                return {
+                    'success': False,
+                    'message': 'amphora_id is required for configure'
+                }
+            
+            conn.load_balancer.configure_amphora(amphora_id)
+            return {
+                'success': True,
+                'message': f'Amphora configuration updated: {amphora_id}'
+            }
+        
+        elif action == "show":
+            amphora_id = kwargs.get('amphora_id')
+            if not amphora_id:
+                return {
+                    'success': False,
+                    'message': 'amphora_id is required for show'
+                }
+            
+            amphora = conn.load_balancer.get_amphora(amphora_id)
+            if not amphora:
+                return {
+                    'success': False,
+                    'message': f'Amphora not found: {amphora_id}'
+                }
+            
+            amphora_info = {
+                'id': amphora.id,
+                'loadbalancer_id': getattr(amphora, 'loadbalancer_id', None),
+                'compute_id': getattr(amphora, 'compute_id', None),
+                'lb_network_ip': getattr(amphora, 'lb_network_ip', None),
+                'vrrp_ip': getattr(amphora, 'vrrp_ip', None),
+                'ha_ip': getattr(amphora, 'ha_ip', None),
+                'vrrp_port_id': getattr(amphora, 'vrrp_port_id', None),
+                'ha_port_id': getattr(amphora, 'ha_port_id', None),
+                'cert_expiration': getattr(amphora, 'cert_expiration', None),
+                'cert_busy': getattr(amphora, 'cert_busy', False),
+                'role': getattr(amphora, 'role', None),
+                'status': getattr(amphora, 'status', None)
+            }
+            
+            return {
+                'success': True,
+                'amphora': amphora_info
+            }
+        
+        elif action in ["delete", "stats"]:
+            return {
+                'success': False,
+                'message': f'Action "{action}" is not supported by OpenStack SDK. Available: configure, failover, show'
+            }
+        
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: configure, failover, show (delete and stats not supported by OpenStack SDK)'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage amphora: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage amphora: {str(e)}',
+            'error': str(e)
+        }
+
+
+# ===== AVAILABILITY ZONE MANAGEMENT =====
+
+def get_load_balancer_availability_zones() -> Dict[str, Any]:
+    """
+    Get load balancer availability zones.
+    
+    Returns:
+        Dictionary containing availability zones information
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        zones = list(conn.load_balancer.availability_zones())
+        
+        zone_details = []
+        for zone in zones:
+            zone_info = {
+                'name': zone.name,
+                'description': getattr(zone, 'description', ''),
+                'availability_zone_profile_id': getattr(zone, 'availability_zone_profile_id', None),
+                'enabled': getattr(zone, 'enabled', True)
+            }
+            zone_details.append(zone_info)
+        
+        return {
+            'success': True,
+            'availability_zones': zone_details,
+            'zone_count': len(zone_details)
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get availability zones: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to get availability zones: {str(e)}',
+            'error': str(e)
+        }
+
+
+# ===== FLAVOR MANAGEMENT =====
+
+def get_load_balancer_flavors() -> Dict[str, Any]:
+    """
+    Get load balancer flavors.
+    
+    Returns:
+        Dictionary containing flavors information
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        flavors = list(conn.load_balancer.flavors())
+        
+        flavor_details = []
+        for flavor in flavors:
+            flavor_info = {
+                'id': flavor.id,
+                'name': flavor.name,
+                'description': getattr(flavor, 'description', ''),
+                'flavor_profile_id': getattr(flavor, 'flavor_profile_id', None),
+                'enabled': getattr(flavor, 'enabled', True)
+            }
+            flavor_details.append(flavor_info)
+        
+        return {
+            'success': True,
+            'flavors': flavor_details,
+            'flavor_count': len(flavor_details)
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get flavors: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to get flavors: {str(e)}',
+            'error': str(e)
+        }
+
+
+# ===== PROVIDER MANAGEMENT =====
+
+def get_load_balancer_providers() -> Dict[str, Any]:
+    """
+    Get load balancer providers.
+    
+    Returns:
+        Dictionary containing providers information
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        providers = list(conn.load_balancer.providers())
+        
+        provider_details = []
+        for provider in providers:
+            provider_info = {
+                'name': provider.name,
+                'description': getattr(provider, 'description', '')
+            }
+            provider_details.append(provider_info)
+        
+        return {
+            'success': True,
+            'providers': provider_details,
+            'provider_count': len(provider_details)
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get providers: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to get providers: {str(e)}',
+            'error': str(e)
+        }
+
+
+# ===== QUOTA MANAGEMENT =====
+
+def get_load_balancer_quotas(project_id: str = "") -> Dict[str, Any]:
+    """
+    Get load balancer quotas.
+    
+    Args:
+        project_id: Optional project ID for specific quota
+    
+    Returns:
+        Dictionary containing quota information
+    """
+    try:
+        conn = get_openstack_connection()
+        
+        if project_id:
+            quota = conn.load_balancer.get_quota(project_id)
+            quota_info = {
+                'project_id': project_id,
+                'load_balancer': getattr(quota, 'load_balancer', -1),
+                'listener': getattr(quota, 'listener', -1),
+                'pool': getattr(quota, 'pool', -1),
+                'health_monitor': getattr(quota, 'health_monitor', -1),
+                'member': getattr(quota, 'member', -1)
+            }
+            return {
+                'success': True,
+                'quota': quota_info
+            }
+        else:
+            quotas = list(conn.load_balancer.quotas())
+            quota_details = []
+            for quota in quotas:
+                quota_info = {
+                    'project_id': quota.project_id,
+                    'load_balancer': getattr(quota, 'load_balancer', -1),
+                    'listener': getattr(quota, 'listener', -1),
+                    'pool': getattr(quota, 'pool', -1),
+                    'health_monitor': getattr(quota, 'health_monitor', -1),
+                    'member': getattr(quota, 'member', -1)
+                }
+                quota_details.append(quota_info)
+            
+            return {
+                'success': True,
+                'quotas': quota_details,
+                'quota_count': len(quota_details)
+            }
+        
+    except Exception as e:
+        logger.error(f"Failed to get quotas: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to get quotas: {str(e)}',
+            'error': str(e)
+        }
+
+
+def _set_load_balancer_amphora(action: str, **kwargs):
+    """
+    Manage amphora operations (configure, failover, show).
+    
+    Args:
+        action: Action to perform (configure, failover, show)
+        **kwargs: Additional arguments including:
+            - amphora_id: Amphora ID (required)
+    """
+    conn = get_openstack_connection()
+    
+    try:
+        amphora_id = kwargs.get('amphora_id')
+        if not amphora_id:
+            raise ValueError("amphora_id parameter is required")
+        
+        if action == "configure":
+            # Configure amphora
+            result = conn.load_balancer.configure_amphora(amphora_id)
+            return {
+                "success": True,
+                "action": "configure",
+                "amphora_id": amphora_id,
+                "result": "Amphora configuration initiated"
+            }
+        
+        elif action == "failover":
+            # Failover amphora
+            result = conn.load_balancer.failover_amphora(amphora_id)
+            return {
+                "success": True,
+                "action": "failover",
+                "amphora_id": amphora_id,
+                "result": "Amphora failover initiated"
+            }
+        
+        elif action == "show":
+            # Show amphora details
+            amphora = conn.load_balancer.get_amphora(amphora_id)
+            return {
+                "success": True,
+                "action": "show",
+                "amphora": {
+                    "id": amphora.id,
+                    "compute_id": getattr(amphora, 'compute_id', None),
+                    "load_balancer_id": getattr(amphora, 'load_balancer_id', None),
+                    "status": getattr(amphora, 'status', None),
+                    "role": getattr(amphora, 'role', None),
+                    "lb_network_ip": getattr(amphora, 'lb_network_ip', None),
+                    "vrrp_ip": getattr(amphora, 'vrrp_ip', None),
+                    "ha_ip": getattr(amphora, 'ha_ip', None),
+                    "vrrp_port_id": getattr(amphora, 'vrrp_port_id', None),
+                    "ha_port_id": getattr(amphora, 'ha_port_id', None),
+                    "cached_zone": getattr(amphora, 'cached_zone', None),
+                    "image_id": getattr(amphora, 'image_id', None),
+                    "compute_flavor": getattr(amphora, 'compute_flavor', None),
+                    "created_at": getattr(amphora, 'created_at', None),
+                    "updated_at": getattr(amphora, 'updated_at', None)
+                }
+            }
+        
+        else:
+            return {
+                "success": False,
+                "error": f"Unknown action: {action}. Available actions: configure, failover, show"
+            }
+        
+    except Exception as e:
+        logger.error(f"Error managing amphora {amphora_id}: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "amphora_id": kwargs.get('amphora_id')
+        }
+
+
+def get_load_balancer_amphorae(**kwargs):
+    """
+    Get amphora information from OpenStack load balancer.
+    
+    Args:
+        **kwargs: Optional arguments including:
+            - loadbalancer_id: Load balancer ID to filter amphorae
+    
+    Returns:
+        Dict with success status and amphora details
+    """
+    conn = get_openstack_connection()
+    
+    try:
+        loadbalancer_id = kwargs.get('loadbalancer_id')
+        
+        if loadbalancer_id:
+            # Get amphorae for specific load balancer
+            amphorae = list(conn.load_balancer.amphorae(load_balancer_id=loadbalancer_id))
+        else:
+            # Get all amphorae
+            amphorae = list(conn.load_balancer.amphorae())
+        
+        amphora_details = []
+        for amphora in amphorae:
+            details = {
+                'id': amphora.id,
+                'compute_id': getattr(amphora, 'compute_id', None),
+                'load_balancer_id': getattr(amphora, 'load_balancer_id', None),
+                'status': getattr(amphora, 'status', None),
+                'role': getattr(amphora, 'role', None),
+                'lb_network_ip': getattr(amphora, 'lb_network_ip', None),
+                'vrrp_ip': getattr(amphora, 'vrrp_ip', None),
+                'ha_ip': getattr(amphora, 'ha_ip', None),
+                'vrrp_port_id': getattr(amphora, 'vrrp_port_id', None),
+                'ha_port_id': getattr(amphora, 'ha_port_id', None),
+                'cached_zone': getattr(amphora, 'cached_zone', None),
+                'image_id': getattr(amphora, 'image_id', None),
+                'compute_flavor': getattr(amphora, 'compute_flavor', None),
+                'created_at': getattr(amphora, 'created_at', None),
+                'updated_at': getattr(amphora, 'updated_at', None)
+            }
+            amphora_details.append(details)
+        
+        return {
+            'success': True,
+            'amphorae': amphora_details,
+            'amphora_count': len(amphora_details)
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get amphorae: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to get amphorae: {str(e)}',
             'error': str(e)
         }

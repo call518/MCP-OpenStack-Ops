@@ -55,6 +55,27 @@ from functions import (
     get_load_balancer_listeners as _get_load_balancer_listeners,
     set_load_balancer_listener as _set_load_balancer_listener,
     get_load_balancer_pools as _get_load_balancer_pools,
+    set_load_balancer_pool as _set_load_balancer_pool,
+    get_load_balancer_pool_members as _get_load_balancer_pool_members,
+    set_load_balancer_pool_member as _set_load_balancer_pool_member,
+    get_load_balancer_health_monitors as _get_load_balancer_health_monitors,
+    set_load_balancer_health_monitor as _set_load_balancer_health_monitor,
+    # Load Balancer Advanced functions
+    get_load_balancer_l7_policies as _get_load_balancer_l7_policies,
+    set_load_balancer_l7_policy as _set_load_balancer_l7_policy,
+    get_load_balancer_l7_rules as _get_load_balancer_l7_rules,
+    set_load_balancer_l7_rule as _set_load_balancer_l7_rule,
+    get_load_balancer_amphorae as _get_load_balancer_amphorae,
+    set_load_balancer_amphora as _set_load_balancer_amphora,
+    get_load_balancer_availability_zones as _get_load_balancer_availability_zones,
+    set_load_balancer_availability_zone as _set_load_balancer_availability_zone,
+    get_load_balancer_flavors as _get_load_balancer_flavors,
+    set_load_balancer_flavor as _set_load_balancer_flavor,
+    get_load_balancer_providers as _get_load_balancer_providers,
+    get_load_balancer_quotas as _get_load_balancer_quotas,
+    set_load_balancer_quota as _set_load_balancer_quota,
+    get_load_balancer_amphorae as _get_load_balancer_amphorae,
+    set_load_balancer_amphora as _set_load_balancer_amphora,
     set_image_members as _set_image_members,
     set_image_metadata as _set_image_metadata,
     set_image_visibility as _set_image_visibility,
@@ -3219,38 +3240,48 @@ async def set_load_balancer(
     vip_subnet_id: str = "",
     description: str = "",
     admin_state_up: bool = True,
-    provider: str = ""
+    provider: str = "",
+    flavor_id: str = "",
+    availability_zone: str = "",
+    cascade: bool = False
 ) -> str:
     """
-    Manage OpenStack load balancer operations (create, delete, update, stats, status).
+    Comprehensive load balancer management operations (create, delete, set, unset, failover, stats, status).
     
     Functions:
-    - Create new load balancers with VIP configuration
-    - Delete existing load balancers
-    - Update load balancer properties (name, description, admin state)
+    - Create new load balancers with VIP configuration and flavor/AZ options
+    - Delete existing load balancers (with optional cascade delete)
+    - Update/set load balancer properties (name, description, admin state)
+    - Clear/unset load balancer settings (description)
+    - Trigger load balancer failover operations
     - Get load balancer statistics (bytes in/out, connections)
     - Get load balancer status tree (detailed operational status)
     
     Use when user requests:
     - "Create a load balancer named [name] on subnet [id]"
-    - "Delete load balancer [name/id]"
+    - "Delete load balancer [name/id] with cascade"
     - "Update load balancer [name] description to [text]"
+    - "Clear load balancer [name] description"
+    - "Failover load balancer [name/id]"
     - "Show load balancer [name] statistics"
     - "Get load balancer [name] status tree"
     
     Args:
-        action: Operation to perform (create, delete, update, stats, status)
-        lb_name_or_id: Load balancer name or ID (required for delete/update/stats/status)
+        action: Operation to perform (create, delete, set, unset, failover, stats, status)
+        lb_name_or_id: Load balancer name or ID (required for most operations)
         name: Name for new load balancer (required for create)
         vip_subnet_id: VIP subnet ID (required for create)
-        description: Description for load balancer (optional)
+        description: Description for load balancer
         admin_state_up: Administrative state (default: True)
-        provider: Load balancer provider (optional, defaults to configured provider)
+        provider: Load balancer provider (optional)
+        flavor_id: Flavor ID for load balancer (optional)
+        availability_zone: Availability zone (optional)
+        cascade: Whether to cascade delete (for delete action)
         
     Returns:
         JSON string with operation results and load balancer details
     """
-    if not _is_modify_operation_allowed() and action.lower() in ['create', 'delete', 'update']:
+    if not _is_modify_operation_allowed() and action.lower() in ['create', 'delete', 'set', 'unset', 'failover']:
         return json.dumps({
             'success': False,
             'message': f'Modify operations are not allowed in current environment for action: {action}',
@@ -3266,7 +3297,10 @@ async def set_load_balancer(
             'vip_subnet_id': vip_subnet_id if vip_subnet_id else None,
             'description': description if description else None,
             'admin_state_up': admin_state_up,
-            'provider': provider if provider else None
+            'provider': provider if provider else None,
+            'flavor_id': flavor_id if flavor_id else None,
+            'availability_zone': availability_zone if availability_zone else None,
+            'cascade': cascade
         }
         
         # Remove None values
@@ -3344,37 +3378,45 @@ async def set_load_balancer_listener(
     protocol: str = "",
     protocol_port: int = 0,
     description: str = "",
-    admin_state_up: bool = True
+    admin_state_up: bool = True,
+    connection_limit: int = 0,
+    default_pool_id: str = ""
 ) -> str:
     """
-    Manage OpenStack load balancer listener operations (create, delete, show).
+    Comprehensive load balancer listener management (create, delete, set, unset, show, stats).
     
     Functions:
-    - Create new listeners on load balancers
+    - Create new listeners on load balancers with protocol configuration
     - Delete existing listeners
+    - Set/update listener properties (name, description, connection limits)
+    - Unset/clear listener settings (description, connection limits, default pool)
     - Show detailed listener information
-    - Configure protocol and port settings
+    - Get listener statistics (traffic and connection metrics)
     
     Use when user requests:
     - "Create listener [name] on load balancer [lb_name] for HTTP on port 80"
     - "Delete listener [name/id]"
+    - "Update listener [name] connection limit to 1000"
+    - "Clear listener [name] description"
     - "Show listener [name/id] details"
-    - "Add HTTPS listener to load balancer [name]"
+    - "Get listener [name] statistics"
     
     Args:
-        action: Operation to perform (create, delete, show)
-        listener_name_or_id: Listener name or ID (required for delete/show)
+        action: Operation to perform (create, delete, set, unset, show, stats)
+        listener_name_or_id: Listener name or ID (required for delete/set/unset/show/stats)
         name: Name for new listener (required for create)
         lb_name_or_id: Load balancer name or ID (required for create)
         protocol: Listener protocol - HTTP, HTTPS, TCP, UDP (required for create)
         protocol_port: Port number for listener (required for create)
-        description: Description for listener (optional)
+        description: Description for listener
         admin_state_up: Administrative state (default: True)
+        connection_limit: Maximum number of connections (0 = unlimited)
+        default_pool_id: Default pool ID for the listener
         
     Returns:
         JSON string with operation results and listener details
     """
-    if not _is_modify_operation_allowed() and action.lower() in ['create', 'delete']:
+    if not _is_modify_operation_allowed() and action.lower() in ['create', 'delete', 'set', 'unset']:
         return json.dumps({
             'success': False,
             'message': f'Modify operations are not allowed in current environment for action: {action}',
@@ -3388,10 +3430,12 @@ async def set_load_balancer_listener(
             'listener_name_or_id': listener_name_or_id if listener_name_or_id else None,
             'name': name if name else None,
             'lb_name_or_id': lb_name_or_id if lb_name_or_id else None,
-            'protocol': protocol if protocol else None,
+            'protocol': protocol.upper() if protocol else None,
             'protocol_port': protocol_port if protocol_port > 0 else None,
             'description': description if description else None,
-            'admin_state_up': admin_state_up
+            'admin_state_up': admin_state_up,
+            'connection_limit': connection_limit if connection_limit > 0 else None,
+            'default_pool_id': default_pool_id if default_pool_id else None
         }
         
         # Remove None values
@@ -3401,6 +3445,7 @@ async def set_load_balancer_listener(
         
         response = {
             "timestamp": datetime.now().isoformat(),
+            "action": action,
             "result": result
         }
         
@@ -3460,3 +3505,968 @@ async def get_load_balancer_pools(listener_name_or_id: str = "") -> str:
             "error": error_msg,
             "success": False
         }, indent=2)
+
+
+@conditional_tool
+async def set_load_balancer_pool(
+    action: str,
+    pool_name_or_id: str = "",
+    name: str = "",
+    listener_name_or_id: str = "",
+    protocol: str = "",
+    lb_algorithm: str = "ROUND_ROBIN",
+    description: str = "",
+    admin_state_up: bool = True
+) -> str:
+    """
+    Manage OpenStack load balancer pool operations (create, delete, show, set).
+
+    Functions:
+    - Create new pools for listeners with specified protocols
+    - Delete existing pools
+    - Show detailed pool information including members
+    - Update pool properties (name, description, algorithm, admin state)
+
+    Use when user requests:
+    - "Create pool [name] for listener [listener] using HTTP"
+    - "Delete pool [name/id]"
+    - "Show pool [name/id] details"
+    - "Update pool [name] algorithm to LEAST_CONNECTIONS"
+
+    Args:
+        action: Operation to perform (create, delete, show, set)
+        pool_name_or_id: Pool name or ID (required for delete/show/set)
+        name: Name for new pool (required for create)
+        listener_name_or_id: Listener name or ID (required for create)
+        protocol: Pool protocol - HTTP, HTTPS, TCP, UDP (required for create)
+        lb_algorithm: Load balancing algorithm (ROUND_ROBIN, LEAST_CONNECTIONS, SOURCE_IP)
+        description: Description for the pool
+        admin_state_up: Administrative state (default: True)
+        
+    Returns:
+        JSON string with operation results and pool details
+    """
+    try:
+        from .functions import set_load_balancer_pool
+        
+        result = set_load_balancer_pool(
+            action=action,
+            pool_name_or_id=pool_name_or_id,
+            name=name,
+            listener_name_or_id=listener_name_or_id,
+            protocol=protocol,
+            lb_algorithm=lb_algorithm,
+            description=description,
+            admin_state_up=admin_state_up
+        )
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "action": action,
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage load balancer pool - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+@mcp.tool()
+async def get_load_balancer_pool_members(pool_name_or_id: str) -> str:
+    """
+    Get members for a specific OpenStack load balancer pool.
+
+    Functions:
+    - Lists all members in a specific pool
+    - Shows member addresses, ports, weights, and health status
+    - Displays member admin state and operational status
+    - Provides monitor configuration for each member
+
+    Use when user requests:
+    - "Show members for pool [name/id]"
+    - "List pool members"
+    - "What members are in pool [name]?"
+    - "Show pool member status"
+
+    Args:
+        pool_name_or_id: Pool name or ID to query members for
+        
+    Returns:
+        JSON string containing member details for the pool
+    """
+    try:
+        from .functions import get_load_balancer_pool_members
+        
+        result = get_load_balancer_pool_members(pool_name_or_id)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "pool": pool_name_or_id,
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to get pool members - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+@conditional_tool
+async def set_load_balancer_pool_member(
+    action: str,
+    pool_name_or_id: str,
+    member_id: str = "",
+    name: str = "",
+    address: str = "",
+    protocol_port: int = 0,
+    weight: int = 1,
+    admin_state_up: bool = True,
+    backup: bool = False,
+    monitor_address: str = "",
+    monitor_port: int = 0
+) -> str:
+    """
+    Manage OpenStack load balancer pool member operations (create, delete, show, set).
+
+    Functions:
+    - Add new members to pools with IP address and port
+    - Remove existing members from pools
+    - Show detailed member information
+    - Update member properties (weight, admin state, backup status)
+
+    Use when user requests:
+    - "Add member 192.168.1.10:80 to pool [name] with weight 5"
+    - "Remove member [id] from pool [name]"
+    - "Show member [id] details in pool [name]"
+    - "Set member [id] as backup in pool [name]"
+
+    Args:
+        action: Operation to perform (create, delete, show, set)
+        pool_name_or_id: Pool name or ID (required)
+        member_id: Member ID (required for delete/show/set)
+        name: Name for the member
+        address: IP address of the member (required for create)
+        protocol_port: Port number (required for create)
+        weight: Member weight (1-256, default: 1)
+        admin_state_up: Administrative state (default: True)
+        backup: Backup member flag (default: False)
+        monitor_address: Monitor IP address
+        monitor_port: Monitor port
+        
+    Returns:
+        JSON string with operation results and member details
+    """
+    try:
+        from .functions import set_load_balancer_pool_member
+        
+        result = set_load_balancer_pool_member(
+            action=action,
+            pool_name_or_id=pool_name_or_id,
+            member_id=member_id,
+            name=name,
+            address=address,
+            protocol_port=protocol_port,
+            weight=weight,
+            admin_state_up=admin_state_up,
+            backup=backup,
+            monitor_address=monitor_address,
+            monitor_port=monitor_port
+        )
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "action": action,
+            "pool": pool_name_or_id,
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage pool member - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+@mcp.tool()
+async def get_load_balancer_health_monitors(pool_name_or_id: str = "") -> str:
+    """
+    Get health monitors, optionally filtered by pool.
+
+    Functions:
+    - Lists all health monitors or monitors for a specific pool
+    - Shows monitor types (HTTP, HTTPS, TCP, PING, UDP-CONNECT)
+    - Displays health check intervals, timeouts, and retry settings
+    - Provides HTTP-specific settings (method, URL path, expected codes)
+
+    Use when user requests:
+    - "Show all health monitors"
+    - "List health monitors for pool [name/id]"
+    - "What health checks are configured?"
+    - "Show health monitor configuration"
+
+    Args:
+        pool_name_or_id: Optional pool name or ID to filter monitors (empty for all)
+        
+    Returns:
+        JSON string containing health monitor details
+    """
+    try:
+        from .functions import get_load_balancer_health_monitors
+        
+        result = get_load_balancer_health_monitors(pool_name_or_id)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "filter": pool_name_or_id if pool_name_or_id else "all monitors",
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to get health monitors - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+@conditional_tool
+async def set_load_balancer_health_monitor(
+    action: str,
+    monitor_name_or_id: str = "",
+    name: str = "",
+    pool_name_or_id: str = "",
+    monitor_type: str = "HTTP",
+    delay: int = 10,
+    timeout: int = 5,
+    max_retries: int = 3,
+    max_retries_down: int = 3,
+    admin_state_up: bool = True,
+    http_method: str = "GET",
+    url_path: str = "/",
+    expected_codes: str = "200"
+) -> str:
+    """
+    Comprehensive health monitor management operations (create, delete, set, unset, show).
+
+    Functions:
+    - Create new health monitors for pools with various protocols (HTTP, HTTPS, TCP, UDP, PING)
+    - Delete existing health monitors
+    - Set/update monitor settings (timing, HTTP parameters, admin state)
+    - Unset/clear monitor settings (HTTP parameters, expected codes)
+    - Show detailed health monitor configuration and status
+
+    Use when user requests:
+    - "Create HTTP health monitor for pool [name] checking /health every 30 seconds"
+    - "Delete health monitor [name/id]"
+    - "Update health monitor [name] timeout to 10 seconds"
+    - "Clear health monitor [name] expected codes"
+    - "Show health monitor [name/id] details"
+
+    Args:
+        action: Operation to perform (create, delete, set, unset, show)
+        monitor_name_or_id: Monitor name or ID (required for delete/set/unset/show)
+        name: Name for the monitor
+        pool_name_or_id: Pool name or ID (required for create)
+        monitor_type: Monitor type (HTTP, HTTPS, TCP, PING, UDP-CONNECT, SCTP)
+        delay: Delay between health checks in seconds (default: 10)
+        timeout: Timeout for health check in seconds (default: 5)
+        max_retries: Maximum retries before marking unhealthy (default: 3)
+        max_retries_down: Maximum retries before marking down (default: 3)
+        admin_state_up: Administrative state (default: True)
+        http_method: HTTP method for HTTP/HTTPS monitors (default: GET)
+        url_path: URL path for HTTP/HTTPS monitors (default: /)
+        expected_codes: Expected HTTP status codes (default: 200)
+        
+    Returns:
+        JSON string with operation results and health monitor details
+    """
+    if not _is_modify_operation_allowed() and action.lower() in ['create', 'delete', 'set', 'unset']:
+        return json.dumps({
+            'success': False,
+            'message': f'Modify operations are not allowed in current environment for action: {action}',
+            'error': f'MODIFY_OPERATIONS_DISABLED'
+        })
+    
+    try:
+        logger.info(f"Managing health monitor with action: {action}")
+        
+        result = _set_load_balancer_health_monitor(
+            action=action,
+            monitor_name_or_id=monitor_name_or_id,
+            name=name,
+            pool_name_or_id=pool_name_or_id,
+            monitor_type=monitor_type,
+            delay=delay,
+            timeout=timeout,
+            max_retries=max_retries,
+            max_retries_down=max_retries_down,
+            admin_state_up=admin_state_up,
+            http_method=http_method,
+            url_path=url_path,
+            expected_codes=expected_codes
+        )
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "action": action,
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage health monitor - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+# ===== LOAD BALANCER L7 POLICY TOOLS =====
+
+@mcp.tool()
+async def get_load_balancer_l7_policies(listener_name_or_id: str = "") -> str:
+    """
+    Get L7 policies for a listener or all L7 policies.
+    
+    Args:
+        listener_name_or_id: Optional listener name or ID to filter policies. If empty, shows all policies.
+    
+    Returns:
+        JSON string containing L7 policies information including policy details, actions, and rules
+    """
+    try:
+        logger.info(f"Getting L7 policies for listener: {listener_name_or_id}")
+        
+        result = _get_load_balancer_l7_policies(listener_name_or_id)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to get L7 policies - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+@conditional_tool
+async def set_load_balancer_l7_policy(
+    action: str,
+    listener_name_or_id: str = "",
+    policy_name_or_id: str = "",
+    name: str = "",
+    action_type: str = "REJECT",
+    description: str = "",
+    position: int = 1,
+    redirect_pool_id: str = "",
+    redirect_url: str = "",
+    admin_state_up: bool = True
+) -> str:
+    """
+    Manage L7 policy operations (create, delete, set, unset, show).
+    
+    Args:
+        action: Action to perform (create, delete, set, unset, show)
+        listener_name_or_id: Listener name or ID (required for create)
+        policy_name_or_id: Policy name or ID (required for delete/update operations)
+        name: Policy name (for create)
+        action_type: Policy action (REJECT, REDIRECT_TO_POOL, REDIRECT_TO_URL)
+        description: Policy description
+        position: Policy position in the list (1-based)
+        redirect_pool_id: Pool ID for REDIRECT_TO_POOL action
+        redirect_url: URL for REDIRECT_TO_URL action
+        admin_state_up: Administrative state
+    
+    Returns:
+        JSON string with operation results
+    """
+    try:
+        logger.info(f"Managing L7 policy with action: {action}")
+        
+        kwargs = {
+            'listener_name_or_id': listener_name_or_id,
+            'policy_name_or_id': policy_name_or_id,
+            'name': name,
+            'action_type': action_type,
+            'description': description,
+            'position': position,
+            'redirect_pool_id': redirect_pool_id if redirect_pool_id else None,
+            'redirect_url': redirect_url if redirect_url else None,
+            'admin_state_up': admin_state_up
+        }
+        
+        result = _set_load_balancer_l7_policy(action, **kwargs)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "action": action,
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage L7 policy - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+# ===== LOAD BALANCER AMPHORA TOOLS =====
+
+@mcp.tool()
+async def get_load_balancer_amphorae(lb_name_or_id: str = "") -> str:
+    """
+    Get amphora instances for a load balancer or all amphorae.
+    
+    Args:
+        lb_name_or_id: Optional load balancer name or ID. If empty, shows all amphorae.
+    
+    Returns:
+        JSON string containing amphora information including compute instances and network details
+    """
+    try:
+        logger.info(f"Getting amphorae for load balancer: {lb_name_or_id}")
+        
+        result = _get_load_balancer_amphorae(lb_name_or_id)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to get amphorae - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+@conditional_tool
+async def set_load_balancer_amphora(
+    action: str,
+    amphora_id: str = ""
+) -> str:
+    """
+    Manage amphora operations (configure, failover, show).
+    
+    NOTE: 'delete' and 'stats' operations are NOT supported by OpenStack SDK.
+    Only configure, failover, and show operations are available.
+    
+    Args:
+        action: Action to perform (configure, failover, show)
+        amphora_id: Amphora ID (required)
+    
+    Returns:
+        JSON string with operation results
+    """
+    if not _is_modify_operation_allowed() and action.lower() in ['configure', 'failover']:
+        return json.dumps({
+            'success': False,
+            'message': f'Modify operations are not allowed in current environment for action: {action}',
+            'error': f'MODIFY_OPERATIONS_DISABLED'
+        })
+    
+    try:
+        logger.info(f"Managing amphora with action: {action}")
+        
+        if action in ['delete', 'stats']:
+            return json.dumps({
+                'success': False,
+                'message': f'Action "{action}" is not supported by OpenStack SDK. Available actions: configure, failover, show',
+                'error': 'UNSUPPORTED_OPERATION'
+            })
+        
+        result = _set_load_balancer_amphora(action, amphora_id=amphora_id)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "action": action,
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage amphora - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+# ===== LOAD BALANCER ADVANCED INFO TOOLS =====
+
+@mcp.tool()
+async def get_load_balancer_availability_zones() -> str:
+    """
+    Get load balancer availability zones.
+    
+    Returns:
+        JSON string containing availability zones information
+    """
+    try:
+        logger.info("Getting load balancer availability zones")
+        
+        result = _get_load_balancer_availability_zones()
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to get availability zones - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+@mcp.tool()
+async def get_load_balancer_flavors() -> str:
+    """
+    Get load balancer flavors.
+    
+    Returns:
+        JSON string containing flavors information
+    """
+    try:
+        logger.info("Getting load balancer flavors")
+        
+        result = _get_load_balancer_flavors()
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to get flavors - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+@mcp.tool()
+async def get_load_balancer_providers() -> str:
+    """
+    Get load balancer providers.
+    
+    Returns:
+        JSON string containing providers information
+    """
+    try:
+        logger.info("Getting load balancer providers")
+        
+        result = _get_load_balancer_providers()
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to get providers - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+@mcp.tool()
+async def get_load_balancer_quotas(project_id: str = "") -> str:
+    """
+    Get load balancer quotas for a project or all projects.
+    
+    Args:
+        project_id: Optional project ID. If empty, shows quotas for all projects.
+    
+    Returns:
+        JSON string containing quota information
+    """
+    try:
+        logger.info(f"Getting load balancer quotas for project: {project_id}")
+        
+        result = _get_load_balancer_quotas(project_id)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to get quotas - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+# ===== LOAD BALANCER L7 RULE TOOLS =====
+
+@mcp.tool()
+async def get_load_balancer_l7_rules(policy_name_or_id: str) -> str:
+    """
+    Get L7 rules for a specific L7 policy.
+    
+    Args:
+        policy_name_or_id: L7 policy name or ID (required)
+    
+    Returns:
+        JSON string containing L7 rules information including rule types, values, and conditions
+    """
+    try:
+        logger.info(f"Getting L7 rules for policy: {policy_name_or_id}")
+        
+        result = _get_load_balancer_l7_rules(policy_name_or_id)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to get L7 rules - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+@conditional_tool
+async def set_load_balancer_l7_rule(
+    action: str,
+    policy_name_or_id: str = "",
+    rule_id: str = "",
+    type: str = "PATH",
+    compare_type: str = "STARTS_WITH",
+    value: str = "",
+    key: str = "",
+    invert: bool = False,
+    admin_state_up: bool = True
+) -> str:
+    """
+    Manage L7 rule operations (create, delete, set, unset, show).
+    
+    Args:
+        action: Action to perform (create, delete, set, unset, show)
+        policy_name_or_id: L7 policy name or ID (required for create)
+        rule_id: L7 rule ID (required for delete/update operations)
+        type: Rule type (PATH, HOST_NAME, HEADER, COOKIE, FILE_TYPE, SSL_CONN_HAS_CERT, SSL_VERIFY_RESULT, SSL_DN_FIELD)
+        compare_type: Comparison type (STARTS_WITH, ENDS_WITH, CONTAINS, EQUAL_TO, REGEX)
+        value: Rule value to match against
+        key: Key for HEADER/COOKIE types
+        invert: Whether to invert the rule logic
+        admin_state_up: Administrative state
+    
+    Returns:
+        JSON string with operation results
+    """
+    try:
+        logger.info(f"Managing L7 rule with action: {action}")
+        
+        kwargs = {
+            'policy_name_or_id': policy_name_or_id,
+            'rule_id': rule_id,
+            'type': type,
+            'compare_type': compare_type,
+            'value': value,
+            'key': key if key else None,
+            'invert': invert,
+            'admin_state_up': admin_state_up
+        }
+        
+        result = _set_load_balancer_l7_rule(action, **kwargs)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "action": action,
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage L7 rule - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+# ===== ADVANCED LOADBALANCER MANAGEMENT TOOLS =====
+
+@conditional_tool
+async def set_load_balancer_availability_zone(
+    action: str,
+    az_name: str = "",
+    name: str = "",
+    availability_zone_profile_id: str = "",
+    description: str = "",
+    enabled: bool = True
+) -> str:
+    """
+    Manage availability zone operations (create, delete, set, unset, show).
+    
+    Args:
+        action: Action to perform (create, delete, set, unset, show)
+        az_name: Availability zone name (required for delete/update)
+        name: Name for new availability zone (required for create)
+        availability_zone_profile_id: Profile ID (required for create)
+        description: Description
+        enabled: Whether the availability zone is enabled
+    
+    Returns:
+        JSON string with operation results
+    """
+    try:
+        logger.info(f"Managing availability zone with action: {action}")
+        
+        kwargs = {
+            'az_name': az_name,
+            'name': name,
+            'availability_zone_profile_id': availability_zone_profile_id,
+            'description': description,
+            'enabled': enabled
+        }
+        
+        result = _set_load_balancer_availability_zone(action, **kwargs)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "action": action,
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage availability zone - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+@conditional_tool
+async def set_load_balancer_flavor(
+    action: str,
+    flavor_name_or_id: str = "",
+    name: str = "",
+    flavor_profile_id: str = "",
+    description: str = "",
+    enabled: bool = True
+) -> str:
+    """
+    Manage flavor operations (create, delete, set, unset, show).
+    
+    Args:
+        action: Action to perform (create, delete, set, unset, show)
+        flavor_name_or_id: Flavor name or ID (required for delete/update)
+        name: Name for new flavor (required for create)
+        flavor_profile_id: Profile ID (required for create)
+        description: Description
+        enabled: Whether the flavor is enabled
+    
+    Returns:
+        JSON string with operation results
+    """
+    try:
+        logger.info(f"Managing flavor with action: {action}")
+        
+        kwargs = {
+            'flavor_name_or_id': flavor_name_or_id,
+            'name': name,
+            'flavor_profile_id': flavor_profile_id,
+            'description': description,
+            'enabled': enabled
+        }
+        
+        result = _set_load_balancer_flavor(action, **kwargs)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "action": action,
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage flavor - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+@conditional_tool
+async def set_load_balancer_quota(
+    action: str,
+    project_id: str = "",
+    load_balancer: int = -1,
+    listener: int = -1,
+    pool: int = -1,
+    health_monitor: int = -1,
+    member: int = -1
+) -> str:
+    """
+    Manage quota operations (set, reset, unset).
+    
+    Args:
+        action: Action to perform (set, reset, unset)
+        project_id: Project ID (required)
+        load_balancer: Load balancer quota limit
+        listener: Listener quota limit
+        pool: Pool quota limit
+        health_monitor: Health monitor quota limit
+        member: Member quota limit
+    
+    Returns:
+        JSON string with operation results
+    """
+    try:
+        logger.info(f"Managing quota with action: {action}")
+        
+        kwargs = {
+            'project_id': project_id,
+            'load_balancer': load_balancer if load_balancer >= 0 else None,
+            'listener': listener if listener >= 0 else None,
+            'pool': pool if pool >= 0 else None,
+            'health_monitor': health_monitor if health_monitor >= 0 else None,
+            'member': member if member >= 0 else None
+        }
+        
+        # Remove None values
+        kwargs = {k: v for k, v in kwargs.items() if v is not None}
+        
+        result = _set_load_balancer_quota(action, **kwargs)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "action": action,
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage quota - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+@mcp.tool()
+async def get_load_balancer_amphorae(
+    loadbalancer_id: str = ""
+) -> str:
+    """
+    Get amphora information from OpenStack load balancer service.
+    
+    Args:
+        loadbalancer_id: Optional load balancer ID to filter amphorae
+    
+    Returns:
+        JSON string with amphora details
+    """
+    try:
+        logger.info("Getting amphora information")
+        
+        kwargs = {}
+        if loadbalancer_id:
+            kwargs['loadbalancer_id'] = loadbalancer_id
+        
+        result = _get_load_balancer_amphorae(**kwargs)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to get amphorae - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+# ===== MCP SERVER STARTUP =====
