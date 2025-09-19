@@ -19,7 +19,7 @@
 - ✅ **OpenStack SDK Integration**: Direct integration with OpenStack SDK for real-time cluster operations.
 - ✅ **Production-Safe Operations**: Built-in safety controls with `ALLOW_MODIFY_OPERATIONS` environment variable to prevent modification operations in production environments.
 - ✅ **Comprehensive Monitoring**: Enhanced cluster status reports with hypervisor health, resource utilization, and health scoring.
-- ✅ **Complete Service Coverage**: 45+ comprehensive tools covering Identity, Compute, Network, Storage, Image, Orchestration, Load Balancer, and Monitoring services.
+- ✅ **Complete Service Coverage**: 65+ comprehensive tools covering Identity, Compute, Network, Storage, Image, Orchestration, Load Balancer, and Monitoring services.
 - ✅ **Advanced Instance Management**: Enhanced server lifecycle operations with backup, migration, rescue, and administrative functions.
 - ✅ **Server Event Tracking**: Detailed server event history and lifecycle monitoring with comprehensive logging.
 - ✅ **Hypervisor Monitoring**: Real-time hypervisor resource statistics with utilization tracking and cluster totals.
@@ -54,7 +54,7 @@
 
 **Detailed Mapping by Category**
 
-### 1. 🖥️ **Compute (Nova) - 85% Implementation**
+### 1. 🖥️ **Compute (Nova) - 95% Implementation**
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
@@ -63,12 +63,39 @@
 | `openstack server create` | `set_instance` (action="create") | ✅ | Instance creation |
 | `openstack server start/stop/reboot` | `set_instance` | ✅ | Full lifecycle management |
 | `openstack server delete` | `set_instance` (action="delete") | ✅ | Instance deletion |
-| `openstack server backup` | `set_instance` (action="backup") | ✅ | Backup creation |
+| `openstack server backup create` | `create_server_backup` | ✅ | Backup creation with rotation |
+| `openstack server image create` | `set_instance` (action="snapshot") | ✅ | Image/snapshot creation |
 | `openstack server shelve/unshelve` | `set_instance` | ✅ | Instance shelving |
+| `openstack server lock/unlock` | `set_instance` | ✅ | Instance locking |
+| `openstack server pause/unpause` | `set_instance` | ✅ | Instance pausing |
+| `openstack server suspend/resume` | `set_instance` | ✅ | Instance suspension |
 | `openstack server resize` | `set_instance` (action="resize") | ✅ | Instance resizing |
+| `openstack server resize confirm` | `set_instance` (action="confirm_resize") | ✅ | Resize confirmation |
+| `openstack server resize revert` | `set_instance` (action="revert_resize") | ✅ | Resize revert |
 | `openstack server rebuild` | `set_instance` (action="rebuild") | ✅ | Instance rebuilding |
 | `openstack server rescue/unrescue` | `set_instance` | ✅ | Recovery mode |
-| `openstack server migrate` | (Not yet implemented) | 🚧 | Migration functionality |
+| `openstack server migrate` | `set_server_migration` (action="migrate") | ✅ | Live migration |
+| `openstack server evacuate` | `set_server_migration` (action="evacuate") | ✅ | Server evacuation |
+| `openstack server migration list` | `set_server_migration` (action="list") | ✅ | Migration listing |
+| `openstack server migration show` | `set_server_migration` (action="show") | ✅ | Migration details |
+| `openstack server migration abort` | `set_server_migration` (action="abort") | ✅ | Migration abort |
+| `openstack server migration confirm` | `set_server_migration` (action="confirm") | ✅ | Migration confirmation |
+| `openstack server migration force complete` | `set_server_migration` (action="force_complete") | ✅ | Force migration completion |
+| `openstack server add network` | `set_server_network` (action="add_network") | ✅ | Network attachment |
+| `openstack server remove network` | `set_server_network` (action="remove_network") | ✅ | Network detachment |
+| `openstack server add port` | `set_server_network` (action="add_port") | ✅ | Port attachment |
+| `openstack server remove port` | `set_server_network` (action="remove_port") | ✅ | Port detachment |
+| `openstack server add floating ip` | `set_server_floating_ip` (action="add") | ✅ | Floating IP association |
+| `openstack server remove floating ip` | `set_server_floating_ip` (action="remove") | ✅ | Floating IP disassociation |
+| `openstack server add fixed ip` | `set_server_fixed_ip` (action="add") | ✅ | Fixed IP addition |
+| `openstack server remove fixed ip` | `set_server_fixed_ip` (action="remove") | ✅ | Fixed IP removal |
+| `openstack server add security group` | `set_server_security_group` (action="add") | ✅ | Security group addition |
+| `openstack server remove security group` | `set_server_security_group` (action="remove") | ✅ | Security group removal |
+| `openstack server add volume` | `set_server_volume` (action="attach") | ✅ | Volume attachment |
+| `openstack server remove volume` | `set_server_volume` (action="detach") | ✅ | Volume detachment |
+| `openstack server set` | `set_server_properties` (action="set") | ✅ | Server property setting |
+| `openstack server unset` | `set_server_properties` (action="unset") | ✅ | Server property unsetting |
+| `openstack server dump create` | `create_server_dump` | ✅ | Server dump creation |
 | `openstack server event list` | `get_server_events` | ✅ | Server event tracking |
 | `openstack server group list` | `get_server_groups` | ✅ | Server group listing |
 | `openstack server group create/delete` | `set_server_group` | ✅ | Server group management |

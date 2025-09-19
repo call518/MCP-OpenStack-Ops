@@ -33,6 +33,15 @@ from .functions import (
     get_keypair_list as _get_keypair_list,
     set_keypair as _set_keypair,
     get_security_groups as _get_security_groups,
+    # Extended Server Management functions
+    set_server_network as _set_server_network,
+    set_server_floating_ip as _set_server_floating_ip,
+    set_server_fixed_ip as _set_server_fixed_ip,
+    set_server_security_group as _set_server_security_group,
+    set_server_migration as _set_server_migration,
+    set_server_properties as _set_server_properties,
+    create_server_backup as _create_server_backup,
+    create_server_dump as _create_server_dump,
     # Network (Neutron) enhanced functions
     get_floating_ips as _get_floating_ips,
     set_floating_ip as _set_floating_ip,
@@ -45,6 +54,7 @@ from .functions import (
     set_volume_groups as _set_volume_groups,
     set_volume_qos as _set_volume_qos,
     set_network_ports as _set_network_ports,
+    set_networks as _set_networks,
     set_subnets as _set_subnets,
     set_network_qos_policies as _set_network_qos_policies,
     set_network_agents as _set_network_agents,
@@ -562,22 +572,38 @@ async def get_network_details(network_name: str = "all") -> str:
 
 
 @conditional_tool
-async def set_instance(instance_name: str, action: str) -> str:
+async def set_instance(
+    instance_name: str, 
+    action: str,
+    flavor: Optional[str] = None,
+    image: Optional[str] = None,
+    networks: Optional[str] = None,
+    security_groups: Optional[str] = None,
+    key_name: Optional[str] = None,
+    availability_zone: Optional[str] = None
+) -> str:
     """
-    Manages OpenStack instances with operations like start, stop, restart, pause, and unpause.
+    Manages OpenStack instances with operations like start, stop, restart, pause, unpause, and create.
     
     Functions:
+    - Create new instances with specified configuration
     - Start stopped instances
     - Stop running instances 
     - Restart/reboot instances (soft reboot)
     - Pause active instances (suspend to memory)
     - Unpause/resume paused instances
     
-    Use when user requests instance management, VM control, server operations, or instance lifecycle management.
+    Use when user requests instance management, VM control, server operations, instance lifecycle management, or server creation.
     
     Args:
-        instance_name: Name of the instance to manage
-        action: Management action (start, stop, restart, reboot, pause, unpause, resume)
+        instance_name: Name of the instance to manage or create
+        action: Management action (create, start, stop, restart, reboot, pause, unpause, resume)
+        flavor: Flavor name for create action (e.g., 'm1.small', 'm1.medium')
+        image: Image name for create action (e.g., 'rockylinux-9', 'ubuntu-20.04')
+        networks: Network name(s) for create action (e.g., 'demo-net', 'private-net')
+        security_groups: Security group name(s) for create action (e.g., 'default', 'web-sg')
+        key_name: SSH keypair name for create action (optional)
+        availability_zone: Availability zone for create action (optional)
         
     Returns:
         Management operation result in JSON format with success status, message, and state information.
@@ -586,10 +612,33 @@ async def set_instance(instance_name: str, action: str) -> str:
         if not instance_name or not instance_name.strip():
             return "Error: Instance name is required"
         if not action or not action.strip():
-            return "Error: Action is required (start, stop, restart, pause, unpause)"
+            return "Error: Action is required (create, start, stop, restart, pause, unpause)"
+            
+        kwargs = {}
+        if flavor:
+            kwargs['flavor'] = flavor
+        if image:
+            kwargs['image'] = image
+        if networks:
+            kwargs['networks'] = networks.split(',') if ',' in networks else [networks]
+        if security_groups:
+            kwargs['security_groups'] = security_groups.split(',') if ',' in security_groups else [security_groups]
+        if key_name:
+            kwargs['key_name'] = key_name
+        if availability_zone:
+            kwargs['availability_zone'] = availability_zone
             
         logger.info(f"Managing instance '{instance_name}' with action '{action}'")
-        result = _set_instance(instance_name.strip(), action.strip())
+        result = _set_instance(instance_name.strip(), action.strip(), **kwargs)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "requested_instance": instance_name,
+            "requested_action": action,
+            "management_result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
         
         response = {
             "timestamp": datetime.now().isoformat(),
@@ -604,6 +653,493 @@ async def set_instance(instance_name: str, action: str) -> str:
         error_msg = f"Error: Failed to manage instance '{instance_name}' - {str(e)}"
         logger.error(error_msg)
         return error_msg
+
+
+# ===== EXTENDED SERVER MANAGEMENT TOOLS =====
+
+@conditional_tool
+async def set_server_network(
+    instance_name: str,
+    action: str,
+    network: str = "",
+    port: str = "",
+    fixed_ip: str = ""
+) -> str:
+    """
+    Manage server network operations (add/remove networks and ports).
+    
+    Functions:
+    - Add network to server with optional fixed IP
+    - Remove network from server (removes all ports on that network)
+    - Add specific port to server
+    - Remove specific port from server
+    
+    Use when user requests:
+    - "Add network X to server Y"
+    - "Remove network X from server Y"
+    - "Attach port X to server Y"
+    - "Detach port X from server Y"
+    
+    Args:
+        instance_name: Name or ID of the server
+        action: Action to perform (add_network, remove_network, add_port, remove_port)
+        network: Network name or ID (for network operations)
+        port: Port ID (for port operations)
+        fixed_ip: Optional fixed IP address when adding network
+        
+    Returns:
+        JSON string containing operation results
+    """
+    try:
+        logger.info(f"Managing server network: {instance_name}, action: {action}")
+        
+        kwargs = {
+            'network': network,
+            'port': port,
+            'fixed_ip': fixed_ip
+        }
+        
+        result = _set_server_network(instance_name.strip(), action.strip(), **kwargs)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "action": action,
+            "instance_name": instance_name,
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage server network - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+@conditional_tool
+async def set_server_floating_ip(
+    instance_name: str,
+    action: str,
+    floating_ip: str,
+    fixed_ip: str = ""
+) -> str:
+    """
+    Manage server floating IP operations (add/remove).
+    
+    Functions:
+    - Associate floating IP to server
+    - Disassociate floating IP from server
+    - Automatically find target fixed IP if not specified
+    
+    Use when user requests:
+    - "Add floating IP X to server Y"
+    - "Remove floating IP X from server Y"
+    - "Associate floating IP X with server Y"
+    - "Disassociate floating IP X from server Y"
+    
+    Args:
+        instance_name: Name or ID of the server
+        action: Action to perform (add, remove)
+        floating_ip: Floating IP address or ID
+        fixed_ip: Target fixed IP address (auto-detected if not specified)
+        
+    Returns:
+        JSON string containing operation results
+    """
+    try:
+        logger.info(f"Managing server floating IP: {instance_name}, action: {action}")
+        
+        kwargs = {
+            'floating_ip': floating_ip,
+            'fixed_ip': fixed_ip
+        }
+        
+        result = _set_server_floating_ip(instance_name.strip(), action.strip(), **kwargs)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "action": action,
+            "instance_name": instance_name,
+            "floating_ip": floating_ip,
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage server floating IP - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+@conditional_tool
+async def set_server_fixed_ip(
+    instance_name: str,
+    action: str,
+    network: str = "",
+    fixed_ip: str = ""
+) -> str:
+    """
+    Manage server fixed IP operations (add/remove).
+    
+    Functions:
+    - Add fixed IP to server on specified network
+    - Remove specific fixed IP from server
+    - Create new port with specified or auto-assigned fixed IP
+    
+    Use when user requests:
+    - "Add fixed IP X to server Y on network Z"
+    - "Remove fixed IP X from server Y"
+    - "Assign fixed IP to server on network"
+    
+    Args:
+        instance_name: Name or ID of the server
+        action: Action to perform (add, remove)
+        network: Network name or ID (required for add action)
+        fixed_ip: Fixed IP address (optional for add, required for remove)
+        
+    Returns:
+        JSON string containing operation results
+    """
+    try:
+        logger.info(f"Managing server fixed IP: {instance_name}, action: {action}")
+        
+        kwargs = {
+            'network': network,
+            'fixed_ip': fixed_ip
+        }
+        
+        result = _set_server_fixed_ip(instance_name.strip(), action.strip(), **kwargs)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "action": action,
+            "instance_name": instance_name,
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage server fixed IP - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+@conditional_tool
+async def set_server_security_group(
+    instance_name: str,
+    action: str,
+    security_group: str
+) -> str:
+    """
+    Manage server security group operations (add/remove).
+    
+    Functions:
+    - Add security group to server
+    - Remove security group from server
+    - Manage server firewall rules and access control
+    
+    Use when user requests:
+    - "Add security group X to server Y"
+    - "Remove security group X from server Y"
+    - "Apply security group to server"
+    - "Remove firewall rules from server"
+    
+    Args:
+        instance_name: Name or ID of the server
+        action: Action to perform (add, remove)
+        security_group: Security group name or ID
+        
+    Returns:
+        JSON string containing operation results
+    """
+    try:
+        logger.info(f"Managing server security group: {instance_name}, action: {action}")
+        
+        kwargs = {
+            'security_group': security_group
+        }
+        
+        result = _set_server_security_group(instance_name.strip(), action.strip(), **kwargs)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "action": action,
+            "instance_name": instance_name,
+            "security_group": security_group,
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage server security group - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+@conditional_tool
+async def set_server_migration(
+    instance_name: str,
+    action: str,
+    host: str = "",
+    migration_id: str = "",
+    block_migration: str = "auto",
+    admin_pass: str = "",
+    on_shared_storage: bool = False
+) -> str:
+    """
+    Manage server migration and evacuation operations.
+    
+    Functions:
+    - Live migrate server to different host
+    - Evacuate server from failed host
+    - Confirm/revert migration operations
+    - List server migrations
+    - Show migration details
+    - Abort ongoing migrations
+    - Force complete migrations
+    
+    Use when user requests:
+    - "Migrate server X to host Y"
+    - "Evacuate server X"
+    - "List migrations for server X"
+    - "Abort migration Y for server X"
+    - "Confirm migration for server X"
+    
+    Args:
+        instance_name: Name or ID of the server
+        action: Action to perform (migrate, evacuate, confirm, revert, list, show, abort, force_complete)
+        host: Target host for migration/evacuation
+        migration_id: Migration ID for show/abort/force_complete actions
+        block_migration: Block migration mode (auto, true, false)
+        admin_pass: Admin password for evacuation
+        on_shared_storage: Whether using shared storage for evacuation
+        
+    Returns:
+        JSON string containing operation results
+    """
+    try:
+        logger.info(f"Managing server migration: {instance_name}, action: {action}")
+        
+        kwargs = {
+            'host': host,
+            'migration_id': migration_id,
+            'block_migration': block_migration,
+            'admin_pass': admin_pass,
+            'on_shared_storage': on_shared_storage
+        }
+        
+        result = _set_server_migration(instance_name.strip(), action.strip(), **kwargs)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "action": action,
+            "instance_name": instance_name,
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage server migration - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+@conditional_tool
+async def set_server_properties(
+    instance_name: str,
+    action: str,
+    name: str = "",
+    description: str = "",
+    metadata: dict = {},
+    properties: list = []
+) -> str:
+    """
+    Manage server properties and metadata (set/unset).
+    
+    Functions:
+    - Set server name and description
+    - Add/update server metadata properties
+    - Remove server metadata properties
+    - Manage server tags and labels
+    
+    Use when user requests:
+    - "Set server X name to Y"
+    - "Update server X description"
+    - "Add metadata to server X"
+    - "Remove property Y from server X"
+    - "Set server property"
+    
+    Args:
+        instance_name: Name or ID of the server
+        action: Action to perform (set, unset)
+        name: New server name
+        description: Server description
+        metadata: Dictionary of metadata properties to set
+        properties: List of property names to unset
+        
+    Returns:
+        JSON string containing operation results
+    """
+    try:
+        logger.info(f"Managing server properties: {instance_name}, action: {action}")
+        
+        kwargs = {
+            'name': name,
+            'description': description,
+            'metadata': metadata,
+            'properties': properties
+        }
+        
+        result = _set_server_properties(instance_name.strip(), action.strip(), **kwargs)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "action": action,
+            "instance_name": instance_name,
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage server properties - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+@conditional_tool
+async def create_server_backup(
+    instance_name: str,
+    backup_name: str,
+    backup_type: str = "daily",
+    rotation: int = 1,
+    metadata: dict = {}
+) -> str:
+    """
+    Create a backup image of a server.
+    
+    Functions:
+    - Create server backup with rotation policy
+    - Set backup type (daily, weekly, etc.)
+    - Add backup metadata and labels
+    - Manage backup lifecycle
+    
+    Use when user requests:
+    - "Create backup of server X"
+    - "Backup server X as Y"
+    - "Create daily backup of server"
+    - "Backup server with rotation policy"
+    
+    Args:
+        instance_name: Name or ID of the server
+        backup_name: Name for the backup image
+        backup_type: Type of backup (daily, weekly, monthly)
+        rotation: Number of backups to keep
+        metadata: Additional metadata for the backup
+        
+    Returns:
+        JSON string containing backup operation results
+    """
+    try:
+        logger.info(f"Creating server backup: {instance_name} -> {backup_name}")
+        
+        kwargs = {
+            'backup_type': backup_type,
+            'rotation': rotation,
+            'metadata': metadata
+        }
+        
+        result = _create_server_backup(instance_name.strip(), backup_name.strip(), **kwargs)
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "instance_name": instance_name,
+            "backup_name": backup_name,
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to create server backup - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
+
+
+@conditional_tool
+async def create_server_dump(instance_name: str) -> str:
+    """
+    Create a dump file for a server (vendor-specific feature).
+    
+    Functions:
+    - Attempt to create server memory/disk dump
+    - Provide alternative backup suggestions
+    - Explain dump limitations
+    
+    Use when user requests:
+    - "Create dump of server X"
+    - "Generate server dump file"
+    - "Create server core dump"
+    
+    Args:
+        instance_name: Name or ID of the server
+        
+    Returns:
+        JSON string containing dump operation results or alternatives
+    """
+    try:
+        logger.info(f"Attempting to create server dump: {instance_name}")
+        
+        result = _create_server_dump(instance_name.strip())
+        
+        response = {
+            "timestamp": datetime.now().isoformat(),
+            "instance_name": instance_name,
+            "result": result
+        }
+        
+        return json.dumps(response, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to create server dump - {str(e)}"
+        logger.error(error_msg)
+        return json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "error": error_msg,
+            "success": False
+        }, indent=2)
 
 
 @conditional_tool
@@ -1409,7 +1945,8 @@ async def set_snapshot(snapshot_name: str, action: str, volume_id: str = "", des
 
 # Image Service (Glance) Enhanced Tools
 @conditional_tool
-async def set_image(image_name: str, action: str, container_format: str = "bare", disk_format: str = "qcow2", visibility: str = "private") -> str:
+async def set_image(image_name: str, action: str, container_format: str = "bare", disk_format: str = "qcow2", 
+                   visibility: str = "private", min_disk: int = 0, min_ram: int = 0, properties: str = "{}") -> str:
     """
     Manage images (create, delete, update, list).
     
@@ -1428,6 +1965,9 @@ async def set_image(image_name: str, action: str, container_format: str = "bare"
         container_format: Container format (bare, ovf, etc.)
         disk_format: Disk format (qcow2, raw, vmdk, etc.)
         visibility: Image visibility (private, public, shared, community)
+        min_disk: Minimum disk space required in GB (for create action)
+        min_ram: Minimum RAM required in MB (for create action)
+        properties: Additional image properties as JSON string (for create action)
         
     Returns:
         Result of image management operation in JSON format.
@@ -1443,8 +1983,21 @@ async def set_image(image_name: str, action: str, container_format: str = "bare"
         kwargs = {
             'container_format': container_format,
             'disk_format': disk_format,
-            'visibility': visibility
+            'visibility': visibility,
+            'min_disk': min_disk,
+            'min_ram': min_ram
         }
+        
+        # Parse properties JSON if provided
+        if properties.strip():
+            try:
+                kwargs['properties'] = json.loads(properties)
+            except json.JSONDecodeError:
+                return json.dumps({
+                    "timestamp": datetime.now().isoformat(),
+                    "error": "Invalid JSON format for properties",
+                    "message": "Properties must be valid JSON format"
+                })
         
         # For list action, use empty string if no image_name provided
         image_name_param = image_name.strip() if image_name and image_name.strip() else ""
@@ -2610,6 +3163,93 @@ async def set_subnets(
         return json.dumps({
             'success': False,
             'message': f'Failed to manage subnet: {str(e)}',
+            'error': str(e)
+        }, indent=2)
+
+
+@conditional_tool
+async def set_networks(
+    action: str,
+    network_name: str = "",
+    description: str = "",
+    admin_state_up: bool = True,
+    shared: bool = False,
+    external: bool = False,
+    provider_network_type: str = "",
+    provider_physical_network: str = "",
+    provider_segmentation_id: int = 0,
+    mtu: int = 1500
+) -> str:
+    """
+    Manage OpenStack networks for tenant isolation and connectivity
+    
+    Functions:
+    - Create new networks with provider settings and MTU configuration
+    - Delete existing networks 
+    - Update network properties (description, admin state, shared access)
+    - List all networks with detailed configuration
+    
+    Use when user requests:
+    - "Create network [name] with MTU [size]"
+    - "Delete network [name]"
+    - "Update network [name] description to [text]"
+    - "Make network [name] shared/private"
+    - "List all networks"
+    
+    Args:
+        action: Action to perform - list, create, delete, update
+        network_name: Name of the network (required for create/delete/update)
+        description: Description for the network
+        admin_state_up: Administrative state (default: True)
+        shared: Allow sharing across tenants (default: False)
+        external: Mark as external network for router gateway (default: False)
+        provider_network_type: Provider network type (vlan, vxlan, flat, etc.)
+        provider_physical_network: Physical network name for provider mapping
+        provider_segmentation_id: VLAN ID or tunnel ID for network segmentation
+        mtu: Maximum transmission unit size (default: 1500)
+        
+    Returns:
+        JSON string with network management operation results
+    """
+    try:
+        logger.info(f"Managing network with action '{action}'" + (f" for network '{network_name}'" if network_name.strip() else ""))
+        
+        kwargs = {
+            'description': description.strip() if description.strip() else None,
+            'admin_state_up': admin_state_up,
+            'shared': shared,
+            'external': external,
+            'mtu': mtu if mtu > 0 else 1500
+        }
+        
+        # Provider network settings
+        if provider_network_type.strip():
+            kwargs['provider_network_type'] = provider_network_type.strip()
+        if provider_physical_network.strip():
+            kwargs['provider_physical_network'] = provider_physical_network.strip()
+        if provider_segmentation_id > 0:
+            kwargs['provider_segmentation_id'] = provider_segmentation_id
+        
+        # For list action, use empty string if no network_name provided
+        result_data = _set_networks(
+            action=action,
+            network_name=network_name if network_name else None,
+            **kwargs
+        )
+        
+        result = {
+            "timestamp": datetime.now().isoformat(),
+            "action": action,
+            "parameters": {"network_name": network_name, **kwargs},
+            "result": result_data
+        }
+        
+        return json.dumps(result, indent=2)
+        
+    except Exception as e:
+        return json.dumps({
+            'success': False,
+            'message': f'Failed to manage network: {str(e)}',
             'error': str(e)
         }, indent=2)
 

@@ -635,10 +635,100 @@ def set_instance(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
                     'message': f'Failed to get console URL: {str(e)}'
                 }
                 
+        elif action.lower() == 'shelve':
+            conn.compute.shelve_server(server)
+            return {
+                'success': True,
+                'message': f'Instance "{instance_name}" shelved'
+            }
+            
+        elif action.lower() == 'unshelve':
+            conn.compute.unshelve_server(server)
+            return {
+                'success': True,
+                'message': f'Instance "{instance_name}" unshelved'
+            }
+            
+        elif action.lower() == 'lock':
+            conn.compute.lock_server(server)
+            return {
+                'success': True,
+                'message': f'Instance "{instance_name}" locked'
+            }
+            
+        elif action.lower() == 'unlock':
+            conn.compute.unlock_server(server)
+            return {
+                'success': True,
+                'message': f'Instance "{instance_name}" unlocked'
+            }
+            
+        elif action.lower() == 'rescue':
+            rescue_image_id = kwargs.get('rescue_image_id')
+            admin_pass = kwargs.get('admin_pass')
+            
+            rescue_params = {}
+            if rescue_image_id:
+                rescue_params['image_id'] = rescue_image_id
+            if admin_pass:
+                rescue_params['admin_pass'] = admin_pass
+                
+            conn.compute.rescue_server(server, **rescue_params)
+            return {
+                'success': True,
+                'message': f'Instance "{instance_name}" put in rescue mode'
+            }
+            
+        elif action.lower() == 'unrescue':
+            conn.compute.unrescue_server(server)
+            return {
+                'success': True,
+                'message': f'Instance "{instance_name}" restored from rescue mode'
+            }
+            
+        elif action.lower() == 'rebuild':
+            image_name = kwargs.get('image', kwargs.get('image_name'))
+            if not image_name:
+                return {
+                    'success': False,
+                    'message': 'image parameter is required for rebuild action'
+                }
+                
+            # Find image
+            image = None
+            for img in conn.image.images():
+                if getattr(img, 'name', '') == image_name or img.id == image_name:
+                    image = img
+                    break
+            
+            if not image:
+                return {
+                    'success': False,
+                    'message': f'Image "{image_name}" not found'
+                }
+                
+            rebuild_params = {
+                'image_id': image.id,
+                'name': kwargs.get('new_name', getattr(server, 'name', '')),
+                'admin_pass': kwargs.get('admin_pass'),
+                'preserve_ephemeral': kwargs.get('preserve_ephemeral', False),
+                'metadata': kwargs.get('metadata', {}),
+                'personality': kwargs.get('personality', [])
+            }
+            
+            # Remove None values
+            rebuild_params = {k: v for k, v in rebuild_params.items() if v is not None}
+            
+            conn.compute.rebuild_server(server, **rebuild_params)
+            return {
+                'success': True,
+                'message': f'Instance "{instance_name}" rebuild initiated with image {image_name}'
+            }
+                
         else:
             return {
                 'success': False,
-                'message': f'Unknown action "{action}". Supported: create, start, stop, reboot, pause, unpause, suspend, resume, delete, resize, confirm_resize, revert_resize, snapshot, console, list'
+                'message': f'Unknown action "{action}". Supported: create, start, stop, reboot, pause, unpause, suspend, resume, delete, resize, confirm_resize, revert_resize, snapshot, console, shelve, unshelve, lock, unlock, rescue, unrescue, rebuild, list'
             }
             
     except Exception as e:
@@ -831,6 +921,640 @@ def get_server_groups() -> List[Dict[str, Any]]:
 
 
 def set_server_group(group_name: str, action: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage server groups (create, delete, list, show).
+    
+    Args:
+        group_name: Name of the server group
+        action: Action to perform (create, delete, list, show)
+        **kwargs: Additional parameters
+        
+    Returns:
+        Result of the server group operation
+    """
+    try:
+        # Import here to avoid circular imports
+        from ..connection import get_openstack_connection
+        conn = get_openstack_connection()
+        
+        if action.lower() == 'create':
+            policies = kwargs.get('policies', kwargs.get('policy', ['affinity']))
+            if isinstance(policies, str):
+                policies = [policies]
+                
+            # Validate policies
+            valid_policies = ['affinity', 'anti-affinity', 'soft-affinity', 'soft-anti-affinity']
+            for policy in policies:
+                if policy not in valid_policies:
+                    return {
+                        'success': False,
+                        'message': f'Invalid policy "{policy}". Valid policies: {valid_policies}'
+                    }
+            
+            server_group = conn.compute.create_server_group(
+                name=group_name,
+                policies=policies
+            )
+            
+            return {
+                'success': True,
+                'message': f'Server group "{group_name}" created',
+                'server_group': {
+                    'id': server_group.id,
+                    'name': getattr(server_group, 'name', 'unnamed'),
+                    'policies': getattr(server_group, 'policies', policies),
+                    'members': getattr(server_group, 'members', [])
+                }
+            }
+            
+        elif action.lower() == 'delete':
+            # Find server group
+            server_group = None
+            for sg in conn.compute.server_groups():
+                if getattr(sg, 'name', '') == group_name or sg.id == group_name:
+                    server_group = sg
+                    break
+            
+            if not server_group:
+                return {
+                    'success': False,
+                    'message': f'Server group "{group_name}" not found'
+                }
+            
+            conn.compute.delete_server_group(server_group)
+            return {
+                'success': True,
+                'message': f'Server group "{group_name}" deleted'
+            }
+            
+        elif action.lower() == 'list':
+            return {
+                'success': True,
+                'server_groups': get_server_groups()
+            }
+            
+        elif action.lower() == 'show':
+            # Find server group
+            server_group = None
+            for sg in conn.compute.server_groups():
+                if getattr(sg, 'name', '') == group_name or sg.id == group_name:
+                    server_group = sg
+                    break
+            
+            if not server_group:
+                return {
+                    'success': False,
+                    'message': f'Server group "{group_name}" not found'
+                }
+            
+            return {
+                'success': True,
+                'server_group': {
+                    'id': server_group.id,
+                    'name': getattr(server_group, 'name', 'unnamed'),
+                    'policies': getattr(server_group, 'policies', []),
+                    'members': getattr(server_group, 'members', []),
+                    'metadata': getattr(server_group, 'metadata', {}),
+                    'project_id': getattr(server_group, 'project_id', 'unknown'),
+                    'user_id': getattr(server_group, 'user_id', 'unknown')
+                }
+            }
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: create, delete, list, show'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage server group: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage server group: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_server_network(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage server network operations (add network, remove network, add port, remove port).
+    
+    Args:
+        instance_name: Name or ID of the server
+        action: Action to perform (add_network, remove_network, add_port, remove_port)
+        **kwargs: Additional parameters
+        
+    Returns:
+        Result of the network operation
+    """
+    try:
+        # Import here to avoid circular imports
+        from ..connection import get_openstack_connection
+        conn = get_openstack_connection()
+        
+        # Find the server
+        server = None
+        for srv in conn.compute.servers():
+            if getattr(srv, 'name', '') == instance_name or srv.id == instance_name:
+                server = srv
+                break
+        
+        if not server:
+            return {
+                'success': False,
+                'message': f'Server "{instance_name}" not found'
+            }
+        
+        if action.lower() == 'add_network':
+            network_name = kwargs.get('network', kwargs.get('network_name'))
+            if not network_name:
+                return {
+                    'success': False,
+                    'message': 'network parameter is required for add_network action'
+                }
+            
+            # Find network
+            network = None
+            for net in conn.network.networks():
+                if getattr(net, 'name', '') == network_name or net.id == network_name:
+                    network = net
+                    break
+            
+            if not network:
+                return {
+                    'success': False,
+                    'message': f'Network "{network_name}" not found'
+                }
+            
+            # Create port and attach to server
+            port_params = {
+                'network_id': network.id,
+                'name': f'{instance_name}-port-{network.id[:8]}'
+            }
+            
+            # Optional fixed IP
+            fixed_ip = kwargs.get('fixed_ip')
+            if fixed_ip:
+                port_params['fixed_ips'] = [{'ip_address': fixed_ip}]
+            
+            port = conn.network.create_port(**port_params)
+            conn.compute.create_server_interface(server, port_id=port.id)
+            
+            return {
+                'success': True,
+                'message': f'Network "{network_name}" added to server "{instance_name}"',
+                'port_id': port.id
+            }
+            
+        elif action.lower() == 'remove_network':
+            network_name = kwargs.get('network', kwargs.get('network_name'))
+            if not network_name:
+                return {
+                    'success': False,
+                    'message': 'network parameter is required for remove_network action'
+                }
+            
+            # Find network
+            network = None
+            for net in conn.network.networks():
+                if getattr(net, 'name', '') == network_name or net.id == network_name:
+                    network = net
+                    break
+            
+            if not network:
+                return {
+                    'success': False,
+                    'message': f'Network "{network_name}" not found'
+                }
+            
+            # Get server interfaces and remove ports from this network
+            removed_ports = []
+            for interface in conn.compute.server_interfaces(server):
+                if getattr(interface, 'net_id', '') == network.id:
+                    conn.compute.delete_server_interface(interface, server)
+                    removed_ports.append(interface.port_id)
+            
+            if not removed_ports:
+                return {
+                    'success': False,
+                    'message': f'No interfaces found for network "{network_name}" on server "{instance_name}"'
+                }
+            
+            return {
+                'success': True,
+                'message': f'Network "{network_name}" removed from server "{instance_name}"',
+                'removed_ports': removed_ports
+            }
+            
+        elif action.lower() == 'add_port':
+            port_id = kwargs.get('port', kwargs.get('port_id'))
+            if not port_id:
+                return {
+                    'success': False,
+                    'message': 'port parameter is required for add_port action'
+                }
+            
+            # Check if port exists
+            try:
+                port = conn.network.get_port(port_id)
+                if not port:
+                    return {
+                        'success': False,
+                        'message': f'Port "{port_id}" not found'
+                    }
+            except Exception:
+                return {
+                    'success': False,
+                    'message': f'Port "{port_id}" not found'
+                }
+            
+            conn.compute.create_server_interface(server, port_id=port_id)
+            
+            return {
+                'success': True,
+                'message': f'Port "{port_id}" added to server "{instance_name}"'
+            }
+            
+        elif action.lower() == 'remove_port':
+            port_id = kwargs.get('port', kwargs.get('port_id'))
+            if not port_id:
+                return {
+                    'success': False,
+                    'message': 'port parameter is required for remove_port action'
+                }
+            
+            # Find interface with this port
+            interface = None
+            for intf in conn.compute.server_interfaces(server):
+                if getattr(intf, 'port_id', '') == port_id:
+                    interface = intf
+                    break
+            
+            if not interface:
+                return {
+                    'success': False,
+                    'message': f'Port "{port_id}" not found on server "{instance_name}"'
+                }
+            
+            conn.compute.delete_server_interface(interface, server)
+            
+            return {
+                'success': True,
+                'message': f'Port "{port_id}" removed from server "{instance_name}"'
+            }
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: add_network, remove_network, add_port, remove_port'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage server network: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage server network: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_server_floating_ip(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage server floating IP operations (add, remove).
+    
+    Args:
+        instance_name: Name or ID of the server
+        action: Action to perform (add, remove)
+        **kwargs: Additional parameters
+        
+    Returns:
+        Result of the floating IP operation
+    """
+    try:
+        # Import here to avoid circular imports
+        from ..connection import get_openstack_connection
+        conn = get_openstack_connection()
+        
+        # Find the server
+        server = None
+        for srv in conn.compute.servers():
+            if getattr(srv, 'name', '') == instance_name or srv.id == instance_name:
+                server = srv
+                break
+        
+        if not server:
+            return {
+                'success': False,
+                'message': f'Server "{instance_name}" not found'
+            }
+        
+        if action.lower() == 'add':
+            floating_ip = kwargs.get('floating_ip', kwargs.get('ip'))
+            fixed_ip = kwargs.get('fixed_ip')
+            
+            if not floating_ip:
+                return {
+                    'success': False,
+                    'message': 'floating_ip parameter is required for add action'
+                }
+            
+            # Find floating IP
+            fip_obj = None
+            for fip in conn.network.ips():
+                if getattr(fip, 'floating_ip_address', '') == floating_ip or fip.id == floating_ip:
+                    fip_obj = fip
+                    break
+            
+            if not fip_obj:
+                return {
+                    'success': False,
+                    'message': f'Floating IP "{floating_ip}" not found'
+                }
+            
+            # Get server ports to find target fixed IP
+            if not fixed_ip:
+                # Use first available private IP
+                addresses = getattr(server, 'addresses', {})
+                for network_name, addrs in addresses.items():
+                    for addr in addrs:
+                        if addr.get('OS-EXT-IPS:type') == 'fixed':
+                            fixed_ip = addr['addr']
+                            break
+                    if fixed_ip:
+                        break
+            
+            if not fixed_ip:
+                return {
+                    'success': False,
+                    'message': 'Could not determine fixed IP address. Please specify fixed_ip parameter'
+                }
+            
+            # Find port with this fixed IP
+            port_id = None
+            for interface in conn.compute.server_interfaces(server):
+                port = conn.network.get_port(interface.port_id)
+                for fixed_ip_info in getattr(port, 'fixed_ips', []):
+                    if fixed_ip_info.get('ip_address') == fixed_ip:
+                        port_id = port.id
+                        break
+                if port_id:
+                    break
+            
+            if not port_id:
+                return {
+                    'success': False,
+                    'message': f'Could not find port with fixed IP "{fixed_ip}" on server'
+                }
+            
+            # Associate floating IP
+            conn.network.update_ip(fip_obj, port_id=port_id, fixed_ip_address=fixed_ip)
+            
+            return {
+                'success': True,
+                'message': f'Floating IP "{floating_ip}" added to server "{instance_name}" (fixed IP: {fixed_ip})'
+            }
+            
+        elif action.lower() == 'remove':
+            floating_ip = kwargs.get('floating_ip', kwargs.get('ip'))
+            
+            if not floating_ip:
+                return {
+                    'success': False,
+                    'message': 'floating_ip parameter is required for remove action'
+                }
+            
+            # Find floating IP
+            fip_obj = None
+            for fip in conn.network.ips():
+                if getattr(fip, 'floating_ip_address', '') == floating_ip or fip.id == floating_ip:
+                    fip_obj = fip
+                    break
+            
+            if not fip_obj:
+                return {
+                    'success': False,
+                    'message': f'Floating IP "{floating_ip}" not found'
+                }
+            
+            # Disassociate floating IP
+            conn.network.update_ip(fip_obj, port_id=None, fixed_ip_address=None)
+            
+            return {
+                'success': True,
+                'message': f'Floating IP "{floating_ip}" removed from server "{instance_name}"'
+            }
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: add, remove'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage server floating IP: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage server floating IP: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_server_fixed_ip(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage server fixed IP operations (add, remove).
+    
+    Args:
+        instance_name: Name or ID of the server
+        action: Action to perform (add, remove)
+        **kwargs: Additional parameters
+        
+    Returns:
+        Result of the fixed IP operation
+    """
+    try:
+        # Import here to avoid circular imports
+        from ..connection import get_openstack_connection
+        conn = get_openstack_connection()
+        
+        # Find the server
+        server = None
+        for srv in conn.compute.servers():
+            if getattr(srv, 'name', '') == instance_name or srv.id == instance_name:
+                server = srv
+                break
+        
+        if not server:
+            return {
+                'success': False,
+                'message': f'Server "{instance_name}" not found'
+            }
+        
+        if action.lower() == 'add':
+            network_name = kwargs.get('network', kwargs.get('network_name'))
+            fixed_ip = kwargs.get('fixed_ip', kwargs.get('ip'))
+            
+            if not network_name:
+                return {
+                    'success': False,
+                    'message': 'network parameter is required for add action'
+                }
+            
+            # Find network
+            network = None
+            for net in conn.network.networks():
+                if getattr(net, 'name', '') == network_name or net.id == network_name:
+                    network = net
+                    break
+            
+            if not network:
+                return {
+                    'success': False,
+                    'message': f'Network "{network_name}" not found'
+                }
+            
+            # Create port with fixed IP
+            port_params = {
+                'network_id': network.id,
+                'name': f'{instance_name}-fixed-ip-port'
+            }
+            
+            if fixed_ip:
+                port_params['fixed_ips'] = [{'ip_address': fixed_ip}]
+            
+            port = conn.network.create_port(**port_params)
+            conn.compute.create_server_interface(server, port_id=port.id)
+            
+            # Get assigned IP
+            assigned_ip = port.fixed_ips[0]['ip_address'] if port.fixed_ips else 'unknown'
+            
+            return {
+                'success': True,
+                'message': f'Fixed IP "{assigned_ip}" added to server "{instance_name}" on network "{network_name}"',
+                'fixed_ip': assigned_ip,
+                'port_id': port.id
+            }
+            
+        elif action.lower() == 'remove':
+            fixed_ip = kwargs.get('fixed_ip', kwargs.get('ip'))
+            
+            if not fixed_ip:
+                return {
+                    'success': False,
+                    'message': 'fixed_ip parameter is required for remove action'
+                }
+            
+            # Find port with this fixed IP
+            port_to_remove = None
+            for interface in conn.compute.server_interfaces(server):
+                port = conn.network.get_port(interface.port_id)
+                for fixed_ip_info in getattr(port, 'fixed_ips', []):
+                    if fixed_ip_info.get('ip_address') == fixed_ip:
+                        port_to_remove = interface
+                        break
+                if port_to_remove:
+                    break
+            
+            if not port_to_remove:
+                return {
+                    'success': False,
+                    'message': f'Fixed IP "{fixed_ip}" not found on server "{instance_name}"'
+                }
+            
+            # Remove interface and port
+            conn.compute.delete_server_interface(port_to_remove, server)
+            
+            return {
+                'success': True,
+                'message': f'Fixed IP "{fixed_ip}" removed from server "{instance_name}"'
+            }
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: add, remove'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage server fixed IP: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage server fixed IP: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_server_security_group(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage server security group operations (add, remove).
+    
+    Args:
+        instance_name: Name or ID of the server
+        action: Action to perform (add, remove)
+        **kwargs: Additional parameters
+        
+    Returns:
+        Result of the security group operation
+    """
+    try:
+        # Import here to avoid circular imports
+        from ..connection import get_openstack_connection
+        conn = get_openstack_connection()
+        
+        # Find the server
+        server = None
+        for srv in conn.compute.servers():
+            if getattr(srv, 'name', '') == instance_name or srv.id == instance_name:
+                server = srv
+                break
+        
+        if not server:
+            return {
+                'success': False,
+                'message': f'Server "{instance_name}" not found'
+            }
+        
+        security_group = kwargs.get('security_group', kwargs.get('group'))
+        if not security_group:
+            return {
+                'success': False,
+                'message': 'security_group parameter is required'
+            }
+        
+        # Find security group
+        sg_obj = None
+        for sg in conn.network.security_groups():
+            if getattr(sg, 'name', '') == security_group or sg.id == security_group:
+                sg_obj = sg
+                break
+        
+        if not sg_obj:
+            return {
+                'success': False,
+                'message': f'Security group "{security_group}" not found'
+            }
+        
+        if action.lower() == 'add':
+            conn.compute.add_security_group_to_server(server, sg_obj)
+            return {
+                'success': True,
+                'message': f'Security group "{security_group}" added to server "{instance_name}"'
+            }
+            
+        elif action.lower() == 'remove':
+            conn.compute.remove_security_group_from_server(server, sg_obj)
+            return {
+                'success': True,
+                'message': f'Security group "{security_group}" removed from server "{instance_name}"'
+            }
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: add, remove'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage server security group: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage server security group: {str(e)}',
+            'error': str(e)
+        }
     """
     Manage server groups.
     
@@ -1109,5 +1833,448 @@ def set_flavor(flavor_name: str, action: str, **kwargs) -> Dict[str, Any]:
         return {
             'success': False,
             'message': f'Failed to manage flavor: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_server_migration(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage server migration operations (migrate, evacuate, confirm, revert, etc.).
+    
+    Args:
+        instance_name: Name or ID of the server
+        action: Action to perform (migrate, evacuate, confirm, revert, list, show, abort, force_complete)
+        **kwargs: Additional parameters
+        
+    Returns:
+        Result of the migration operation
+    """
+    try:
+        # Import here to avoid circular imports
+        from ..connection import get_openstack_connection
+        conn = get_openstack_connection()
+        
+        # Find the server for most actions
+        if action.lower() not in ['list']:
+            server = None
+            for srv in conn.compute.servers():
+                if getattr(srv, 'name', '') == instance_name or srv.id == instance_name:
+                    server = srv
+                    break
+            
+            if not server:
+                return {
+                    'success': False,
+                    'message': f'Server "{instance_name}" not found'
+                }
+        
+        if action.lower() == 'migrate':
+            host = kwargs.get('host')
+            block_migration = kwargs.get('block_migration', 'auto')
+            
+            # Live migrate server
+            migrate_params = {}
+            if host:
+                migrate_params['host'] = host
+            if block_migration != 'auto':
+                migrate_params['block_migration'] = block_migration
+            
+            conn.compute.live_migrate_server(server, **migrate_params)
+            
+            return {
+                'success': True,
+                'message': f'Live migration initiated for server "{instance_name}"' + (f' to host "{host}"' if host else '')
+            }
+            
+        elif action.lower() == 'evacuate':
+            host = kwargs.get('host')
+            admin_pass = kwargs.get('admin_pass')
+            on_shared_storage = kwargs.get('on_shared_storage', False)
+            
+            evacuate_params = {}
+            if host:
+                evacuate_params['host'] = host
+            if admin_pass:
+                evacuate_params['admin_pass'] = admin_pass
+            evacuate_params['on_shared_storage'] = on_shared_storage
+            
+            conn.compute.evacuate_server(server, **evacuate_params)
+            
+            return {
+                'success': True,
+                'message': f'Evacuation initiated for server "{instance_name}"' + (f' to host "{host}"' if host else '')
+            }
+            
+        elif action.lower() == 'confirm':
+            # This is for confirming resize, but can be extended for migration confirm
+            conn.compute.confirm_server_resize(server)
+            return {
+                'success': True,
+                'message': f'Migration/resize confirmed for server "{instance_name}"'
+            }
+            
+        elif action.lower() == 'revert':
+            # This is for reverting resize, but can be extended for migration revert
+            conn.compute.revert_server_resize(server)
+            return {
+                'success': True,
+                'message': f'Migration/resize reverted for server "{instance_name}"'
+            }
+            
+        elif action.lower() == 'list':
+            # List migrations for a specific server or all servers
+            migrations = []
+            try:
+                if instance_name:
+                    # Get migrations for specific server
+                    for migration in conn.compute.server_migrations(server.id):
+                        migrations.append({
+                            'id': getattr(migration, 'id', 'unknown'),
+                            'server_id': getattr(migration, 'server_id', server.id),
+                            'status': getattr(migration, 'status', 'unknown'),
+                            'migration_type': getattr(migration, 'migration_type', 'unknown'),
+                            'source_node': getattr(migration, 'source_node', 'unknown'),
+                            'dest_node': getattr(migration, 'dest_node', 'unknown'),
+                            'created_at': str(getattr(migration, 'created_at', 'unknown')),
+                            'updated_at': str(getattr(migration, 'updated_at', 'unknown'))
+                        })
+                else:
+                    # Get all migrations (admin required)
+                    for migration in conn.compute.migrations():
+                        migrations.append({
+                            'id': getattr(migration, 'id', 'unknown'),
+                            'server_id': getattr(migration, 'instance_uuid', 'unknown'),
+                            'status': getattr(migration, 'status', 'unknown'),
+                            'migration_type': getattr(migration, 'migration_type', 'unknown'),
+                            'source_node': getattr(migration, 'source_node', 'unknown'),
+                            'dest_node': getattr(migration, 'dest_node', 'unknown'),
+                            'created_at': str(getattr(migration, 'created_at', 'unknown')),
+                            'updated_at': str(getattr(migration, 'updated_at', 'unknown'))
+                        })
+            except Exception as e:
+                logger.warning(f"Could not list migrations: {e}")
+                
+            return {
+                'success': True,
+                'migrations': migrations,
+                'count': len(migrations)
+            }
+            
+        elif action.lower() == 'show':
+            migration_id = kwargs.get('migration_id')
+            if not migration_id:
+                return {
+                    'success': False,
+                    'message': 'migration_id parameter is required for show action'
+                }
+            
+            try:
+                migration = conn.compute.get_server_migration(server.id, migration_id)
+                return {
+                    'success': True,
+                    'migration': {
+                        'id': getattr(migration, 'id', 'unknown'),
+                        'server_id': getattr(migration, 'server_id', server.id),
+                        'status': getattr(migration, 'status', 'unknown'),
+                        'migration_type': getattr(migration, 'migration_type', 'unknown'),
+                        'source_node': getattr(migration, 'source_node', 'unknown'),
+                        'dest_node': getattr(migration, 'dest_node', 'unknown'),
+                        'created_at': str(getattr(migration, 'created_at', 'unknown')),
+                        'updated_at': str(getattr(migration, 'updated_at', 'unknown')),
+                        'links': getattr(migration, 'links', [])
+                    }
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Migration "{migration_id}" not found: {str(e)}'
+                }
+                
+        elif action.lower() == 'abort':
+            migration_id = kwargs.get('migration_id')
+            if not migration_id:
+                return {
+                    'success': False,
+                    'message': 'migration_id parameter is required for abort action'
+                }
+            
+            try:
+                conn.compute.abort_server_migration(server.id, migration_id)
+                return {
+                    'success': True,
+                    'message': f'Migration "{migration_id}" aborted for server "{instance_name}"'
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to abort migration "{migration_id}": {str(e)}'
+                }
+                
+        elif action.lower() == 'force_complete':
+            migration_id = kwargs.get('migration_id')
+            if not migration_id:
+                return {
+                    'success': False,
+                    'message': 'migration_id parameter is required for force_complete action'
+                }
+            
+            try:
+                conn.compute.force_complete_server_migration(server.id, migration_id)
+                return {
+                    'success': True,
+                    'message': f'Migration "{migration_id}" force completed for server "{instance_name}"'
+                }
+            except Exception as e:
+                return {
+                    'success': False,
+                    'message': f'Failed to force complete migration "{migration_id}": {str(e)}'
+                }
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: migrate, evacuate, confirm, revert, list, show, abort, force_complete'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage server migration: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage server migration: {str(e)}',
+            'error': str(e)
+        }
+
+
+def set_server_properties(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
+    """
+    Manage server properties and metadata (set, unset).
+    
+    Args:
+        instance_name: Name or ID of the server
+        action: Action to perform (set, unset)
+        **kwargs: Additional parameters
+        
+    Returns:
+        Result of the property operation
+    """
+    try:
+        # Import here to avoid circular imports
+        from ..connection import get_openstack_connection
+        conn = get_openstack_connection()
+        
+        # Find the server
+        server = None
+        for srv in conn.compute.servers():
+            if getattr(srv, 'name', '') == instance_name or srv.id == instance_name:
+                server = srv
+                break
+        
+        if not server:
+            return {
+                'success': False,
+                'message': f'Server "{instance_name}" not found'
+            }
+        
+        if action.lower() == 'set':
+            # Server properties that can be updated
+            update_params = {}
+            
+            if 'name' in kwargs:
+                update_params['name'] = kwargs['name']
+            if 'description' in kwargs:
+                update_params['description'] = kwargs['description']
+            
+            # Metadata updates
+            if 'metadata' in kwargs:
+                metadata = kwargs['metadata']
+                if isinstance(metadata, dict):
+                    update_params['metadata'] = metadata
+                else:
+                    return {
+                        'success': False,
+                        'message': 'metadata parameter must be a dictionary'
+                    }
+            
+            # Individual property updates
+            property_keys = ['property']
+            for key in kwargs:
+                if key.startswith('property_'):
+                    prop_name = key[9:]  # Remove 'property_' prefix
+                    if 'metadata' not in update_params:
+                        update_params['metadata'] = {}
+                    update_params['metadata'][prop_name] = kwargs[key]
+            
+            if not update_params:
+                return {
+                    'success': False,
+                    'message': 'No properties to update. Specify name, description, metadata, or property_* parameters'
+                }
+            
+            conn.compute.update_server(server, **update_params)
+            
+            updated_fields = list(update_params.keys())
+            return {
+                'success': True,
+                'message': f'Server "{instance_name}" properties updated: {", ".join(updated_fields)}'
+            }
+            
+        elif action.lower() == 'unset':
+            # Properties to unset
+            unset_metadata = kwargs.get('metadata', kwargs.get('properties', []))
+            if isinstance(unset_metadata, str):
+                unset_metadata = [unset_metadata]
+            
+            if not unset_metadata:
+                return {
+                    'success': False,
+                    'message': 'No properties to unset. Specify metadata or properties parameter'
+                }
+            
+            # Get current metadata
+            current_metadata = getattr(server, 'metadata', {})
+            
+            # Remove specified keys
+            updated_metadata = current_metadata.copy()
+            removed_keys = []
+            for key in unset_metadata:
+                if key in updated_metadata:
+                    del updated_metadata[key]
+                    removed_keys.append(key)
+            
+            if not removed_keys:
+                return {
+                    'success': False,
+                    'message': f'None of the specified properties were found: {unset_metadata}'
+                }
+            
+            # Update server with new metadata
+            conn.compute.update_server(server, metadata=updated_metadata)
+            
+            return {
+                'success': True,
+                'message': f'Server "{instance_name}" properties unset: {", ".join(removed_keys)}'
+            }
+        else:
+            return {
+                'success': False,
+                'message': f'Unknown action "{action}". Supported: set, unset'
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to manage server properties: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to manage server properties: {str(e)}',
+            'error': str(e)
+        }
+
+
+def create_server_backup(instance_name: str, backup_name: str, **kwargs) -> Dict[str, Any]:
+    """
+    Create a backup image of a server.
+    
+    Args:
+        instance_name: Name or ID of the server
+        backup_name: Name for the backup image
+        **kwargs: Additional parameters
+        
+    Returns:
+        Result of the backup operation
+    """
+    try:
+        # Import here to avoid circular imports
+        from ..connection import get_openstack_connection
+        conn = get_openstack_connection()
+        
+        # Find the server
+        server = None
+        for srv in conn.compute.servers():
+            if getattr(srv, 'name', '') == instance_name or srv.id == instance_name:
+                server = srv
+                break
+        
+        if not server:
+            return {
+                'success': False,
+                'message': f'Server "{instance_name}" not found'
+            }
+        
+        # Create backup (same as snapshot but with backup metadata)
+        metadata = kwargs.get('metadata', {})
+        metadata.update({
+            'backup_type': 'daily',  # or weekly, etc.
+            'source_server': getattr(server, 'name', 'unknown'),
+            'source_server_id': server.id,
+            'backup_created': str(conn.current_time) if hasattr(conn, 'current_time') else 'unknown'
+        })
+        
+        backup_type = kwargs.get('backup_type', 'daily')
+        rotation = kwargs.get('rotation', 1)
+        
+        backup_id = conn.compute.create_server_backup(
+            server,
+            name=backup_name,
+            backup_type=backup_type,
+            rotation=rotation
+        )
+        
+        return {
+            'success': True,
+            'message': f'Backup "{backup_name}" creation started for server "{instance_name}"',
+            'backup_id': backup_id,
+            'backup_type': backup_type,
+            'rotation': rotation
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to create server backup: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to create server backup: {str(e)}',
+            'error': str(e)
+        }
+
+
+def create_server_dump(instance_name: str, **kwargs) -> Dict[str, Any]:
+    """
+    Create a dump file for a server (if supported by the compute driver).
+    
+    Args:
+        instance_name: Name or ID of the server
+        **kwargs: Additional parameters
+        
+    Returns:
+        Result of the dump operation
+    """
+    try:
+        # Import here to avoid circular imports
+        from ..connection import get_openstack_connection
+        conn = get_openstack_connection()
+        
+        # Find the server
+        server = None
+        for srv in conn.compute.servers():
+            if getattr(srv, 'name', '') == instance_name or srv.id == instance_name:
+                server = srv
+                break
+        
+        if not server:
+            return {
+                'success': False,
+                'message': f'Server "{instance_name}" not found'
+            }
+        
+        # Note: Server dump is not directly supported by OpenStack SDK
+        # This would typically require direct API calls or vendor-specific implementations
+        return {
+            'success': False,
+            'message': 'Server dump creation is not supported by the current OpenStack SDK. This feature requires vendor-specific implementation.',
+            'note': 'Consider using server backup or snapshot instead'
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to create server dump: {e}")
+        return {
+            'success': False,
+            'message': f'Failed to create server dump: {str(e)}',
             'error': str(e)
         }

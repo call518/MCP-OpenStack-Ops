@@ -911,7 +911,15 @@ from .services.compute import (
     get_server_events,
     get_server_groups,
     set_server_group,
-    set_flavor
+    set_flavor,
+    set_server_network,
+    set_server_floating_ip,
+    set_server_fixed_ip,
+    set_server_security_group,
+    set_server_migration,
+    set_server_properties,
+    create_server_backup,
+    create_server_dump
 )
 
 # Import network functions from services
@@ -921,6 +929,7 @@ from .services.network import (
     get_floating_ips,
     set_floating_ip,
     get_routers,
+    set_networks,
     set_network_ports,
     set_subnets
 )

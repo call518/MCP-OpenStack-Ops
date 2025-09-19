@@ -112,6 +112,157 @@ def get_network_details(network_name: str = "all") -> List[Dict[str, Any]]:
         ]
 
 
+def set_networks(action: str, network_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+    """
+    Manage networks (create, delete, update, list).
+    
+    Args:
+        action: Action to perform (create, delete, update, list)
+        network_name: Name of the network (required for create/delete/update)
+        **kwargs: Additional parameters
+    
+    Returns:
+        Result of the network operation
+    """
+    try:
+        # Import here to avoid circular imports
+        from ..connection import get_openstack_connection
+        conn = get_openstack_connection()
+        
+        if action.lower() == 'create':
+            if not network_name or not network_name.strip():
+                return {
+                    'success': False,
+                    'message': 'Network name is required for create action'
+                }
+            
+            # Network creation parameters
+            create_params = {
+                'name': network_name,
+                'admin_state_up': kwargs.get('admin_state_up', True)
+            }
+            
+            # Optional parameters
+            if kwargs.get('description'):
+                create_params['description'] = kwargs['description']
+            if kwargs.get('shared') is not None:
+                create_params['is_shared'] = kwargs['shared']
+            if kwargs.get('external') is not None:
+                create_params['is_router_external'] = kwargs['external']
+            if kwargs.get('provider_network_type'):
+                create_params['provider_network_type'] = kwargs['provider_network_type']
+            if kwargs.get('provider_physical_network'):
+                create_params['provider_physical_network'] = kwargs['provider_physical_network']
+            if kwargs.get('provider_segmentation_id'):
+                create_params['provider_segmentation_id'] = kwargs['provider_segmentation_id']
+            if kwargs.get('mtu'):
+                create_params['mtu'] = kwargs['mtu']
+            
+            network = conn.network.create_network(**create_params)
+            return {
+                'success': True,
+                'message': f'Network "{network_name}" created successfully',
+                'network': {
+                    'id': network.id,
+                    'name': network.name,
+                    'status': network.status,
+                    'admin_state_up': network.is_admin_state_up
+                }
+            }
+            
+        elif action.lower() == 'delete':
+            if not network_name or not network_name.strip():
+                return {
+                    'success': False,
+                    'message': 'Network name or ID is required for delete action'
+                }
+            
+            # Find the network
+            network = None
+            for net in conn.network.networks():
+                if getattr(net, 'name', '') == network_name or net.id == network_name:
+                    network = net
+                    break
+            
+            if not network:
+                return {
+                    'success': False,
+                    'message': f'Network "{network_name}" not found'
+                }
+            
+            conn.network.delete_network(network)
+            return {
+                'success': True,
+                'message': f'Network "{network_name}" deleted successfully'
+            }
+            
+        elif action.lower() == 'update':
+            if not network_name or not network_name.strip():
+                return {
+                    'success': False,
+                    'message': 'Network name or ID is required for update action'
+                }
+            
+            # Find the network
+            network = None
+            for net in conn.network.networks():
+                if getattr(net, 'name', '') == network_name or net.id == network_name:
+                    network = net
+                    break
+            
+            if not network:
+                return {
+                    'success': False,
+                    'message': f'Network "{network_name}" not found'
+                }
+            
+            # Update parameters
+            update_params = {}
+            if kwargs.get('description') is not None:
+                update_params['description'] = kwargs['description']
+            if kwargs.get('admin_state_up') is not None:
+                update_params['admin_state_up'] = kwargs['admin_state_up']
+            if kwargs.get('shared') is not None:
+                update_params['is_shared'] = kwargs['shared']
+            if kwargs.get('mtu'):
+                update_params['mtu'] = kwargs['mtu']
+            
+            if update_params:
+                updated_network = conn.network.update_network(network, **update_params)
+                return {
+                    'success': True,
+                    'message': f'Network "{network_name}" updated successfully',
+                    'network': {
+                        'id': updated_network.id,
+                        'name': updated_network.name,
+                        'status': updated_network.status,
+                        'admin_state_up': updated_network.is_admin_state_up
+                    }
+                }
+            else:
+                return {
+                    'success': False,
+                    'message': 'No update parameters provided'
+                }
+        
+        elif action.lower() == 'list':
+            # Use existing get_network_details function
+            return get_network_details("all")
+            
+        else:
+            return {
+                'success': False,
+                'message': f'Unsupported action: {action}. Supported actions: create, delete, update, list'
+            }
+    
+    except Exception as e:
+        logger.error(f"Network management failed: {e}")
+        return {
+            'success': False,
+            'message': f'Network management failed: {str(e)}'
+        }
+
+
 def get_security_groups() -> List[Dict[str, Any]]:
     """
     Get list of security groups with rules.
