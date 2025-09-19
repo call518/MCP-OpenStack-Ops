@@ -9,8 +9,8 @@ from fastmcp.server.auth import StaticTokenVerifier
 # Add the current directory to sys.path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from functions import (
-    get_openstack_connection, 
+from .connection import get_openstack_connection
+from .functions import (
     get_cluster_status as _get_cluster_status, 
     get_service_status as _get_service_status, 
     get_instance_details as _get_instance_details, 
@@ -4422,45 +4422,6 @@ async def set_load_balancer_quota(
         
     except Exception as e:
         error_msg = f"Error: Failed to manage quota - {str(e)}"
-        logger.error(error_msg)
-        return json.dumps({
-            "timestamp": datetime.now().isoformat(),
-            "error": error_msg,
-            "success": False
-        }, indent=2)
-
-
-@mcp.tool()
-async def get_load_balancer_amphorae(
-    loadbalancer_id: str = ""
-) -> str:
-    """
-    Get amphora information from OpenStack load balancer service.
-    
-    Args:
-        loadbalancer_id: Optional load balancer ID to filter amphorae
-    
-    Returns:
-        JSON string with amphora details
-    """
-    try:
-        logger.info("Getting amphora information")
-        
-        kwargs = {}
-        if loadbalancer_id:
-            kwargs['loadbalancer_id'] = loadbalancer_id
-        
-        result = _get_load_balancer_amphorae(**kwargs)
-        
-        response = {
-            "timestamp": datetime.now().isoformat(),
-            "result": result
-        }
-        
-        return json.dumps(response, indent=2, ensure_ascii=False)
-        
-    except Exception as e:
-        error_msg = f"Error: Failed to get amphorae - {str(e)}"
         logger.error(error_msg)
         return json.dumps({
             "timestamp": datetime.now().isoformat(),

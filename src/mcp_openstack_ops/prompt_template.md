@@ -75,6 +75,18 @@ Canonical English prompt template for the OpenStack MCP server. Use this file as
 
 **INSTANCE DETAIL PRIORITY** - When users mention a specific instance name (e.g., "Show details for instance test-rockylinux-9"), IMMEDIATELY call get_instance_details with the instance_names parameter. This is a HIGH PRIORITY pattern.
 
+**🔥 HEAT/ORCHESTRATION SERVICE STATUS INTERPRETATION** - **CRITICAL RULES FOR SERVICE HEALTH ANALYSIS**:
+- **"available": true** + **"status": "accessible"** = Service is HEALTHY and FUNCTIONAL
+- **Heat with 0 stacks** = NORMAL state (no deployed stacks currently), NOT a failure
+- **Heat API responding with HTTP 200** = Service is OPERATIONAL, regardless of stack count
+- **Heat Services with "status": "up"** = Service processes are RUNNING and HEALTHY
+- **"state": "unknown" is NORMAL** for Heat services - focus on "status": "up" instead
+- **NEVER interpret** zero stacks as "heat-engine daemon failure" - zero stacks means no active deployments
+- **NEVER interpret** "state": "unknown" as service failure - "status": "up" indicates healthy service
+- **Heat service "details": {"stacks_count": 0, "status": "accessible"}** = FULLY FUNCTIONAL orchestration service
+- **Heat engine services "status": "up"** = All heat-engine processes are running properly
+- **Only report Heat as problematic** when API returns errors, timeouts, "available": false, or "status": "down"
+
 **CPU/MEMORY TERMINOLOGY** - Always distinguish between:
 - **vCPU/Virtual CPU**: CPU cores allocated to instances (quota usage)  
 - **pCPU/Physical CPU**: Actual hardware CPU cores on hypervisors (physical usage)
@@ -261,6 +273,18 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - "Show detailed cluster analysis" / "resource utilization" → **get_cluster_status** (NOT monitor_resources)
 - "Cluster overview" / "cluster status" → **get_cluster_status** 
 - "Overall health" → **get_cluster_status**
+
+**🔥 MANDATORY: Heat/Orchestration Service Status Analysis Rules**:
+- **When analyzing cluster status JSON**: Look for `"orchestration": {"available": true, "status": "accessible"}`
+- **This means Heat is HEALTHY**: API accessible, service operational, ready for stack deployment
+- **stacks_count: 0** = No current deployments (NORMAL), NOT a service failure
+- **Heat engine "status": "up"** = Service processes running normally, regardless of "state" field
+- **"state": "unknown" is ACCEPTABLE** when "status": "up" - focus on status field for health determination
+- **NEVER diagnose**: "heat-engine daemon failure" when available=true and status=accessible
+- **NEVER diagnose**: service problems when "status": "up" even if "state": "unknown"
+- **Correct interpretation**: "Heat orchestration service is operational and ready for stack deployment"
+- **Only flag as problematic** when: available=false, API timeouts, HTTP error codes, or "status": "down"
+
 - "Show images" / "available images" → **get_cluster_status** (includes image_resources section with usage stats)
 - "Volume usage" / "storage utilization" → **get_cluster_status** (includes detailed volume utilization)
 - "Instance deployment status" / "operational status" → **get_cluster_status** (includes instance_deployment_status)
@@ -283,6 +307,12 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 - "Show Heat stacks" / "List orchestration stacks" → **get_heat_stacks**
 - "Create/delete/update stack X" → **set_heat_stack("X", "action")**
 - "Deploy Heat template" → **set_heat_stack("stack_name", "create")**
+
+**🔥 Heat Stack Management Interpretation**:
+- **Zero stacks returned** = No active deployments (NORMAL operational state)
+- **Heat API accessible** = Service ready for Infrastructure as Code operations
+- **Stack count is NOT** a health indicator - many environments have zero active stacks
+- **Focus on API availability** rather than current deployment count
 
 ### 🌐 **Network & Infrastructure**
 - "Show network details" → **get_network_details("all")**
