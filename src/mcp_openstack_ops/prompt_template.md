@@ -59,7 +59,17 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 | **"Find instances"** | `search_instances("keyword", "field")` | Advanced instance search with filters |
 
 ### 📊 **Monitoring & Status Tools (7 tools)**
-- `get_cluster_status`: Enhanced cluster analysis with resource utilization, health scoring, server groups, availability zones, usage analytics, quota information
+- `get_cluster_status`: **ENHANCED** - Comprehensive cluster analysis with:
+  - Resource utilization and health scoring (100-point scale system)
+  - Instance state analysis (ACTIVE/ERROR/SUSPENDED tracking)
+  - Network classification (external/private networks)
+  - Volume state and capacity analysis
+  - Image visibility and status tracking
+  - Floating IP pool information and state analysis
+  - Load balancer integration (listeners/pools/members)
+  - Hypervisor resource monitoring (vCPU/memory/disk utilization)
+  - Detailed health breakdown by service/resource/instance categories
+  - Cluster summary with key performance metrics
 - `get_service_status`: Service health and API endpoint status
 - `get_instance_details`: Specific instance information with pagination support
 - `search_instances`: Flexible instance search with partial matching and case-sensitive options
@@ -217,18 +227,21 @@ Every tool call triggers a real OpenStack API request. Call tools ONLY when nece
 
 ### 📊 **Common Operations**
 ```
-"Show cluster status" → get_cluster_status()
+"Show cluster status" → get_cluster_status()  [ENHANCED: Now includes health scoring, resource states, utilization]
 "Start web-server-01" → set_instance("web-server-01", "start")
 "Create Ubuntu VM" → set_instance("web-server-01", "create", flavor="m1.small", image="ubuntu-20.04", networks="demo-net", security_groups="default")
 "Create network demo-net" → set_networks("create", network_name="demo-net", description="Demo network")
 "Create image with min requirements" → set_image("custom-image", "create", disk_format="qcow2", min_disk=20, min_ram=1024)
 "List all volumes" → get_volume_list()
 "Show all networks" → get_network_details("all")
-"Show floating IP pools" → get_floating_ip_pools()
+"Show floating IP pools" → get_floating_ip_pools()  [NEW: Enhanced with pool capacity and usage]
 "Find web servers" → search_instances("web", "name")
 "Associate floating IP" → set_server_floating_ip(server_name="X", action="add", floating_ip="Y")
 "Create port forwarding" → set_floating_ip_port_forwarding("create", floating_ip_address="IP", external_port=80, internal_port=8080)
 "Create 50GB volume" → set_volume("vol-name", "create", size=50)
+"Check instance states" → get_cluster_status()  [NEW: Instance state analysis (ACTIVE/ERROR/SUSPENDED)]
+"Show hypervisor utilization" → get_cluster_status()  [NEW: Resource utilization monitoring]
+"Check load balancer status" → get_cluster_status()  [NEW: Load balancer health integration]
 ```
 
 ---

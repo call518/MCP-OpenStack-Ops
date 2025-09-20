@@ -1,5 +1,6 @@
 services:
   open-webui:
+    env_file: .env
     image: ghcr.io/open-webui/open-webui:main
     container_name: mcp-openstack-ops-open-webui
     ports:
@@ -13,6 +14,7 @@ services:
     restart: unless-stopped
 
   mcp-server:
+    env_file: .env
     image: call518/mcp-server-openstack-ops:1.0.0
     container_name: mcp-openstack-ops-mcp-server
     ports:
@@ -32,6 +34,7 @@ services:
       start_period: 10s
 
   mcpo-proxy:
+    env_file: .env
     image: call518/mcpo-proxy-openstack-ops:1.0.0
     container_name: mcp-openstack-ops-mcpo-proxy
     depends_on:

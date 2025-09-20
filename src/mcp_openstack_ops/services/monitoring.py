@@ -453,44 +453,87 @@ def get_hypervisor_details(hypervisor_name: str = "all") -> Dict[str, Any]:
             }
             
             for hypervisor in conn.compute.hypervisors(details=True):
+                # Safely get attributes with proper None handling
+                vcpus = getattr(hypervisor, 'vcpus', None) or 0
+                vcpus_used = getattr(hypervisor, 'vcpus_used', None) or 0
+                memory_mb = getattr(hypervisor, 'memory_mb', None) or getattr(hypervisor, 'memory_size_mb', None) or 0
+                memory_mb_used = getattr(hypervisor, 'memory_mb_used', None) or getattr(hypervisor, 'memory_used_mb', None) or 0
+                local_gb = getattr(hypervisor, 'local_gb', None) or getattr(hypervisor, 'local_disk_size_gb', None) or 0
+                local_gb_used = getattr(hypervisor, 'local_gb_used', None) or getattr(hypervisor, 'local_disk_used_gb', None) or 0
+                running_vms = getattr(hypervisor, 'running_vms', None) or 0
+                
                 hyp_data = {
                     'id': hypervisor.id,
                     'name': getattr(hypervisor, 'name', 'unknown'),
                     'host_ip': getattr(hypervisor, 'host_ip', 'unknown'),
                     'status': getattr(hypervisor, 'status', 'unknown'),
                     'state': getattr(hypervisor, 'state', 'unknown'),
-                    'vcpus': getattr(hypervisor, 'vcpus', 0),
-                    'vcpus_used': getattr(hypervisor, 'vcpus_used', 0),
-                    'memory_mb': getattr(hypervisor, 'memory_mb', 0),
-                    'memory_mb_used': getattr(hypervisor, 'memory_mb_used', 0),
-                    'local_gb': getattr(hypervisor, 'local_gb', 0),
-                    'local_gb_used': getattr(hypervisor, 'local_gb_used', 0),
-                    'running_vms': getattr(hypervisor, 'running_vms', 0),
+                    'vcpus': vcpus,
+                    'vcpus_used': vcpus_used,
+                    'memory_mb': memory_mb,
+                    'memory_mb_used': memory_mb_used,
+                    'local_gb': local_gb,
+                    'local_gb_used': local_gb_used,
+                    'running_vms': running_vms,
                     'hypervisor_type': getattr(hypervisor, 'hypervisor_type', 'unknown'),
                     'hypervisor_version': getattr(hypervisor, 'hypervisor_version', 'unknown')
                 }
                 
-                # Add to totals
+                # Add to totals (now safe since all values are guaranteed integers)
                 total_stats['count'] += 1
-                total_stats['vcpus'] += hyp_data['vcpus']
-                total_stats['vcpus_used'] += hyp_data['vcpus_used']
-                total_stats['memory_mb'] += hyp_data['memory_mb']
-                total_stats['memory_mb_used'] += hyp_data['memory_mb_used']
-                total_stats['local_gb'] += hyp_data['local_gb']
-                total_stats['local_gb_used'] += hyp_data['local_gb_used']
-                total_stats['running_vms'] += hyp_data['running_vms']
+                total_stats['vcpus'] += vcpus
+                total_stats['vcpus_used'] += vcpus_used
+                total_stats['memory_mb'] += memory_mb
+                total_stats['memory_mb_used'] += memory_mb_used
+                total_stats['local_gb'] += local_gb
+                total_stats['local_gb_used'] += local_gb_used
+                total_stats['running_vms'] += running_vms
                 
                 hypervisors.append(hyp_data)
+            
+            # Try to get enhanced statistics from Nova API
+            enhanced_stats = None
+            try:
+                stats_response = conn.compute.get('/os-hypervisors/statistics')
+                if stats_response.status_code == 200:
+                    stats_data = stats_response.json()
+                    hypervisor_statistics = stats_data.get('hypervisor_statistics', {})
+                    
+                    if hypervisor_statistics:
+                        enhanced_stats = {
+                            'count': hypervisor_statistics.get('count', 0),
+                            'vcpus': hypervisor_statistics.get('vcpus', 0),
+                            'vcpus_used': hypervisor_statistics.get('vcpus_used', 0),
+                            'memory_mb': hypervisor_statistics.get('memory_mb', 0),
+                            'memory_mb_used': hypervisor_statistics.get('memory_mb_used', 0),
+                            'local_gb': hypervisor_statistics.get('local_gb', 0),
+                            'local_gb_used': hypervisor_statistics.get('local_gb_used', 0),
+                            'running_vms': hypervisor_statistics.get('running_vms', 0),
+                            'data_source': 'nova_hypervisor_statistics_api'
+                        }
+            except Exception as e:
+                # Continue with regular response if statistics API fails
+                pass
             
             return {
                 'success': True,
                 'hypervisors': hypervisors,
-                'total_stats': total_stats
+                'total_stats': total_stats,
+                'enhanced_stats': enhanced_stats
             }
         else:
             # Get specific hypervisor
             for hypervisor in conn.compute.hypervisors(details=True):
                 if getattr(hypervisor, 'name', '') == hypervisor_name:
+                    # Safely get attributes with proper None handling
+                    vcpus = getattr(hypervisor, 'vcpus', None) or 0
+                    vcpus_used = getattr(hypervisor, 'vcpus_used', None) or 0
+                    memory_mb = getattr(hypervisor, 'memory_mb', None) or getattr(hypervisor, 'memory_size_mb', None) or 0
+                    memory_mb_used = getattr(hypervisor, 'memory_mb_used', None) or getattr(hypervisor, 'memory_used_mb', None) or 0
+                    local_gb = getattr(hypervisor, 'local_gb', None) or getattr(hypervisor, 'local_disk_size_gb', None) or 0
+                    local_gb_used = getattr(hypervisor, 'local_gb_used', None) or getattr(hypervisor, 'local_disk_used_gb', None) or 0
+                    running_vms = getattr(hypervisor, 'running_vms', None) or 0
+                    
                     return {
                         'success': True,
                         'hypervisor': {
@@ -499,13 +542,13 @@ def get_hypervisor_details(hypervisor_name: str = "all") -> Dict[str, Any]:
                             'host_ip': getattr(hypervisor, 'host_ip', 'unknown'),
                             'status': getattr(hypervisor, 'status', 'unknown'),
                             'state': getattr(hypervisor, 'state', 'unknown'),
-                            'vcpus': getattr(hypervisor, 'vcpus', 0),
-                            'vcpus_used': getattr(hypervisor, 'vcpus_used', 0),
-                            'memory_mb': getattr(hypervisor, 'memory_mb', 0),
-                            'memory_mb_used': getattr(hypervisor, 'memory_mb_used', 0),
-                            'local_gb': getattr(hypervisor, 'local_gb', 0),
-                            'local_gb_used': getattr(hypervisor, 'local_gb_used', 0),
-                            'running_vms': getattr(hypervisor, 'running_vms', 0),
+                            'vcpus': vcpus,
+                            'vcpus_used': vcpus_used,
+                            'memory_mb': memory_mb,
+                            'memory_mb_used': memory_mb_used,
+                            'local_gb': local_gb,
+                            'local_gb_used': local_gb_used,
+                            'running_vms': running_vms,
                             'hypervisor_type': getattr(hypervisor, 'hypervisor_type', 'unknown'),
                             'hypervisor_version': getattr(hypervisor, 'hypervisor_version', 'unknown')
                         }
