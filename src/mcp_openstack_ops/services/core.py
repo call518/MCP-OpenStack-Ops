@@ -225,23 +225,99 @@ def get_cluster_status() -> Dict[str, Any]:
                 'port_states': port_states
             }
             
-            # Volume resources
+            # Volume resources (enhanced with backup information and detailed volume analysis)
             volumes = list(conn.volume.volumes())
             snapshots = list(conn.volume.snapshots())
             
-            # Analyze volume states
+            # Analyze volume states and characteristics
             volume_states = {}
             total_volume_size = 0
+            bootable_volumes = 0
+            encrypted_volumes = 0
+            multiattach_volumes = 0
+            attached_volumes = 0
+            volume_attachments = []
+            
             for volume in volumes:
                 state = getattr(volume, 'status', 'UNKNOWN').upper()
                 volume_states[state] = volume_states.get(state, 0) + 1
                 total_volume_size += getattr(volume, 'size', 0)
+                
+                # Track volume characteristics
+                if getattr(volume, 'is_bootable', False):
+                    bootable_volumes += 1
+                if getattr(volume, 'encrypted', False):
+                    encrypted_volumes += 1  
+                if getattr(volume, 'multiattach', False):
+                    multiattach_volumes += 1
+                
+                # Track attachments
+                attachments = getattr(volume, 'attachments', [])
+                if attachments:
+                    attached_volumes += 1
+                    volume_attachments.extend(attachments)
+            
+            # Get volume snapshots with state analysis
+            snapshot_states = {}
+            total_snapshot_size = 0
+            for snapshot in snapshots:
+                state = getattr(snapshot, 'status', 'UNKNOWN').upper()
+                snapshot_states[state] = snapshot_states.get(state, 0) + 1
+                total_snapshot_size += getattr(snapshot, 'size', 0)
+            
+            # Get volume types information  
+            volume_types = []
+            try:
+                from ..services.storage import get_volume_types
+                volume_types = get_volume_types()
+            except Exception as e:
+                logger.warning(f"Could not retrieve volume types: {e}")
+            
+            # Get volume backup information
+            backups = []
+            backup_states = {}
+            total_backup_size = 0
+            try:
+                from ..services.storage import set_volume_backups
+                backup_result = set_volume_backups('list')
+                if backup_result.get('success'):
+                    backups = backup_result.get('backups', [])
+                    # Analyze backup states and sizes
+                    for backup in backups:
+                        state = backup.get('status', 'UNKNOWN').upper()
+                        backup_states[state] = backup_states.get(state, 0) + 1
+                        total_backup_size += backup.get('size', 0)
+                else:
+                    logger.warning("Volume backup service not available")
+            except Exception as e:
+                logger.warning(f"Could not retrieve backup information: {e}")
             
             status_data['resources']['volume'] = {
                 'volumes': len(volumes),
                 'snapshots': len(snapshots),
                 'volume_states': volume_states,
-                'total_size_gb': total_volume_size
+                'snapshot_states': snapshot_states,
+                'total_size_gb': total_volume_size,
+                'total_snapshot_size_gb': total_snapshot_size,
+                'backups': len(backups),
+                'backup_states': backup_states,
+                'total_backup_size_gb': total_backup_size,
+                'volume_characteristics': {
+                    'bootable_volumes': bootable_volumes,
+                    'encrypted_volumes': encrypted_volumes,
+                    'multiattach_volumes': multiattach_volumes,
+                    'attached_volumes': attached_volumes,
+                    'available_volumes': volume_states.get('AVAILABLE', 0),
+                    'in_use_volumes': volume_states.get('IN-USE', 0),
+                    'total_attachments': len(volume_attachments)
+                },
+                'volume_types_available': len(volume_types),
+                'storage_summary': {
+                    'total_storage_gb': total_volume_size + total_snapshot_size + total_backup_size,
+                    'volumes_gb': total_volume_size,
+                    'snapshots_gb': total_snapshot_size,
+                    'backups_gb': total_backup_size
+                }
             }
             
             # Image resources (enhanced)
@@ -657,6 +733,14 @@ def get_cluster_status() -> Dict[str, Any]:
                     'gigabytes': {
                         'used': total_volume_size,
                         'limit': getattr(volume_quotas, 'gigabytes', -1)
+                    },
+                    'backups': {
+                        'used': len(backups),
+                        'limit': getattr(volume_quotas, 'backups', -1)
+                    },
+                    'backup_gigabytes': {
+                        'used': total_backup_size,
+                        'limit': getattr(volume_quotas, 'backup_gigabytes', -1)
                     }
                 }
             }
@@ -822,6 +906,7 @@ def get_cluster_status() -> Dict[str, Any]:
             'total_instances': status_data['resources']['compute'].get('instances', 0),
             'total_networks': status_data['resources']['network'].get('networks', 0),
             'total_volumes': status_data['resources']['volume'].get('volumes', 0),
+            'total_backups': status_data['resources']['volume'].get('backups', 0),
             'total_images': status_data['resources']['image'].get('images', 0),
             'total_floating_ips': status_data['resources']['network'].get('floating_ips', 0),
             'health_status': overall_health,
