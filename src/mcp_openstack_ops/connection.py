@@ -153,17 +153,37 @@ def get_current_project_id() -> str:
 
 def validate_resource_ownership(resource: Any, resource_type: str = "resource") -> bool:
     """
-    Validate that a resource belongs to the current project.
+    Validate that a resource belongs to the current project or is publicly available.
     
     Args:
         resource: OpenStack resource object
         resource_type: Type of resource for logging
         
     Returns:
-        bool: True if resource belongs to current project, False otherwise
+        bool: True if resource belongs to current project or is public, False otherwise
     """
     try:
         current_project_id = get_current_project_id()
+        
+        # Special handling for public resources (like flavors, public images)
+        # These resources should be accessible regardless of project ownership
+        if hasattr(resource, 'is_public') and resource.is_public:
+            logger.debug(f"Public {resource_type} {getattr(resource, 'id', 'unknown')} is accessible")
+            return True
+            
+        # Special handling for flavors - they are typically public and don't have project_id
+        if resource_type.lower() == "flavor":
+            # Most flavors are public and accessible to all projects
+            if not hasattr(resource, 'project_id') or not resource.project_id:
+                logger.debug(f"Public {resource_type} {getattr(resource, 'id', 'unknown')} is accessible")
+                return True
+        
+        # Special handling for images - include public, community, and shared images
+        if resource_type.lower() == "image":
+            visibility = getattr(resource, 'visibility', 'private')
+            if visibility in ['public', 'community', 'shared']:
+                logger.debug(f"{visibility.capitalize()} {resource_type} {getattr(resource, 'id', 'unknown')} is accessible")
+                return True
         
         # Try different attribute names for project ID
         resource_project_id = getattr(resource, 'project_id', None) or \
@@ -171,8 +191,9 @@ def validate_resource_ownership(resource: Any, resource_type: str = "resource") 
                              getattr(resource, 'owner', None)
         
         if not resource_project_id:
-            logger.warning(f"{resource_type} {getattr(resource, 'id', 'unknown')} has no project_id attribute")
-            return False
+            # If no project ID and not handled above, it's likely a system resource
+            logger.debug(f"System {resource_type} {getattr(resource, 'id', 'unknown')} with no project_id - allowing access")
+            return True
         
         is_owned = resource_project_id == current_project_id
         

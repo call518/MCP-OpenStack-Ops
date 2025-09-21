@@ -9,6 +9,33 @@ from fastmcp.server.auth import StaticTokenVerifier
 # Add the current directory to sys.path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+def handle_operation_result(result: Dict[str, Any], operation_name: str, details: Dict[str, str] = None) -> str:
+    """
+    Handle operation results consistently across all MCP tools.
+    
+    Args:
+        result: Result dictionary from core function
+        operation_name: Name of the operation (e.g., "Instance Management", "Network Creation")
+        details: Additional details to include in error message (optional)
+    
+    Returns:
+        Success JSON or clear error message
+    """
+    # Check if operation failed and return clear error message
+    if isinstance(result, dict) and result.get('success') is False:
+        error_message = result.get('message', 'Unknown error occurred')
+        
+        error_response = f"❌ **{operation_name} Failed**\n\n**Error**: {error_message}"
+        
+        if details:
+            details_str = '\n'.join([f"**{k}**: {v}" for k, v in details.items()])
+            error_response += f"\n\n{details_str}"
+            
+        return error_response
+    
+    # Return success response
+    return result if isinstance(result, str) else json.dumps(result, indent=2, ensure_ascii=False)
+
 from .connection import get_openstack_connection
 from .functions import (
     get_service_status as _get_service_status, 
@@ -566,18 +593,21 @@ async def set_instance(
     
     Use when user requests instance management, VM control, server operations, instance lifecycle management, or server creation.
     
+    CRITICAL: For create action, both flavor AND image are REQUIRED. Operation will fail if either is missing.
+    
     Args:
         instance_name: Name of the instance to manage or create
         action: Management action (create, start, stop, restart, reboot, pause, unpause, resume)
-        flavor: Flavor name for create action (e.g., 'm1.small', 'm1.medium')
-        image: Image name for create action (e.g., 'rockylinux-9', 'ubuntu-20.04')
+        flavor: Flavor name for create action (e.g., 'm1.small', 'm1.medium') - REQUIRED for create
+        image: Image name for create action (e.g., 'ubuntu-22.04', 'rocky-9') - REQUIRED for create
         networks: Network name(s) for create action (e.g., 'demo-net', 'private-net')
         security_groups: Security group name(s) for create action (e.g., 'default', 'web-sg')
         key_name: SSH keypair name for create action (optional)
         availability_zone: Availability zone for create action (optional)
         
     Returns:
-        Management operation result in JSON format with success status, message, and state information.
+        Clear success message with instance details OR clear error message if operation fails.
+        NEVER returns false success claims - if operation fails, you'll get explicit error details.
     """
     try:
         if not instance_name or not instance_name.strip():
@@ -602,23 +632,17 @@ async def set_instance(
         logger.info(f"Managing instance '{instance_name}' with action '{action}'")
         result = _set_instance(instance_name.strip(), action.strip(), **kwargs)
         
-        response = {
-            "timestamp": datetime.now().isoformat(),
-            "requested_instance": instance_name,
-            "requested_action": action,
-            "management_result": result
-        }
-        
-        return json.dumps(response, indent=2, ensure_ascii=False)
-        
-        response = {
-            "timestamp": datetime.now().isoformat(),
-            "requested_instance": instance_name,
-            "requested_action": action,
-            "management_result": result
-        }
-        
-        return json.dumps(response, indent=2, ensure_ascii=False)
+        # Use centralized result handling
+        return handle_operation_result(
+            result, 
+            "Instance Management",
+            {
+                "Action": action,
+                "Instance": instance_name,
+                "Flavor": flavor or "Not specified",
+                "Image": image or "Not specified"
+            }
+        )
         
     except Exception as e:
         error_msg = f"Error: Failed to manage instance '{instance_name}' - {str(e)}"
@@ -672,14 +696,17 @@ async def set_server_network(
         
         result = _set_server_network(instance_name.strip(), action.strip(), **kwargs)
         
-        response = {
-            "timestamp": datetime.now().isoformat(),
-            "action": action,
-            "instance_name": instance_name,
-            "result": result
-        }
-        
-        return json.dumps(response, indent=2, ensure_ascii=False)
+        # Use centralized result handling
+        return handle_operation_result(
+            result,
+            "Server Network Management", 
+            {
+                "Action": action,
+                "Instance": instance_name,
+                "Network": network or "Not specified",
+                "Port": port or "Not specified"
+            }
+        )
         
     except Exception as e:
         error_msg = f"Error: Failed to manage server network - {str(e)}"
@@ -731,15 +758,17 @@ async def set_server_floating_ip(
         
         result = _set_server_floating_ip(instance_name.strip(), action.strip(), **kwargs)
         
-        response = {
-            "timestamp": datetime.now().isoformat(),
-            "action": action,
-            "instance_name": instance_name,
-            "floating_ip": floating_ip,
-            "result": result
-        }
-        
-        return json.dumps(response, indent=2, ensure_ascii=False)
+        # Use centralized result handling
+        return handle_operation_result(
+            result,
+            "Server Floating IP Management",
+            {
+                "Action": action,
+                "Instance": instance_name,
+                "Floating IP": floating_ip or "Not specified",
+                "Fixed IP": fixed_ip or "Not specified"
+            }
+        )
         
     except Exception as e:
         error_msg = f"Error: Failed to manage server floating IP - {str(e)}"
@@ -790,14 +819,17 @@ async def set_server_fixed_ip(
         
         result = _set_server_fixed_ip(instance_name.strip(), action.strip(), **kwargs)
         
-        response = {
-            "timestamp": datetime.now().isoformat(),
-            "action": action,
-            "instance_name": instance_name,
-            "result": result
-        }
-        
-        return json.dumps(response, indent=2, ensure_ascii=False)
+        # Use centralized result handling
+        return handle_operation_result(
+            result,
+            "Server Fixed IP Management",
+            {
+                "Action": action,
+                "Instance": instance_name,
+                "Network": network or "Not specified",
+                "Fixed IP": fixed_ip or "Not specified"
+            }
+        )
         
     except Exception as e:
         error_msg = f"Error: Failed to manage server fixed IP - {str(e)}"
@@ -846,15 +878,16 @@ async def set_server_security_group(
         
         result = _set_server_security_group(instance_name.strip(), action.strip(), **kwargs)
         
-        response = {
-            "timestamp": datetime.now().isoformat(),
-            "action": action,
-            "instance_name": instance_name,
-            "security_group": security_group,
-            "result": result
-        }
-        
-        return json.dumps(response, indent=2, ensure_ascii=False)
+        # Use centralized result handling
+        return handle_operation_result(
+            result,
+            "Server Security Group Management",
+            {
+                "Action": action,
+                "Instance": instance_name,
+                "Security Group": security_group or "Not specified"
+            }
+        )
         
     except Exception as e:
         error_msg = f"Error: Failed to manage server security group - {str(e)}"
@@ -920,14 +953,17 @@ async def set_server_migration(
         
         result = _set_server_migration(instance_name.strip(), action.strip(), **kwargs)
         
-        response = {
-            "timestamp": datetime.now().isoformat(),
-            "action": action,
-            "instance_name": instance_name,
-            "result": result
-        }
-        
-        return json.dumps(response, indent=2, ensure_ascii=False)
+        # Use centralized result handling
+        return handle_operation_result(
+            result,
+            "Server Migration Management",
+            {
+                "Action": action,
+                "Instance": instance_name,
+                "Host": host or "Not specified",
+                "Migration ID": migration_id or "Not specified"
+            }
+        )
         
     except Exception as e:
         error_msg = f"Error: Failed to manage server migration - {str(e)}"
@@ -987,14 +1023,17 @@ async def set_server_properties(
         
         result = _set_server_properties(instance_name.strip(), action.strip(), **kwargs)
         
-        response = {
-            "timestamp": datetime.now().isoformat(),
-            "action": action,
-            "instance_name": instance_name,
-            "result": result
-        }
-        
-        return json.dumps(response, indent=2, ensure_ascii=False)
+        # Use centralized result handling
+        return handle_operation_result(
+            result,
+            "Server Properties Management",
+            {
+                "Action": action,
+                "Instance": instance_name,
+                "Name": name or "Not specified",
+                "Description": description or "Not specified"
+            }
+        )
         
     except Exception as e:
         error_msg = f"Error: Failed to manage server properties - {str(e)}"
@@ -1050,14 +1089,17 @@ async def create_server_backup(
         
         result = _create_server_backup(instance_name.strip(), backup_name.strip(), **kwargs)
         
-        response = {
-            "timestamp": datetime.now().isoformat(),
-            "instance_name": instance_name,
-            "backup_name": backup_name,
-            "result": result
-        }
-        
-        return json.dumps(response, indent=2, ensure_ascii=False)
+        # Use centralized result handling
+        return handle_operation_result(
+            result,
+            "Server Backup Creation",
+            {
+                "Instance": instance_name,
+                "Backup Name": backup_name,
+                "Backup Type": backup_type or "Not specified",
+                "Rotation": str(rotation) if rotation else "Not specified"
+            }
+        )
         
     except Exception as e:
         error_msg = f"Error: Failed to create server backup - {str(e)}"
@@ -1095,13 +1137,14 @@ async def create_server_dump(instance_name: str) -> str:
         
         result = _create_server_dump(instance_name.strip())
         
-        response = {
-            "timestamp": datetime.now().isoformat(),
-            "instance_name": instance_name,
-            "result": result
-        }
-        
-        return json.dumps(response, indent=2, ensure_ascii=False)
+        # Use centralized result handling
+        return handle_operation_result(
+            result,
+            "Server Dump Creation",
+            {
+                "Instance": instance_name
+            }
+        )
         
     except Exception as e:
         error_msg = f"Error: Failed to create server dump - {str(e)}"
@@ -1198,14 +1241,17 @@ async def set_volume(volume_name: str, action: str, size: int = 1, instance_name
         volume_name_param = volume_name.strip() if volume_name and volume_name.strip() else ""
         result = _set_volume(volume_name_param, action, **kwargs)
         
-        response = {
-            "timestamp": datetime.now().isoformat(),
-            "requested_volume": volume_name if volume_name else "all",
-            "requested_action": action,
-            "volume_result": result
-        }
-        
-        return json.dumps(response, indent=2, ensure_ascii=False)
+        # Use centralized result handling
+        return handle_operation_result(
+            result,
+            "Volume Management",
+            {
+                "Action": action,
+                "Volume": volume_name if volume_name else "all",
+                "Size": f"{size}GB" if size else "Not specified",
+                "Instance": instance_name or "Not specified"
+            }
+        )
         
     except Exception as e:
         error_msg = f"Error: Failed to manage volume" + (f" '{volume_name}'" if volume_name and volume_name.strip() else "") + f" - {str(e)}"
@@ -1627,14 +1673,16 @@ async def set_keypair(keypair_name: str, action: str, public_key: str = "") -> s
             
         result_data = _set_keypair(keypair_name, action, **kwargs)
         
-        result = {
-            "timestamp": datetime.now().isoformat(),
-            "keypair_name": keypair_name,
-            "action": action,
-            "result": result_data
-        }
-        
-        return json.dumps(result, indent=2, ensure_ascii=False)
+        # Use centralized result handling
+        return handle_operation_result(
+            result_data,
+            "Keypair Management",
+            {
+                "Action": action,
+                "Keypair Name": keypair_name,
+                "Public Key": "Provided" if public_key.strip() else "Not provided"
+            }
+        )
         
     except Exception as e:
         error_msg = f"Error: Failed to manage keypair - {str(e)}"
@@ -1766,14 +1814,17 @@ async def set_floating_ip(action: str, floating_network_id: str = "", port_id: s
             
         result_data = _set_floating_ip(internal_action, **kwargs)
         
-        result = {
-            "timestamp": datetime.now().isoformat(),
-            "action": action,
-            "parameters": kwargs,
-            "result": result_data
-        }
-        
-        return json.dumps(result, indent=2, ensure_ascii=False)
+        # Use centralized result handling
+        return handle_operation_result(
+            result_data,
+            "Floating IP Management",
+            {
+                "Action": action,
+                "Network ID": floating_network_id or "Not specified",
+                "Port ID": port_id or "Not specified",
+                "IP Address": floating_ip_address or "Not specified"
+            }
+        )
         
     except Exception as e:
         error_msg = f"Error: Failed to manage floating IP - {str(e)}"
@@ -2037,15 +2088,17 @@ async def set_snapshot(snapshot_name: str, action: str, volume_id: str = "", des
             
         result_data = _set_snapshot(snapshot_name, action, **kwargs)
         
-        result = {
-            "timestamp": datetime.now().isoformat(),
-            "snapshot_name": snapshot_name,
-            "action": action,
-            "parameters": kwargs,
-            "result": result_data
-        }
-        
-        return json.dumps(result, indent=2, ensure_ascii=False)
+        # Use centralized result handling
+        return handle_operation_result(
+            result_data,
+            "Snapshot Management",
+            {
+                "Action": action,
+                "Snapshot Name": snapshot_name,
+                "Volume ID": volume_id or "Not specified",
+                "Description": description or "Not specified"
+            }
+        )
         
     except Exception as e:
         error_msg = f"Error: Failed to manage snapshot - {str(e)}"
@@ -2113,15 +2166,18 @@ async def set_image(image_name: str, action: str, container_format: str = "bare"
         image_name_param = image_name.strip() if image_name and image_name.strip() else ""
         result_data = _set_image(image_name_param, action, **kwargs)
         
-        result = {
-            "timestamp": datetime.now().isoformat(),
-            "image_name": image_name if image_name else "all",
-            "action": action,
-            "parameters": kwargs,
-            "result": result_data
-        }
-        
-        return json.dumps(result, indent=2, ensure_ascii=False)
+        # Use centralized result handling
+        return handle_operation_result(
+            result_data,
+            "Image Management",
+            {
+                "Action": action,
+                "Image Name": image_name if image_name else "all",
+                "Container Format": container_format,
+                "Disk Format": disk_format,
+                "Visibility": visibility
+            }
+        )
         
     except Exception as e:
         error_msg = f"Error: Failed to manage image - {str(e)}"
@@ -2210,14 +2266,17 @@ async def set_heat_stack(stack_name: str, action: str, template: str = "", param
             
         result_data = _set_heat_stack(stack_name, action, **kwargs)
         
-        result = {
-            "timestamp": datetime.now().isoformat(),
-            "stack_name": stack_name,
-            "action": action,
-            "result": result_data
-        }
-        
-        return json.dumps(result, indent=2, ensure_ascii=False)
+        # Use centralized result handling
+        return handle_operation_result(
+            result_data,
+            "Heat Stack Management",
+            {
+                "Action": action,
+                "Stack Name": stack_name,
+                "Template": "Provided" if template.strip() else "Not provided",
+                "Parameters": "Provided" if parameters.strip() else "Not provided"
+            }
+        )
         
     except Exception as e:
         error_msg = f"Error: Failed to manage stack - {str(e)}"
@@ -2448,18 +2507,16 @@ async def set_quota(
         
         quota_result = _set_quota(project_name=project_name, action=action, **quota_params)
         
-        response = {
-            "timestamp": datetime.now().isoformat(),
-            "operation": "set_quota",
-            "parameters": {
-                "project_name": project_name,
-                "action": action,
-                "quota_params": quota_params if quota_params else "none"
-            },
-            "result": quota_result
-        }
-        
-        return json.dumps(response, indent=2, ensure_ascii=False)
+        # Use centralized result handling
+        return handle_operation_result(
+            quota_result,
+            "Quota Management",
+            {
+                "Action": action,
+                "Project": project_name or "Current project",
+                "Parameters": f"{len(quota_params)} quota limits" if quota_params else "No limits specified"
+            }
+        )
         
     except Exception as e:
         error_msg = f"Error: Failed to manage quota - {str(e)}"
@@ -2550,18 +2607,17 @@ async def set_project(
         
         project_result = _set_project(project_name=project_name, action=action, **project_params)
         
-        response = {
-            "timestamp": datetime.now().isoformat(),
-            "operation": "set_project",
-            "parameters": {
-                "project_name": project_name,
-                "action": action,
-                "project_params": project_params if project_params else "none"
-            },
-            "result": project_result
-        }
-        
-        return json.dumps(response, indent=2, ensure_ascii=False)
+        # Use centralized result handling
+        return handle_operation_result(
+            project_result,
+            "Project Management",
+            {
+                "Action": action,
+                "Project Name": project_name,
+                "Description": description or "Not specified",
+                "Domain": domain or "Default"
+            }
+        )
         
     except Exception as e:
         error_msg = f"Error: Failed to manage project - {str(e)}"
@@ -2670,18 +2726,16 @@ async def set_server_group(
         
         group_result = _set_server_group(group_name=group_name, action=action, **group_params)
         
-        response = {
-            "timestamp": datetime.now().isoformat(),
-            "operation": "set_server_group",
-            "parameters": {
-                "group_name": group_name,
-                "action": action,
-                "group_params": group_params if group_params else "none"
-            },
-            "result": group_result
-        }
-        
-        return json.dumps(response, indent=2, ensure_ascii=False)
+        # Use centralized result handling
+        return handle_operation_result(
+            group_result,
+            "Server Group Management",
+            {
+                "Action": action,
+                "Group Name": group_name,
+                "Policies": policies or "Not specified"
+            }
+        )
         
     except Exception as e:
         error_msg = f"Error: Failed to manage server group - {str(e)}"
@@ -2808,18 +2862,18 @@ async def set_flavor(
         
         flavor_result = _set_flavor(flavor_name=flavor_name, action=action, **flavor_params)
         
-        response = {
-            "timestamp": datetime.now().isoformat(),
-            "operation": "set_flavor",
-            "parameters": {
-                "flavor_name": flavor_name,
-                "action": action,
-                "flavor_params": flavor_params if flavor_params else "none"
-            },
-            "result": flavor_result
-        }
-        
-        return json.dumps(response, indent=2, ensure_ascii=False)
+        # Use centralized result handling
+        return handle_operation_result(
+            flavor_result,
+            "Flavor Management",
+            {
+                "Action": action,
+                "Flavor Name": flavor_name,
+                "vCPUs": vcpus or "Not specified",
+                "RAM": ram or "Not specified",
+                "Disk": disk or "Not specified"
+            }
+        )
         
     except Exception as e:
         error_msg = f"Error: Failed to manage flavor - {str(e)}"
@@ -2905,18 +2959,17 @@ async def set_server_volume(
             **volume_params
         )
         
-        response = {
-            "timestamp": datetime.now().isoformat(),
-            "operation": "set_server_volume",
-            "parameters": {
-                "instance_name": instance_name,
-                "action": action,
-                "volume_params": volume_params if volume_params else "none"
-            },
-            "result": volume_result
-        }
-        
-        return json.dumps(response, indent=2, ensure_ascii=False)
+        # Use centralized result handling
+        return handle_operation_result(
+            volume_result,
+            "Server Volume Management",
+            {
+                "Action": action,
+                "Instance Name": instance_name,
+                "Volume Name": volume_name or "Not specified",
+                "Device": device or "Not specified"
+            }
+        )
         
     except Exception as e:
         error_msg = f"Error: Failed to manage server volume - {str(e)}"

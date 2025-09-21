@@ -404,14 +404,27 @@ def set_instance(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
             if not flavor_name:
                 return {
                     'success': False,
-                    'message': 'flavor parameter is required for create action'
+                    'message': 'Flavor parameter is required for create action. Please specify a flavor (e.g., m1.small, m1.medium).'
                 }
                 
             if not image_name:
-                return {
-                    'success': False,
-                    'message': 'image parameter is required for create action'
-                }
+                # Get available images for error message
+                try:
+                    all_images = list(conn.image.images())
+                    active_images = [img.name for img in all_images if img.status == 'active'][:10]  # Show first 10
+                    available_list = '\n'.join(f"  • {img}" for img in active_images)
+                    more_available = f"\n  ... and {len([img for img in all_images if img.status == 'active']) - 10} more" if len([img for img in all_images if img.status == 'active']) > 10 else ""
+                    
+                    return {
+                        'success': False,
+                        'message': f'Image parameter is required for VM creation.\n\n**Available Images:**\n{available_list}{more_available}\n\nPlease specify one using the image parameter (e.g., image="ubuntu-22.04").'
+                    }
+                except Exception as e:
+                    logger.error(f"Failed to retrieve available images: {e}")
+                    return {
+                        'success': False,
+                        'message': 'Image parameter is required for VM creation. Please specify an image name (e.g., ubuntu-22.04, rocky-9, centos-8).'
+                    }
             
             # Find flavor using secure project-scoped lookup
             from ..connection import find_resource_by_name_or_id
@@ -493,19 +506,26 @@ def set_instance(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
             if metadata:
                 create_params['metadata'] = metadata
             
-            server = conn.compute.create_server(**create_params)
-            
-            return {
-                'success': True,
-                'message': f'Instance "{instance_name}" creation started',
-                'instance': {
-                    'id': server.id,
-                    'name': getattr(server, 'name', 'unnamed'),
-                    'status': getattr(server, 'status', 'unknown'),
-                    'flavor': {'id': flavor.id, 'name': getattr(flavor, 'name', 'unknown')},
-                    'image': {'id': image.id, 'name': getattr(image, 'name', 'unknown')}
+            try:
+                server = conn.compute.create_server(**create_params)
+                
+                return {
+                    'success': True,
+                    'message': f'Instance "{instance_name}" creation started',
+                    'instance': {
+                        'id': server.id,
+                        'name': getattr(server, 'name', 'unnamed'),
+                        'status': getattr(server, 'status', 'unknown'),
+                        'flavor': {'id': flavor.id, 'name': getattr(flavor, 'name', 'unknown')},
+                        'image': {'id': image.id, 'name': getattr(image, 'name', 'unknown')}
+                    }
                 }
-            }
+            except Exception as create_error:
+                logger.error(f"Failed to create instance '{instance_name}': {create_error}")
+                return {
+                    'success': False,
+                    'message': f'Instance creation failed: {str(create_error)}'
+                }
             
         # Find existing instance for other actions using secure lookup
         server = find_resource_by_name_or_id(
