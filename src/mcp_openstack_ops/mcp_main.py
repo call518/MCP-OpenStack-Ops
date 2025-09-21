@@ -11,7 +11,6 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from .connection import get_openstack_connection
 from .functions import (
-    get_cluster_status as _get_cluster_status, 
     get_service_status as _get_service_status, 
     get_instance_details as _get_instance_details, 
     get_instance_by_name as _get_instance_by_name,
@@ -216,42 +215,7 @@ def conditional_tool(func):
 # MCP Tools (OpenStack Operations and Monitoring)
 # =============================================================================
 
-@mcp.tool()
-async def get_cluster_status() -> str:
-    """
-    Provides real-time cluster information by querying the overall status of OpenStack cluster.
-    
-    Functions: 
-    - Query OpenStack cluster-wide instance list and status
-    - Collect active network and subnet information  
-    - Verify registered OpenStack service list
-    - Validate cluster connection status and API responsiveness
-    
-    Use when user requests cluster overview, system status, infrastructure monitoring.
-    
-    Returns:
-        Cluster status information in JSON format with instances, networks, services, and connection status.
-    """
-    try:
-        logger.info("Fetching OpenStack cluster status")
-        status = _get_cluster_status()
-        
-        result = {
-            "timestamp": datetime.now().isoformat(),
-            "cluster_status": status,
-            "summary": {
-                "total_instances": len(status.get('instances', [])),
-                "total_networks": len(status.get('networks', [])),
-                "total_services": len(status.get('services', []))
-            }
-        }
-        
-        return json.dumps(result, indent=2, ensure_ascii=False)
-        
-    except Exception as e:
-        error_msg = f"Error: Failed to fetch OpenStack cluster status - {str(e)}"
-        logger.error(error_msg)
-        return error_msg
+# get_cluster_status tool removed - use combination of get_* tools for comprehensive cluster reports
 
 
 @mcp.tool()
@@ -342,6 +306,12 @@ async def get_instance_details(
             ids_list = [id.strip() for id in instance_ids.split(',') if id.strip()]
         
         # Call the updated function with pagination parameters
+        combined_names_ids = []
+        if names_list:
+            combined_names_ids.extend(names_list)
+        if ids_list:
+            combined_names_ids.extend(ids_list)
+        
         if all_instances or (not names_list and not ids_list):
             details_result = _get_instance_details(
                 limit=limit, 
@@ -350,8 +320,7 @@ async def get_instance_details(
             )
         else:
             details_result = _get_instance_details(
-                instance_names=names_list, 
-                instance_ids=ids_list,
+                instance_names=combined_names_ids,
                 limit=limit, 
                 offset=offset, 
                 include_all=include_all
@@ -1463,17 +1432,17 @@ def main(argv: Optional[List[str]] = None) -> None:
     else:
         logger.info("Using default log level: %s", log_level)
 
-    # 우선순위: 실행옵션 > 환경변수 > 기본값
-    # Transport type 결정
+    # Priority: command line args > environment variables > defaults
+    # Transport type determination
     transport_type = args.transport_type or os.getenv("FASTMCP_TYPE", "stdio")
     
-    # Host 결정
+    # Host determination
     host = args.host or os.getenv("FASTMCP_HOST", "127.0.0.1")
     
-    # Port 결정 (간결하게)
+    # Port determination (simplified)
     port = args.port or int(os.getenv("FASTMCP_PORT", 8080))
     
-    # Authentication 설정 결정
+    # Authentication setting determination
     auth_enable = args.auth_enable or os.getenv("REMOTE_AUTH_ENABLE", "false").lower() in ("true", "1", "yes", "on")
     secret_key = args.secret_key or os.getenv("REMOTE_SECRET_KEY", "")
     
@@ -1496,7 +1465,7 @@ def main(argv: Optional[List[str]] = None) -> None:
         logger.warning("CLI authentication settings differ from environment variables.")
         logger.warning("Environment settings take precedence during module initialization.")
 
-    # Transport 모드에 따른 실행
+    # Execution based on transport mode
     if transport_type == "streamable-http":
         logger.info(f"Starting streamable-http server on {host}:{port}")
         mcp.run(transport="streamable-http", host=host, port=port)
@@ -2599,10 +2568,6 @@ async def set_project(
         logger.error(error_msg)
         return error_msg
 
-
-# =============================================================================
-# Enhanced Server Management Tools
-# =============================================================================
 
 @mcp.tool()
 async def get_server_events(

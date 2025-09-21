@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 def get_load_balancer_list(limit: int = 50, offset: int = 0, include_all: bool = False) -> Dict[str, Any]:
     """
-    Get list of load balancers with comprehensive details.
+    Get list of load balancers with comprehensive details for current project.
     
     Args:
         limit: Maximum number of load balancers to return (1-200, default: 50)
@@ -24,24 +24,29 @@ def get_load_balancer_list(limit: int = 50, offset: int = 0, include_all: bool =
         include_all: If True, return all load balancers (ignores limit/offset)
     
     Returns:
-        Dictionary containing load balancers list with details
+        Dictionary containing load balancers list with details for current project
     """
     try:
         conn = get_openstack_connection()
+        current_project_id = conn.current_project_id
         start_time = datetime.now()
         
-        logger.info(f"Fetching load balancers (limit={limit}, offset={offset}, include_all={include_all})")
+        logger.info(f"Fetching load balancers for project {current_project_id} (limit={limit}, offset={offset}, include_all={include_all})")
         
         # Validate limit
         if not include_all:
             limit = max(1, min(limit, 200))
         
-        # Get load balancers
+        # Get all load balancers and filter by current project
+        all_lbs = []
+        for lb in conn.load_balancer.load_balancers():
+            if getattr(lb, 'project_id', None) == current_project_id:
+                all_lbs.append(lb)
+        
+        # Apply pagination
         if include_all:
-            load_balancers = list(conn.load_balancer.load_balancers())
+            load_balancers = all_lbs
         else:
-            # Get all and manually paginate (OpenStack SDK pagination varies by service)
-            all_lbs = list(conn.load_balancer.load_balancers())
             load_balancers = all_lbs[offset:offset + limit]
         
         # Build detailed load balancer information
@@ -91,6 +96,7 @@ def get_load_balancer_list(limit: int = 50, offset: int = 0, include_all: bool =
                     'vip_address': getattr(lb, 'vip_address', 'N/A'),
                     'provisioning_status': getattr(lb, 'provisioning_status', 'Unknown'),
                     'operating_status': getattr(lb, 'operating_status', 'Unknown'),
+                    'project_id': getattr(lb, 'project_id', current_project_id),
                     'error': f'Failed to fetch details: {str(e)}'
                 })
         
@@ -104,16 +110,16 @@ def get_load_balancer_list(limit: int = 50, offset: int = 0, include_all: bool =
                 'total_returned': len(lb_details),
                 'limit': limit if not include_all else 'all',
                 'offset': offset if not include_all else 0,
-                'processing_time_seconds': round(processing_time, 2)
+                'processing_time_seconds': round(processing_time, 2),
+                'project_id': current_project_id
             }
         }
         
         if not include_all:
-            all_count = len(list(conn.load_balancer.load_balancers()))
-            result['summary']['total_available'] = all_count
-            result['summary']['has_more'] = (offset + limit) < all_count
+            result['summary']['total_available'] = len(all_lbs)
+            result['summary']['has_more'] = (offset + limit) < len(all_lbs)
         
-        logger.info(f"Successfully retrieved {len(lb_details)} load balancers in {processing_time:.2f}s")
+        logger.info(f"Successfully retrieved {len(lb_details)} load balancers for project {current_project_id} in {processing_time:.2f}s")
         return result
         
     except Exception as e:

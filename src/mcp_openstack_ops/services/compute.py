@@ -65,26 +65,27 @@ def get_instance_details(
         
         for server in paginated_servers:
             try:
-                # Get server flavor details
+                # Get server flavor details - use embedded flavor info from server details
                 flavor_info = {'id': 'unknown', 'name': 'unknown', 'vcpus': 0, 'ram': 0, 'disk': 0}
                 if hasattr(server, 'flavor') and server.flavor:
                     if isinstance(server.flavor, dict):
-                        flavor_id = server.flavor.get('id')
+                        # Flavor info is embedded in server details - use it directly
+                        flavor_info = {
+                            'id': server.flavor.get('id', 'unknown'),
+                            'name': server.flavor.get('original_name', server.flavor.get('name', 'unknown')),
+                            'vcpus': server.flavor.get('vcpus', 0),
+                            'ram': server.flavor.get('ram', 0),
+                            'disk': server.flavor.get('disk', 0)
+                        }
                     else:
-                        flavor_id = getattr(server.flavor, 'id', None)
-                    
-                    if flavor_id:
-                        try:
-                            flavor = conn.compute.get_flavor(flavor_id)
-                            flavor_info = {
-                                'id': flavor.id,
-                                'name': getattr(flavor, 'name', 'unknown'),
-                                'vcpus': getattr(flavor, 'vcpus', 0),
-                                'ram': getattr(flavor, 'ram', 0),
-                                'disk': getattr(flavor, 'disk', 0)
-                            }
-                        except Exception as e:
-                            logger.warning(f"Could not get flavor details for {flavor_id}: {e}")
+                        # If flavor is an object, try to get attributes
+                        flavor_info = {
+                            'id': getattr(server.flavor, 'id', 'unknown'),
+                            'name': getattr(server.flavor, 'original_name', getattr(server.flavor, 'name', 'unknown')),
+                            'vcpus': getattr(server.flavor, 'vcpus', 0),
+                            'ram': getattr(server.flavor, 'ram', 0),
+                            'disk': getattr(server.flavor, 'disk', 0)
+                        }
                 
                 # Get server image details
                 image_info = {'id': 'unknown', 'name': 'unknown'}

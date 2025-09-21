@@ -7,9 +7,6 @@ Each module focuses on a specific OpenStack service area for better maintainabil
 
 # Core connection and cluster management
 from .core import (
-    get_openstack_connection,
-    reset_connection_cache,
-    get_cluster_status,
     get_service_status
 )
 
@@ -141,7 +138,6 @@ __all__ = [
     # Core
     'get_openstack_connection',
     'reset_connection_cache',
-    'get_cluster_status',
     'get_service_status',
     
     # Compute

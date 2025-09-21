@@ -14,7 +14,10 @@ from ..connection import get_openstack_connection, reset_connection_cache
 logger = logging.getLogger(__name__)
 
 
-def get_cluster_status() -> Dict[str, Any]:
+# get_cluster_status function removed - use combination of get_* tools for comprehensive cluster reports
+
+
+def get_service_status(service_name: str = "") -> Dict[str, Any]:
     """
     Get comprehensive OpenStack cluster status including all services and resources.
     
@@ -960,8 +963,90 @@ def get_service_status(service_name: str = "") -> Dict[str, Any]:
         conn = get_openstack_connection()
         
         if not service_name:
-            # Return status for all services
-            return get_cluster_status()['services']
+            # Return status for all services instead of using get_cluster_status
+            services = ['compute', 'network', 'volume', 'image', 'identity', 'orchestration']
+            all_services = {}
+            
+            for service in services:
+                try:
+                    service_status = {
+                        'available': True,
+                        'endpoint': 'unknown',
+                        'version': 'unknown',
+                        'last_check': datetime.now().isoformat()
+                    }
+                    
+                    if service == 'compute':
+                        # Test compute service
+                        list(conn.compute.servers(limit=1))
+                        service_status['endpoint'] = conn.compute.get_endpoint()
+                        
+                    elif service == 'network':
+                        # Test network service
+                        list(conn.network.networks(limit=1))
+                        service_status['endpoint'] = conn.network.get_endpoint()
+                        
+                    elif service == 'volume':
+                        # Test volume service
+                        list(conn.volume.volumes(limit=1))
+                        service_status['endpoint'] = conn.volume.get_endpoint()
+                        
+                    elif service == 'image':
+                        # Test image service
+                        list(conn.image.images(limit=1))
+                        service_status['endpoint'] = conn.image.get_endpoint()
+                        
+                    elif service == 'identity':
+                        # Test identity service
+                        conn.identity.get_token()
+                        try:
+                            service_status['endpoint'] = conn.session.get_endpoint(service_type='identity', interface='public')
+                        except Exception:
+                            service_status['endpoint'] = f"http://{os.environ.get('OS_AUTH_HOST', 'localhost')}:{os.environ.get('OS_AUTH_PORT', '5000')}"
+                        
+                    elif service == 'orchestration':
+                        # Test orchestration service (Heat) with manual API call
+                        try:
+                            import requests
+                            
+                            # Get project ID and token
+                            project_id = conn.current_project_id
+                            token = conn.identity.get_token()
+                            
+                            # Construct Heat API URL
+                            auth_host = os.environ.get('OS_AUTH_HOST', 'localhost')
+                            heat_port = os.environ.get('OS_HEAT_STACK_PORT', '8004')
+                            heat_url = f"http://{auth_host}:{heat_port}/v1/{project_id}/stacks"
+                            
+                            headers = {
+                                'X-Auth-Token': token,
+                                'Content-Type': 'application/json'
+                            }
+                            
+                            # Make a test call to Heat API (get stacks)
+                            response = requests.get(heat_url, headers=headers, timeout=10)
+                            
+                            if response.status_code in [200, 404]:  # 404 is OK - means no stacks
+                                service_status['endpoint'] = f"http://{auth_host}:{heat_port}"
+                                service_status['version'] = 'v1'
+                            else:
+                                raise Exception(f"Heat API returned status {response.status_code}")
+                                
+                        except Exception as heat_e:
+                            logger.warning(f"Heat service test failed: {heat_e}")
+                            service_status['available'] = False
+                            service_status['error'] = str(heat_e)
+                    
+                    all_services[service] = service_status
+                    
+                except Exception as e:
+                    all_services[service] = {
+                        'available': False,
+                        'error': str(e),
+                        'last_check': datetime.now().isoformat()
+                    }
+            
+            return all_services
         
         service_name = service_name.lower()
         supported_services = ['compute', 'network', 'volume', 'image', 'identity', 'orchestration']

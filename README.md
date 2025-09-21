@@ -1,6 +1,6 @@
 # MCP-OpenStack-Ops
 
-> **MCP OpenStack Operations Server**: A comprehensive MCP (Model Context Protocol) server providing OpenStack cluster management and monitoring capabilities with built-in safety controls.
+> **MCP OpenStack Operations Server**: A comprehensive MCP (Model Context Protocol) server providing OpenStack project management and monitoring capabilities with built-in safety controls and single-project scope.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Deploy to PyPI with tag](https://github.com/call518/MCP-OpenStack-Ops/actions/workflows/pypi-publish.yml/badge.svg)](https://github.com/call518/MCP-OpenStack-Ops/actions/workflows/pypi-publish.yml)
@@ -16,21 +16,21 @@
 
 ## Features
 
-- ✅ **OpenStack SDK Integration**: Direct integration with OpenStack SDK for real-time cluster operations.
+- ✅ **Single Project Scope**: Operates within the configured `OS_PROJECT_NAME` project scope for complete tenant isolation. All operations are restricted to resources within the specified project, ensuring data privacy and security in multi-tenant environments.
+- ✅ **OpenStack SDK Integration**: Direct integration with OpenStack SDK for real-time project operations.
 - ✅ **Production-Safe Operations**: Built-in safety controls with `ALLOW_MODIFY_OPERATIONS` environment variable to prevent modification operations in production environments.
-- ✅ **Enhanced Cluster Monitoring**: Comprehensive cluster status reports with 100-point health scoring system, resource utilization analysis, instance state tracking, and detailed health breakdown by service categories.
-- ✅ **Complete Service Coverage**: 93+ comprehensive tools covering Identity, Compute, Network, Storage, Image, Orchestration, Load Balancer, and Monitoring services.
+- ✅ **Enhanced Project Monitoring**: Comprehensive project status reports with health scoring system, resource utilization analysis, instance state tracking, and detailed health breakdown by service categories.
+- ✅ **Complete Service Coverage**: 93+ comprehensive tools covering Identity, Compute, Network, Storage, Image, Orchestration, Load Balancer, and Monitoring services within project scope.
 - ✅ **Advanced Instance Management**: Enhanced server lifecycle operations with backup, migration, rescue, and administrative functions including state analysis.
 - ✅ **Server Event Tracking**: Detailed server event history and lifecycle monitoring with comprehensive logging.
-- ✅ **Hypervisor Resource Monitoring**: Real-time hypervisor resource statistics with CPU/memory/disk utilization tracking and cluster resource totals.
-- ✅ **Enhanced Network Analysis**: Comprehensive network operations with external/private network classification, floating IP pool management, and port forwarding support.
+- ✅ **Network Analysis**: Comprehensive network operations with external/private network classification, floating IP management, and port operations within project scope.
 - ✅ **Volume Management**: Comprehensive volume attachment/detachment operations with state analysis and capacity tracking.
-- ✅ **Large-Scale Environment Support**: Pagination and limits for environments with thousands of instances.
-- ✅ **Enterprise Features**: User management, role assignments, keypair management, floating IP operations, volume snapshots with visibility analysis.
+- ✅ **Smart Image Filtering**: Access to public, community, shared, and project-owned images with intelligent visibility filtering that prevents zero-image count issues.
+- ✅ **Enterprise Features**: User management, role assignments, keypair management, floating IP operations, volume snapshots within project boundaries.
 - ✅ **Intelligent Search**: Flexible instance search with partial matching and case-sensitive options.
-- ✅ **Network & Volume Operations**: Comprehensive network analysis and volume management capabilities with state tracking.
-- ✅ **Load Balancer Integration**: Complete load balancer management with health monitoring and amphora status tracking.
+- ✅ **Load Balancer Integration**: Complete load balancer management with health monitoring within project scope.
 - ✅ **Connection Optimization**: Global connection caching and automatic retry mechanisms.
+- ✅ **Multi-Project Support**: Deploy multiple MCP servers with different `OS_PROJECT_NAME` values for complete multi-tenant project management with full isolation.
 - ✅ **Docker Support**: Containerized deployment optimized for OpenStack Epoxy environments.
 - ✅ **Flexible Transport**: Support for both `stdio` and `streamable-http` transports with comprehensive logging.
 
@@ -500,6 +500,111 @@ Options:
 
 ---
 
+## 🔒 Project Isolation & Security
+
+### Single Project Scope Operation
+
+**MCP-OpenStack-Ops operates within a strictly defined project scope** determined by the `OS_PROJECT_NAME` environment variable. This provides complete tenant isolation and data privacy in multi-tenant OpenStack environments.
+
+**Key Security Features:**
+
+- **Complete Resource Isolation**: All operations are restricted to resources within the specified project
+- **Zero Cross-tenant Data Leakage**: No access to resources from other projects
+- **Intelligent Resource Filtering**: Each service automatically filters results by current project ID
+- **Shared Resource Access**: Intelligently includes shared/public resources (networks, images) while maintaining security
+
+**Filtered Resources by Project:**
+
+| Service | Project-Scoped Resources | Notes |
+|---------|-------------------------|-------|
+| **Identity** | Users (via role assignments), Role assignments | Only users with roles in current project |
+| **Compute** | Instances, Flavors (embedded data), Keypairs | All instances within project scope |
+| **Image** | Private images (owned), Public/Community/Shared images | Smart filtering prevents zero-image issues |
+| **Network** | Networks, Subnets, Security Groups, Floating IPs, Routers | Includes shared/external networks for access |
+| **Storage** | Volumes, Snapshots, Backups | All storage resources within project |
+| **Orchestration** | Heat Stacks, Stack Resources | All orchestration within project |
+| **Load Balancer** | Load Balancers, Listeners, Pools | All load balancing within project |
+| **Monitoring** | Resource usage, Project quotas | Project-specific monitoring data |
+
+### Multi-Project Management
+
+For managing multiple OpenStack projects, deploy multiple MCP server instances with different `OS_PROJECT_NAME` values:
+
+**Example: Managing 3 Projects**
+
+```bash
+# Project 1: Production Environment
+OS_PROJECT_NAME=production
+# ... other config
+python -m mcp_openstack_ops --type stdio
+
+# Project 2: Development Environment  
+OS_PROJECT_NAME=development
+# ... other config  
+python -m mcp_openstack_ops --type streamable-http --port 8001
+
+# Project 3: Testing Environment
+OS_PROJECT_NAME=testing  
+# ... other config
+python -m mcp_openstack_ops --type streamable-http --port 8002
+```
+
+**Claude Desktop Multi-Project Configuration Example:**
+
+```json
+{
+  "mcpServers": {
+    "openstack-production": {
+      "command": "python",
+      "args": ["-m", "mcp_openstack_ops", "--type", "stdio"],
+      "env": {
+        "OS_PROJECT_NAME": "production",
+        "OS_USERNAME": "admin",
+        "OS_PASSWORD": "your-password",
+        "OS_AUTH_HOST": "192.168.35.2"
+      }
+    },
+    "openstack-development": {
+      "command": "python", 
+      "args": ["-m", "mcp_openstack_ops", "--type", "stdio"],
+      "env": {
+        "OS_PROJECT_NAME": "development",
+        "OS_USERNAME": "admin",
+        "OS_PASSWORD": "your-password", 
+        "OS_AUTH_HOST": "192.168.35.2"
+      }
+    },
+    "openstack-testing": {
+      "command": "python",
+      "args": ["-m", "mcp_openstack_ops", "--type", "stdio"], 
+      "env": {
+        "OS_PROJECT_NAME": "testing",
+        "OS_USERNAME": "admin",
+        "OS_PASSWORD": "your-password",
+        "OS_AUTH_HOST": "192.168.35.2"
+      }
+    }
+  }
+}
+```
+
+This allows Claude to access each project independently with complete isolation between environments.
+
+**📁 Ready-to-use Configuration File:**
+
+A complete multi-project configuration example is available at `mcp-config.json.multi-project`:
+- **Production**: Read-only operations for safety (`ALLOW_MODIFY_OPERATIONS=false`)
+- **Development**: Full operations enabled (`ALLOW_MODIFY_OPERATIONS=true`) 
+- **Testing**: Debug logging enabled (`MCP_LOG_LEVEL=DEBUG`)
+
+```bash
+# Copy and customize the multi-project configuration
+cp mcp-config.json.multi-project ~/.config/claude-desktop/mcp_servers.json
+# Edit with your OpenStack credentials
+```
+
+---
+
 ## Safety Controls
 
 ### Modification Operations Protection
@@ -735,6 +840,39 @@ When authentication is enabled, MCP clients must include the Bearer token in the
 When authentication fails, the server returns:
 - **401 Unauthorized** for missing or invalid tokens
 - **Detailed error messages** in JSON format for debugging
+
+---
+
+## 🎯 Recent Improvements & Enhancements
+
+### **Complete Project Scoping Implementation** ✨
+
+**Enhanced Security & Tenant Isolation:**
+- ✅ **All Services Project-Scoped**: Identity, Compute, Network, Storage, Image, Orchestration, Load Balancer, and Monitoring services now filter resources by current project ID
+- ✅ **Zero Cross-Tenant Data Leakage**: Automatic filtering at OpenStack SDK level using `current_project_id`
+- ✅ **Smart Resource Access**: Intelligent handling of shared/public resources (networks, images) while maintaining security boundaries
+
+### **Fixed Image Service Issues** 🖼️
+
+**Resolved Zero-Image Count Problems:**
+- ✅ **Enhanced Image Filtering**: Now includes public, community, shared, and project-owned images
+- ✅ **Intelligent Visibility Handling**: Proper handling of different image visibility types
+- ✅ **Prevented Empty Results**: Fixed filtering logic that was too restrictive
+
+### **Improved vCPU/RAM Calculation** ⚡
+
+**Fixed Instance Resource Display:**
+- ✅ **Embedded Flavor Data Usage**: Uses server.flavor attributes directly, avoiding 404 API errors
+- ✅ **Accurate Resource Reporting**: Proper vCPU and RAM values in cluster status reports
+- ✅ **Eliminated API Failures**: No more flavor lookup failures causing zero resource values
+
+### **Enhanced Documentation** 📚
+
+**Comprehensive Project Scoping Documentation:**
+- ✅ **Multi-Project Management Guide**: Complete setup instructions for managing multiple OpenStack projects
+- ✅ **Security & Isolation Details**: Detailed explanation of tenant isolation features
+- ✅ **Ready-to-Use Configuration**: Pre-configured `mcp-config.json.multi-project` for quick setup
+- ✅ **Updated Environment Variables**: Enhanced `.env.example` with project scoping guidance
 
 ---
 

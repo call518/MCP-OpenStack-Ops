@@ -14,49 +14,55 @@ logger = logging.getLogger(__name__)
 
 def get_volume_list() -> List[Dict[str, Any]]:
     """
-    Get list of volumes with detailed information.
+    Get list of volumes with detailed information for current project.
     
     Returns:
-        List of volume dictionaries
+        List of volume dictionaries for current project
     """
     try:
         # Import here to avoid circular imports
         from ..connection import get_openstack_connection
         conn = get_openstack_connection()
+        current_project_id = conn.current_project_id
         volumes = []
         
         for volume in conn.volume.volumes():
-            # Get attachment information
-            attachments = []
-            for attachment in getattr(volume, 'attachments', []):
-                attachments.append({
-                    'server_id': attachment.get('server_id', 'unknown'),
-                    'attachment_id': attachment.get('attachment_id', 'unknown'),
-                    'device': attachment.get('device', 'unknown'),
-                    'attached_at': attachment.get('attached_at', 'unknown')
+            # Filter by current project
+            volume_project_id = getattr(volume, 'project_id', None)
+            if volume_project_id == current_project_id:
+                # Get attachment information
+                attachments = []
+                for attachment in getattr(volume, 'attachments', []):
+                    attachments.append({
+                        'server_id': attachment.get('server_id', 'unknown'),
+                        'attachment_id': attachment.get('attachment_id', 'unknown'),
+                        'device': attachment.get('device', 'unknown'),
+                        'attached_at': attachment.get('attached_at', 'unknown')
+                    })
+                
+                volumes.append({
+                    'id': volume.id,
+                    'name': getattr(volume, 'name', 'unnamed'),
+                    'status': getattr(volume, 'status', 'unknown'),
+                    'size': getattr(volume, 'size', 0),
+                    'volume_type': getattr(volume, 'volume_type', 'unknown'),
+                    'bootable': getattr(volume, 'is_bootable', False),
+                    'encrypted': getattr(volume, 'is_encrypted', False),
+                    'multiattach': getattr(volume, 'multiattach', False),
+                    'availability_zone': getattr(volume, 'availability_zone', 'unknown'),
+                    'project_id': volume_project_id,
+                    'created_at': str(getattr(volume, 'created_at', 'unknown')),
+                    'updated_at': str(getattr(volume, 'updated_at', 'unknown')),
+                    'description': getattr(volume, 'description', ''),
+                    'metadata': getattr(volume, 'metadata', {}),
+                    'source_volid': getattr(volume, 'source_volid', None),
+                    'snapshot_id': getattr(volume, 'snapshot_id', None),
+                    'image_id': getattr(volume, 'image_id', None),
+                    'attachments': attachments,
+                    'attachment_count': len(attachments)
                 })
-            
-            volumes.append({
-                'id': volume.id,
-                'name': getattr(volume, 'name', 'unnamed'),
-                'status': getattr(volume, 'status', 'unknown'),
-                'size': getattr(volume, 'size', 0),
-                'volume_type': getattr(volume, 'volume_type', 'unknown'),
-                'bootable': getattr(volume, 'is_bootable', False),
-                'encrypted': getattr(volume, 'is_encrypted', False),
-                'multiattach': getattr(volume, 'multiattach', False),
-                'availability_zone': getattr(volume, 'availability_zone', 'unknown'),
-                'created_at': str(getattr(volume, 'created_at', 'unknown')),
-                'updated_at': str(getattr(volume, 'updated_at', 'unknown')),
-                'description': getattr(volume, 'description', ''),
-                'metadata': getattr(volume, 'metadata', {}),
-                'source_volid': getattr(volume, 'source_volid', None),
-                'snapshot_id': getattr(volume, 'snapshot_id', None),
-                'image_id': getattr(volume, 'image_id', None),
-                'attachments': attachments,
-                'attachment_count': len(attachments)
-            })
         
+        logger.info(f"Retrieved {len(volumes)} volumes for project {current_project_id}")
         return volumes
     except Exception as e:
         logger.error(f"Failed to get volume list: {e}")
@@ -360,30 +366,36 @@ def get_volume_types() -> List[Dict[str, Any]]:
 
 def get_volume_snapshots() -> List[Dict[str, Any]]:
     """
-    Get list of volume snapshots.
+    Get list of volume snapshots for current project.
     
     Returns:
-        List of snapshot dictionaries
+        List of snapshot dictionaries for current project
     """
     try:
         # Import here to avoid circular imports
         from ..connection import get_openstack_connection
         conn = get_openstack_connection()
+        current_project_id = conn.current_project_id
         snapshots = []
         
         for snapshot in conn.volume.snapshots():
-            snapshots.append({
-                'id': snapshot.id,
-                'name': getattr(snapshot, 'name', 'unnamed'),
-                'description': getattr(snapshot, 'description', ''),
-                'status': getattr(snapshot, 'status', 'unknown'),
-                'size': getattr(snapshot, 'size', 0),
-                'volume_id': getattr(snapshot, 'volume_id', 'unknown'),
-                'created_at': str(getattr(snapshot, 'created_at', 'unknown')),
-                'updated_at': str(getattr(snapshot, 'updated_at', 'unknown')),
-                'metadata': getattr(snapshot, 'metadata', {})
-            })
+            # Filter by current project
+            snapshot_project_id = getattr(snapshot, 'project_id', None)
+            if snapshot_project_id == current_project_id:
+                snapshots.append({
+                    'id': snapshot.id,
+                    'name': getattr(snapshot, 'name', 'unnamed'),
+                    'description': getattr(snapshot, 'description', ''),
+                    'status': getattr(snapshot, 'status', 'unknown'),
+                    'size': getattr(snapshot, 'size', 0),
+                    'volume_id': getattr(snapshot, 'volume_id', 'unknown'),
+                    'project_id': snapshot_project_id,
+                    'created_at': str(getattr(snapshot, 'created_at', 'unknown')),
+                    'updated_at': str(getattr(snapshot, 'updated_at', 'unknown')),
+                    'metadata': getattr(snapshot, 'metadata', {})
+                })
         
+        logger.info(f"Retrieved {len(snapshots)} snapshots for project {current_project_id}")
         return snapshots
     except Exception as e:
         logger.error(f"Failed to get volume snapshots: {e}")

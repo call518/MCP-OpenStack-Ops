@@ -15,39 +15,43 @@ logger = logging.getLogger(__name__)
 
 def get_resource_monitoring() -> Dict[str, Any]:
     """
-    Get comprehensive resource monitoring information across all OpenStack services.
+    Get comprehensive resource monitoring information for current project.
     
     Returns:
-        Dict containing monitoring data for compute, network, and storage resources
+        Dict containing monitoring data for current project's compute, network, and storage resources
     """
     try:
         # Import here to avoid circular imports
         from ..connection import get_openstack_connection
         conn = get_openstack_connection()
+        current_project_id = conn.current_project_id
         
         monitoring_data = {
             'timestamp': datetime.now().isoformat(),
+            'project_id': current_project_id,
             'compute': {},
             'network': {},
             'storage': {},
             'identity': {}
         }
         
-        # Compute monitoring
+        # Compute monitoring - filter servers by project
         try:
-            servers = list(conn.compute.servers())
-            hypervisors = list(conn.compute.hypervisors())
+            all_servers = list(conn.compute.servers())
+            servers = [s for s in all_servers if getattr(s, 'project_id', None) == current_project_id]
+            hypervisors = list(conn.compute.hypervisors())  # Hypervisors are cluster-wide
             
             compute_stats = {
                 'total_servers': len(servers),
                 'running_servers': len([s for s in servers if s.status == 'ACTIVE']),
-                'total_hypervisors': len(hypervisors),
-                'total_vcpus': sum(getattr(h, 'vcpus', 0) for h in hypervisors),
-                'used_vcpus': sum(getattr(h, 'vcpus_used', 0) for h in hypervisors),
-                'total_memory_mb': sum(getattr(h, 'memory_mb', 0) for h in hypervisors),
-                'used_memory_mb': sum(getattr(h, 'memory_mb_used', 0) for h in hypervisors),
-                'total_disk_gb': sum(getattr(h, 'local_gb', 0) for h in hypervisors),
-                'used_disk_gb': sum(getattr(h, 'local_gb_used', 0) for h in hypervisors)
+                'total_hypervisors': len(hypervisors),  # Cluster-wide stat
+                'total_vcpus': sum(getattr(h, 'vcpus', 0) for h in hypervisors),  # Cluster-wide stat
+                'used_vcpus': sum(getattr(h, 'vcpus_used', 0) for h in hypervisors),  # Cluster-wide stat
+                'total_memory_mb': sum(getattr(h, 'memory_mb', 0) for h in hypervisors),  # Cluster-wide stat
+                'used_memory_mb': sum(getattr(h, 'memory_mb_used', 0) for h in hypervisors),  # Cluster-wide stat
+                'total_disk_gb': sum(getattr(h, 'local_gb', 0) for h in hypervisors),  # Cluster-wide stat
+                'used_disk_gb': sum(getattr(h, 'local_gb_used', 0) for h in hypervisors),  # Cluster-wide stat
+                'project_server_count': len(servers)  # Project-specific stat
             }
             
             monitoring_data['compute'] = compute_stats
@@ -55,13 +59,31 @@ def get_resource_monitoring() -> Dict[str, Any]:
             monitoring_data['compute'] = {'error': str(e)}
             logger.warning(f"Failed to get compute monitoring data: {e}")
         
-        # Network monitoring
+        # Network monitoring - filter by project
         try:
-            networks = list(conn.network.networks())
-            subnets = list(conn.network.subnets())
-            ports = list(conn.network.ports())
-            routers = list(conn.network.routers())
-            floating_ips = list(conn.network.ips())
+            all_networks = list(conn.network.networks())
+            all_subnets = list(conn.network.subnets())
+            all_ports = list(conn.network.ports())
+            all_routers = list(conn.network.routers())
+            all_floating_ips = list(conn.network.ips())
+            
+            # Filter by project (include shared/external networks for access)
+            networks = [n for n in all_networks if (
+                (getattr(n, 'project_id', None) or getattr(n, 'tenant_id', None)) == current_project_id or
+                getattr(n, 'is_shared', False) or getattr(n, 'is_router_external', False)
+            )]
+            subnets = [s for s in all_subnets if (
+                (getattr(s, 'project_id', None) or getattr(s, 'tenant_id', None)) == current_project_id
+            )]
+            ports = [p for p in all_ports if (
+                (getattr(p, 'project_id', None) or getattr(p, 'tenant_id', None)) == current_project_id
+            )]
+            routers = [r for r in all_routers if (
+                (getattr(r, 'project_id', None) or getattr(r, 'tenant_id', None)) == current_project_id
+            )]
+            floating_ips = [f for f in all_floating_ips if (
+                (getattr(f, 'project_id', None) or getattr(f, 'tenant_id', None)) == current_project_id
+            )]
             
             network_stats = {
                 'total_networks': len(networks),
@@ -80,10 +102,13 @@ def get_resource_monitoring() -> Dict[str, Any]:
             monitoring_data['network'] = {'error': str(e)}
             logger.warning(f"Failed to get network monitoring data: {e}")
         
-        # Storage monitoring
+        # Storage monitoring - filter by project
         try:
-            volumes = list(conn.volume.volumes())
-            snapshots = list(conn.volume.snapshots())
+            all_volumes = list(conn.volume.volumes())
+            all_snapshots = list(conn.volume.snapshots())
+            
+            volumes = [v for v in all_volumes if getattr(v, 'project_id', None) == current_project_id]
+            snapshots = [s for s in all_snapshots if getattr(s, 'project_id', None) == current_project_id]
             
             storage_stats = {
                 'total_volumes': len(volumes),

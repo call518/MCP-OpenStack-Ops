@@ -13,37 +13,61 @@ logger = logging.getLogger(__name__)
 
 def get_image_list() -> List[Dict[str, Any]]:
     """
-    Get list of available images.
+    Get list of images accessible by current project.
     
     Returns:
-        List of image dictionaries
+        List of image dictionaries for current project
     """
     try:
         # Import here to avoid circular imports
         from ..connection import get_openstack_connection
         conn = get_openstack_connection()
+        current_project_id = conn.current_project_id
         images = []
         
         for image in conn.image.images():
             # Skip if image name starts with '.' (system images)
             if image.name and image.name.startswith('.'):
                 continue
+            
+            # Include images that are accessible by current project:
+            # 1. Public images (visibility='public') - accessible to all projects
+            # 2. Community images (visibility='community') - accessible to all projects  
+            # 3. Private images owned by current project (owner=current_project_id)
+            # 4. Shared images (visibility='shared') - we include all shared images for now
+            visibility = getattr(image, 'visibility', 'private')
+            owner = getattr(image, 'owner', None)
+            
+            # More permissive filtering - include most accessible images
+            include_image = False
+            
+            if visibility in ['public', 'community']:
+                include_image = True
+            elif visibility == 'shared':
+                # For shared images, we include them all since checking member list is complex
+                include_image = True
+            elif visibility == 'private' and owner == current_project_id:
+                include_image = True
+            elif owner == current_project_id:  # Catch-all for project-owned images
+                include_image = True
                 
-            images.append({
-                'id': image.id,
-                'name': image.name,
-                'status': image.status,
-                'visibility': getattr(image, 'visibility', 'unknown'),
-                'size': getattr(image, 'size', 0),
-                'disk_format': getattr(image, 'disk_format', 'unknown'),
-                'container_format': getattr(image, 'container_format', 'unknown'),
-                'min_disk': getattr(image, 'min_disk', 0),
-                'min_ram': getattr(image, 'min_ram', 0),
-                'created_at': str(getattr(image, 'created_at', 'unknown')),
-                'updated_at': str(getattr(image, 'updated_at', 'unknown')),
-                'properties': getattr(image, 'properties', {}),
-                'tags': list(getattr(image, 'tags', []))
-            })
+            if include_image:
+                images.append({
+                    'id': image.id,
+                    'name': image.name,
+                    'status': image.status,
+                    'visibility': visibility,
+                    'owner': owner,
+                    'size': getattr(image, 'size', 0),
+                    'disk_format': getattr(image, 'disk_format', 'unknown'),
+                    'container_format': getattr(image, 'container_format', 'unknown'),
+                    'min_disk': getattr(image, 'min_disk', 0),
+                    'min_ram': getattr(image, 'min_ram', 0),
+                    'created_at': str(getattr(image, 'created_at', 'unknown')),
+                    'updated_at': str(getattr(image, 'updated_at', 'unknown')),
+                    'properties': getattr(image, 'properties', {}),
+                    'tags': list(getattr(image, 'tags', []))
+                })
         
         return images
     except Exception as e:
@@ -56,37 +80,60 @@ def get_image_list() -> List[Dict[str, Any]]:
 
 def get_image_detail_list() -> List[Dict[str, Any]]:
     """
-    Get detailed list of all images (read-only operation extracted from manage_image).
+    Get detailed list of images accessible by current project.
     
     Returns:
-        List of detailed image information dictionaries
+        List of detailed image information dictionaries for current project
     """
     try:
         # Import here to avoid circular imports
         from ..connection import get_openstack_connection
         conn = get_openstack_connection()
+        current_project_id = conn.current_project_id
         images = []
         
         for image in conn.image.images():
-            images.append({
-                'id': image.id,
-                'name': image.name,
-                'status': image.status,
-                'visibility': image.visibility,
-                'size': getattr(image, 'size', 0),
-                'disk_format': getattr(image, 'disk_format', 'unknown'),
-                'container_format': getattr(image, 'container_format', 'unknown'),
-                'min_disk': getattr(image, 'min_disk', 0),
-                'min_ram': getattr(image, 'min_ram', 0),
-                'owner': getattr(image, 'owner', 'unknown'),
-                'created_at': str(getattr(image, 'created_at', 'unknown')),
-                'updated_at': str(getattr(image, 'updated_at', 'unknown')),
-                'protected': getattr(image, 'is_protected', False),
-                'checksum': getattr(image, 'checksum', None),
-                'properties': getattr(image, 'properties', {})
-            })
+            # Include images that are accessible by current project:
+            # 1. Public images (visibility='public') - accessible to all projects
+            # 2. Community images (visibility='community') - accessible to all projects  
+            # 3. Private images owned by current project (owner=current_project_id)
+            # 4. Shared images (visibility='shared') - we include all shared images for now
+            visibility = getattr(image, 'visibility', 'private')
+            owner = getattr(image, 'owner', None)
+            
+            # More permissive filtering - include most accessible images
+            include_image = False
+            
+            if visibility in ['public', 'community']:
+                include_image = True
+            elif visibility == 'shared':
+                # For shared images, we include them all since checking member list is complex
+                include_image = True
+            elif visibility == 'private' and owner == current_project_id:
+                include_image = True
+            elif owner == current_project_id:  # Catch-all for project-owned images
+                include_image = True
+                
+            if include_image:
+                images.append({
+                    'id': image.id,
+                    'name': image.name,
+                    'status': image.status,
+                    'visibility': visibility,
+                    'size': getattr(image, 'size', 0),
+                    'disk_format': getattr(image, 'disk_format', 'unknown'),
+                    'container_format': getattr(image, 'container_format', 'unknown'),
+                    'min_disk': getattr(image, 'min_disk', 0),
+                    'min_ram': getattr(image, 'min_ram', 0),
+                    'owner': owner,
+                    'created_at': str(getattr(image, 'created_at', 'unknown')),
+                    'updated_at': str(getattr(image, 'updated_at', 'unknown')),
+                    'protected': getattr(image, 'is_protected', False),
+                    'checksum': getattr(image, 'checksum', None),
+                    'properties': getattr(image, 'properties', {})
+                })
         
-        logger.info(f"Retrieved {len(images)} detailed images")
+        logger.info(f"Retrieved {len(images)} detailed images for project {current_project_id}")
         return images
         
     except Exception as e:

@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 
 # Import core functions from services
 from .services.core import (
-    get_cluster_status,
     get_service_status
 )
 

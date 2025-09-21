@@ -13,32 +13,38 @@ logger = logging.getLogger(__name__)
 
 def get_heat_stacks() -> List[Dict[str, Any]]:
     """
-    Get list of Heat stacks.
+    Get list of Heat stacks for current project.
     
     Returns:
-        List of stack dictionaries
+        List of stack dictionaries for current project
     """
     try:
         # Import here to avoid circular imports
         from ..connection import get_openstack_connection
         conn = get_openstack_connection()
+        current_project_id = conn.current_project_id
         stacks = []
         
         for stack in conn.orchestration.stacks():
-            stacks.append({
-                'id': stack.id,
-                'name': stack.name,
-                'status': stack.status,
-                'stack_status': getattr(stack, 'stack_status', 'unknown'),
-                'stack_status_reason': getattr(stack, 'stack_status_reason', ''),
-                'creation_time': str(getattr(stack, 'creation_time', 'unknown')),
-                'updated_time': str(getattr(stack, 'updated_time', 'unknown')),
-                'description': getattr(stack, 'description', ''),
-                'tags': getattr(stack, 'tags', []),
-                'timeout_mins': getattr(stack, 'timeout_mins', None),
-                'owner': getattr(stack, 'stack_owner', 'unknown')
-            })
+            # Filter stacks by current project
+            stack_project_id = getattr(stack, 'project_id', None)
+            if stack_project_id == current_project_id:
+                stacks.append({
+                    'id': stack.id,
+                    'name': stack.name,
+                    'status': stack.status,
+                    'stack_status': getattr(stack, 'stack_status', 'unknown'),
+                    'stack_status_reason': getattr(stack, 'stack_status_reason', ''),
+                    'creation_time': str(getattr(stack, 'creation_time', 'unknown')),
+                    'updated_time': str(getattr(stack, 'updated_time', 'unknown')),
+                    'description': getattr(stack, 'description', ''),
+                    'tags': getattr(stack, 'tags', []),
+                    'timeout_mins': getattr(stack, 'timeout_mins', None),
+                    'owner': getattr(stack, 'stack_owner', 'unknown'),
+                    'project_id': stack_project_id
+                })
         
+        logger.info(f"Retrieved {len(stacks)} stacks for project {current_project_id}")
         return stacks
     except Exception as e:
         logger.error(f"Failed to get stacks: {e}")

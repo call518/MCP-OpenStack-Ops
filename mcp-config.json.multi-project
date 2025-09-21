@@ -1,0 +1,82 @@
+{
+  "mcpServers": {
+    "openstack-production": {
+      "command": "python",
+      "args": ["-m", "mcp_openstack_ops"],
+      "env": {
+        "PYTHONPATH": "/app/src",
+        "OS_AUTH_HOST": "192.168.35.2",
+        "OS_AUTH_PORT": "5555",
+        "OS_PROJECT_NAME": "production",
+        "OS_USERNAME": "admin",
+        "OS_PASSWORD": "changeme",
+        "OS_USER_DOMAIN_NAME": "Default",
+        "OS_PROJECT_DOMAIN_NAME": "Default",
+        "OS_REGION_NAME": "RegionOne",
+        "OS_IDENTITY_API_VERSION": "3",
+        "OS_INTERFACE": "internal",
+        "OS_COMPUTE_PORT": "8774",
+        "OS_NETWORK_PORT": "9696",
+        "OS_VOLUME_PORT": "8776",
+        "OS_IMAGE_PORT": "9292",
+        "OS_PLACEMENT_PORT": "8780",
+        "OS_HEAT_STACK_PORT": "8004",
+        "OS_HEAT_STACK_CFN_PORT": "18888",
+        "ALLOW_MODIFY_OPERATIONS": "false",
+        "MCP_LOG_LEVEL": "INFO"
+      }
+    },
+    "openstack-development": {
+      "command": "python",
+      "args": ["-m", "mcp_openstack_ops"],
+      "env": {
+        "PYTHONPATH": "/app/src",
+        "OS_AUTH_HOST": "192.168.35.2",
+        "OS_AUTH_PORT": "5555",
+        "OS_PROJECT_NAME": "development",
+        "OS_USERNAME": "admin",
+        "OS_PASSWORD": "changeme",
+        "OS_USER_DOMAIN_NAME": "Default",
+        "OS_PROJECT_DOMAIN_NAME": "Default",
+        "OS_REGION_NAME": "RegionOne",
+        "OS_IDENTITY_API_VERSION": "3",
+        "OS_INTERFACE": "internal",
+        "OS_COMPUTE_PORT": "8774",
+        "OS_NETWORK_PORT": "9696",
+        "OS_VOLUME_PORT": "8776",
+        "OS_IMAGE_PORT": "9292",
+        "OS_PLACEMENT_PORT": "8780",
+        "OS_HEAT_STACK_PORT": "8004",
+        "OS_HEAT_STACK_CFN_PORT": "18888",
+        "ALLOW_MODIFY_OPERATIONS": "true",
+        "MCP_LOG_LEVEL": "INFO"
+      }
+    },
+    "openstack-testing": {
+      "command": "python",
+      "args": ["-m", "mcp_openstack_ops"],
+      "env": {
+        "PYTHONPATH": "/app/src",
+        "OS_AUTH_HOST": "192.168.35.2",
+        "OS_AUTH_PORT": "5555",
+        "OS_PROJECT_NAME": "testing",
+        "OS_USERNAME": "admin",
+        "OS_PASSWORD": "changeme",
+        "OS_USER_DOMAIN_NAME": "Default",
+        "OS_PROJECT_DOMAIN_NAME": "Default",
+        "OS_REGION_NAME": "RegionOne",
+        "OS_IDENTITY_API_VERSION": "3",
+        "OS_INTERFACE": "internal",
+        "OS_COMPUTE_PORT": "8774",
+        "OS_NETWORK_PORT": "9696",
+        "OS_VOLUME_PORT": "8776",
+        "OS_IMAGE_PORT": "9292",
+        "OS_PLACEMENT_PORT": "8780",
+        "OS_HEAT_STACK_PORT": "8004",
+        "OS_HEAT_STACK_CFN_PORT": "18888",
+        "ALLOW_MODIFY_OPERATIONS": "true",
+        "MCP_LOG_LEVEL": "DEBUG"
+      }
+    }
+  }
+}
