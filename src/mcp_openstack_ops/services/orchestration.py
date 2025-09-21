@@ -22,36 +22,61 @@ def get_heat_stacks() -> List[Dict[str, Any]]:
         # Import here to avoid circular imports
         from ..connection import get_openstack_connection
         conn = get_openstack_connection()
-        current_project_id = conn.current_project_id
-        stacks = []
         
-        for stack in conn.orchestration.stacks():
-            # Filter stacks by current project
-            stack_project_id = getattr(stack, 'project_id', None)
-            if stack_project_id == current_project_id:
-                stacks.append({
-                    'id': stack.id,
-                    'name': stack.name,
-                    'status': stack.status,
-                    'stack_status': getattr(stack, 'stack_status', 'unknown'),
-                    'stack_status_reason': getattr(stack, 'stack_status_reason', ''),
-                    'creation_time': str(getattr(stack, 'creation_time', 'unknown')),
-                    'updated_time': str(getattr(stack, 'updated_time', 'unknown')),
-                    'description': getattr(stack, 'description', ''),
-                    'tags': getattr(stack, 'tags', []),
-                    'timeout_mins': getattr(stack, 'timeout_mins', None),
-                    'owner': getattr(stack, 'stack_owner', 'unknown'),
-                    'project_id': stack_project_id
-                })
+        # Check if Heat service is available
+        try:
+            # Test Heat service availability
+            stacks_iterator = conn.orchestration.stacks()
+            current_project_id = conn.current_project_id
+            stacks = []
+            
+            for stack in stacks_iterator:
+                # Filter stacks by current project
+                stack_project_id = getattr(stack, 'project_id', None)
+                if stack_project_id == current_project_id:
+                    stacks.append({
+                        'id': stack.id,
+                        'name': stack.name,
+                        'status': stack.status,
+                        'stack_status': getattr(stack, 'stack_status', 'unknown'),
+                        'stack_status_reason': getattr(stack, 'stack_status_reason', ''),
+                        'creation_time': str(getattr(stack, 'creation_time', 'unknown')),
+                        'updated_time': str(getattr(stack, 'updated_time', 'unknown')),
+                        'description': getattr(stack, 'description', ''),
+                        'tags': getattr(stack, 'tags', []),
+                        'timeout_mins': getattr(stack, 'timeout_mins', None),
+                        'owner': getattr(stack, 'stack_owner', 'unknown'),
+                        'project_id': stack_project_id
+                    })
+            
+            logger.info(f"Retrieved {len(stacks)} stacks for project {current_project_id}")
+            return stacks
+            
+        except AttributeError as attr_error:
+            if "catalog_url" in str(attr_error):
+                logger.error(f"Heat service not available in service catalog: {attr_error}")
+                return [{
+                    'id': 'heat-service-unavailable',
+                    'name': 'Heat Service Not Available',
+                    'status': 'SERVICE_UNAVAILABLE',
+                    'stack_status': 'SERVICE_UNAVAILABLE',
+                    'description': 'Heat orchestration service is not available or not configured in service catalog',
+                    'error': 'Heat service endpoint not found in service catalog',
+                    'recommendation': 'Please ensure Heat service is installed and properly configured in OpenStack'
+                }]
+            else:
+                raise
         
-        logger.info(f"Retrieved {len(stacks)} stacks for project {current_project_id}")
-        return stacks
     except Exception as e:
         logger.error(f"Failed to get stacks: {e}")
         return [
             {
-                'id': 'stack-1', 'name': 'demo-stack', 'status': 'CREATE_COMPLETE',
-                'stack_status': 'CREATE_COMPLETE', 'description': 'Demo stack', 'error': str(e)
+                'id': 'error-stack', 
+                'name': 'Error retrieving stacks', 
+                'status': 'ERROR',
+                'stack_status': 'ERROR', 
+                'description': 'Failed to retrieve Heat stacks', 
+                'error': str(e)
             }
         ]
 

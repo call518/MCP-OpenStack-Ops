@@ -383,7 +383,7 @@ def set_instance(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
     """
     try:
         # Import here to avoid circular imports
-        from ..connection import get_openstack_connection
+        from ..connection import get_openstack_connection, find_resource_by_name_or_id
         conn = get_openstack_connection()
         
         if action.lower() == 'list':
@@ -427,8 +427,6 @@ def set_instance(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
                     }
             
             # Find flavor using secure project-scoped lookup
-            from ..connection import find_resource_by_name_or_id
-            
             flavor = find_resource_by_name_or_id(
                 conn.compute.flavors(), 
                 flavor_name, 
@@ -874,16 +872,22 @@ def get_server_events(instance_name: str, limit: int = 50) -> Dict[str, Any]:
                 
                 # Add events for this action if available
                 if hasattr(action, 'events'):
-                    action_events = []
-                    for event in getattr(action, 'events', []):
-                        action_events.append({
-                            'event': getattr(event, 'event', 'unknown'),
-                            'start_time': str(getattr(event, 'start_time', 'unknown')),
-                            'finish_time': str(getattr(event, 'finish_time', None)) if getattr(event, 'finish_time', None) else None,
-                            'result': getattr(event, 'result', 'unknown'),
-                            'traceback': getattr(event, 'traceback', None)
-                        })
-                    event_data['events'] = action_events
+                    events_list = getattr(action, 'events', None)
+                    if events_list:  # Check if events is not None and not empty
+                        action_events = []
+                        for event in events_list:
+                            action_events.append({
+                                'event': getattr(event, 'event', 'unknown'),
+                                'start_time': str(getattr(event, 'start_time', 'unknown')),
+                                'finish_time': str(getattr(event, 'finish_time', None)) if getattr(event, 'finish_time', None) else None,
+                                'result': getattr(event, 'result', 'unknown'),
+                                'traceback': getattr(event, 'traceback', None)
+                            })
+                        event_data['events'] = action_events
+                    else:
+                        event_data['events'] = []  # Empty events list if None
+                else:
+                    event_data['events'] = []  # No events attribute
                 
                 events.append(event_data)
                 
