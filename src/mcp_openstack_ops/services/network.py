@@ -24,27 +24,25 @@ def get_network_details(network_name: str = "all") -> List[Dict[str, Any]]:
     """
     try:
         # Import here to avoid circular imports
-        from ..connection import get_openstack_connection
+        from ..connection import get_openstack_connection, get_current_project_id, validate_resource_ownership
         conn = get_openstack_connection()
-        current_project_id = conn.current_project_id
+        current_project_id = get_current_project_id()
         
         networks = []
         
         if network_name.lower() == "all":
             for network in conn.network.networks():
-                # Filter by current project (networks use tenant_id or project_id)
-                network_project = getattr(network, 'project_id', None) or getattr(network, 'tenant_id', None)
-                if (network_project == current_project_id or 
+                # Enhanced project validation with utility functions
+                if (validate_resource_ownership(network, "Network") or 
                     getattr(network, 'is_shared', False) or 
                     getattr(network, 'is_router_external', False)):  # Include shared and external networks
                     
-                    # Get subnets for this network
+                    # Get subnets for this network with project validation
                     subnets = []
                     for subnet in conn.network.subnets():
                         if getattr(subnet, 'network_id', None) == network.id:
-                            subnet_project = getattr(subnet, 'project_id', None) or getattr(subnet, 'tenant_id', None)
-                            # Include subnets in current project or associated with accessible networks
-                            if subnet_project == current_project_id:
+                            # Enhanced validation using utility functions
+                            if validate_resource_ownership(subnet, "Subnet"):
                                 subnets.append({
                                     'id': subnet.id,
                                     'name': getattr(subnet, 'name', 'unnamed'),
@@ -197,19 +195,22 @@ def set_networks(action: str, network_name: Optional[str] = None, **kwargs) -> D
                     'message': 'Network name or ID is required for delete action'
                 }
             
-            # Find the network
-            network = None
-            for net in conn.network.networks():
-                if getattr(net, 'name', '') == network_name or net.id == network_name:
-                    network = net
-                    break
+            # Find the network using secure project-scoped lookup
+            from ..connection import find_resource_by_name_or_id, get_openstack_connection
+            conn = get_openstack_connection()
             
+            network = find_resource_by_name_or_id(
+                conn.network.networks(), 
+                network_name, 
+                "Network"
+            )
+
             if not network:
                 return {
                     'success': False,
-                    'message': f'Network "{network_name}" not found'
+                    'message': f'Network "{network_name}" not found or not accessible in current project'
                 }
-            
+
             conn.network.delete_network(network)
             return {
                 'success': True,
@@ -1212,18 +1213,25 @@ def set_network_ports(action: str, port_name: Optional[str] = None, **kwargs) ->
                     'message': 'port_name is required for delete action'
                 }
             
-            # Find and delete the port
-            for port in conn.network.ports():
-                if getattr(port, 'name', '') == port_name or port.id == port_name:
-                    conn.network.delete_port(port)
-                    return {
-                        'success': True,
-                        'message': f'Port "{port_name}" deleted successfully'
-                    }
+            # Find the port using secure project-scoped lookup
+            from ..connection import find_resource_by_name_or_id
             
+            port = find_resource_by_name_or_id(
+                conn.network.ports(), 
+                port_name, 
+                "Network Port"
+            )
+            
+            if not port:
+                return {
+                    'success': False,
+                    'message': f'Port "{port_name}" not found or not accessible in current project'
+                }
+                    
+            conn.network.delete_port(port)
             return {
-                'success': False,
-                'message': f'Port "{port_name}" not found'
+                'success': True,
+                'message': f'Port "{port_name}" deleted successfully'
             }
             
         else:
@@ -1366,18 +1374,25 @@ def set_subnets(action: str, subnet_name: Optional[str] = None, **kwargs) -> Dic
                     'message': 'subnet_name is required for delete action'
                 }
             
-            # Find and delete the subnet
-            for subnet in conn.network.subnets():
-                if getattr(subnet, 'name', '') == subnet_name or subnet.id == subnet_name:
-                    conn.network.delete_subnet(subnet)
-                    return {
-                        'success': True,
-                        'message': f'Subnet "{subnet_name}" deleted successfully'
-                    }
+            # Find the subnet using secure project-scoped lookup
+            from ..connection import find_resource_by_name_or_id
             
+            subnet = find_resource_by_name_or_id(
+                conn.network.subnets(), 
+                subnet_name, 
+                "Subnet"
+            )
+            
+            if not subnet:
+                return {
+                    'success': False,
+                    'message': f'Subnet "{subnet_name}" not found or not accessible in current project'
+                }
+            
+            conn.network.delete_subnet(subnet)
             return {
-                'success': False,
-                'message': f'Subnet "{subnet_name}" not found'
+                'success': True,
+                'message': f'Subnet "{subnet_name}" deleted successfully'
             }
             
         else:

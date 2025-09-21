@@ -209,17 +209,20 @@ def set_image(image_name: str, action: str, **kwargs) -> Dict[str, Any]:
             }
             
         elif action.lower() == 'delete':
-            # Find the image
-            image = None
-            for img in conn.image.images():
-                if img.name == image_name or img.id == image_name:
-                    image = img
-                    break
+            # Find the image using secure project-scoped lookup
+            from ..connection import find_resource_by_name_or_id, get_openstack_connection
+            conn = get_openstack_connection()
+            
+            image = find_resource_by_name_or_id(
+                conn.image.images(), 
+                image_name, 
+                "Image"
+            )
                     
             if not image:
                 return {
                     'success': False,
-                    'message': f'Image "{image_name}" not found'
+                    'message': f'Image "{image_name}" not found or not accessible in current project'
                 }
                 
             conn.image.delete_image(image)

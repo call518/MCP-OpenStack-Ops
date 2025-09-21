@@ -99,38 +99,44 @@ def set_heat_stack(stack_name: str, action: str, **kwargs) -> Dict[str, Any]:
             }
             
         elif action.lower() == 'delete':
-            # Find the stack
-            stack = None
-            for stk in conn.orchestration.stacks():
-                if stk.name == stack_name or stk.id == stack_name:
-                    stack = stk
-                    break
+            # Find the stack using secure project-scoped lookup
+            from ..connection import find_resource_by_name_or_id
+            conn = get_openstack_connection()
+            
+            stack = find_resource_by_name_or_id(
+                conn.orchestration.stacks(), 
+                stack_name, 
+                "Heat stack"
+            )
                     
             if not stack:
                 return {
                     'success': False,
-                    'message': f'Stack "{stack_name}" not found'
+                    'message': f'Heat stack "{stack_name}" not found or not accessible in current project'
                 }
                 
             conn.orchestration.delete_stack(stack)
             return {
                 'success': True,
-                'message': f'Stack "{stack_name}" deletion started',
+                'message': f'Heat stack "{stack_name}" deletion started',
                 'stack_id': stack.id
             }
             
         elif action.lower() == 'update':
-            # Find the stack
-            stack = None
-            for stk in conn.orchestration.stacks():
-                if stk.name == stack_name or stk.id == stack_name:
-                    stack = stk
-                    break
+            # Find the stack using secure project-scoped lookup
+            from ..connection import find_resource_by_name_or_id
+            conn = get_openstack_connection()
+            
+            stack = find_resource_by_name_or_id(
+                conn.orchestration.stacks(), 
+                stack_name, 
+                "Heat stack"
+            )
                     
             if not stack:
                 return {
                     'success': False,
-                    'message': f'Stack "{stack_name}" not found'
+                    'message': f'Heat stack "{stack_name}" not found or not accessible in current project'
                 }
                 
             template = kwargs.get('template')
@@ -147,7 +153,7 @@ def set_heat_stack(stack_name: str, action: str, **kwargs) -> Dict[str, Any]:
             )
             return {
                 'success': True,
-                'message': f'Stack "{stack_name}" update started',
+                'message': f'Heat stack "{stack_name}" update started',
                 'stack': {
                     'id': updated_stack.id,
                     'name': updated_stack.name,

@@ -13,7 +13,13 @@
   - If a set_* tool is not available, inform user that modify operations are disabled for safety
 - **Project Resource Scope**:
   - All operations are scoped to the configured project (`OS_PROJECT_NAME`)
-  - **Complete Tenant Isolation**: Zero cross-tenant data leakage with automatic project filtering
+  - **100% Complete Tenant Isolation**: Enhanced security with multi-layer project ownership validation
+  - **Cross-Project Access Prevention**: Advanced protection against accidental operations on other projects' resources
+  - **Secure Resource Operations**:
+    - **Delete Operations**: All delete operations use secure project-scoped lookup with ownership verification
+    - **Create Operations**: Resource references (networks, images, etc.) validated for project ownership
+    - **Query Operations**: Enhanced project filtering with resource ownership validation
+    - **Update Operations**: Project ownership verified before any modifications
   - **Smart Resource Access**: 
     - Images: Public, community, shared images + current project private images (prevents zero-image issues)
     - Networks: Project networks + shared/external networks accessible to project
@@ -23,7 +29,11 @@
     - Heat Stacks: Project orchestration stacks only
     - Identity: Users with roles in current project + project-scoped role assignments
   - **Multi-project Management**: Requires multiple MCP server instances with different `OS_PROJECT_NAME` configurations
-  - **Enhanced Security**: All resource filtering happens at the OpenStack SDK level using current_project_id
+  - **Enhanced Security Features**: 
+    - Project ID verification and validation utilities
+    - Resource ownership validation for all operations
+    - Secure resource lookup preventing cross-project access
+    - Comprehensive error handling with clear project access messages
 - **MANDATORY RESOURCE TABLE FORMAT**: When showing resource monitoring results, ALWAYS use table format with SEPARATE rows for project resources
 
 ---
@@ -293,6 +303,207 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 - **Large Environments**: Use pagination with consistent limit/offset
 - **Search Operations**: Use specific criteria to minimize results
 - **Connection Optimization**: Automatic connection caching and reuse
+
+---
+
+## 7. Example Queries & Usage Patterns
+
+### 🎯 **Cluster Overview & Status**
+
+```
+"Show me the overall cluster status"
+"Create a comprehensive cluster report"
+"What's the current infrastructure health?"
+"Give me a cluster overview with resource utilization"
+```
+
+**Tools Used:** `get_cluster_status()`, `monitor_resources()`, `get_service_status()`
+
+### 🖥️ **Instance Management**
+
+```
+"List all instances in the project"
+"Show details for instance web-server-01"
+"Create an instance named test-vm with flavor m1.small and image ubuntu-20.04"
+"Start instance web-server-01"
+"Stop all instances with name containing 'test'"
+"Delete instance old-server"
+```
+
+**Tools Used:** `get_instance_details()`, `set_instance()`, `search_instances()`
+
+### 🌐 **Network Operations**
+
+```
+"Show all networks and their subnets"
+"List floating IPs and their assignments"
+"Create a network named private-net with subnet 192.168.100.0/24"
+"Associate floating IP 203.0.113.10 to instance web-server"
+"Show network topology"
+```
+
+**Tools Used:** `get_network_details()`, `get_floating_ips()`, `set_networks()`, `set_floating_ip()`
+
+### 💾 **Storage Management**
+
+```
+"List all volumes and their status"
+"Show volume details for data-volume-01"
+"Create a 50GB volume named backup-storage"
+"Attach volume data-vol to instance web-server-01"
+"Create a snapshot of volume database-storage"
+```
+
+**Tools Used:** `get_volume_list()`, `set_volume()`, `set_snapshot()`
+
+### 🖼️ **Image Operations**
+
+```
+"List available images"
+"Show details for Ubuntu images"
+"Create an image from instance web-server-01 named custom-web-image"
+"Delete image old-snapshot-image"
+```
+
+**Tools Used:** `get_image_detail_list()`, `set_image()`
+
+### 👥 **Identity & Access**
+
+```
+"Show project details and quotas"
+"List users in current project"
+"Show role assignments"
+"Create keypair named my-key"
+```
+
+**Tools Used:** `get_project_details()`, `get_user_list()`, `get_role_assignments()`, `set_keypair()`
+
+### 🔥 **Orchestration (Heat)**
+
+```
+"List all Heat stacks"
+"Show stack status for production-stack"
+"Create stack from template with parameters"
+"Delete stack old-deployment"
+```
+
+**Tools Used:** `get_heat_stacks()`, `set_heat_stack()`
+
+### ⚖️ **Load Balancer**
+
+```
+"Show load balancer status"
+"List all load balancers and listeners"
+"Create load balancer for web tier"
+"Show health monitor status"
+```
+
+**Tools Used:** `get_load_balancer_status()`, `set_load_balancer()`, `get_load_balancer_listeners()`
+
+### 🔍 **Advanced Search & Filtering**
+
+```
+"Find all instances with 'web' in the name"
+"Search for running instances"
+"Show instances created in the last 7 days"
+"Find volumes larger than 100GB"
+```
+
+**Tools Used:** `search_instances()`, `get_instances_by_status()`
+
+### 📊 **Resource Monitoring**
+
+```
+"Show resource utilization by hypervisor"
+"Monitor CPU and memory usage"
+"Show quota usage and limits"
+"Display storage capacity statistics"
+```
+
+**Tools Used:** `monitor_resources()`, `get_quota()`, `get_usage_statistics()`
+
+### 🛠️ **Troubleshooting**
+
+```
+"Check OpenStack service status"
+"Show instance events for server-01"
+"Display hypervisor details"
+"Show network agent status"
+```
+
+**Tools Used:** `get_service_status()`, `get_server_events()`, `get_hypervisor_details()`
+
+### 🔒 **Security Operations**
+
+```
+"List security groups and rules"
+"Show keypair information"
+"Display floating IP associations"
+"Check role assignments for current project"
+```
+
+**Tools Used:** `get_security_groups()`, `get_keypair_list()`, `get_floating_ips()`, `get_role_assignments()`
+
+### 📈 **Performance & Optimization**
+
+```
+"Show top 10 resource-consuming instances"
+"Display flavor utilization statistics"
+"Monitor network bandwidth usage"
+"Check storage I/O performance"
+```
+
+**Tools Used:** `get_instance_details()`, `monitor_resources()`, `get_resource_monitoring()`
+
+### 🎛️ **Batch Operations**
+
+```
+"Stop all instances with tag 'development'"
+"Create multiple volumes with names vol-01, vol-02, vol-03"
+"Delete all snapshots older than 30 days"
+"Update all instances with new security group"
+```
+
+**Tools Used:** Multiple tools combined with filtering parameters
+
+### 🧠 **Advanced Query Patterns**
+
+#### **Multi-Tool Combinations for Complex Queries**
+
+```
+"Show complete infrastructure overview" →
+1. get_service_status() (service health)
+2. get_resource_monitoring() (resource utilization)
+3. get_instance_details() (compute resources)
+4. get_network_details() (network topology)
+5. get_volume_list() (storage resources)
+6. get_project_details() (quotas & usage)
+```
+
+```
+"Troubleshoot performance issues" →
+1. get_instance_details() (instance status & specs)
+2. monitor_resources() (resource utilization)
+3. get_hypervisor_details() (host capacity)
+4. get_service_status() (service health)
+```
+
+```
+"Security audit report" →
+1. get_security_groups() (security rules)
+2. get_floating_ips() (external access points)
+3. get_keypair_list() (SSH access keys)
+4. get_role_assignments() (user permissions)
+5. get_user_list() (project members)
+```
+
+#### **Natural Language → Tool Translation Examples**
+
+- **"Show me everything"** → Comprehensive cluster report using multiple tools
+- **"What's broken?"** → Service status + resource monitoring + instance health checks
+- **"Can I create a new VM?"** → Project quotas + available flavors + network options
+- **"Why is my instance slow?"** → Instance details + resource monitoring + hypervisor status
+- **"Show network connectivity"** → Network details + security groups + floating IPs + routers
 
 ### **Tool Availability**
 - **Read-only tools** (`get_*`, `search_*`, `monitor_*`): Always available

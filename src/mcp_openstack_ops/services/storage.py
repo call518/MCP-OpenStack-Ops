@@ -21,15 +21,14 @@ def get_volume_list() -> List[Dict[str, Any]]:
     """
     try:
         # Import here to avoid circular imports
-        from ..connection import get_openstack_connection
+        from ..connection import get_openstack_connection, get_current_project_id, validate_resource_ownership
         conn = get_openstack_connection()
-        current_project_id = conn.current_project_id
+        current_project_id = get_current_project_id()
         volumes = []
         
         for volume in conn.volume.volumes():
-            # Filter by current project
-            volume_project_id = getattr(volume, 'project_id', None)
-            if volume_project_id == current_project_id:
+            # Enhanced project validation using utility functions
+            if validate_resource_ownership(volume, "Volume"):
                 # Get attachment information
                 attachments = []
                 for attachment in getattr(volume, 'attachments', []):
@@ -50,7 +49,7 @@ def get_volume_list() -> List[Dict[str, Any]]:
                     'encrypted': getattr(volume, 'is_encrypted', False),
                     'multiattach': getattr(volume, 'multiattach', False),
                     'availability_zone': getattr(volume, 'availability_zone', 'unknown'),
-                    'project_id': volume_project_id,
+                    'project_id': getattr(volume, 'project_id', current_project_id),
                     'created_at': str(getattr(volume, 'created_at', 'unknown')),
                     'updated_at': str(getattr(volume, 'updated_at', 'unknown')),
                     'description': getattr(volume, 'description', ''),
@@ -146,17 +145,20 @@ def set_volume(volume_name: str, action: str, **kwargs) -> Dict[str, Any]:
             }
             
         elif action.lower() == 'delete':
-            # Find the volume
-            volume = None
-            for vol in conn.volume.volumes():
-                if getattr(vol, 'name', '') == volume_name or vol.id == volume_name:
-                    volume = vol
-                    break
+            # Find the volume using secure project-scoped lookup
+            from ..connection import find_resource_by_name_or_id, get_openstack_connection
+            conn = get_openstack_connection()
             
+            volume = find_resource_by_name_or_id(
+                conn.volume.volumes(), 
+                volume_name, 
+                "Volume"
+            )
+
             if not volume:
                 return {
                     'success': False,
-                    'message': f'Volume "{volume_name}" not found'
+                    'message': f'Volume "{volume_name}" not found or not accessible in current project'
                 }
             
             # Check if volume is attached

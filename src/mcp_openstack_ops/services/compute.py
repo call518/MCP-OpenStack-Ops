@@ -32,7 +32,7 @@ def get_instance_details(
     """
     try:
         # Import here to avoid circular imports
-        from ..connection import get_openstack_connection
+        from ..connection import get_openstack_connection, get_current_project_id, validate_resource_ownership
         conn = get_openstack_connection()
         
         # Validate and sanitize inputs
@@ -44,7 +44,21 @@ def get_instance_details(
             offset = 0
         
         instances = []
-        all_servers = list(conn.compute.servers(details=True))
+        
+        # Get all servers with project filtering enabled
+        all_servers = list(conn.compute.servers(details=True, all_projects=False))
+        
+        # Additional project validation for security
+        current_project_id = get_current_project_id()
+        validated_servers = []
+        
+        for server in all_servers:
+            if validate_resource_ownership(server, "Instance"):
+                validated_servers.append(server)
+            else:
+                logger.warning(f"Filtered out instance {getattr(server, 'id', 'unknown')} - not owned by current project")
+        
+        all_servers = validated_servers
         
         # Filter by instance names if provided
         if instance_names:
@@ -399,49 +413,54 @@ def set_instance(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
                     'message': 'image parameter is required for create action'
                 }
             
-            # Find flavor
-            flavor = None
-            for flv in conn.compute.flavors():
-                if getattr(flv, 'name', '') == flavor_name or flv.id == flavor_name:
-                    flavor = flv
-                    break
+            # Find flavor using secure project-scoped lookup
+            from ..connection import find_resource_by_name_or_id
             
+            flavor = find_resource_by_name_or_id(
+                conn.compute.flavors(), 
+                flavor_name, 
+                "Flavor"
+            )
+
             if not flavor:
                 return {
                     'success': False,
-                    'message': f'Flavor "{flavor_name}" not found'
+                    'message': f'Flavor "{flavor_name}" not found or not accessible in current project'
                 }
             
-            # Find image
-            image = None
-            for img in conn.image.images():
-                if getattr(img, 'name', '') == image_name or img.id == image_name:
-                    image = img
-                    break
-            
+            # Find image using secure project-scoped lookup
+            image = find_resource_by_name_or_id(
+                conn.image.images(), 
+                image_name, 
+                "Image"
+            )
+
             if not image:
                 return {
                     'success': False,
-                    'message': f'Image "{image_name}" not found'
+                    'message': f'Image "{image_name}" not found or not accessible in current project'
                 }
             
-            # Handle networks
+            # Handle networks with secure project-scoped lookup
             networks = []
             if network_names:
                 if isinstance(network_names, str):
                     network_names = [network_names]
                     
                 for network_name in network_names:
-                    network = None
-                    for net in conn.network.networks():
-                        if getattr(net, 'name', '') == network_name or net.id == network_name:
-                            network = net
-                            break
+                    network = find_resource_by_name_or_id(
+                        conn.network.networks(), 
+                        network_name, 
+                        "Network"
+                    )
                     
                     if network:
                         networks.append({'uuid': network.id})
                     else:
-                        logger.warning(f"Network '{network_name}' not found, skipping")
+                        return {
+                            'success': False,
+                            'message': f'Network "{network_name}" not found or not accessible in current project'
+                        }
             
             # Optional parameters
             key_name = kwargs.get('key_name', kwargs.get('keypair'))
@@ -488,17 +507,17 @@ def set_instance(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
                 }
             }
             
-        # Find existing instance for other actions
-        server = None
-        for srv in conn.compute.servers():
-            if getattr(srv, 'name', '') == instance_name or srv.id == instance_name:
-                server = srv
-                break
+        # Find existing instance for other actions using secure lookup
+        server = find_resource_by_name_or_id(
+            conn.compute.servers(), 
+            instance_name, 
+            "Instance"
+        )
         
         if not server:
             return {
                 'success': False,
-                'message': f'Instance "{instance_name}" not found'
+                'message': f'Instance "{instance_name}" not found or not accessible in current project'
             }
         
         if action.lower() in ['start', 'boot', 'power_on']:
@@ -969,19 +988,21 @@ def set_server_group(group_name: str, action: str, **kwargs) -> Dict[str, Any]:
             }
             
         elif action.lower() == 'delete':
-            # Find server group
-            server_group = None
-            for sg in conn.compute.server_groups():
-                if getattr(sg, 'name', '') == group_name or sg.id == group_name:
-                    server_group = sg
-                    break
+            # Find server group using secure project-scoped lookup
+            from ..connection import find_resource_by_name_or_id
             
+            server_group = find_resource_by_name_or_id(
+                conn.compute.server_groups(), 
+                group_name, 
+                "Server Group"
+            )
+
             if not server_group:
                 return {
                     'success': False,
-                    'message': f'Server group "{group_name}" not found'
+                    'message': f'Server group "{group_name}" not found or not accessible in current project'
                 }
-            
+
             conn.compute.delete_server_group(server_group)
             return {
                 'success': True,
@@ -1764,19 +1785,21 @@ def set_flavor(flavor_name: str, action: str, **kwargs) -> Dict[str, Any]:
                 }
                 
         elif action.lower() == 'delete':
-            # Find the flavor
-            flavor = None
-            for flv in conn.compute.flavors():
-                if getattr(flv, 'name', '') == flavor_name or flv.id == flavor_name:
-                    flavor = flv
-                    break
+            # Find the flavor using secure project-scoped lookup
+            from ..connection import find_resource_by_name_or_id
             
+            flavor = find_resource_by_name_or_id(
+                conn.compute.flavors(), 
+                flavor_name, 
+                "Flavor"
+            )
+
             if not flavor:
                 return {
                     'success': False,
-                    'message': f'Flavor "{flavor_name}" not found'
+                    'message': f'Flavor "{flavor_name}" not found or not accessible in current project'
                 }
-            
+
             try:
                 conn.compute.delete_flavor(flavor)
                 return {
