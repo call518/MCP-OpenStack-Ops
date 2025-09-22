@@ -23,6 +23,9 @@
 - ✅ **Enhanced Project Monitoring**: Comprehensive project status reports with health scoring system, resource utilization analysis, instance state tracking, and detailed health breakdown by service categories.
 - ✅ **Complete Service Coverage**: 93+ comprehensive tools covering Identity, Compute, Network, Storage, Image, Orchestration, Load Balancer, and Monitoring services within project scope.
 - ✅ **Advanced Instance Management**: Enhanced server lifecycle operations with backup, migration, rescue, and administrative functions including state analysis.
+- ✅ **🆕 Bulk Operations & Filter-based Targeting**: Advanced bulk operations for instances, volumes, images, networks, keypairs, and snapshots with intelligent filtering (name_contains, status, etc.) enabling one-step operations like "stop all instances containing 'test'".
+- ✅ **🆕 Post-Action Status Verification**: Automatic status verification after operations with emoji indicators (🟢🔴🟡) providing immediate feedback on operation success and current resource states.
+- ✅ **🆕 Unified Resource Queries**: Consolidated get_instance tool replacing multiple separate query tools, providing comprehensive resource information in a single call.
 - ✅ **Server Event Tracking**: Detailed server event history and lifecycle monitoring with comprehensive logging.
 - ✅ **Network Analysis**: Comprehensive network operations with external/private network classification, floating IP management, and port operations within project scope.
 - ✅ **Volume Management**: Comprehensive volume attachment/detachment operations with state analysis and capacity tracking.
@@ -53,6 +56,66 @@
 
 ---
 
+## 🆕 Latest Enhancements (v1.x)
+
+### **Bulk Operations & Filter-based Targeting**
+Revolutionary approach to resource management enabling one-step operations:
+
+```bash
+# Traditional approach (multiple steps):
+1. search_instances("test") → get list
+2. set_instance("vm1", "stop") → stop individually  
+3. set_instance("vm2", "stop") → stop individually
+
+# NEW enhanced approach (single step):
+set_instance(action="stop", name_contains="test")  # ✨ Stops ALL instances containing "test"
+```
+
+**Supported Tools with Enhanced Capabilities:**
+- **`set_instance`**: Bulk lifecycle management with filtering (name_contains, status, flavor_contains, image_contains)
+- **`set_volume`**: Bulk volume operations with filtering (name_contains, status, size filtering)
+- **`set_image`**: Bulk image management with filtering (name_contains, status)
+- **`set_networks`**: Bulk network operations with filtering (name_contains, status)
+- **`set_keypair`**: Bulk keypair management with filtering (name_contains)
+- **`set_snapshot`**: Bulk snapshot operations with filtering (name_contains, status)
+
+**Input Format Flexibility:**
+```python
+# Single resource
+resource_names="vm1"
+
+# Multiple resources (comma-separated)
+resource_names="vm1,vm2,vm3"
+
+# JSON array format
+resource_names='["vm1", "vm2", "vm3"]'
+
+# Filter-based (automatic target identification)
+name_contains="test", status="ACTIVE"
+```
+
+### **Post-Action Status Verification**
+Every operation now provides immediate feedback with visual indicators:
+
+```bash
+✅ Bulk Instance Management - Action: stop
+📊 Total instances: 3
+✅ Successes: 2
+❌ Failures: 1
+
+Post-Action Status:
+🟢 test-vm-1: SHUTOFF  
+🟢 test-vm-2: SHUTOFF
+🔴 test-vm-3: ERROR
+```
+
+### **Unified Resource Queries**
+New consolidated `get_instance` tool replaces multiple separate tools:
+- ❌ Old: `get_instance_details`, `get_instance_info`, `get_instance_status`, `get_instance_network_info`
+- ✅ New: `get_instance(instance_names="vm1,vm2")` - Single tool, comprehensive information
+
+---
+
 ## 📊 OpenStack CLI vs MCP Tools Mapping
 
 **Detailed Mapping by Category**
@@ -61,11 +124,11 @@
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
-| `openstack server list` | `get_instance_details` | ✅ | Pagination, filtering support |
-| `openstack server show` | `get_instance_by_name`, `get_instance_by_id` | ✅ | ID/name search |
-| `openstack server create` | `set_instance` (action="create") | ✅ | Instance creation |
-| `openstack server start/stop/reboot` | `set_instance` | ✅ | Full lifecycle management |
-| `openstack server delete` | `set_instance` (action="delete") | ✅ | Instance deletion |
+| `openstack server list` | `get_instance` | ✅ | **NEW UNIFIED** - Pagination, filtering support |
+| `openstack server show` | `get_instance` | ✅ | **ENHANCED** - Replaces get_instance_by_name, get_instance_by_id |
+| `openstack server create` | `set_instance` (action="create") | ✅ | **ENHANCED** - Bulk creation support |
+| `openstack server start/stop/reboot` | `set_instance` | ✅ | **ENHANCED** - Bulk operations with filtering |
+| `openstack server delete` | `set_instance` (action="delete") | ✅ | **ENHANCED** - Bulk deletion with name_contains filtering |
 | `openstack server backup create` | `set_server_backup` | ✅ | Backup creation with rotation |
 | `openstack server image create` | `set_instance` (action="snapshot") | ✅ | Image/snapshot creation |
 | `openstack server shelve/unshelve` | `set_instance` | ✅ | Instance shelving |
@@ -115,9 +178,9 @@
 |---------------------|---------|------|------|
 | `openstack network list` | `get_network_details` | ✅ | Detailed network information |
 | `openstack network show` | `get_network_details` (name param) | ✅ | Specific network query |
-| `openstack network create` | `set_networks` (action="create") | ✅ | Network creation |
-| `openstack network delete` | `set_networks` (action="delete") | ✅ | Network deletion |
-| `openstack network set` | `set_networks` (action="update") | ✅ | Network property updates |
+| `openstack network create` | `set_networks` (action="create") | ✅ | **ENHANCED** - Bulk network creation |
+| `openstack network delete` | `set_networks` (action="delete") | ✅ | **ENHANCED** - Bulk deletion with filtering |
+| `openstack network set` | `set_networks` (action="update") | ✅ | **ENHANCED** - Bulk updates |
 | `openstack subnet list` | `get_network_details` (includes subnets) | ✅ | Subnet information included |
 | `openstack subnet create/delete` | `set_subnets` | ✅ | Subnet management |
 | `openstack router list` | `get_routers` | ✅ | Router listing |

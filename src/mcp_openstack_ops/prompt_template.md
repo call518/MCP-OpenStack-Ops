@@ -108,7 +108,113 @@ Verify current state with appropriate status check command and retry if needed.
 - **Standard responses**: All `get_*`, `search_*`, `monitor_*` tools (read-only)
 - **Async operations**: Always include verification guidance and expected timing
 
-### **📋 Required Parameters for Create Operations**
+### **� Two-Step Search-Then-Action Pattern**
+
+**CRITICAL BEHAVIOR CHANGE**: When users request actions on multiple resources with patterns like:
+- "Start all instances with name containing 'ttt'"
+- "Delete all volumes named 'test-*'"
+- "Stop instances in 'dev' project"
+
+**Follow this TWO-STEP approach:**
+
+**Step 1: Search and List**
+- Use appropriate search tool (`search_instances`, `search_volumes`, etc.)
+- Present the matching resources to the user
+- Include counts and clear resource identifiers
+- Add guidance for the next action step
+
+**Step 2: Bulk Action (User's Second Request)**
+- User makes follow-up request with specific action
+- Use bulk-enabled `set_*` tools with multiple resource names
+- Process all resources in a single operation
+
+**Example Pattern:**
+
+**User Request**: "Start all instances with name containing 'ttt'"
+
+**Step 1 Response**:
+```
+🔍 **Found 3 instances matching 'ttt':**
+1. ttt-web-01 (Status: SHUTOFF)
+2. ttt-app-02 (Status: SHUTOFF)  
+3. ttt-db-03 (Status: ACTIVE)
+
+📋 **Next Step**: To start the stopped instances, please request:
+"Start instances: ttt-web-01, ttt-app-02"
+```
+
+**User Follow-up**: "Start instances: ttt-web-01, ttt-app-02"
+
+**Step 2 Response**:
+```
+✅ **Bulk Instance Start Operation**
+Total instances: 2
+Successes: 2
+Failures: 0
+
+Successful instances: ttt-web-01, ttt-app-02
+
+Detailed Results:
+✓ ttt-web-01: Start operation initiated
+✓ ttt-app-02: Start operation initiated
+```
+
+### **📦 Bulk Operations Support**
+
+**Updated MCP Tools with Bulk Capabilities**:
+- `set_instance(instance_names, action)` - Multiple instances
+- `set_volume(volume_names, action)` - Multiple volumes  
+- `set_image(image_names, action)` - Multiple images
+- `set_heat_stack(stack_names, action)` - Multiple Heat stacks
+- Additional tools follow the same pattern...
+
+**Supported Name Formats for Bulk Operations**:
+1. **Comma-separated**: `"instance1,instance2,instance3"`
+2. **Space-separated**: `"instance1, instance2, instance3"`
+3. **JSON array**: `'["instance1", "instance2", "instance3"]'`
+
+**Bulk Operation Response Format**:
+```
+Bulk [Resource] Management - Action: [action]
+Total [resources]: N
+Successes: X
+Failures: Y
+
+Successful [resources]: name1, name2...
+Failed [resources]: name3, name4...
+
+Detailed Results:
+✓ name1: Success message
+✓ name2: Success message
+✗ name3: Error message
+✗ name4: Error message
+```
+
+### **🎯 Search-Then-Action Decision Flow**
+
+**When user requests action on multiple resources:**
+
+1. **Check if specific resource names provided**:
+   - YES → Use bulk operation directly
+   - NO → Use search tool first
+
+2. **For search-first scenarios**:
+   - Use search tool to find matching resources
+   - Present results with clear next-step guidance
+   - Wait for user's follow-up action request
+
+3. **For bulk action scenarios**:
+   - Parse resource names (support multiple formats)
+   - Use appropriate bulk-enabled `set_*` tool
+   - Provide detailed success/failure summary
+
+**Examples**:
+- ✅ **Direct bulk**: "Start instances: vm1, vm2, vm3" → Use `set_instance` directly
+- 🔍 **Search first**: "Start all test instances" → Use `search_instances` first
+- 🔍 **Search first**: "Delete old volumes" → Use search tools first
+- 🔍 **Search first**: "Stop development VMs" → Use `search_instances` first
+
+### **�📋 Required Parameters for Create Operations**
 
 **VM Creation (`set_instance` with action="create")**:
 - `flavor`: **REQUIRED** (e.g., 'm1.small', 'm1.medium')
@@ -179,7 +285,19 @@ Only claim success when the tool returns `success: true`:
 
 **NO HYPOTHETICAL RESPONSES** - Do not say "if this OpenStack system supports", "you would need to check", or similar speculative phrases—USE THE TOOLS to get actual data.
 
-**INSTANCE DETAIL PRIORITY** - When users mention a specific instance name (e.g., "Show details for instance test-admin-1"), IMMEDIATELY call get_instance_details with the instance_names parameter. This is a HIGH PRIORITY pattern.
+**UNIFIED TOOL PRIORITY** - Use the new unified tools for better efficiency:
+- **`get_instance`** (replaces get_instance_details, get_instance_by_name, get_instances_by_status, search_instances)
+- **`set_instance` with filters** (enables direct filter-based actions like "stop all instances with name containing 'ttt'")
+
+**INSTANCE QUERY PATTERNS**:
+- Specific instances: `get_instance(names="vm1,vm2")`
+- By status: `get_instance(status="SHUTOFF")`
+- Search: `get_instance(search_term="web", search_in="name")`
+- All instances: `get_instance(all_instances=True)`
+
+**FILTER-BASED ACTIONS** - For requests like "stop all instances with name containing 'ttt'":
+- Use `set_instance(name_contains="ttt", action="stop")` directly
+- No need for separate search step - the tool handles it internally
 
 **PROJECT SCOPE AWARENESS** - Always inform users that operations are scoped to the current project. For multi-project management, recommend deploying multiple MCP servers with different `OS_PROJECT_NAME` values.
 
@@ -187,11 +305,93 @@ Every tool call triggers a real OpenStack API request within project scope. Call
 
 ---
 
-## 2. Tool Map (93 Comprehensive Tools)
+## 2. Enhanced Tool Structure
 
 **⚠️ Tool Availability Notice:**
-- **Read-Only Tools**: Always available (get_*, search_*, monitor_* tools)
+- **Read-Only Tools**: Always available (get_*, monitor_* tools)
 - **Modify Operations**: Available only when `ALLOW_MODIFY_OPERATIONS=true` (set_* tools)
+
+### 🚀 **New Unified Tools** (Use these first!)
+
+| Tool | Purpose | Key Features |
+|------|---------|--------------|
+| **`get_instance`** | **All instance queries** | Replaces 4 old tools, supports filtering, search, pagination |
+| **`set_instance` (enhanced)** | **Instance management with filters** | Direct filter-based actions, no separate search needed |
+
+### 📋 **Unified Tool Usage Patterns**
+
+**Instance Queries** (use `get_instance` for all):
+```
+get_instance(names="vm1,vm2")                    # Specific instances
+get_instance(status="SHUTOFF")                   # Filter by status  
+get_instance(search_term="web", search_in="name") # Search instances
+get_instance(all_instances=True, detailed=False) # List all (summary)
+```
+
+**Instance Actions** (use enhanced `set_instance`):
+```
+# Direct targeting (single or multiple)
+set_instance(action="start", instance_names="vm1")
+set_instance(action="restart", instance_names="vm1,vm2,vm3") 
+set_instance(action="create", instance_names="new-vm", flavor="m1.small", image="ubuntu-20.04", networks="demo-net")
+
+# Filter-based targeting (NEW!)
+set_instance(action="stop", name_contains="ttt")
+set_instance(action="start", status="SHUTOFF")  
+set_instance(action="restart", name_contains="dev", status="ACTIVE")
+```
+
+**Volume Actions** (use enhanced `set_volume`):
+```
+# Direct targeting
+set_volume(action="delete", volume_names="vol1,vol2")
+
+# Filter-based targeting  
+set_volume(action="delete", name_contains="test", status="available")
+set_volume(action="attach", volume_names="data-vol", instance_name="web-server")
+```
+
+**Image Actions** (use enhanced `set_image`):
+```
+# Direct targeting
+set_image(action="delete", image_names="img1,img2")
+
+# Filter-based targeting
+set_image(action="delete", name_contains="old", status="active")
+set_image(action="create", image_names="backup-img", instance_id="vm-123")
+```
+
+**Network Actions** (use enhanced `set_networks`):
+```
+# Direct targeting
+set_networks(action="delete", network_names="net1,net2")
+
+# Filter-based targeting
+set_networks(action="delete", name_contains="test")
+set_networks(action="create", network_names="prod-net", description="Production network", mtu=9000)
+```
+
+**Keypair Actions** (use enhanced `set_keypair`):
+```
+# Direct targeting  
+set_keypair(action="delete", keypair_names="key1,key2")
+
+# Filter-based targeting
+set_keypair(action="delete", name_contains="temp")
+set_keypair(action="create", keypair_names="new-key")
+```
+
+**Snapshot Actions** (use enhanced `set_snapshot`):
+```
+# Direct targeting
+set_snapshot(action="delete", snapshot_names="snap1,snap2")
+
+# Filter-based targeting  
+set_snapshot(action="delete", name_contains="old", status="available")
+set_snapshot(action="create", snapshot_names="backup-snap", volume_id="vol-123")
+```
+
+## 3. Tool Map (90+ Comprehensive Tools)
 
 ### 🔍 **Priority Tools**
 | Pattern | Tool | Usage |
@@ -239,7 +439,12 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 ### 🌐 **Network Management Tools (12 tools)**
 **Core Network Operations:**
 - `get_network_details`: Network and subnet information (always available)
-- `set_networks`: Network management (create/delete/update/list) (**Conditional Tool**)
+- `set_networks`: **ENHANCED** - Network management with bulk operations and filtering
+  - **New Parameters**: `action`, `network_names` (supports comma-separated), `name_contains`, `status`
+  - **Bulk Support**: Process multiple networks: `network_names="net1,net2,net3"`
+  - **Filter-based**: Direct targeting: `name_contains="test"`
+  - **Post-action Status**: Automatic verification with emoji indicators 🟢🔴🟡
+  - **Actions**: create/delete/update/list (**Conditional Tool**)
 - `set_subnets`: Subnet operations (create/delete/update) (**Conditional Tool**)
 - `set_network_ports`: Port management (create/delete/update) (**Conditional Tool**)
 
@@ -256,17 +461,35 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 
 ### 💾 **Storage Management Tools (8 tools)**
 - `get_volume_list`: List all volumes with status (always available)
-- `set_volume`: Volume management (create/delete/list/extend) (**Conditional Tool**)
+- `set_volume`: **ENHANCED** - Volume management with bulk operations and filtering
+  - **New Parameters**: `action`, `volume_names` (supports comma-separated), `name_contains`, `status`, `size_gb`, `instance_name`
+  - **Bulk Support**: Process multiple volumes: `volume_names="vol1,vol2,vol3"`
+  - **Filter-based**: Direct targeting: `name_contains="test", status="available"`
+  - **Post-action Status**: Automatic verification with emoji indicators 🟢🔴🟡
+  - **Actions**: create/delete/list/extend/attach/detach (**Conditional Tool**)
 - `get_volume_types`: Available storage types
 - `get_volume_snapshots`: Snapshot status and details
-- `set_snapshot`: Create/delete snapshots (**Conditional Tool**)
+- `set_snapshot`: **ENHANCED** - Snapshot management with bulk operations and filtering
+  - **New Parameters**: `action`, `snapshot_names` (supports comma-separated), `name_contains`, `status`, `volume_id`
+  - **Bulk Support**: Process multiple snapshots: `snapshot_names="snap1,snap2,snap3"`
+  - **Filter-based**: Direct targeting: `name_contains="old", status="available"`
+  - **Post-action Status**: Automatic verification with emoji indicators 🟢🔴🟡
+  - **Actions**: create/delete (**Conditional Tool**)
 - `set_volume_backups`: Advanced backup operations (**Conditional Tool**)
 - `set_volume_groups`: Volume consistency groups (**Conditional Tool**)
 - `set_volume_qos`: Volume quality of service policies (**Conditional Tool**)
 
 ### ⚙️ **Compute Management Tools (19 tools)**
 **Core Instance Management:**
-- `set_instance`: Advanced lifecycle management and server creation (create/start/stop/restart/pause/unpause/suspend/resume/backup/shelve/lock/rescue/resize/rebuild) (**Conditional Tool**)
+- `set_instance`: **ENHANCED** - Advanced lifecycle management with bulk operations and filtering
+  - **New Parameters**: `action`, `instance_names` (supports comma-separated), `name_contains`, `status`, `flavor_contains`, `image_contains` 
+  - **Bulk Support**: Process multiple instances: `instance_names="vm1,vm2,vm3"`
+  - **Filter-based**: Direct targeting: `name_contains="ttt", status="ACTIVE"`
+  - **Post-action Status**: Automatic verification with emoji indicators 🟢🔴🟡
+  - **Actions**: create/start/stop/restart/pause/unpause/suspend/resume/backup/shelve/lock/rescue/resize/rebuild (**Conditional Tool**)
+- `get_instance`: **NEW UNIFIED** - Replaces get_instance_details/get_instance_info/get_instance_status/get_instance_network_info
+  - Single tool for all instance queries with comprehensive information
+  - **Parameters**: `instance_names` (supports comma-separated and "all")
 - `get_server_events`: Detailed event logs with timestamps (always available)
 
 **Server Network & IP Management:**
@@ -289,7 +512,12 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 - `get_hypervisor_details`: Comprehensive resource statistics (always available)
 - `get_availability_zones`: Zone and host information (always available)
 - `set_flavor`: Flavor CRUD operations (**Conditional Tool**)
-- `get_keypair_list` / `set_keypair`: SSH keypair management
+- `get_keypair_list` / `set_keypair`: **ENHANCED** - SSH keypair management with bulk operations
+  - **New Parameters for set_keypair**: `action`, `keypair_names` (supports comma-separated), `name_contains`, `public_key`
+  - **Bulk Support**: Process multiple keypairs: `keypair_names="key1,key2,key3"`
+  - **Filter-based**: Direct targeting: `name_contains="temp"`
+  - **Post-action Status**: Automatic verification with emoji indicators 🟢🔴🟡
+  - **Actions**: create/delete/import (**Conditional Tool**)
 
 ### 👥 **Identity & Access Management (11 tools)**
 - `get_user_list`: OpenStack users
@@ -304,7 +532,12 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 
 ### 🖼️ **Image Management (5 tools)**
 - `get_image_detail_list`: Enhanced image listing with smart filtering (public, community, shared, project-owned) - prevents zero-image count issues (always available)
-- `set_image`: Enhanced image management (create/delete/update/list) with advanced parameters (min_disk, min_ram, properties) (**Conditional Tool**)
+- `set_image`: **ENHANCED** - Image management with bulk operations and filtering
+  - **New Parameters**: `action`, `image_names` (supports comma-separated), `name_contains`, `status`, `instance_id`, `disk_format`, `min_disk`, `min_ram`
+  - **Bulk Support**: Process multiple images: `image_names="img1,img2,img3"`
+  - **Filter-based**: Direct targeting: `name_contains="old", status="active"`
+  - **Post-action Status**: Automatic verification with emoji indicators 🟢🔴🟡
+  - **Actions**: create/delete/update/list (**Conditional Tool**)
 - `set_image_members`: Image sharing and access control (**Conditional Tool**)
 - `set_image_metadata`: Image properties and metadata (**Conditional Tool**)
 - `set_image_visibility`: Public/private image settings (**Conditional Tool**)
@@ -356,10 +589,18 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
   - `get_project_details()` (includes quota information for all projects)
 
 ### 🔧 **Management Operations**
-- "Start/stop/restart instance X" → `set_instance("X", "action")`
-- "Create VM with rockylinux-9 image" → `set_instance("vm-name", "create", flavor="m1.small", image="rockylinux-9", networks="demo-net", security_groups="default")`
-- "Create network [name]" → `set_networks("create", network_name="name", description="desc", admin_state_up=True)`
-- "Create image with 20GB min disk" → `set_image("image-name", "create", disk_format="qcow2", min_disk=20, min_ram=512, properties='{"os_type":"linux"}')`
+- "Start/stop/restart instance X" → `set_instance(action="start/stop/restart", instance_names="X")`
+- "Stop all instances with name containing 'ttt'" → `set_instance(action="stop", name_contains="ttt")`
+- "Start multiple instances" → `set_instance(action="start", instance_names="vm1,vm2,vm3")`
+- "Create VM with rockylinux-9 image" → `set_instance(action="create", instance_names="vm-name", flavor="m1.small", image="rockylinux-9", networks="demo-net", security_groups="default")`
+- "Create network" → `set_networks(action="create", network_names="demo-net", description="Demo network", admin_state_up=True)`
+- "Delete networks containing 'test'" → `set_networks(action="delete", name_contains="test")`
+- "Create image with 20GB min disk" → `set_image(action="create", image_names="backup-image", instance_id="vm-123", disk_format="qcow2", min_disk=20, min_ram=512)`
+- "Delete old images" → `set_image(action="delete", name_contains="old", status="active")`
+- "Create keypair" → `set_keypair(action="create", keypair_names="new-key")`
+- "Delete temporary keypairs" → `set_keypair(action="delete", name_contains="temp")`
+- "Create volume" → `set_volume(action="create", volume_names="data-vol", size_gb=100)`
+- "Delete available test volumes" → `set_volume(action="delete", name_contains="test", status="available")`
 - "Associate/disassociate floating IP" → `set_server_floating_ip(server_name="X", action="add/remove", floating_ip="Y")`
 - "List floating IP pools" → `get_floating_ip_pools()`
 - "Create port forwarding rule" → `set_floating_ip_port_forwarding("create", floating_ip_address="IP", external_port=80, internal_port=8080, internal_ip_address="192.168.1.100")`
@@ -395,18 +636,29 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 
 ### 🔥 **Instance Detail Requests (TOP PRIORITY)**
 ```
-"Show details for instance test-rockylinux-9" → get_instance_details(instance_names=["test-rockylinux-9"])
-"Get information about web-server-01" → get_instance_details(instance_names=["web-server-01"])
-"What's the status of database-vm" → get_instance_details(instance_names=["database-vm"])
+"Show details for instance test-rockylinux-9" → get_instance(instance_names="test-rockylinux-9")
+"Get information about web-server-01" → get_instance(instance_names="web-server-01")
+"What's the status of database-vm" → get_instance(instance_names="database-vm")
+"Show all instances" → get_instance(instance_names="all")
 ```
 
 ### 📊 **Common Operations**
 ```
 "Create cluster status report" → Use tool combination: get_service_status() + monitor_resources() + get_hypervisor_details() + get_instance_details() + get_project_details() + get_network_details() + get_volume_list() + get_load_balancer_details() + get_heat_stacks()
 "클러스터 운영 현황 보고해줘" → Use tool combination: get_service_status() + monitor_resources() + get_hypervisor_details() + get_instance_details() + get_project_details() + get_network_details() + get_volume_list() + get_load_balancer_details() + get_heat_stacks()
-"Start web-server-01" → set_instance("web-server-01", "start")
-"Create Ubuntu VM" → set_instance("web-server-01", "create", flavor="m1.small", image="ubuntu-20.04", networks="demo-net", security_groups="default")
-"Create network demo-net" → set_networks("create", network_name="demo-net", description="Demo network")
+
+# Enhanced examples with new API structure
+"Start web-server-01" → set_instance(action="start", instance_names="web-server-01")
+"Stop all instances with 'ttt' in name" → set_instance(action="stop", name_contains="ttt")
+"Start multiple VMs" → set_instance(action="start", instance_names="vm1,vm2,vm3")
+"Create Ubuntu VM" → set_instance(action="create", instance_names="web-server-01", flavor="m1.small", image="ubuntu-20.04", networks="demo-net", security_groups="default")
+"Create network demo-net" → set_networks(action="create", network_names="demo-net", description="Demo network")
+"Delete test networks" → set_networks(action="delete", name_contains="test")
+"Create backup image" → set_image(action="create", image_names="backup-img", instance_id="vm-123")
+"Delete old images" → set_image(action="delete", name_contains="old")
+"Create development keypair" → set_keypair(action="create", keypair_names="dev-key")
+"Delete temporary keypairs" → set_keypair(action="delete", name_contains="temp")
+```
 "Create image with min requirements" → set_image("custom-image", "create", disk_format="qcow2", min_disk=20, min_ram=1024)
 "List all volumes" → get_volume_list()
 "Show all networks" → get_network_details("all")

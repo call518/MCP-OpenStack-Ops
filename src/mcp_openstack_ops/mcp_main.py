@@ -287,6 +287,49 @@ else:
 # Safety Control Functions
 # =============================================================================
 
+def _get_resource_status_by_name(resource_type: str, resource_name: str) -> str:
+    """Helper function to get current status of a resource by name."""
+    try:
+        if resource_type == "instance":
+            instance_info = _get_instance_by_name(resource_name.strip())
+            return instance_info.get('status', 'Unknown') if instance_info else 'Not Found'
+        
+        elif resource_type == "volume":
+            volumes = _get_volume_list()
+            for volume in volumes:
+                if volume.get('name') == resource_name.strip():
+                    return volume.get('status', 'Unknown')
+            return 'Not Found'
+            
+        elif resource_type == "image":
+            images = _get_image_detail_list()
+            if isinstance(images, list):
+                for image in images:
+                    if image.get('name') == resource_name.strip():
+                        return image.get('status', 'Unknown')
+            return 'Not Found'
+        
+        elif resource_type == "network":
+            # Get network details from network listing
+            network_info = _get_network_details(resource_name.strip())
+            if isinstance(network_info, list) and network_info:
+                return network_info[0].get('status', 'Unknown')
+            return 'Not Found'
+            
+        elif resource_type == "keypair":
+            keypairs = _get_keypair_list()
+            if isinstance(keypairs, list):
+                for keypair in keypairs:
+                    if keypair.get('name') == resource_name.strip():
+                        return 'Available'  # Keypairs don't have status, just exist or not
+            return 'Not Found'
+            
+        else:
+            return 'Unknown Resource Type'
+            
+    except Exception as e:
+        return f'Status Check Failed: {str(e)}'
+
 def _is_modify_operation_allowed() -> bool:
     """Check if modify operations are allowed based on environment variable."""
     return os.environ.get("ALLOW_MODIFY_OPERATIONS", "false").lower() == "true"
@@ -380,6 +423,186 @@ async def get_service_status() -> str:
         return error_msg
 
 
+# ===== UNIFIED INSTANCE QUERY TOOL =====
+@mcp.tool()
+async def get_instance(
+    names: str = "",
+    ids: str = "",
+    status: str = "",
+    search_term: str = "",
+    search_in: str = "name",
+    all_instances: bool = False,
+    detailed: bool = True,
+    limit: int = 50,
+    offset: int = 0,
+    case_sensitive: bool = False
+) -> str:
+    """
+    Unified instance query tool supporting all instance retrieval patterns.
+    Consolidates functionality from get_instance_details, get_instance_by_name, get_instances_by_status, and search_instances.
+    
+    Functions:
+    - Get specific instances by names or IDs
+    - Filter instances by status (ACTIVE, SHUTOFF, ERROR, etc.)
+    - Search instances across multiple fields (name, flavor, image, host, etc.)
+    - List all instances with pagination
+    - Support both summary and detailed information modes
+    
+    Use when user requests instance information, status checks, or instance searches.
+    
+    Args:
+        names: Specific instance name(s) to retrieve (comma-separated: "vm1,vm2,vm3")
+        ids: Specific instance ID(s) to retrieve (comma-separated)
+        status: Filter by instance status (e.g., "ACTIVE", "SHUTOFF", "ERROR")
+        search_term: Search term for partial matching across fields
+        search_in: Fields to search in ("name", "status", "host", "flavor", "image", "availability_zone", "all")
+        all_instances: If True, retrieve all instances (ignores other filters)
+        detailed: If True, return detailed information; if False, return summary only
+        limit: Maximum instances to return (default: 50, max: 200)
+        offset: Number of instances to skip for pagination
+        case_sensitive: Case-sensitive search (default: False)
+        
+    Returns:
+        Instance information in JSON format with metadata and pagination info.
+        
+    Examples:
+        get_instance(names="vm1,vm2")                    # Get specific instances
+        get_instance(status="SHUTOFF")                   # Get all stopped instances
+        get_instance(search_term="web", search_in="name") # Search by name
+        get_instance(all_instances=True, detailed=False) # List all (summary)
+    """
+    try:
+        # Determine query method
+        has_direct_names = names and names.strip()
+        has_direct_ids = ids and ids.strip()
+        has_status_filter = status and status.strip()
+        has_search = search_term and search_term.strip()
+        
+        result_data = None
+        query_description = ""
+        
+        if all_instances:
+            # Get all instances
+            logger.info("Fetching all instances")
+            result_data = _get_instance_details(
+                instance_names="",
+                instance_ids="",
+                all_instances=True,
+                limit=limit,
+                offset=offset,
+                include_all=True
+            )
+            query_description = "All instances"
+            
+        elif has_direct_names:
+            # Get specific instances by names
+            logger.info(f"Fetching instances by names: {names}")
+            result_data = _get_instance_details(
+                instance_names=names.strip(),
+                instance_ids="",
+                all_instances=False,
+                limit=limit,
+                offset=offset,
+                include_all=True
+            )
+            query_description = f"Instances by names: {names}"
+            
+        elif has_direct_ids:
+            # Get specific instances by IDs
+            logger.info(f"Fetching instances by IDs: {ids}")
+            result_data = _get_instance_details(
+                instance_names="",
+                instance_ids=ids.strip(),
+                all_instances=False,
+                limit=limit,
+                offset=offset,
+                include_all=True
+            )
+            query_description = f"Instances by IDs: {ids}"
+            
+        elif has_status_filter:
+            # Filter by status
+            logger.info(f"Fetching instances with status: {status}")
+            instances = _get_instances_by_status(status.upper())
+            
+            # Apply pagination
+            total_count = len(instances)
+            paginated_instances = instances[offset:offset + limit] if instances else []
+            
+            result_data = {
+                "timestamp": datetime.now().isoformat(),
+                "query_type": "status_filter",
+                "status_filter": status.upper(),
+                "total_instances": total_count,
+                "instances_returned": len(paginated_instances),
+                "limit": limit,
+                "offset": offset,
+                "instances": paginated_instances
+            }
+            query_description = f"Instances with status: {status}"
+            
+        elif has_search:
+            # Search instances
+            logger.info(f"Searching instances for '{search_term}' in '{search_in}'")
+            result_data = _search_instances(
+                search_term=search_term,
+                search_fields=search_in.split(',') if search_in else ['name'],
+                limit=limit,
+                include_inactive=True
+            )
+            
+            # Enhance result with metadata
+            if isinstance(result_data, list):
+                result_data = {
+                    "timestamp": datetime.now().isoformat(),
+                    "query_type": "search",
+                    "search_term": search_term,
+                    "search_in": search_in,
+                    "case_sensitive": case_sensitive,
+                    "total_instances": len(result_data),
+                    "instances": result_data
+                }
+            elif isinstance(result_data, dict) and 'instances' not in result_data:
+                result_data["query_type"] = "search"
+                result_data["search_term"] = search_term
+                result_data["search_in"] = search_in
+                
+            query_description = f"Search results for '{search_term}' in '{search_in}'"
+            
+        else:
+            return "Error: Specify at least one query parameter (names, ids, status, search_term, or all_instances=True)"
+        
+        # Handle detailed vs summary mode
+        if not detailed and isinstance(result_data, dict) and 'instances' in result_data:
+            # Convert to summary mode
+            summary_instances = []
+            for instance in result_data['instances']:
+                summary_instances.append({
+                    'id': instance.get('id', ''),
+                    'name': instance.get('name', ''),
+                    'status': instance.get('status', ''),
+                    'flavor': instance.get('flavor', ''),
+                    'image': instance.get('image', '')
+                })
+            result_data['instances'] = summary_instances
+            result_data['mode'] = 'summary'
+        elif detailed and isinstance(result_data, dict):
+            result_data['mode'] = 'detailed'
+        
+        # Add query metadata
+        if isinstance(result_data, dict):
+            result_data['query_description'] = query_description
+            result_data['detailed'] = detailed
+        
+        return json.dumps(result_data, indent=2, ensure_ascii=False)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to query instances - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
+
+
+# ===== LEGACY INSTANCE TOOLS (Deprecated - Use get_instance instead) =====
 @mcp.tool()
 async def get_instance_details(
     instance_names: str = "", 
@@ -667,8 +890,14 @@ async def get_network_details(network_name: str = "all") -> str:
 
 @conditional_tool
 async def set_instance(
-    instance_name: str, 
-    action: str,
+    instance_names: str = "", 
+    action: str = "",
+    # Filtering parameters for automatic target identification
+    name_contains: str = "",
+    status: str = "",
+    flavor_contains: str = "",
+    image_contains: str = "",
+    # Instance creation/modification parameters
     flavor: Optional[str] = None,
     image: Optional[str] = None,
     networks: Optional[str] = None,
@@ -678,6 +907,7 @@ async def set_instance(
 ) -> str:
     """
     Manages OpenStack instances with operations like start, stop, restart, pause, unpause, and create.
+    Supports both direct target specification and automatic filtering-based target identification.
     
     Functions:
     - Create new instances with specified configuration
@@ -686,14 +916,32 @@ async def set_instance(
     - Restart/reboot instances (soft reboot)
     - Pause active instances (suspend to memory)
     - Unpause/resume paused instances
+    - Bulk operations: Apply action to multiple instances at once
+    - Filter-based targeting: Automatically find targets using filtering conditions
     
     Use when user requests instance management, VM control, server operations, instance lifecycle management, or server creation.
     
     CRITICAL: For create action, both flavor AND image are REQUIRED. Operation will fail if either is missing.
     
+    Targeting Methods:
+    1. Direct: Specify instance_names directly
+    2. Filter-based: Use name_contains, status, flavor_contains, image_contains to auto-identify targets
+    
     Args:
-        instance_name: Name of the instance to manage or create
+        instance_names: Name(s) of instances to manage or create. Support formats:
+                       - Single: "instance1" 
+                       - Multiple: "instance1,instance2,instance3" or "instance1, instance2, instance3"
+                       - List format: '["instance1", "instance2", "instance3"]'
+                       - Leave empty to use filtering parameters
         action: Management action (create, start, stop, restart, reboot, pause, unpause, resume)
+        
+        # Filtering parameters (alternative to instance_names)
+        name_contains: Filter instances whose names contain this string (e.g., "ttt", "dev", "test")
+        status: Filter instances by status (e.g., "SHUTOFF", "ACTIVE", "ERROR")
+        flavor_contains: Filter instances whose flavor names contain this string
+        image_contains: Filter instances whose image names contain this string
+        
+        # Creation/modification parameters
         flavor: Flavor name for create action (e.g., 'm1.small', 'm1.medium') - REQUIRED for create
         image: Image name for create action (e.g., 'ubuntu-22.04', 'rocky-9') - REQUIRED for create
         networks: Network name(s) for create action (e.g., 'demo-net', 'private-net')
@@ -703,13 +951,114 @@ async def set_instance(
         
     Returns:
         Clear success message with instance details OR clear error message if operation fails.
+        For bulk operations, returns summary of successes and failures.
+        For filter-based operations, shows identified targets before performing actions.
         NEVER returns false success claims - if operation fails, you'll get explicit error details.
+        
+    Examples:
+        # Direct targeting
+        set_instance(instance_names="vm1,vm2", action="start")
+        
+        # Filter-based targeting  
+        set_instance(name_contains="ttt", action="stop")
+        set_instance(status="SHUTOFF", action="start")
+        set_instance(name_contains="dev", status="ACTIVE", action="restart")
     """
     try:
-        if not instance_name or not instance_name.strip():
-            return "Error: Instance name is required"
         if not action or not action.strip():
             return "Error: Action is required (create, start, stop, restart, pause, unpause)"
+            
+        action = action.strip().lower()
+        
+        # Determine targeting method
+        has_direct_targets = instance_names and instance_names.strip()
+        has_filter_params = any([name_contains, status, flavor_contains, image_contains])
+        
+        if not has_direct_targets and not has_filter_params:
+            return "Error: Either specify instance_names directly or provide filtering parameters (name_contains, status, etc.)"
+        
+        if has_direct_targets and has_filter_params:
+            return "Error: Use either direct targeting (instance_names) OR filtering parameters, not both"
+        
+        # Handle filter-based targeting
+        if has_filter_params:
+            logger.info(f"Using filter-based targeting for action '{action}'")
+            
+            # Build search criteria
+            search_results = []
+            
+            if name_contains:
+                result = _search_instances(
+                    search_term=name_contains,
+                    search_fields=['name'],
+                    limit=200,
+                    include_inactive=True
+                )
+                if isinstance(result, dict) and 'instances' in result:
+                    search_results.extend(result['instances'])
+                elif isinstance(result, list):
+                    search_results.extend(result)
+            
+            if status:
+                status_instances = _get_instances_by_status(status.upper())
+                search_results.extend(status_instances)
+            
+            # Apply additional filters if specified
+            if flavor_contains or image_contains:
+                filtered_results = []
+                for instance in search_results:
+                    if flavor_contains and flavor_contains.lower() not in instance.get('flavor', '').lower():
+                        continue
+                    if image_contains and image_contains.lower() not in instance.get('image', '').lower():
+                        continue
+                    filtered_results.append(instance)
+                search_results = filtered_results
+            
+            # Remove duplicates and extract names
+            seen_ids = set()
+            target_names = []
+            for instance in search_results:
+                instance_id = instance.get('id', '')
+                if instance_id and instance_id not in seen_ids:
+                    seen_ids.add(instance_id)
+                    target_names.append(instance.get('name', ''))
+            
+            if not target_names:
+                filter_desc = []
+                if name_contains: filter_desc.append(f"name contains '{name_contains}'")
+                if status: filter_desc.append(f"status = '{status}'")
+                if flavor_contains: filter_desc.append(f"flavor contains '{flavor_contains}'")
+                if image_contains: filter_desc.append(f"image contains '{image_contains}'")
+                
+                return f"No instances found matching filters: {', '.join(filter_desc)}"
+            
+            logger.info(f"Filter-based targeting found {len(target_names)} instances: {target_names}")
+            
+            # Use the found names as targets
+            name_list = target_names
+        
+        else:
+            # Handle direct targeting (existing logic)
+            names_str = instance_names.strip()
+            
+            # Handle JSON list format: ["name1", "name2"]
+            if names_str.startswith('[') and names_str.endswith(']'):
+                try:
+                    import json
+                    name_list = json.loads(names_str)
+                    if not isinstance(name_list, list):
+                        return "Error: Invalid JSON list format for instance names"
+                except json.JSONDecodeError:
+                    return "Error: Invalid JSON format for instance names"
+            else:
+                # Handle comma-separated format: "name1,name2" or "name1, name2"
+                name_list = [name.strip() for name in names_str.split(',')]
+            
+            # Remove empty strings
+            name_list = [name for name in name_list if name]
+            
+            if not name_list:
+                return "Error: No valid instance names provided"
             
         kwargs = {}
         if flavor:
@@ -725,23 +1074,125 @@ async def set_instance(
         if availability_zone:
             kwargs['availability_zone'] = availability_zone
             
-        logger.info(f"Managing instance '{instance_name}' with action '{action}'")
-        result = _set_instance(instance_name.strip(), action.strip(), **kwargs)
+        # Handle single instance (backward compatibility)
+        if len(name_list) == 1:
+            logger.info(f"Managing instance '{name_list[0]}' with action '{action}'")
+            result = _set_instance(name_list[0].strip(), action.strip(), **kwargs)
+            
+            # Post-action status verification for single instance
+            import time
+            time.sleep(2)  # Allow time for OpenStack operation to complete
+            
+            post_status = "Unknown"
+            try:
+                instance_info = _get_instance_by_name(name_list[0].strip())
+                if instance_info:
+                    post_status = instance_info.get('status', 'Unknown')
+                else:
+                    post_status = 'Not Found'
+            except Exception as e:
+                post_status = f'Status Check Failed: {str(e)}'
+            
+            # Use centralized result handling with enhanced status info
+            base_result = handle_operation_result(
+                result, 
+                "Instance Management",
+                {
+                    "Action": action,
+                    "Instance": name_list[0],
+                    "Flavor": flavor or "Not specified",
+                    "Image": image or "Not specified"
+                }
+            )
+            
+            # Add post-action status
+            status_indicator = "🟢" if post_status in ["ACTIVE", "RUNNING"] else "🔴" if post_status in ["SHUTOFF", "STOPPED"] else "🟡"
+            enhanced_result = f"{base_result}\n\nPost-Action Status:\n{status_indicator} {name_list[0]}: {post_status}"
+            
+            return enhanced_result
         
-        # Use centralized result handling
-        return handle_operation_result(
-            result, 
-            "Instance Management",
-            {
-                "Action": action,
-                "Instance": instance_name,
-                "Flavor": flavor or "Not specified",
-                "Image": image or "Not specified"
-            }
-        )
+        # Handle bulk operations (multiple instances)
+        else:
+            logger.info(f"Managing {len(name_list)} instances with action '{action}': {name_list}")
+            results = []
+            successes = []
+            failures = []
+            
+            for instance_name in name_list:
+                try:
+                    result = _set_instance(instance_name.strip(), action.strip(), **kwargs)
+                    
+                    # Check if result indicates success or failure
+                    if isinstance(result, dict):
+                        if result.get('success', False):
+                            successes.append(instance_name)
+                            results.append(f"✓ {instance_name}: {result.get('message', 'Success')}")
+                        else:
+                            failures.append(instance_name)
+                            results.append(f"✗ {instance_name}: {result.get('error', 'Unknown error')}")
+                    elif isinstance(result, str):
+                        # For string results, check if it contains error indicators
+                        if 'error' in result.lower() or 'failed' in result.lower():
+                            failures.append(instance_name)
+                            results.append(f"✗ {instance_name}: {result}")
+                        else:
+                            successes.append(instance_name)
+                            results.append(f"✓ {instance_name}: {result}")
+                    else:
+                        successes.append(instance_name)
+                        results.append(f"✓ {instance_name}: Operation completed")
+                        
+                except Exception as e:
+                    failures.append(instance_name)
+                    results.append(f"✗ {instance_name}: {str(e)}")
+            
+            # Post-action status verification for all processed instances
+            logger.info("Verifying post-action status for instances")
+            post_action_status = {}
+            
+            # Allow some time for OpenStack operations to complete
+            import time
+            time.sleep(2)
+            
+            for instance_name in name_list:
+                try:
+                    # Get current status of the instance
+                    instance_info = _get_instance_by_name(instance_name.strip())
+                    if instance_info:
+                        current_status = instance_info.get('status', 'Unknown')
+                        post_action_status[instance_name] = current_status
+                    else:
+                        post_action_status[instance_name] = 'Not Found'
+                except Exception as e:
+                    post_action_status[instance_name] = f'Status Check Failed: {str(e)}'
+            
+            # Prepare summary with post-action status
+            summary_parts = [
+                f"Bulk Instance Management - Action: {action}",
+                f"Total instances: {len(name_list)}",
+                f"Successes: {len(successes)}",
+                f"Failures: {len(failures)}"
+            ]
+            
+            if successes:
+                summary_parts.append(f"Successful instances: {', '.join(successes)}")
+            if failures:
+                summary_parts.append(f"Failed instances: {', '.join(failures)}")
+                
+            summary_parts.append("\nDetailed Results:")
+            summary_parts.extend(results)
+            
+            # Add post-action status information
+            summary_parts.append("\nPost-Action Status:")
+            for instance_name in name_list:
+                current_status = post_action_status.get(instance_name, 'Unknown')
+                status_indicator = "🟢" if current_status in ["ACTIVE", "RUNNING"] else "🔴" if current_status in ["SHUTOFF", "STOPPED"] else "🟡"
+                summary_parts.append(f"{status_indicator} {instance_name}: {current_status}")
+            
+            return "\n".join(summary_parts)
         
     except Exception as e:
-        error_msg = f"Error: Failed to manage instance '{instance_name}' - {str(e)}"
+        error_msg = f"Error: Failed to manage instance(s) '{instance_names}' - {str(e)}"
         logger.error(error_msg)
         return error_msg
 
@@ -1253,7 +1704,7 @@ async def set_server_dump(instance_name: str) -> str:
 
 
 @conditional_tool
-async def set_volume(volume_name: str, action: str, size: int = 1, instance_name: str = "", 
+async def set_volume(volume_names: str, action: str, size: int = 1, instance_name: str = "", 
                    new_size: int = 0, source_volume: str = "", backup_name: str = "",
                    snapshot_name: str = "", transfer_name: str = "", host: str = "",
                    description: str = "", volume_type: str = "", availability_zone: str = "",
@@ -1261,6 +1712,7 @@ async def set_volume(volume_name: str, action: str, size: int = 1, instance_name
                    lock_volume: bool = False) -> str:
     """
     Manages OpenStack volumes with comprehensive operations including advanced features.
+    Supports both single volume and bulk operations.
     
     Functions:
     - Create new volumes with specified size and type
@@ -1272,11 +1724,15 @@ async def set_volume(volume_name: str, action: str, size: int = 1, instance_name
     - Clone volumes from existing volumes
     - Create volume transfers for ownership change
     - Migrate volumes between hosts/backends
+    - Bulk operations: Apply action to multiple volumes at once
     
     Use when user requests volume management, storage operations, disk management, backup operations, or volume lifecycle tasks.
     
     Args:
-        volume_name: Name of the volume to manage
+        volume_names: Name(s) of volumes to manage. Support formats:
+                     - Single: "volume1" 
+                     - Multiple: "volume1,volume2,volume3" or "volume1, volume2, volume3"
+                     - List format: '["volume1", "volume2", "volume3"]'
         action: Management action (create, delete, list, extend, backup, snapshot, clone, transfer, migrate)
         size: Volume size in GB (default: 1, used for create/clone actions)
         instance_name: Instance name for attach operations (optional)
@@ -1296,6 +1752,7 @@ async def set_volume(volume_name: str, action: str, size: int = 1, instance_name
         
     Returns:
         Volume management operation result in JSON format with success status and volume information.
+        For bulk operations, returns summary of successes and failures.
     """
     
     try:
@@ -1304,12 +1761,70 @@ async def set_volume(volume_name: str, action: str, size: int = 1, instance_name
             
         action = action.strip().lower()
         
-        # Volume name is not required for 'list' action
-        if action != 'list' and (not volume_name or not volume_name.strip()):
-            return "Error: Volume name is required for this action"
+        # For list action, allow empty volume_names
+        if action == 'list':
+            # Special handling for list action
+            logger.info(f"Managing volume with action '{action}'")
             
-        logger.info(f"Managing volume with action '{action}'" + (f" for volume '{volume_name}'" if volume_name and volume_name.strip() else ""))
+            kwargs = {
+                'size': size,
+                'new_size': new_size if new_size > 0 else None,
+                'source_volume': source_volume if source_volume else None,
+                'backup_name': backup_name if backup_name else None,
+                'snapshot_name': snapshot_name if snapshot_name else None,
+                'transfer_name': transfer_name if transfer_name else None,
+                'host': host if host else None,
+                'description': description if description else None,
+                'volume_type': volume_type if volume_type else None,
+                'availability_zone': availability_zone if availability_zone else None,
+                'force': force,
+                'incremental': incremental,
+                'force_host_copy': force_host_copy,
+                'lock_volume': lock_volume
+            }
+            if instance_name:
+                kwargs['instance_name'] = instance_name.strip()
+            
+            # Remove None values from kwargs
+            kwargs = {k: v for k, v in kwargs.items() if v is not None}
+            
+            result = _set_volume("", action, **kwargs)
+            return handle_operation_result(
+                result,
+                "Volume Management",
+                {
+                    "Action": action,
+                    "Volume": "all",
+                    "Size": f"{size}GB" if size else "Not specified",
+                    "Instance": instance_name or "Not specified"
+                }
+            )
         
+        # Parse volume names for non-list actions
+        if not volume_names or not volume_names.strip():
+            return "Error: Volume name(s) are required for this action"
+            
+        names_str = volume_names.strip()
+        
+        # Handle JSON list format: ["name1", "name2"]
+        if names_str.startswith('[') and names_str.endswith(']'):
+            try:
+                import json
+                name_list = json.loads(names_str)
+                if not isinstance(name_list, list):
+                    return "Error: Invalid JSON list format for volume names"
+            except json.JSONDecodeError:
+                return "Error: Invalid JSON format for volume names"
+        else:
+            # Handle comma-separated format: "name1,name2" or "name1, name2"
+            name_list = [name.strip() for name in names_str.split(',')]
+        
+        # Remove empty strings
+        name_list = [name for name in name_list if name]
+        
+        if not name_list:
+            return "Error: No valid volume names provided"
+            
         # Prepare kwargs for set_volume function
         kwargs = {
             'size': size,
@@ -1333,24 +1848,95 @@ async def set_volume(volume_name: str, action: str, size: int = 1, instance_name
         # Remove None values from kwargs
         kwargs = {k: v for k, v in kwargs.items() if v is not None}
         
-        # For list action, use empty string if no volume_name provided
-        volume_name_param = volume_name.strip() if volume_name and volume_name.strip() else ""
-        result = _set_volume(volume_name_param, action, **kwargs)
+        # Handle single volume (backward compatibility)
+        if len(name_list) == 1:
+            logger.info(f"Managing volume '{name_list[0]}' with action '{action}'")
+            result = _set_volume(name_list[0].strip(), action, **kwargs)
+            
+            return handle_operation_result(
+                result,
+                "Volume Management",
+                {
+                    "Action": action,
+                    "Volume": name_list[0],
+                    "Size": f"{size}GB" if size else "Not specified",
+                    "Instance": instance_name or "Not specified"
+                }
+            )
         
-        # Use centralized result handling
-        return handle_operation_result(
-            result,
-            "Volume Management",
-            {
-                "Action": action,
-                "Volume": volume_name if volume_name else "all",
-                "Size": f"{size}GB" if size else "Not specified",
-                "Instance": instance_name or "Not specified"
-            }
-        )
+        # Handle bulk operations (multiple volumes)
+        else:
+            logger.info(f"Managing {len(name_list)} volumes with action '{action}': {name_list}")
+            results = []
+            successes = []
+            failures = []
+            
+            for volume_name in name_list:
+                try:
+                    result = _set_volume(volume_name.strip(), action, **kwargs)
+                    
+                    # Check if result indicates success or failure
+                    if isinstance(result, dict):
+                        if result.get('success', False):
+                            successes.append(volume_name)
+                            results.append(f"✓ {volume_name}: {result.get('message', 'Success')}")
+                        else:
+                            failures.append(volume_name)
+                            results.append(f"✗ {volume_name}: {result.get('error', 'Unknown error')}")
+                    elif isinstance(result, str):
+                        # For string results, check if it contains error indicators
+                        if 'error' in result.lower() or 'failed' in result.lower():
+                            failures.append(volume_name)
+                            results.append(f"✗ {volume_name}: {result}")
+                        else:
+                            successes.append(volume_name)
+                            results.append(f"✓ {volume_name}: {result}")
+                    else:
+                        successes.append(volume_name)
+                        results.append(f"✓ {volume_name}: Operation completed")
+                        
+                except Exception as e:
+                    failures.append(volume_name)
+                    results.append(f"✗ {volume_name}: {str(e)}")
+            
+            # Post-action status verification for all processed volumes
+            logger.info("Verifying post-action status for volumes")
+            post_action_status = {}
+            
+            # Allow some time for OpenStack operations to complete
+            import time
+            time.sleep(2)
+            
+            for volume_name in name_list:
+                post_action_status[volume_name] = _get_resource_status_by_name("volume", volume_name.strip())
+            
+            # Prepare summary with post-action status
+            summary_parts = [
+                f"Bulk Volume Management - Action: {action}",
+                f"Total volumes: {len(name_list)}",
+                f"Successes: {len(successes)}",
+                f"Failures: {len(failures)}"
+            ]
+            
+            if successes:
+                summary_parts.append(f"Successful volumes: {', '.join(successes)}")
+            if failures:
+                summary_parts.append(f"Failed volumes: {', '.join(failures)}")
+                
+            summary_parts.append("\nDetailed Results:")
+            summary_parts.extend(results)
+            
+            # Add post-action status information
+            summary_parts.append("\nPost-Action Status:")
+            for volume_name in name_list:
+                current_status = post_action_status.get(volume_name, 'Unknown')
+                status_indicator = "🟢" if current_status.lower() in ["available", "active"] else "🔴" if current_status.lower() in ["error", "deleted"] else "🟡"
+                summary_parts.append(f"{status_indicator} {volume_name}: {current_status}")
+            
+            return "\n".join(summary_parts)
         
     except Exception as e:
-        error_msg = f"Error: Failed to manage volume" + (f" '{volume_name}'" if volume_name and volume_name.strip() else "") + f" - {str(e)}"
+        error_msg = f"Error: Failed to manage volume(s) '{volume_names}' - {str(e)}"
         logger.error(error_msg)
         return error_msg
 
@@ -1740,48 +2326,233 @@ async def get_keypair_list() -> str:
 
 
 @conditional_tool
-async def set_keypair(keypair_name: str, action: str, public_key: str = "") -> str:
+async def set_keypair(
+    action: str,
+    keypair_names: str = "",
+    # Filtering parameters for automatic target identification  
+    name_contains: str = "",
+    # Keypair creation/import parameters
+    public_key: str = ""
+) -> str:
     """
-    Manage SSH keypairs (create, delete, import).
+    Manage SSH keypairs for secure instance access authentication.
+    Supports both direct targeting and filter-based bulk operations.
     
     Functions:
     - Create new SSH keypairs with automatic key generation
-    - Import existing public keys
-    - Delete existing keypairs
-    - Provide private key for created keypairs (secure handling required)
+    - Import existing public keys for keypair creation
+    - Delete existing keypairs to remove access credentials
+    - Bulk operations: Apply action to multiple keypairs at once
+    - Filter-based targeting: Automatically find targets using filtering conditions
     
-    Use when user requests keypair creation, deletion, or import operations.
+    Use when user requests:
+    - "Create keypair [name]"
+    - "Import public key as keypair [name]"
+    - "Delete keypair [name]"  
+    - "Delete all keypairs with name containing 'test'"
+    - "Create keypairs key1,key2,key3"
+    
+    Targeting Methods:
+    1. Direct: Specify keypair_names directly
+    2. Filter-based: Use name_contains to auto-identify targets
     
     Args:
-        keypair_name: Name of the keypair to manage
-        action: Action to perform (create, delete, import)
-        public_key: Public key content for import action (optional)
+        action: Action to perform - create, delete, import
+        keypair_names: Name(s) of keypairs to manage. Support formats:
+                      - Single: "keypair1"
+                      - Multiple: "keypair1,keypair2,keypair3"
+                      - List format: '["keypair1", "keypair2"]'
+                      - Leave empty to use filtering parameters
+        
+        # Filtering parameters (alternative to keypair_names)
+        name_contains: Filter keypairs whose names contain this string
+        
+        # Creation/import parameters
+        public_key: Public key content for import action (optional for create)
         
     Returns:
-        Result of keypair management operation in JSON format.
+        Keypair management operation result with post-action status verification.
+        
+    Examples:
+        # Direct targeting
+        set_keypair(action="delete", keypair_names="key1,key2")
+        
+        # Filter-based targeting  
+        set_keypair(action="delete", name_contains="test")
+        set_keypair(action="create", keypair_names="new-key")
     """
     try:
-        logger.info(f"Managing keypair '{keypair_name}' with action '{action}'")
+        if not action or not action.strip():
+            return "Error: Action is required (create, delete, import)"
+            
+        action = action.strip().lower()
         
+        # Determine targeting method
+        has_direct_targets = keypair_names and keypair_names.strip()
+        has_filter_params = bool(name_contains)
+        
+        if not has_direct_targets and not has_filter_params:
+            return "Error: Either specify keypair_names directly or provide filtering parameters (name_contains)"
+        
+        if has_direct_targets and has_filter_params:
+            return "Error: Use either direct targeting (keypair_names) OR filtering parameters, not both"
+        
+        # Handle filter-based targeting
+        if has_filter_params:
+            logger.info(f"Using filter-based targeting for keypair action '{action}'")
+            
+            # Get all keypairs and filter
+            all_keypairs_info = _get_keypair_details("all")
+            if not isinstance(all_keypairs_info, list):
+                return "Error: Failed to retrieve keypair list for filtering"
+            
+            target_names = []
+            for keypair in all_keypairs_info:
+                keypair_name = keypair.get('name', '')
+                
+                # Apply filters
+                if name_contains and name_contains.lower() not in keypair_name.lower():
+                    continue
+                    
+                target_names.append(keypair_name)
+            
+            if not target_names:
+                return f"No keypairs found matching filter: name contains '{name_contains}'"
+            
+            logger.info(f"Filter-based targeting found {len(target_names)} keypairs: {target_names}")
+            name_list = target_names
+        
+        else:
+            # Handle direct targeting
+            names_str = keypair_names.strip()
+            
+            # Handle JSON list format: ["name1", "name2"]
+            if names_str.startswith('[') and names_str.endswith(']'):
+                try:
+                    import json
+                    name_list = json.loads(names_str)
+                    if not isinstance(name_list, list):
+                        return "Error: Invalid JSON list format for keypair names"
+                except json.JSONDecodeError:
+                    return "Error: Invalid JSON format for keypair names"
+            else:
+                # Handle comma-separated format: "name1,name2" or "name1, name2"
+                name_list = [name.strip() for name in names_str.split(',')]
+            
+            # Remove empty strings
+            name_list = [name for name in name_list if name]
+            
+            if not name_list:
+                return "Error: No valid keypair names provided"
+        
+        # Prepare kwargs for keypair operations
         kwargs = {}
         if public_key.strip():
             kwargs['public_key'] = public_key.strip()
-            
-        result_data = _set_keypair(keypair_name, action, **kwargs)
         
-        # Use centralized result handling
-        return handle_operation_result(
-            result_data,
-            "Keypair Management",
-            {
-                "Action": action,
-                "Keypair Name": keypair_name,
-                "Public Key": "Provided" if public_key.strip() else "Not provided"
-            }
-        )
+        # Handle single keypair (backward compatibility)
+        if len(name_list) == 1:
+            logger.info(f"Managing keypair '{name_list[0]}' with action '{action}'")
+            result = _set_keypair(name_list[0].strip(), action, **kwargs)
+            
+            # Post-action status verification for single keypair
+            import time
+            time.sleep(2)  # Allow time for OpenStack operation to complete
+            
+            post_status = _get_resource_status_by_name("keypair", name_list[0].strip())
+            
+            # Use centralized result handling with enhanced status info
+            base_result = handle_operation_result(
+                result,
+                "Keypair Management",
+                {
+                    "Action": action,
+                    "Keypair Name": name_list[0],
+                    "Public Key": "Provided" if public_key.strip() else "Not provided"
+                }
+            )
+            
+            # Add post-action status
+            status_indicator = "🟢" if post_status in ["Available", "Active"] else "🔴" if post_status in ["Not Found", "ERROR"] else "🟡"
+            enhanced_result = f"{base_result}\n\nPost-Action Status:\n{status_indicator} {name_list[0]}: {post_status}"
+            
+            return enhanced_result
+        
+        # Handle bulk operations (multiple keypairs)
+        else:
+            logger.info(f"Managing {len(name_list)} keypairs with action '{action}': {name_list}")
+            results = []
+            successes = []
+            failures = []
+            
+            for keypair_name in name_list:
+                try:
+                    result = _set_keypair(keypair_name.strip(), action, **kwargs)
+                    
+                    # Check if result indicates success or failure
+                    if isinstance(result, dict):
+                        if result.get('success', False):
+                            successes.append(keypair_name)
+                            results.append(f"✓ {keypair_name}: {result.get('message', 'Success')}")
+                        else:
+                            failures.append(keypair_name)
+                            results.append(f"✗ {keypair_name}: {result.get('error', 'Unknown error')}")
+                    elif isinstance(result, str):
+                        # For string results, check if it contains error indicators
+                        if 'error' in result.lower() or 'failed' in result.lower():
+                            failures.append(keypair_name)
+                            results.append(f"✗ {keypair_name}: {result}")
+                        else:
+                            successes.append(keypair_name)
+                            results.append(f"✓ {keypair_name}: {result}")
+                    else:
+                        successes.append(keypair_name)
+                        results.append(f"✓ {keypair_name}: Operation completed")
+                        
+                except Exception as e:
+                    failures.append(keypair_name)
+                    results.append(f"✗ {keypair_name}: {str(e)}")
+            
+            # Post-action status verification for all processed keypairs
+            logger.info("Verifying post-action status for keypairs")
+            post_action_status = {}
+            
+            # Allow some time for OpenStack operations to complete
+            import time
+            time.sleep(2)
+            
+            for keypair_name in name_list:
+                post_action_status[keypair_name] = _get_resource_status_by_name("keypair", keypair_name.strip())
+            
+            # Prepare summary with post-action status
+            summary_parts = [
+                f"Bulk Keypair Management - Action: {action}",
+                f"Total keypairs: {len(name_list)}",
+                f"Successes: {len(successes)}",
+                f"Failures: {len(failures)}"
+            ]
+            
+            if successes:
+                summary_parts.append(f"Successful keypairs: {', '.join(successes)}")
+            if failures:
+                summary_parts.append(f"Failed keypairs: {', '.join(failures)}")
+                
+            summary_parts.append("\nDetailed Results:")
+            summary_parts.extend(results)
+            
+            # Add post-action status information
+            summary_parts.append("\nPost-Action Status:")
+            for keypair_name in name_list:
+                current_status = post_action_status.get(keypair_name, 'Unknown')
+                status_indicator = "🟢" if current_status in ["Available", "Active"] else "🔴" if current_status in ["Not Found", "ERROR"] else "🟡"
+                summary_parts.append(f"{status_indicator} {keypair_name}: {current_status}")
+            
+            return "\n".join(summary_parts)
         
     except Exception as e:
-        error_msg = f"Error: Failed to manage keypair - {str(e)}"
+        error_msg = f"Error: Failed to manage keypair(s) - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
         logger.error(error_msg)
         return error_msg
 
@@ -2151,63 +2922,255 @@ async def get_volume_snapshots() -> str:
 
 
 @conditional_tool
-async def set_snapshot(snapshot_name: str, action: str, volume_id: str = "", description: str = "") -> str:
+async def set_snapshot(
+    action: str,
+    snapshot_names: str = "",
+    # Filtering parameters for automatic target identification  
+    name_contains: str = "",
+    status: str = "",
+    # Snapshot creation/modification parameters
+    volume_id: str = "",
+    description: str = ""
+) -> str:
     """
-    Manage volume snapshots (create, delete).
+    Manage volume snapshots for backup and recovery operations.
+    Supports both direct targeting and filter-based bulk operations.
     
     Functions:
-    - Create snapshots from existing volumes
-    - Delete existing snapshots
-    - Provide snapshot creation with custom descriptions
-    - Handle snapshot lifecycle management
+    - Create snapshots from existing volumes for backup
+    - Delete existing snapshots to reclaim storage
+    - Handle snapshot lifecycle management with descriptions
+    - Bulk operations: Apply action to multiple snapshots at once
+    - Filter-based targeting: Automatically find targets using filtering conditions
     
-    Use when user requests snapshot creation, deletion, or backup management tasks.
+    Use when user requests:
+    - "Create snapshot [name] from volume [volume_id]"
+    - "Delete snapshot [name]"
+    - "Delete all snapshots with name containing 'old'"
+    - "Create snapshots snap1,snap2,snap3"
+    
+    Targeting Methods:
+    1. Direct: Specify snapshot_names directly
+    2. Filter-based: Use name_contains, status to auto-identify targets
     
     Args:
-        snapshot_name: Name of the snapshot to manage
-        action: Action to perform (create, delete)
-        volume_id: Volume ID for snapshot creation (optional)
+        action: Action to perform - create, delete
+        snapshot_names: Name(s) of snapshots to manage. Support formats:
+                       - Single: "snapshot1"
+                       - Multiple: "snapshot1,snapshot2,snapshot3"
+                       - List format: '["snapshot1", "snapshot2"]'
+                       - Leave empty to use filtering parameters
+        
+        # Filtering parameters (alternative to snapshot_names)
+        name_contains: Filter snapshots whose names contain this string
+        status: Filter snapshots by status (e.g., "available", "creating", "error")
+        
+        # Creation/modification parameters
+        volume_id: Volume ID for snapshot creation (required for create action)
         description: Description for the snapshot (optional)
         
     Returns:
-        Result of snapshot management operation in JSON format.
-    """
-    
-    try:
-        logger.info(f"Managing snapshot '{snapshot_name}' with action '{action}'")
+        Snapshot management operation result with post-action status verification.
         
+    Examples:
+        # Direct targeting
+        set_snapshot(action="delete", snapshot_names="snap1,snap2")
+        
+        # Filter-based targeting  
+        set_snapshot(action="delete", name_contains="old", status="available")
+        set_snapshot(action="create", snapshot_names="backup-snap", volume_id="vol-123")
+    """
+    try:
+        if not action or not action.strip():
+            return "Error: Action is required (create, delete)"
+            
+        action = action.strip().lower()
+        
+        # Determine targeting method
+        has_direct_targets = snapshot_names and snapshot_names.strip()
+        has_filter_params = any([name_contains, status])
+        
+        if not has_direct_targets and not has_filter_params:
+            return "Error: Either specify snapshot_names directly or provide filtering parameters (name_contains, status)"
+        
+        if has_direct_targets and has_filter_params:
+            return "Error: Use either direct targeting (snapshot_names) OR filtering parameters, not both"
+        
+        # Handle filter-based targeting
+        if has_filter_params:
+            logger.info(f"Using filter-based targeting for snapshot action '{action}'")
+            
+            # Get all snapshots and filter
+            all_snapshots_info = _get_snapshot_details("all")
+            if not isinstance(all_snapshots_info, list):
+                return "Error: Failed to retrieve snapshot list for filtering"
+            
+            target_names = []
+            for snapshot in all_snapshots_info:
+                snapshot_name = snapshot.get('name', '')
+                snapshot_status = snapshot.get('status', '')
+                
+                # Apply filters
+                if name_contains and name_contains.lower() not in snapshot_name.lower():
+                    continue
+                if status and status.lower() != snapshot_status.lower():
+                    continue
+                    
+                target_names.append(snapshot_name)
+            
+            if not target_names:
+                filter_desc = []
+                if name_contains: filter_desc.append(f"name contains '{name_contains}'")
+                if status: filter_desc.append(f"status = '{status}'")
+                
+                return f"No snapshots found matching filters: {', '.join(filter_desc)}"
+            
+            logger.info(f"Filter-based targeting found {len(target_names)} snapshots: {target_names}")
+            name_list = target_names
+        
+        else:
+            # Handle direct targeting
+            names_str = snapshot_names.strip()
+            
+            # Handle JSON list format: ["name1", "name2"]
+            if names_str.startswith('[') and names_str.endswith(']'):
+                try:
+                    import json
+                    name_list = json.loads(names_str)
+                    if not isinstance(name_list, list):
+                        return "Error: Invalid JSON list format for snapshot names"
+                except json.JSONDecodeError:
+                    return "Error: Invalid JSON format for snapshot names"
+            else:
+                # Handle comma-separated format: "name1,name2" or "name1, name2"
+                name_list = [name.strip() for name in names_str.split(',')]
+            
+            # Remove empty strings
+            name_list = [name for name in name_list if name]
+            
+            if not name_list:
+                return "Error: No valid snapshot names provided"
+        
+        # Prepare kwargs for snapshot operations
         kwargs = {}
         if volume_id.strip():
             kwargs['volume_id'] = volume_id.strip()
         if description.strip():
             kwargs['description'] = description.strip()
-            
-        result_data = _set_snapshot(snapshot_name, action, **kwargs)
         
-        # Use centralized result handling
-        return handle_operation_result(
-            result_data,
-            "Snapshot Management",
-            {
-                "Action": action,
-                "Snapshot Name": snapshot_name,
-                "Volume ID": volume_id or "Not specified",
-                "Description": description or "Not specified"
-            }
-        )
+        # Handle single snapshot (backward compatibility)
+        if len(name_list) == 1:
+            logger.info(f"Managing snapshot '{name_list[0]}' with action '{action}'")
+            result = _set_snapshot(name_list[0].strip(), action, **kwargs)
+            
+            # Post-action status verification for single snapshot
+            import time
+            time.sleep(2)  # Allow time for OpenStack operation to complete
+            
+            post_status = _get_resource_status_by_name("snapshot", name_list[0].strip())
+            
+            # Use centralized result handling with enhanced status info
+            base_result = handle_operation_result(
+                result,
+                "Snapshot Management",
+                {
+                    "Action": action,
+                    "Snapshot Name": name_list[0],
+                    "Volume ID": volume_id or "Not specified",
+                    "Description": description or "Not specified"
+                }
+            )
+            
+            # Add post-action status
+            status_indicator = "🟢" if post_status in ["available", "Available"] else "🔴" if post_status in ["error", "ERROR", "Not Found"] else "🟡"
+            enhanced_result = f"{base_result}\n\nPost-Action Status:\n{status_indicator} {name_list[0]}: {post_status}"
+            
+            return enhanced_result
+        
+        # Handle bulk operations (multiple snapshots)
+        else:
+            logger.info(f"Managing {len(name_list)} snapshots with action '{action}': {name_list}")
+            results = []
+            successes = []
+            failures = []
+            
+            for snapshot_name in name_list:
+                try:
+                    result = _set_snapshot(snapshot_name.strip(), action, **kwargs)
+                    
+                    # Check if result indicates success or failure
+                    if isinstance(result, dict):
+                        if result.get('success', False):
+                            successes.append(snapshot_name)
+                            results.append(f"✓ {snapshot_name}: {result.get('message', 'Success')}")
+                        else:
+                            failures.append(snapshot_name)
+                            results.append(f"✗ {snapshot_name}: {result.get('error', 'Unknown error')}")
+                    elif isinstance(result, str):
+                        # For string results, check if it contains error indicators
+                        if 'error' in result.lower() or 'failed' in result.lower():
+                            failures.append(snapshot_name)
+                            results.append(f"✗ {snapshot_name}: {result}")
+                        else:
+                            successes.append(snapshot_name)
+                            results.append(f"✓ {snapshot_name}: {result}")
+                    else:
+                        successes.append(snapshot_name)
+                        results.append(f"✓ {snapshot_name}: Operation completed")
+                        
+                except Exception as e:
+                    failures.append(snapshot_name)
+                    results.append(f"✗ {snapshot_name}: {str(e)}")
+            
+            # Post-action status verification for all processed snapshots
+            logger.info("Verifying post-action status for snapshots")
+            post_action_status = {}
+            
+            # Allow some time for OpenStack operations to complete
+            import time
+            time.sleep(2)
+            
+            for snapshot_name in name_list:
+                post_action_status[snapshot_name] = _get_resource_status_by_name("snapshot", snapshot_name.strip())
+            
+            # Prepare summary with post-action status
+            summary_parts = [
+                f"Bulk Snapshot Management - Action: {action}",
+                f"Total snapshots: {len(name_list)}",
+                f"Successes: {len(successes)}",
+                f"Failures: {len(failures)}"
+            ]
+            
+            if successes:
+                summary_parts.append(f"Successful snapshots: {', '.join(successes)}")
+            if failures:
+                summary_parts.append(f"Failed snapshots: {', '.join(failures)}")
+                
+            summary_parts.append("\nDetailed Results:")
+            summary_parts.extend(results)
+            
+            # Add post-action status information
+            summary_parts.append("\nPost-Action Status:")
+            for snapshot_name in name_list:
+                current_status = post_action_status.get(snapshot_name, 'Unknown')
+                status_indicator = "🟢" if current_status in ["available", "Available"] else "🔴" if current_status in ["error", "ERROR", "Not Found"] else "🟡"
+                summary_parts.append(f"{status_indicator} {snapshot_name}: {current_status}")
+            
+            return "\n".join(summary_parts)
         
     except Exception as e:
-        error_msg = f"Error: Failed to manage snapshot - {str(e)}"
+        error_msg = f"Error: Failed to manage snapshot(s) - {str(e)}"
         logger.error(error_msg)
         return error_msg
 
 
 # Image Service (Glance) Enhanced Tools
 @conditional_tool
-async def set_image(image_name: str, action: str, container_format: str = "bare", disk_format: str = "qcow2", 
+async def set_image(image_names: str, action: str, container_format: str = "bare", disk_format: str = "qcow2", 
                    visibility: str = "private", min_disk: int = 0, min_ram: int = 0, properties: str = "{}") -> str:
     """
     Manage images (create, delete, update, list).
+    Supports both single image and bulk operations.
     
     Functions:
     - Create new images with specified formats and properties
@@ -2215,11 +3178,15 @@ async def set_image(image_name: str, action: str, container_format: str = "bare"
     - Update image metadata and visibility settings
     - List all available images in the project
     - Handle image lifecycle management
+    - Bulk operations: Apply action to multiple images at once
     
     Use when user requests image management, custom image creation, image listing, or image metadata updates.
     
     Args:
-        image_name: Name of the image to manage
+        image_names: Name(s) of images to manage. Support formats:
+                    - Single: "image1" 
+                    - Multiple: "image1,image2,image3" or "image1, image2, image3"
+                    - List format: '["image1", "image2", "image3"]'
         action: Action to perform (create, delete, update, list)
         container_format: Container format (bare, ovf, etc.)
         disk_format: Disk format (qcow2, raw, vmdk, etc.)
@@ -2230,14 +3197,70 @@ async def set_image(image_name: str, action: str, container_format: str = "bare"
         
     Returns:
         Result of image management operation in JSON format.
+        For bulk operations, returns summary of successes and failures.
     """
     
     try:
-        # Image name is not required for 'list' action
-        if action.lower() != 'list' and (not image_name or not image_name.strip()):
-            return "Error: Image name is required for this action"
+        # For list action, allow empty image_names
+        if action.lower() == 'list':
+            logger.info(f"Managing image with action '{action}'")
+            
+            kwargs = {
+                'container_format': container_format,
+                'disk_format': disk_format,
+                'visibility': visibility,
+                'min_disk': min_disk,
+                'min_ram': min_ram
+            }
+            
+            # Parse properties JSON if provided
+            if properties.strip():
+                try:
+                    kwargs['properties'] = json.loads(properties)
+                except json.JSONDecodeError:
+                    return json.dumps({
+                        "timestamp": datetime.now().isoformat(),
+                        "error": "Invalid JSON format for properties",
+                        "message": "Properties must be valid JSON format"
+                    })
+            
+            result_data = _set_image("", action, **kwargs)
+            return handle_operation_result(
+                result_data,
+                "Image Management",
+                {
+                    "Action": action,
+                    "Image Name": "all",
+                    "Container Format": container_format,
+                    "Disk Format": disk_format,
+                    "Visibility": visibility
+                }
+            )
         
-        logger.info(f"Managing image with action '{action}'" + (f" for image '{image_name}'" if image_name and image_name.strip() else ""))
+        # Parse image names for non-list actions
+        if not image_names or not image_names.strip():
+            return "Error: Image name(s) are required for this action"
+            
+        names_str = image_names.strip()
+        
+        # Handle JSON list format: ["name1", "name2"]
+        if names_str.startswith('[') and names_str.endswith(']'):
+            try:
+                import json
+                name_list = json.loads(names_str)
+                if not isinstance(name_list, list):
+                    return "Error: Invalid JSON list format for image names"
+            except json.JSONDecodeError:
+                return "Error: Invalid JSON format for image names"
+        else:
+            # Handle comma-separated format: "name1,name2" or "name1, name2"
+            name_list = [name.strip() for name in names_str.split(',')]
+        
+        # Remove empty strings
+        name_list = [name for name in name_list if name]
+        
+        if not name_list:
+            return "Error: No valid image names provided"
         
         kwargs = {
             'container_format': container_format,
@@ -2258,25 +3281,96 @@ async def set_image(image_name: str, action: str, container_format: str = "bare"
                     "message": "Properties must be valid JSON format"
                 })
         
-        # For list action, use empty string if no image_name provided
-        image_name_param = image_name.strip() if image_name and image_name.strip() else ""
-        result_data = _set_image(image_name_param, action, **kwargs)
+        # Handle single image (backward compatibility)
+        if len(name_list) == 1:
+            logger.info(f"Managing image '{name_list[0]}' with action '{action}'")
+            result_data = _set_image(name_list[0].strip(), action, **kwargs)
+            
+            return handle_operation_result(
+                result_data,
+                "Image Management",
+                {
+                    "Action": action,
+                    "Image Name": name_list[0],
+                    "Container Format": container_format,
+                    "Disk Format": disk_format,
+                    "Visibility": visibility
+                }
+            )
         
-        # Use centralized result handling
-        return handle_operation_result(
-            result_data,
-            "Image Management",
-            {
-                "Action": action,
-                "Image Name": image_name if image_name else "all",
-                "Container Format": container_format,
-                "Disk Format": disk_format,
-                "Visibility": visibility
-            }
-        )
+        # Handle bulk operations (multiple images)
+        else:
+            logger.info(f"Managing {len(name_list)} images with action '{action}': {name_list}")
+            results = []
+            successes = []
+            failures = []
+            
+            for image_name in name_list:
+                try:
+                    result = _set_image(image_name.strip(), action, **kwargs)
+                    
+                    # Check if result indicates success or failure
+                    if isinstance(result, dict):
+                        if result.get('success', False):
+                            successes.append(image_name)
+                            results.append(f"✓ {image_name}: {result.get('message', 'Success')}")
+                        else:
+                            failures.append(image_name)
+                            results.append(f"✗ {image_name}: {result.get('error', 'Unknown error')}")
+                    elif isinstance(result, str):
+                        # For string results, check if it contains error indicators
+                        if 'error' in result.lower() or 'failed' in result.lower():
+                            failures.append(image_name)
+                            results.append(f"✗ {image_name}: {result}")
+                        else:
+                            successes.append(image_name)
+                            results.append(f"✓ {image_name}: {result}")
+                    else:
+                        successes.append(image_name)
+                        results.append(f"✓ {image_name}: Operation completed")
+                        
+                except Exception as e:
+                    failures.append(image_name)
+                    results.append(f"✗ {image_name}: {str(e)}")
+            
+            # Post-action status verification for all processed images
+            logger.info("Verifying post-action status for images")
+            post_action_status = {}
+            
+            # Allow some time for OpenStack operations to complete
+            import time
+            time.sleep(2)
+            
+            for image_name in name_list:
+                post_action_status[image_name] = _get_resource_status_by_name("image", image_name.strip())
+            
+            # Prepare summary with post-action status
+            summary_parts = [
+                f"Bulk Image Management - Action: {action}",
+                f"Total images: {len(name_list)}",
+                f"Successes: {len(successes)}",
+                f"Failures: {len(failures)}"
+            ]
+            
+            if successes:
+                summary_parts.append(f"Successful images: {', '.join(successes)}")
+            if failures:
+                summary_parts.append(f"Failed images: {', '.join(failures)}")
+                
+            summary_parts.append("\nDetailed Results:")
+            summary_parts.extend(results)
+            
+            # Add post-action status information
+            summary_parts.append("\nPost-Action Status:")
+            for image_name in name_list:
+                current_status = post_action_status.get(image_name, 'Unknown')
+                status_indicator = "🟢" if current_status.lower() in ["active", "available"] else "🔴" if current_status.lower() in ["deleted", "error", "killed"] else "🟡"
+                summary_parts.append(f"{status_indicator} {image_name}: {current_status}")
+            
+            return "\n".join(summary_parts)
         
     except Exception as e:
-        error_msg = f"Error: Failed to manage image - {str(e)}"
+        error_msg = f"Error: Failed to manage image(s) '{image_names}' - {str(e)}"
         logger.error(error_msg)
         return error_msg
 
@@ -2317,30 +3411,58 @@ async def get_heat_stacks() -> str:
 
 
 @conditional_tool
-async def set_heat_stack(stack_name: str, action: str, template: str = "", parameters: str = "") -> str:
+async def set_heat_stack(stack_names: str, action: str, template: str = "", parameters: str = "") -> str:
     """
     Manage Heat orchestration stacks (create, delete, update).
+    Supports both single stack and bulk operations.
     
     Functions:
     - Create new stacks from Heat templates
     - Delete existing stacks
     - Update stack configurations and parameters
     - Handle complex infrastructure deployments
+    - Bulk operations: Apply action to multiple stacks at once
     
     Use when user requests Heat stack management, infrastructure orchestration, or template deployment tasks.
     
     Args:
-        stack_name: Name of the stack to manage
+        stack_names: Name(s) of stacks to manage. Support formats:
+                    - Single: "stack1" 
+                    - Multiple: "stack1,stack2,stack3" or "stack1, stack2, stack3"
+                    - List format: '["stack1", "stack2", "stack3"]'
         action: Action to perform (create, delete, update)
         template: Heat template content for create/update actions (optional)
         parameters: Stack parameters in JSON format (optional)
         
     Returns:
         Result of stack management operation in JSON format.
+        For bulk operations, returns summary of successes and failures.
     """
     
     try:
-        logger.info(f"Managing stack '{stack_name}' with action '{action}'")
+        if not stack_names or not stack_names.strip():
+            return "Error: Stack name(s) are required"
+            
+        names_str = stack_names.strip()
+        
+        # Handle JSON list format: ["name1", "name2"]
+        if names_str.startswith('[') and names_str.endswith(']'):
+            try:
+                import json
+                name_list = json.loads(names_str)
+                if not isinstance(name_list, list):
+                    return "Error: Invalid JSON list format for stack names"
+            except json.JSONDecodeError:
+                return "Error: Invalid JSON format for stack names"
+        else:
+            # Handle comma-separated format: "name1,name2" or "name1, name2"
+            name_list = [name.strip() for name in names_str.split(',')]
+        
+        # Remove empty strings
+        name_list = [name for name in name_list if name]
+        
+        if not name_list:
+            return "Error: No valid stack names provided"
         
         kwargs = {}
         if template.strip():
@@ -2359,23 +3481,78 @@ async def set_heat_stack(stack_name: str, action: str, template: str = "", param
                     "error": "Invalid JSON format for parameters",
                     "message": "Parameters must be valid JSON format"
                 }, indent=2, ensure_ascii=False)
-            
-        result_data = _set_heat_stack(stack_name, action, **kwargs)
         
-        # Use centralized result handling
-        return handle_operation_result(
-            result_data,
-            "Heat Stack Management",
-            {
-                "Action": action,
-                "Stack Name": stack_name,
-                "Template": "Provided" if template.strip() else "Not provided",
-                "Parameters": "Provided" if parameters.strip() else "Not provided"
-            }
-        )
+        # Handle single stack (backward compatibility)
+        if len(name_list) == 1:
+            logger.info(f"Managing stack '{name_list[0]}' with action '{action}'")
+            result_data = _set_heat_stack(name_list[0], action, **kwargs)
+            
+            return handle_operation_result(
+                result_data,
+                "Heat Stack Management",
+                {
+                    "Action": action,
+                    "Stack Name": name_list[0],
+                    "Template": "Provided" if template.strip() else "Not provided",
+                    "Parameters": "Provided" if parameters.strip() else "Not provided"
+                }
+            )
+        
+        # Handle bulk operations (multiple stacks)
+        else:
+            logger.info(f"Managing {len(name_list)} stacks with action '{action}': {name_list}")
+            results = []
+            successes = []
+            failures = []
+            
+            for stack_name in name_list:
+                try:
+                    result = _set_heat_stack(stack_name.strip(), action, **kwargs)
+                    
+                    # Check if result indicates success or failure
+                    if isinstance(result, dict):
+                        if result.get('success', False):
+                            successes.append(stack_name)
+                            results.append(f"✓ {stack_name}: {result.get('message', 'Success')}")
+                        else:
+                            failures.append(stack_name)
+                            results.append(f"✗ {stack_name}: {result.get('error', 'Unknown error')}")
+                    elif isinstance(result, str):
+                        # For string results, check if it contains error indicators
+                        if 'error' in result.lower() or 'failed' in result.lower():
+                            failures.append(stack_name)
+                            results.append(f"✗ {stack_name}: {result}")
+                        else:
+                            successes.append(stack_name)
+                            results.append(f"✓ {stack_name}: {result}")
+                    else:
+                        successes.append(stack_name)
+                        results.append(f"✓ {stack_name}: Operation completed")
+                        
+                except Exception as e:
+                    failures.append(stack_name)
+                    results.append(f"✗ {stack_name}: {str(e)}")
+            
+            # Prepare summary
+            summary_parts = [
+                f"Bulk Heat Stack Management - Action: {action}",
+                f"Total stacks: {len(name_list)}",
+                f"Successes: {len(successes)}",
+                f"Failures: {len(failures)}"
+            ]
+            
+            if successes:
+                summary_parts.append(f"Successful stacks: {', '.join(successes)}")
+            if failures:
+                summary_parts.append(f"Failed stacks: {', '.join(failures)}")
+                
+            summary_parts.append("\nDetailed Results:")
+            summary_parts.extend(results)
+            
+            return "\n".join(summary_parts)
         
     except Exception as e:
-        error_msg = f"Error: Failed to manage stack - {str(e)}"
+        error_msg = f"Error: Failed to manage stack(s) '{stack_names}' - {str(e)}"
         logger.error(error_msg)
         return error_msg
 
@@ -3425,7 +4602,11 @@ async def set_subnets(
 @conditional_tool
 async def set_networks(
     action: str,
-    network_name: str = "",
+    network_names: str = "",
+    # Filtering parameters for automatic target identification  
+    name_contains: str = "",
+    status: str = "",
+    # Network creation/modification parameters
     description: str = "",
     admin_state_up: bool = True,
     shared: bool = False,
@@ -3435,6 +4616,265 @@ async def set_networks(
     provider_segmentation_id: int = 0,
     mtu: int = 1500
 ) -> str:
+    """
+    Manage OpenStack networks for tenant isolation and connectivity.
+    Supports both direct targeting and filter-based bulk operations.
+    
+    Functions:
+    - Create new networks with provider settings and MTU configuration
+    - Delete existing networks 
+    - Update network properties (description, admin state, shared access)
+    - List all networks with detailed configuration
+    - Bulk operations: Apply action to multiple networks at once
+    - Filter-based targeting: Automatically find targets using filtering conditions
+    
+    Use when user requests:
+    - "Create network [name] with MTU [size]"
+    - "Delete network [name]"
+    - "Update network [name] description to [text]"
+    - "Make network [name] shared/private"
+    - "Delete all networks with name containing 'test'"
+    - "List all networks"
+    
+    Targeting Methods:
+    1. Direct: Specify network_names directly
+    2. Filter-based: Use name_contains, status to auto-identify targets
+    
+    Args:
+        action: Action to perform - list, create, delete, update
+        network_names: Name(s) of networks to manage. Support formats:
+                      - Single: "network1"
+                      - Multiple: "network1,network2,network3"
+                      - List format: '["network1", "network2"]'
+                      - Leave empty to use filtering parameters
+        
+        # Filtering parameters (alternative to network_names)
+        name_contains: Filter networks whose names contain this string
+        status: Filter networks by status (e.g., "ACTIVE", "DOWN")
+        
+        # Creation/modification parameters
+        description: Description for the network
+        admin_state_up: Administrative state (default: True)
+        shared: Allow sharing across tenants (default: False)
+        external: Mark as external network for router gateway (default: False)
+        provider_network_type: Provider network type (vlan, vxlan, flat, etc.)
+        provider_physical_network: Physical network name for provider mapping
+        provider_segmentation_id: VLAN ID or tunnel ID for network segmentation
+        mtu: Maximum transmission unit size (default: 1500)
+        
+    Returns:
+        Network management operation result with post-action status verification.
+        
+    Examples:
+        # Direct targeting
+        set_networks(action="delete", network_names="net1,net2")
+        
+        # Filter-based targeting
+        set_networks(action="delete", name_contains="test")
+        set_networks(action="create", network_names="new-net", description="New network")
+    """
+    try:
+        if not action or not action.strip():
+            return "Error: Action is required (create, delete, update, list)"
+            
+        action = action.strip().lower()
+        
+        # For list action, handle separately
+        if action == 'list':
+            logger.info("Listing all networks")
+            result = _set_networks(action, "", **{
+                'description': description,
+                'admin_state_up': admin_state_up,
+                'shared': shared,
+                'external': external,
+                'provider_network_type': provider_network_type,
+                'provider_physical_network': provider_physical_network,
+                'provider_segmentation_id': provider_segmentation_id,
+                'mtu': mtu
+            })
+            return handle_operation_result(result, "Network Management", {"Action": action})
+        
+        # Determine targeting method
+        has_direct_targets = network_names and network_names.strip()
+        has_filter_params = any([name_contains, status])
+        
+        if not has_direct_targets and not has_filter_params:
+            return "Error: Either specify network_names directly or provide filtering parameters (name_contains, status)"
+        
+        if has_direct_targets and has_filter_params:
+            return "Error: Use either direct targeting (network_names) OR filtering parameters, not both"
+        
+        # Handle filter-based targeting
+        if has_filter_params:
+            logger.info(f"Using filter-based targeting for network action '{action}'")
+            
+            # Get all networks and filter
+            all_networks_info = _get_network_details("all")
+            if not isinstance(all_networks_info, list):
+                return "Error: Failed to retrieve network list for filtering"
+            
+            target_names = []
+            for network in all_networks_info:
+                network_name = network.get('name', '')
+                network_status = network.get('status', '')
+                
+                # Apply filters
+                if name_contains and name_contains.lower() not in network_name.lower():
+                    continue
+                if status and status.upper() != network_status.upper():
+                    continue
+                    
+                target_names.append(network_name)
+            
+            if not target_names:
+                filter_desc = []
+                if name_contains: filter_desc.append(f"name contains '{name_contains}'")
+                if status: filter_desc.append(f"status = '{status}'")
+                
+                return f"No networks found matching filters: {', '.join(filter_desc)}"
+            
+            logger.info(f"Filter-based targeting found {len(target_names)} networks: {target_names}")
+            name_list = target_names
+        
+        else:
+            # Handle direct targeting
+            names_str = network_names.strip()
+            
+            # Handle JSON list format: ["name1", "name2"]
+            if names_str.startswith('[') and names_str.endswith(']'):
+                try:
+                    import json
+                    name_list = json.loads(names_str)
+                    if not isinstance(name_list, list):
+                        return "Error: Invalid JSON list format for network names"
+                except json.JSONDecodeError:
+                    return "Error: Invalid JSON format for network names"
+            else:
+                # Handle comma-separated format: "name1,name2" or "name1, name2"
+                name_list = [name.strip() for name in names_str.split(',')]
+            
+            # Remove empty strings
+            name_list = [name for name in name_list if name]
+            
+            if not name_list:
+                return "Error: No valid network names provided"
+        
+        # Prepare kwargs for network operations
+        kwargs = {
+            'description': description,
+            'admin_state_up': admin_state_up,
+            'shared': shared,
+            'external': external,
+            'provider_network_type': provider_network_type,
+            'provider_physical_network': provider_physical_network,
+            'provider_segmentation_id': provider_segmentation_id,
+            'mtu': mtu
+        }
+        
+        # Handle single network (backward compatibility)
+        if len(name_list) == 1:
+            logger.info(f"Managing network '{name_list[0]}' with action '{action}'")
+            result = _set_networks(action, name_list[0].strip(), **kwargs)
+            
+            # Post-action status verification for single network
+            import time
+            time.sleep(2)  # Allow time for OpenStack operation to complete
+            
+            post_status = _get_resource_status_by_name("network", name_list[0].strip())
+            
+            # Use centralized result handling with enhanced status info
+            base_result = handle_operation_result(
+                result,
+                "Network Management",
+                {
+                    "Action": action,
+                    "Network": name_list[0],
+                    "Description": description or "Not specified",
+                    "MTU": mtu
+                }
+            )
+            
+            # Add post-action status
+            status_indicator = "🟢" if post_status in ["ACTIVE", "Available"] else "🔴" if post_status in ["DOWN", "ERROR", "Not Found"] else "🟡"
+            enhanced_result = f"{base_result}\n\nPost-Action Status:\n{status_indicator} {name_list[0]}: {post_status}"
+            
+            return enhanced_result
+        
+        # Handle bulk operations (multiple networks)
+        else:
+            logger.info(f"Managing {len(name_list)} networks with action '{action}': {name_list}")
+            results = []
+            successes = []
+            failures = []
+            
+            for network_name in name_list:
+                try:
+                    result = _set_networks(action, network_name.strip(), **kwargs)
+                    
+                    # Check if result indicates success or failure
+                    if isinstance(result, dict):
+                        if result.get('success', False):
+                            successes.append(network_name)
+                            results.append(f"✓ {network_name}: {result.get('message', 'Success')}")
+                        else:
+                            failures.append(network_name)
+                            results.append(f"✗ {network_name}: {result.get('error', 'Unknown error')}")
+                    elif isinstance(result, str):
+                        # For string results, check if it contains error indicators
+                        if 'error' in result.lower() or 'failed' in result.lower():
+                            failures.append(network_name)
+                            results.append(f"✗ {network_name}: {result}")
+                        else:
+                            successes.append(network_name)
+                            results.append(f"✓ {network_name}: {result}")
+                    else:
+                        successes.append(network_name)
+                        results.append(f"✓ {network_name}: Operation completed")
+                        
+                except Exception as e:
+                    failures.append(network_name)
+                    results.append(f"✗ {network_name}: {str(e)}")
+            
+            # Post-action status verification for all processed networks
+            logger.info("Verifying post-action status for networks")
+            post_action_status = {}
+            
+            # Allow some time for OpenStack operations to complete
+            import time
+            time.sleep(2)
+            
+            for network_name in name_list:
+                post_action_status[network_name] = _get_resource_status_by_name("network", network_name.strip())
+            
+            # Prepare summary with post-action status
+            summary_parts = [
+                f"Bulk Network Management - Action: {action}",
+                f"Total networks: {len(name_list)}",
+                f"Successes: {len(successes)}",
+                f"Failures: {len(failures)}"
+            ]
+            
+            if successes:
+                summary_parts.append(f"Successful networks: {', '.join(successes)}")
+            if failures:
+                summary_parts.append(f"Failed networks: {', '.join(failures)}")
+                
+            summary_parts.append("\nDetailed Results:")
+            summary_parts.extend(results)
+            
+            # Add post-action status information
+            summary_parts.append("\nPost-Action Status:")
+            for network_name in name_list:
+                current_status = post_action_status.get(network_name, 'Unknown')
+                status_indicator = "🟢" if current_status in ["ACTIVE", "Available"] else "🔴" if current_status in ["DOWN", "ERROR", "Not Found"] else "🟡"
+                summary_parts.append(f"{status_indicator} {network_name}: {current_status}")
+            
+            return "\n".join(summary_parts)
+        
+    except Exception as e:
+        error_msg = f"Error: Failed to manage network(s) - {str(e)}"
+        logger.error(error_msg)
+        return error_msg
     """
     Manage OpenStack networks for tenant isolation and connectivity
     
