@@ -485,9 +485,7 @@ async def get_instance(
             # Get all instances
             logger.info("Fetching all instances")
             result_data = _get_instance_details(
-                instance_names="",
-                instance_ids="",
-                all_instances=True,
+                instance_names=None,
                 limit=limit,
                 offset=offset,
                 include_all=True
@@ -497,10 +495,9 @@ async def get_instance(
         elif has_direct_names:
             # Get specific instances by names
             logger.info(f"Fetching instances by names: {names}")
+            names_list = [name.strip() for name in names.split(',') if name.strip()]
             result_data = _get_instance_details(
-                instance_names=names.strip(),
-                instance_ids="",
-                all_instances=False,
+                instance_names=names_list,
                 limit=limit,
                 offset=offset,
                 include_all=True
@@ -510,10 +507,10 @@ async def get_instance(
         elif has_direct_ids:
             # Get specific instances by IDs
             logger.info(f"Fetching instances by IDs: {ids}")
+            # For IDs, we need to use names parameter since the function doesn't support IDs directly
+            ids_list = [id.strip() for id in ids.split(',') if id.strip()]
             result_data = _get_instance_details(
-                instance_names="",
-                instance_ids=ids.strip(),
-                all_instances=False,
+                instance_names=ids_list,  # Use IDs as names for now
                 limit=limit,
                 offset=offset,
                 include_all=True
@@ -656,6 +653,7 @@ async def get_instance_details(
         
         if all_instances or (not names_list and not ids_list):
             details_result = _get_instance_details(
+                instance_names=None,
                 limit=limit, 
                 offset=offset, 
                 include_all=include_all
@@ -2402,7 +2400,7 @@ async def set_keypair(
             logger.info(f"Using filter-based targeting for keypair action '{action}'")
             
             # Get all keypairs and filter
-            all_keypairs_info = _get_keypair_details("all")
+            all_keypairs_info = _get_keypair_list()
             if not isinstance(all_keypairs_info, list):
                 return "Error: Failed to retrieve keypair list for filtering"
             
@@ -3001,7 +2999,7 @@ async def set_snapshot(
             logger.info(f"Using filter-based targeting for snapshot action '{action}'")
             
             # Get all snapshots and filter
-            all_snapshots_info = _get_snapshot_details("all")
+            all_snapshots_info = _get_volume_snapshots()
             if not isinstance(all_snapshots_info, list):
                 return "Error: Failed to retrieve snapshot list for filtering"
             

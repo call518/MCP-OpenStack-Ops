@@ -832,7 +832,7 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 ```
 "Show top 10 resource-consuming instances"
 "Display flavor utilization statistics"
-"Monitor network bandwidth usage"
+"Monitor network resource counts and status"
 "Check storage I/O performance"
 ```
 

@@ -32,6 +32,9 @@ def get_network_details(network_name: str = "all") -> List[Dict[str, Any]]:
         
         if network_name.lower() == "all":
             for network in conn.network.networks():
+                # Get project ID first
+                network_project = getattr(network, 'project_id', None) or getattr(network, 'tenant_id', None)
+                
                 # Enhanced project validation with utility functions
                 if (validate_resource_ownership(network, "Network") or 
                     getattr(network, 'is_shared', False) or 
