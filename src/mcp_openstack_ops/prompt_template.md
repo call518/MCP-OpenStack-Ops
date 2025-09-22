@@ -658,7 +658,7 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 "Delete old images" → set_image(action="delete", name_contains="old")
 "Create development keypair" → set_keypair(action="create", keypair_names="dev-key")
 "Delete temporary keypairs" → set_keypair(action="delete", name_contains="temp")
-```
+
 "Create image with min requirements" → set_image("custom-image", "create", disk_format="qcow2", min_disk=20, min_ram=1024)
 "List all volumes" → get_volume_list()
 "Show all networks" → get_network_details("all")
