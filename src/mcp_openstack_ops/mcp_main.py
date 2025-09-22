@@ -21,6 +21,17 @@ def handle_operation_result(result: Dict[str, Any], operation_name: str, details
     Returns:
         Success JSON or clear error message
     """
+    # Check if result is None or empty
+    if not result:
+        error_response = f"❌ **{operation_name} Failed**\n\n**Error**: No response received from OpenStack API. The operation may have failed or timed out."
+        
+        if details:
+            details_str = '\n'.join([f"**{k}**: {v}" for k, v in details.items()])
+            error_response += f"\n\n{details_str}"
+            error_response += "\n\n**Recommendation**: Please verify the operation status and try again if needed."
+            
+        return error_response
+    
     # Check if operation failed and return clear error message
     if isinstance(result, dict) and result.get('success') is False:
         error_message = result.get('message', 'Unknown error occurred')
@@ -33,16 +44,97 @@ def handle_operation_result(result: Dict[str, Any], operation_name: str, details
             
         return error_response
     
-    # Return success response
-    return result if isinstance(result, str) else json.dumps(result, indent=2, ensure_ascii=False)
+    # Enhanced handling for successful operations with tool-specific async guidance
+    if isinstance(result, dict) and result.get('success') is True:
+        # Extract operation details from various parameter structures
+        action = details.get('Action', 'operation') if details else 'operation'
+        resource_name = (details.get('Instance') or details.get('Volume') or 
+                        details.get('Network') or details.get('Stack') or 
+                        details.get('Image') or details.get('Keypair') or 'resource') if details else 'resource'
+        
+        # Tool-specific async handling and verification commands
+        async_operations = {
+            "Instance Management": {
+                "async_actions": ["start", "stop", "restart", "reboot", "create", "delete", "resize", "rebuild"],
+                "timing": "30-60 seconds",
+                "verify_cmd": f"Show instance status for {resource_name}"
+            },
+            "Volume Management": {
+                "async_actions": ["create", "delete", "extend", "attach", "detach"],
+                "timing": "10-30 seconds", 
+                "verify_cmd": "List all volumes"
+            },
+            "Network Management": {
+                "async_actions": ["create", "delete"],
+                "timing": "5-15 seconds",
+                "verify_cmd": "Show all networks"
+            },
+            "Heat Stack Management": {
+                "async_actions": ["create", "update", "delete"],
+                "timing": "2-10 minutes",
+                "verify_cmd": "List all Heat stacks"
+            },
+            "Image Management": {
+                "async_actions": ["create", "delete", "update"],
+                "timing": "1-5 minutes",
+                "verify_cmd": "List available images"
+            },
+            "Quota Management": {
+                "async_actions": [],  # Usually synchronous
+                "timing": "immediate",
+                "verify_cmd": "Show quota usage and limits"
+            },
+            "Keypair Management": {
+                "async_actions": [],  # Usually synchronous
+                "timing": "immediate", 
+                "verify_cmd": "List all keypairs"
+            }
+        }
+        
+        tool_config = async_operations.get(operation_name, {
+            "async_actions": ["create", "delete", "update"],
+            "timing": "variable",
+            "verify_cmd": f"Check {operation_name.lower()} status"
+        })
+        
+        # Only add async note for operations that are actually asynchronous
+        if action.lower() in tool_config.get("async_actions", []):
+            if "message" in result:
+                timing = tool_config.get("timing", "variable")
+                verify_cmd = tool_config.get("verify_cmd", f"Check {operation_name.lower()} status")
+                
+                result["message"] += f"\n\n📋 Note: This is an asynchronous operation. The {action} command has been initiated successfully (expected completion: {timing}). You can verify the status using '{verify_cmd}'."
+            
+            result["operation_type"] = "asynchronous"
+            result["verification_needed"] = True
+        else:
+            # For synchronous operations, just mark as completed
+            result["operation_type"] = "synchronous"
+            result["verification_needed"] = False
+    
+    # Return formatted JSON response
+    try:
+        return json.dumps(result, indent=2, ensure_ascii=False)
+    except Exception as e:
+        # Fallback for JSON serialization issues
+        return f"Operation completed but response formatting failed: {str(e)}"
+        
+        # Return formatted JSON for other successful dict results
+        try:
+            return json.dumps(result, indent=2, ensure_ascii=False)
+        except Exception as json_error:
+            return f"✅ **{operation_name} Successful**\n\nOperation completed but response formatting failed: {str(json_error)}"
+    
+    # Return string results as-is
+    return str(result) if result else "❌ **Operation Failed**: Empty response"
 
 from .connection import get_openstack_connection
+from .services.compute import search_instances as _search_instances
 from .functions import (
     get_service_status as _get_service_status, 
     get_instance_details as _get_instance_details, 
     get_instance_by_name as _get_instance_by_name,
     get_instance_by_id as _get_instance_by_id,
-    search_instances as _search_instances,
     get_instances_by_status as _get_instances_by_status,
     get_network_details as _get_network_details,
     set_instance as _set_instance,
@@ -66,8 +158,8 @@ from .functions import (
     set_server_security_group as _set_server_security_group,
     set_server_migration as _set_server_migration,
     set_server_properties as _set_server_properties,
-    create_server_backup as _create_server_backup,
-    create_server_dump as _create_server_dump,
+    create_server_backup as _set_server_backup,
+    create_server_dump as _set_server_dump,
     # Network (Neutron) enhanced functions
     get_floating_ips as _get_floating_ips,
     set_floating_ip as _set_floating_ip,
@@ -422,20 +514,13 @@ async def search_instances(
         
         search_result = _search_instances(
             search_term=search_term, 
-            search_in=search_in,
+            search_fields=search_in.split(',') if search_in else ['name', 'id'],
             limit=limit,
-            offset=offset,
-            case_sensitive=case_sensitive
+            include_inactive=True  # 모든 인스턴스를 검색하기 위해
         )
         
         # Handle both old return format (list) and new return format (dict)
-        if isinstance(search_result, dict):
-            instances = search_result.get('instances', [])
-            search_info = search_result.get('search_info', {})
-            pagination_info = search_result.get('pagination', {})
-            performance_info = search_result.get('performance', {})
-        else:
-            # Backward compatibility with old list return format
+        if isinstance(search_result, list):
             instances = search_result
             search_info = {
                 'search_term': search_term,
@@ -443,6 +528,17 @@ async def search_instances(
                 'case_sensitive': case_sensitive,
                 'matches_found': len(instances)
             }
+            pagination_info = {'limit': limit, 'offset': offset, 'has_more': False}
+            performance_info = {}
+        elif isinstance(search_result, dict):
+            instances = search_result.get('instances', [])
+            search_info = search_result.get('search_info', {})
+            pagination_info = search_result.get('pagination', {})
+            performance_info = search_result.get('performance', {})
+        else:
+            # Fallback for unexpected format
+            instances = []
+            search_info = {'search_term': search_term, 'matches_found': 0}
             pagination_info = {'limit': limit, 'offset': offset, 'has_more': False}
             performance_info = {}
         
@@ -1046,7 +1142,7 @@ async def set_server_properties(
 
 
 @conditional_tool
-async def create_server_backup(
+async def set_server_backup(
     instance_name: str,
     backup_name: str,
     backup_type: str = "daily",
@@ -1087,7 +1183,7 @@ async def create_server_backup(
             'metadata': metadata
         }
         
-        result = _create_server_backup(instance_name.strip(), backup_name.strip(), **kwargs)
+        result = _set_server_backup(instance_name.strip(), backup_name.strip(), **kwargs)
         
         # Use centralized result handling
         return handle_operation_result(
@@ -1112,7 +1208,7 @@ async def create_server_backup(
 
 
 @conditional_tool
-async def create_server_dump(instance_name: str) -> str:
+async def set_server_dump(instance_name: str) -> str:
     """
     Create a dump file for a server (vendor-specific feature).
     
@@ -1135,7 +1231,7 @@ async def create_server_dump(instance_name: str) -> str:
     try:
         logger.info(f"Attempting to create server dump: {instance_name}")
         
-        result = _create_server_dump(instance_name.strip())
+        result = _set_server_dump(instance_name.strip())
         
         # Use centralized result handling
         return handle_operation_result(

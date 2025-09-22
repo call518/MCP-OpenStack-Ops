@@ -18,7 +18,8 @@
 
 - ✅ **Single Project Scope**: Operates within the configured `OS_PROJECT_NAME` project scope for complete tenant isolation. All operations are restricted to resources within the specified project, ensuring data privacy and security in multi-tenant environments.
 - ✅ **OpenStack SDK Integration**: Direct integration with OpenStack SDK for real-time project operations.
-- ✅ **Production-Safe Operations**: Built-in safety controls with `ALLOW_MODIFY_OPERATIONS` environment variable to prevent modification operations in production environments.
+- ✅ **Enhanced Operation Safety**: Built-in safety controls with `ALLOW_MODIFY_OPERATIONS` environment variable and comprehensive error handling that prevents false success claims and provides clear guidance for asynchronous operations.
+- ✅ **Smart Async Operation Handling**: Intelligent detection and guidance for OpenStack asynchronous operations (instance management, volume operations, network changes) with tool-specific timing expectations and verification commands.
 - ✅ **Enhanced Project Monitoring**: Comprehensive project status reports with health scoring system, resource utilization analysis, instance state tracking, and detailed health breakdown by service categories.
 - ✅ **Complete Service Coverage**: 93+ comprehensive tools covering Identity, Compute, Network, Storage, Image, Orchestration, Load Balancer, and Monitoring services within project scope.
 - ✅ **Advanced Instance Management**: Enhanced server lifecycle operations with backup, migration, rescue, and administrative functions including state analysis.
@@ -65,7 +66,7 @@
 | `openstack server create` | `set_instance` (action="create") | ✅ | Instance creation |
 | `openstack server start/stop/reboot` | `set_instance` | ✅ | Full lifecycle management |
 | `openstack server delete` | `set_instance` (action="delete") | ✅ | Instance deletion |
-| `openstack server backup create` | `create_server_backup` | ✅ | Backup creation with rotation |
+| `openstack server backup create` | `set_server_backup` | ✅ | Backup creation with rotation |
 | `openstack server image create` | `set_instance` (action="snapshot") | ✅ | Image/snapshot creation |
 | `openstack server shelve/unshelve` | `set_instance` | ✅ | Instance shelving |
 | `openstack server lock/unlock` | `set_instance` | ✅ | Instance locking |
@@ -97,7 +98,7 @@
 | `openstack server remove volume` | `set_server_volume` (action="detach") | ✅ | Volume detachment |
 | `openstack server set` | `set_server_properties` (action="set") | ✅ | Server property setting |
 | `openstack server unset` | `set_server_properties` (action="unset") | ✅ | Server property unsetting |
-| `openstack server dump create` | `create_server_dump` | ✅ | Server dump creation |
+| `openstack server dump create` | `set_server_dump` | ✅ | Server dump creation |
 | `openstack server event list` | `get_server_events` | ✅ | Server event tracking |
 | `openstack server group list` | `get_server_groups` | ✅ | Server group listing |
 | `openstack server group create/delete` | `set_server_group` | ✅ | Server group management |

@@ -49,6 +49,65 @@
 - ❌ **WRONG**: "요청을 처리했습니다" (when required parameters missing)
 - ✅ **CORRECT**: Return the actual error message from the tool
 
+### **🔍 Empty Response Detection and Handling**
+
+**CRITICAL RULE**: If MCP tool returns empty, null, or "(응답 내용 없음)" response:
+
+1. **NEVER assume operation succeeded**
+2. **NEVER make up success messages**
+3. **ALWAYS report the empty response issue**
+4. **Recommend verification steps**
+
+**Proper Response Pattern for Empty Results**:
+```
+❌ The operation may not have completed successfully as no response was received from the OpenStack API.
+
+🔍 **Recommended Next Steps**:
+1. Please verify the current status: "Show instance status for [instance-name]"
+2. Check recent events: "Show instance events for [instance-name]" 
+3. Try the operation again if needed
+
+This ensures we don't provide false success confirmations when operations may have actually failed.
+```
+
+**Common Empty Response Scenarios**:
+- Instance start/stop/restart operations
+- Volume attach/detach operations  
+- Network configuration changes
+- Security group modifications
+- Any OpenStack asynchronous operations
+
+### **⚠️ Asynchronous Operation Awareness**
+
+**For OpenStack asynchronous operations** (start, stop, restart, create, delete):
+
+1. **Success message** = Command was **initiated**, not completed
+2. **Always inform user** about asynchronous nature
+3. **Provide status check guidance**
+
+### **🔄 Enhanced Response Handling for All Operations**
+
+**All `set_*` operations use enhanced response processing:**
+
+**Success Response Patterns**:
+- **Instance Operations**: `✅ Instance [action] initiated. Verify: "Show instance status"`
+- **Volume Operations**: `✅ Volume [action] initiated. Verify: "List all volumes"`
+- **Network Operations**: `✅ Network [action] initiated. Verify: "Show all networks"`
+- **Image Operations**: `✅ Image [action] initiated. Verify: "List available images"`
+- **Stack Operations**: `✅ Stack [action] initiated. Verify: "List all Heat stacks"`
+- **Other Operations**: `✅ [Resource] [action] initiated. Verify with appropriate status command.`
+
+**Universal Empty Response Pattern**:
+```
+❌ No response from OpenStack API - operation status unclear.
+Verify current state with appropriate status check command and retry if needed.
+```
+
+**Application Rules**:
+- **Enhanced responses**: All `set_*` tools (modify operations)
+- **Standard responses**: All `get_*`, `search_*`, `monitor_*` tools (read-only)
+- **Async operations**: Always include verification guidance and expected timing
+
 ### **📋 Required Parameters for Create Operations**
 
 **VM Creation (`set_instance` with action="create")**:
@@ -219,8 +278,8 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 **Server Advanced Operations:**
 - `set_server_migration`: Live migrate/evacuate/confirm/abort (**Conditional Tool**)
 - `set_server_properties`: Set/unset metadata and properties (**Conditional Tool**)
-- `create_server_backup`: Create incremental backups (**Conditional Tool**)
-- `create_server_dump`: Trigger memory dumps (**Conditional Tool**)
+- `set_server_backup`: Create incremental backups (**Conditional Tool**)
+- `set_server_dump`: Trigger memory dumps (**Conditional Tool**)
 
 **Server Information & Resources:**
 - `get_server_groups`: Affinity/anti-affinity policy information (always available)
