@@ -283,6 +283,11 @@ else:
     logger.info("Initializing MCP instance without authentication")
     mcp = FastMCP("openstack-ops")
 
+
+def create_server() -> FastMCP:
+    """Return the configured FastMCP server for Smithery deployments."""
+    return mcp
+
 # =============================================================================
 # Safety Control Functions
 # =============================================================================
@@ -2097,7 +2102,7 @@ def validate_config(transport_type: str, host: str, port: int) -> None:
 
 def main(argv: Optional[List[str]] = None) -> None:
     """Main entry point for the MCP server."""
-    global mcp
+    server = create_server()
     
     parser = argparse.ArgumentParser(
         prog="mcp-openstack-ops", 
@@ -2185,8 +2190,9 @@ def main(argv: Optional[List[str]] = None) -> None:
             logger.warning("This server will accept requests without Bearer token verification.")
             logger.warning("Set REMOTE_AUTH_ENABLE=true and REMOTE_SECRET_KEY to enable authentication.")
 
-    # Note: MCP instance with authentication is already initialized at module level
-    # based on environment variables. CLI arguments will override if different.
+    # Note: create_server() returns the module-level FastMCP instance that
+    # initializes authentication using environment variables. CLI arguments
+    # only adjust runtime behaviour such as logging and transport here.
     if auth_enable != _auth_enable or secret_key != _secret_key:
         logger.warning("CLI authentication settings differ from environment variables.")
         logger.warning("Environment settings take precedence during module initialization.")
@@ -2194,10 +2200,10 @@ def main(argv: Optional[List[str]] = None) -> None:
     # Execution based on transport mode
     if transport_type == "streamable-http":
         logger.info(f"Starting streamable-http server on {host}:{port}")
-        mcp.run(transport="streamable-http", host=host, port=port)
+        server.run(transport="streamable-http", host=host, port=port)
     else:
         logger.info("Starting stdio transport for local usage")
-        mcp.run(transport='stdio')
+        server.run(transport='stdio')
 
 if __name__ == "__main__":
     """Entrypoint for MCP server.
