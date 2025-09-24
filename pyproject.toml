@@ -9,6 +9,7 @@ dependencies = [
     "fastmcp>=2.12.3",
     "openstacksdk>=4.1.0,<=4.7.1",
     "python-dotenv>=1.1.1",
+    "smithery>=0.2.4",
 ]
 
 [project.optional-dependencies]
