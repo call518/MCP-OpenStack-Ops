@@ -3,10 +3,10 @@ name = "mcp-openstack-ops"
 version = "0.0.0"
 description = "OpenStack operations automation MCP server"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 authors = [{ name = "JungJungIn", email = "call518@gmail.com" }]
 dependencies = [
-    "fastmcp>=2.11.1",
+    "fastmcp>=2.12.3",
     "openstacksdk>=4.1.0,<=4.7.1",
     "python-dotenv>=1.1.1",
 ]

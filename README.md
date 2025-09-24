@@ -483,7 +483,7 @@ Add to your Claude Desktop configuration:
   "mcpServers": {
     "openstack-ops": {
       "command": "uvx",
-      "args": ["--python", "3.11", "mcp-openstack-ops"],
+      "args": ["--python", "3.12", "mcp-openstack-ops"],
       "env": {
         "OS_AUTH_HOST": "your-openstack-host",
         "OS_AUTH_PORT": "5000",
