@@ -283,11 +283,6 @@ else:
     logger.info("Initializing MCP instance without authentication")
     mcp = FastMCP("openstack-ops")
 
-
-def create_server() -> FastMCP:
-    """Return the configured FastMCP server for Smithery deployments."""
-    return mcp
-
 # =============================================================================
 # Safety Control Functions
 # =============================================================================
@@ -6768,5 +6763,8 @@ async def set_load_balancer_quota(
             "success": False
         }, indent=2)
 
+def create_server() -> FastMCP:
+    """Return the configured FastMCP server for Smithery deployments."""
+    return mcp
 
 # ===== MCP SERVER STARTUP =====
