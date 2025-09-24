@@ -551,7 +551,7 @@ Options:
 | `OS_IMAGE_PORT` | Image service port | `9292` | Glance endpoint |
 | `OS_PLACEMENT_PORT` | Placement service port | `8780` | Placement endpoint |
 | `OS_HEAT_STACK_PORT` | Heat orchestration service port | `8004` | Heat API endpoint |
-| `OS_HEAT_STACK_CFN_PORT` | Heat CloudFormation service port | `18888` | Heat CFN API endpoint |
+| `OS_HEAT_STACK_CFN_PORT` | Heat CloudFormation service port | `18888` | Heat CFN API endpoint (default: 8000, changed to avoid Docker port conflicts) |
 | **MCP Server Configuration** |
 | `MCP_LOG_LEVEL` | Logging level | `INFO` | Development debugging |
 | `ALLOW_MODIFY_OPERATIONS` | Enable modify operations | `false` | Safety control for state modifications |
