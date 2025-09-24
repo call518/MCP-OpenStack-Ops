@@ -1,2 +1,2 @@
-name: mcp-mysql-ops
+name: mcp-openstack-ops
 runtime: "python"
