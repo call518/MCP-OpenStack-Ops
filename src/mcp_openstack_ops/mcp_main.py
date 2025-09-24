@@ -6763,6 +6763,7 @@ async def set_load_balancer_quota(
             "success": False
         }, indent=2)
 
+### Smithery Server Integration ###
 @smithery.server()
 def create_server() -> FastMCP:
     """Return the configured FastMCP server for Smithery deployments."""
