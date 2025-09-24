@@ -17,27 +17,16 @@
 
 ## Features
 
-- ✅ **Single Project Scope**: Operates within the configured `OS_PROJECT_NAME` project scope for complete tenant isolation. All operations are restricted to resources within the specified project, ensuring data privacy and security in multi-tenant environments.
-- ✅ **OpenStack SDK Integration**: Direct integration with OpenStack SDK for real-time project operations.
-- ✅ **Enhanced Operation Safety**: Built-in safety controls with `ALLOW_MODIFY_OPERATIONS` environment variable and comprehensive error handling that prevents false success claims and provides clear guidance for asynchronous operations.
-- ✅ **Smart Async Operation Handling**: Intelligent detection and guidance for OpenStack asynchronous operations (instance management, volume operations, network changes) with tool-specific timing expectations and verification commands.
-- ✅ **Enhanced Project Monitoring**: Comprehensive project status reports with health scoring system, resource utilization analysis, instance state tracking, and detailed health breakdown by service categories.
-- ✅ **Complete Service Coverage**: 93+ comprehensive tools covering Identity, Compute, Network, Storage, Image, Orchestration, Load Balancer, and Monitoring services within project scope.
-- ✅ **Advanced Instance Management**: Enhanced server lifecycle operations with backup, migration, rescue, and administrative functions including state analysis.
-- ✅ **🆕 Bulk Operations & Filter-based Targeting**: Advanced bulk operations for instances, volumes, images, networks, keypairs, and snapshots with intelligent filtering (name_contains, status, etc.) enabling one-step operations like "stop all instances containing 'test'".
-- ✅ **🆕 Post-Action Status Verification**: Automatic status verification after operations with emoji indicators (🟢🔴🟡) providing immediate feedback on operation success and current resource states.
-- ✅ **🆕 Unified Resource Queries**: Consolidated get_instance tool replacing multiple separate query tools, providing comprehensive resource information in a single call.
-- ✅ **Server Event Tracking**: Detailed server event history and lifecycle monitoring with comprehensive logging.
-- ✅ **Network Analysis**: Comprehensive network operations with external/private network classification, floating IP management, and port operations within project scope.
-- ✅ **Volume Management**: Comprehensive volume attachment/detachment operations with state analysis and capacity tracking.
-- ✅ **Smart Image Filtering**: Access to public, community, shared, and project-owned images with intelligent visibility filtering that prevents zero-image count issues.
-- ✅ **Enterprise Features**: User management, role assignments, keypair management, floating IP operations, volume snapshots within project boundaries.
-- ✅ **Intelligent Search**: Flexible instance search with partial matching and case-sensitive options.
-- ✅ **Load Balancer Integration**: Complete load balancer management with health monitoring within project scope.
-- ✅ **Connection Optimization**: Global connection caching and automatic retry mechanisms.
-- ✅ **Multi-Project Support**: Deploy multiple MCP servers with different `OS_PROJECT_NAME` values for complete multi-tenant project management with full isolation.
-- ✅ **Docker Support**: Containerized deployment optimized for OpenStack Epoxy environments.
-- ✅ **Flexible Transport**: Support for both `stdio` and `streamable-http` transports with comprehensive logging.
+- ✅ **Project-Scoped Operations**: Every tool enforces the configured `OS_PROJECT_NAME`, validating resource ownership so actions stay inside a single tenant.
+- ✅ **Safety-Gated Writes**: Modify (`set_*`) tooling only registers when `ALLOW_MODIFY_OPERATIONS=true`, keeping default deployments read-only and auditable.
+- ✅ **90+ Purpose-Built Tools**: Broad coverage across compute, networking, storage, images, identity, Heat, and Octavia load balancing tasks—all constrained to the current project.
+- ✅ **Bulk & Filtered Actions**: Instance, volume, network, image, snapshot, and keypair managers accept comma-delimited targets or filter criteria to orchestrate bulk changes intentionally.
+- ✅ **Post-Action Feedback & Async Guidance**: Mutating tools reuse a shared result handler that adds emoji status checks, asynchronous timing notes, and follow-up verification commands.
+- ✅ **Monitoring & Usage Insights**: `get_service_status`, `get_resource_monitoring`, `get_usage_statistics`, and quota tools surface service availability, utilization, and capacity for the active project.
+- ✅ **Unified Instance Queries**: The `get_instance` tool consolidates name, ID, status, and free-form search paths with pagination plus summary/detailed modes.
+- ✅ **Server Insight & Audit Trail**: Dedicated tools expose server events, hypervisor details, availability zones, quotas, and resource ownership to speed diagnostics.
+- ✅ **Load Balancer Management**: Octavia tools cover listeners, pools, members, health monitors, flavors, quotas, and amphora operations with the same safety gates.
+- ✅ **Connection & Deployment Flexibility**: Connection caching, configurable service endpoints, Docker packaging, and both `stdio`/`streamable-http` transports support proxy/bastion and multi-project setups.
 
 > ⚠️ **Compatibility Notice**: This MCP server is developed and optimized for **OpenStack Epoxy (2025.1)** as the primary target environment. However, it is compatible with most modern OpenStack releases (Dalmatian, Caracal, Bobcat, etc.) as the majority of APIs remain consistent across versions. Only a few specific API endpoints may require adaptation for full compatibility with older releases.
 > 
