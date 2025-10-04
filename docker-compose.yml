@@ -1,7 +1,8 @@
 services:
   open-webui:
     env_file: .env
-    image: ghcr.io/open-webui/open-webui:main
+    # image: ghcr.io/open-webui/open-webui:main
+    image: ghcr.io/open-webui/open-webui:0.6.22
     container_name: mcp-openstack-ops-open-webui
     ports:
       - "${DOCKER_EXTERNAL_PORT_OPENWEBUI}:8080"
