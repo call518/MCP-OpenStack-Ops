@@ -476,7 +476,7 @@ Add to your Claude Desktop configuration:
 ```json
 {
   "mcpServers": {
-    "openstack-ops": {
+    "mcp-openstack-ops": {
       "command": "uvx",
       "args": ["--python", "3.12", "mcp-openstack-ops"],
       "env": {
@@ -941,7 +941,7 @@ When authentication is enabled, MCP clients must include the Bearer token in the
 ```json
 {
   "mcpServers": {
-    "openstack-ops": {
+    "mcp-openstack-ops": {
       "type": "streamable-http",
       "url": "http://your-server:8000/mcp",
       "headers": {

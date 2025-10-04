@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "openstack-ops": {
+    "mcp-openstack-ops": {
       "type": "streamable-http",
       "url": "http://host.docker.internal:18005/mcp",
       "headers": {

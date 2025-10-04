@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "openstack-ops": {
+    "mcp-openstack-ops": {
       "command": "python",
       "args": ["-m", "mcp_openstack_ops"],
       "env": {

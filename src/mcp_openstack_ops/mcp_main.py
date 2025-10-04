@@ -170,11 +170,11 @@ if _auth_enable and _secret_key:
     }
     
     auth = StaticTokenVerifier(tokens=tokens)
-    mcp = FastMCP("openstack-ops", auth=auth)
+    mcp = FastMCP("mcp-openstack-ops", auth=auth)
     logger.info("MCP instance initialized with authentication")
 else:
     logger.info("Initializing MCP instance without authentication")
-    mcp = FastMCP("openstack-ops")
+    mcp = FastMCP("mcp-openstack-ops")
 
 # =============================================================================
 # Safety Control Functions
