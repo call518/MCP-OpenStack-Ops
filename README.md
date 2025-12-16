@@ -396,6 +396,10 @@ New consolidated `get_instance` tool replaces multiple separate tools:
 
 ## Quick Start
 
+> 💡 **Need an OpenStack Cluster for Testing?**  
+> Check out this comprehensive guide: [Tutorial: Install OpenStack Multinode Cluster /w Kolla-Ansible (Epoxy/Dalmatian)](https://medium.com/@call518/tutorial-install-openstack-multinode-cluster-w-kolla-ansible-flamingo-epoxy-dalmatian-19c000cc1645)  
+> Perfect for setting up a test environment to explore MCP-OpenStack-Ops capabilities.
+
 ![Flow Diagram of Quickstart/Tutorial](img/MCP-Workflow-of-Quickstart-Tutorial.png)
 
 ### 1. Environment Setup
