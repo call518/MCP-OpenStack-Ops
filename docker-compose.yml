@@ -24,6 +24,8 @@ services:
       - ./src:/app/src/
       - ./scripts:/app/scripts
       - ./.env:/app/.env:ro
+      # Uncomment the line below to mount SSL CA certificate for HTTPS OpenStack connections
+      # - /path/to/your/ca-cert.pem:/etc/ssl/certs/openstack-ca.pem:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped

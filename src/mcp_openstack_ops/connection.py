@@ -54,6 +54,29 @@ def get_openstack_connection():
     # Get OpenStack connection parameters
     os_auth_host = os.environ.get("OS_AUTH_HOST")
     os_auth_port = os.environ.get("OS_AUTH_PORT")
+    os_auth_protocol = os.environ.get("OS_AUTH_PROTOCOL", "http").lower()
+    os_cacert = os.environ.get("OS_CACERT")
+    
+    # Validate protocol
+    if os_auth_protocol not in ["http", "https"]:
+        logger.warning(f"Invalid OS_AUTH_PROTOCOL '{os_auth_protocol}', defaulting to 'http'")
+        os_auth_protocol = "http"
+    
+    # SSL Certificate handling for HTTPS
+    verify_ssl = True  # Default: verify SSL certificates
+    if os_auth_protocol == "https":
+        if os_cacert:
+            # Use custom CA certificate
+            verify_ssl = os_cacert
+            logger.info(f"Using HTTPS with custom CA certificate: {os_cacert}")
+        else:
+            # No CA certificate provided - disable SSL verification (insecure)
+            verify_ssl = False
+            logger.warning("HTTPS enabled but OS_CACERT not set - SSL verification disabled (insecure)")
+            logger.warning("For production, set OS_CACERT to your CA certificate path")
+    else:
+        # HTTP mode - no SSL verification needed
+        verify_ssl = False
     
     # Get configurable service ports (with defaults)
     # Note: OS_AUTH_PORT is used for Identity service endpoint
@@ -66,9 +89,10 @@ def get_openstack_connection():
     heat_stack_cfn_port = os.environ.get("OS_HEAT_STACK_CFN_PORT", "18888")
     
     try:
-        logger.info(f"Creating OpenStack connection with proxy host: {os_auth_host}")
+        logger.info(f"Creating OpenStack connection with protocol: {os_auth_protocol}, host: {os_auth_host}")
         _connection_cache = connection.Connection(
-            auth_url=f"http://{os_auth_host}:{os_auth_port}",
+            auth_url=f"{os_auth_protocol}://{os_auth_host}:{os_auth_port}",
+            verify=verify_ssl,
             project_name=os.environ.get("OS_PROJECT_NAME"),
             username=os.environ.get("OS_USERNAME"),
             password=os.environ.get("OS_PASSWORD"),
@@ -77,14 +101,14 @@ def get_openstack_connection():
             region_name=os.environ.get("OS_REGION_NAME", "RegionOne"),
             identity_api_version=os.environ.get("OS_IDENTITY_API_VERSION", "3"),
             interface="internal",
-            # Override all service endpoints to use proxy
-            identity_endpoint=f"http://{os_auth_host}:{os_auth_port}",
-            compute_endpoint=f"http://{os_auth_host}:{compute_port}/v2.1",
-            network_endpoint=f"http://{os_auth_host}:{network_port}",
-            volume_endpoint=f"http://{os_auth_host}:{volume_port}/v3",
-            image_endpoint=f"http://{os_auth_host}:{image_port}",
-            placement_endpoint=f"http://{os_auth_host}:{placement_port}",
-            orchestration_endpoint=f"http://{os_auth_host}:{heat_stack_port}/v1",
+            # Override all service endpoints to use configured protocol
+            identity_endpoint=f"{os_auth_protocol}://{os_auth_host}:{os_auth_port}",
+            compute_endpoint=f"{os_auth_protocol}://{os_auth_host}:{compute_port}/v2.1",
+            network_endpoint=f"{os_auth_protocol}://{os_auth_host}:{network_port}",
+            volume_endpoint=f"{os_auth_protocol}://{os_auth_host}:{volume_port}/v3",
+            image_endpoint=f"{os_auth_protocol}://{os_auth_host}:{image_port}",
+            placement_endpoint=f"{os_auth_protocol}://{os_auth_host}:{placement_port}",
+            orchestration_endpoint=f"{os_auth_protocol}://{os_auth_host}:{heat_stack_port}/v1",
             timeout=10
         )
         

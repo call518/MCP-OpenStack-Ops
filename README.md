@@ -420,6 +420,8 @@ Configure your `.env` file with OpenStack credentials:
 # OpenStack Authentication (required)
 OS_AUTH_HOST=your-openstack-host
 OS_AUTH_PORT=5000
+OS_AUTH_PROTOCOL=http  # Use 'https' for production with SSL/TLS
+# OS_CACERT=/etc/ssl/certs/openstack-ca.pem  # Required for HTTPS (optional for HTTP)
 OS_IDENTITY_API_VERSION=3
 OS_USERNAME=your-username
 OS_PASSWORD=your-password
@@ -444,6 +446,34 @@ FASTMCP_TYPE=stdio
 FASTMCP_HOST=127.0.0.1
 FASTMCP_PORT=8080
 ```
+
+**HTTPS Configuration for Production Environments**
+
+For secure OpenStack deployments with SSL/TLS:
+
+```bash
+# Enable HTTPS protocol
+OS_AUTH_PROTOCOL=https
+OS_AUTH_HOST=your-secure-openstack-host
+OS_AUTH_PORT=13000  # Your HTTPS Keystone port
+
+# SSL Certificate Configuration
+# Option 1: Use custom CA certificate (recommended for production)
+OS_CACERT=/etc/ssl/certs/openstack-ca.pem
+
+# Option 2: Skip CA certificate (SSL verification disabled - insecure)
+# Just omit OS_CACERT - the server will warn you about insecure connection
+
+# Docker: Mount CA certificate into container
+# Add to docker-compose.yml volumes:
+#   - /path/to/your/ca-cert.pem:/etc/ssl/certs/openstack-ca.pem:ro
+```
+
+**Protocol Configuration Notes:**
+- `OS_AUTH_PROTOCOL=http`: Use for local development or HTTP-only OpenStack deployments
+- `OS_AUTH_PROTOCOL=https`: Use for production environments with SSL/TLS enabled
+- When `https` is set without `OS_CACERT`, SSL verification is disabled (insecure but functional)
+- For secure production deployments, always provide `OS_CACERT` with your CA certificate path
 
 ### 2. Run Server
 
@@ -532,6 +562,8 @@ Options:
 | **OpenStack Authentication** |
 | `OS_AUTH_HOST` | OpenStack Identity service host | Required | Authentication host address |
 | `OS_AUTH_PORT` | OpenStack Identity service port | Required | Authentication port |
+| `OS_AUTH_PROTOCOL` | Connection protocol (http or https) | `http` | Use `https` for production with SSL/TLS |
+| `OS_CACERT` | SSL CA certificate path for HTTPS | Optional | Required for secure HTTPS connections (e.g., `/etc/ssl/certs/ca.pem`). If not set with HTTPS, SSL verification is disabled (insecure) |
 | `OS_USERNAME` | OpenStack username | Required | User credentials |
 | `OS_PASSWORD` | OpenStack password | Required | User credentials |
 | `OS_PROJECT_NAME` | OpenStack project name | Required | Project scope |
