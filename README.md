@@ -37,6 +37,52 @@
 > 
 > 🚧 **Coming Soon**: Dynamic multi-version OpenStack API compatibility is actively under development and will be available in upcoming releases, providing seamless support for all major OpenStack deployments automatically.
 
+### 🔧 OpenStackSDK Version Customization for Older Releases
+
+**Officially Supported Releases:**
+- ✅ OpenStack **Epoxy (2025.1)** - Fully tested
+- ✅ OpenStack **Dalmatian (2024.2)** - Fully tested
+
+**For older OpenStack releases** (Wallaby, Caracal, Bobcat, etc.), you may need to customize the OpenStackSDK version to match your environment. The SDK version must be changed in **BOTH files**:
+
+**Step 1: Modify `Dockerfile.MCP-Server`**
+```dockerfile
+RUN pip install \
+        'uv>=0.8.5' \
+        'mcpo>=0.0.17' \
+        'fastmcp>=2.12.3' \
+        'aiohttp>=3.12.0' \
+        'openstacksdk==3.1.1' \  # ← Change to your required version (e.g., 3.1.1 for Wallaby)
+        'python-dotenv>=1.0.0'
+```
+
+**Step 2: Modify `pyproject.toml`**
+```toml
+dependencies = [
+    "fastmcp>=2.12.3",
+    "openstacksdk==3.1.1",  # ← Must match Dockerfile version
+    "python-dotenv>=1.1.1",
+    # ... other dependencies
+]
+```
+
+**Step 3: Rebuild Docker Image**
+```bash
+docker-compose build --no-cache mcp-server
+docker-compose up -d
+```
+
+**OpenStackSDK Version Reference:**
+| OpenStack Release | Recommended SDK Version | Notes |
+|-------------------|------------------------|-------|
+| Epoxy (2025.1) | `>=3.3.0` | Current default |
+| Dalmatian (2024.2) | `>=3.2.0` | Fully compatible |
+| Caracal (2024.1) | `>=3.1.0` | May require testing |
+| Bobcat (2023.2) | `>=3.0.0` | May require testing |
+| Wallaby (2021.1) | `==3.1.1` | Downgrade required |
+
+> ⚠️ **Important**: Both `Dockerfile.MCP-Server` and `pyproject.toml` must have the **same version** to avoid dependency conflicts during container runtime.
+
 ---
 
 ### Screenshots
