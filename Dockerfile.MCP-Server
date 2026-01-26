@@ -14,7 +14,7 @@ RUN pip install \
         'mcpo>=0.0.17' \
         'fastmcp>=2.12.3' \
         'aiohttp>=3.12.0' \
-        'openstacksdk>=3.3.0' \
+        'openstacksdk>=4.1.0,<=4.9.0' \
         'python-dotenv>=1.0.0'
 
 CMD ["/bin/bash", "/app/scripts/mcp-server-docker-cmd.sh"]
