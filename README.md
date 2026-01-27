@@ -541,6 +541,8 @@ docker-compose logs mcpo-proxy
 - **mcpo-proxy**: OpenAPI (REST-API)
 - **open-webui**: Web interface for testing and interaction
 
+> 📌 **Note**: Web-UI configuration instructions are based on OpenWebUI **v0.6.22**. Menu locations and settings may differ in newer versions.
+
 **Service URLs - Docker Internal**:
 - MCP Server: `localhost:8080` (HTTP transport)
 - MCPO Proxy: `localhost:8000` (OpenStack API proxy)
