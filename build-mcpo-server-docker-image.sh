@@ -22,7 +22,10 @@ echo
 
 read -p "Do you want to push the images to Docker Hub? (y/N): " answer
 if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
+    echo "Pushing version ${VERSION}..."
     docker push ${IMAGE_NAME}:${VERSION}
+    
+    echo "Pushing latest tag..."
     for TAG in ${TAGs}
     do
         docker push ${IMAGE_NAME}:${TAG}
