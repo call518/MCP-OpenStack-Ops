@@ -1001,7 +1001,7 @@ For `streamable-http` mode, this MCP server supports Bearer token authentication
 ```bash
 # In .env file
 REMOTE_AUTH_ENABLE=true
-REMOTE_SECRET_KEY=your-secure-secret-key-here
+REMOTE_SECRET_KEY=my-test-secret-key-12345
 ```
 
 **Or via CLI:**

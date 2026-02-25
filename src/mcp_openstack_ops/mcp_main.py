@@ -151,30 +151,27 @@ logger = logging.getLogger("OpenStackService")
 # Authentication Setup
 # =============================================================================
 
-# Check environment variables for authentication early
-_auth_enable = os.environ.get("REMOTE_AUTH_ENABLE", "false").lower() == "true"
-_secret_key = os.environ.get("REMOTE_SECRET_KEY", "")
+TRUTHY_VALUES = ("true", "1", "yes", "on")
 
-# Initialize the main MCP instance with authentication if configured
-if _auth_enable and _secret_key:
-    logger.info("Initializing MCP instance with Bearer token authentication (from environment)")
-    
-    # Create token configuration
+
+def _parse_bool_env(value: str) -> bool:
+    return value.strip().lower() in TRUTHY_VALUES
+
+
+def _build_static_token_auth(secret_key: str) -> StaticTokenVerifier:
     tokens = {
-        _secret_key: {
+        secret_key: {
             "client_id": "openstack-ops-client",
-            "user": "admin",
             "scopes": ["read", "write"],
-            "description": "OpenStack operations access token"
         }
     }
-    
-    auth = StaticTokenVerifier(tokens=tokens)
-    mcp = FastMCP("mcp-openstack-ops", auth=auth)
-    logger.info("MCP instance initialized with authentication")
-else:
-    logger.info("Initializing MCP instance without authentication")
-    mcp = FastMCP("mcp-openstack-ops")
+    return StaticTokenVerifier(tokens=tokens)
+
+
+# Initialize MCP instance once for decorator registration.
+# Runtime authentication is configured in main() before mcp.run().
+logger.info("Initializing MCP instance")
+mcp = FastMCP("mcp-openstack-ops")
 
 # =============================================================================
 # Safety Control Functions
@@ -413,8 +410,9 @@ def main(argv: Optional[List[str]] = None) -> None:
     parser.add_argument(
         "--type",
         dest="transport_type",
-        help="Transport type (stdio or streamable-http). Default: stdio",
+        help="Transport type (stdio or streamable-http). Default: env FASTMCP_TYPE or stdio",
         choices=["stdio", "streamable-http"],
+        default=None,
     )
     parser.add_argument(
         "--host",
@@ -427,11 +425,20 @@ def main(argv: Optional[List[str]] = None) -> None:
         type=int,
         help="Port number for streamable-http transport. Default: 8080",
     )
-    parser.add_argument(
+    auth_group = parser.add_mutually_exclusive_group()
+    auth_group.add_argument(
         "--auth-enable",
         dest="auth_enable",
         action="store_true",
-        help="Enable Bearer token authentication for streamable-http mode. Default: False",
+        default=None,
+        help="Enable Bearer token authentication for streamable-http mode.",
+    )
+    auth_group.add_argument(
+        "--auth-disable",
+        dest="auth_enable",
+        action="store_false",
+        default=None,
+        help="Disable Bearer token authentication for streamable-http mode.",
     )
     parser.add_argument(
         "--secret-key",
@@ -468,7 +475,10 @@ def main(argv: Optional[List[str]] = None) -> None:
     port = args.port or int(os.getenv("FASTMCP_PORT", 8080))
     
     # Authentication setting determination
-    auth_enable = args.auth_enable or os.getenv("REMOTE_AUTH_ENABLE", "false").lower() in ("true", "1", "yes", "on")
+    if args.auth_enable is None:
+        auth_enable = _parse_bool_env(os.getenv("REMOTE_AUTH_ENABLE", "false"))
+    else:
+        auth_enable = args.auth_enable
     secret_key = args.secret_key or os.getenv("REMOTE_SECRET_KEY", "")
     
     # Validation for streamable-http mode with authentication
@@ -484,11 +494,11 @@ def main(argv: Optional[List[str]] = None) -> None:
             logger.warning("This server will accept requests without Bearer token verification.")
             logger.warning("Set REMOTE_AUTH_ENABLE=true and REMOTE_SECRET_KEY to enable authentication.")
 
-    # Note: MCP instance with authentication is already initialized at module level
-    # based on environment variables. CLI arguments will override if different.
-    if auth_enable != _auth_enable or secret_key != _secret_key:
-        logger.warning("CLI authentication settings differ from environment variables.")
-        logger.warning("Environment settings take precedence during module initialization.")
+    # Configure authentication provider before server startup.
+    if auth_enable:
+        mcp.auth = _build_static_token_auth(secret_key)
+    else:
+        mcp.auth = None
 
     # Execution based on transport mode
     if transport_type == "streamable-http":
@@ -511,67 +521,4 @@ if __name__ == "__main__":
         sys.exit(0)
     except Exception as e:
         logger.error(f"Failed to start server: {e}")
-        sys.exit(1)
-
-if __name__ == "__main__":
-    import asyncio
-    
-    parser = argparse.ArgumentParser(description="OpenStack MCP Server")
-    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], 
-                        default=os.environ.get("MCP_LOG_LEVEL", "INFO"), help="Logging level")
-    parser.add_argument("--type", choices=["stdio", "streamable-http"], default="stdio", 
-                        help="Transport type (default: stdio)")
-    parser.add_argument("--host", default="127.0.0.1", help="Host address for HTTP transport (default: 127.0.0.1)")
-    parser.add_argument("--port", type=int, default=8080, help="Port number for HTTP transport (default: 8080)")
-    parser.add_argument("--auth-enable", action="store_true", 
-                        help="Enable Bearer token authentication for streamable-http mode")
-    parser.add_argument("--secret-key", help="Secret key for Bearer token authentication")
-    
-    args = parser.parse_args()
-    
-    # Set log level (CLI overrides environment)
-    logger.setLevel(args.log_level)
-    
-    # Update authentication if provided via CLI
-    if args.auth_enable and args.secret_key:
-        logger.info("Authentication enabled via CLI arguments")
-        
-        tokens = {
-            args.secret_key: {
-                "client_id": "openstack-ops-client",
-                "user": "admin",
-                "scopes": ["read", "write"],
-                "description": "CLI-provided access token"
-            }
-        }
-        
-        auth = StaticTokenVerifier(tokens=tokens)
-        # Note: CLI auth override requires server restart to take full effect
-        logger.warning("CLI auth override requires server restart to take full effect")
-    
-    # Validate OpenStack connection early
-    try:
-        conn = get_openstack_connection()
-        logger.info("✓ OpenStack connection validated successfully")
-    except Exception as e:
-        logger.error(f"✗ Failed to connect to OpenStack: {e}")
-        logger.error("Please check your OpenStack credentials in .env file")
-        sys.exit(1)
-    
-    logger.info(f"Starting MCP server with {args.type} transport")
-    logger.info(f"Log level set via {'CLI' if 'log-level' in sys.argv else 'environment'} to {args.log_level}")
-    logger.info(f"Modify operations allowed: {_is_modify_operation_allowed()}")
-    
-    # Get auth status for logging
-    auth_enabled = _auth_enable or (args.auth_enable and args.secret_key)
-    logger.info(f"Authentication: {'Enabled' if auth_enabled else 'Disabled'}")
-    
-    if args.type == "stdio":
-        logger.info("MCP server running with stdio transport")
-        mcp.run()
-    elif args.type == "streamable-http":
-        logger.info(f"MCP server running with HTTP transport on {args.host}:{args.port}")
-        mcp.run(transport="streamable-http", host=args.host, port=args.port)
-    else:
-        logger.error(f"Unknown transport type: {args.type}")
         sys.exit(1)
