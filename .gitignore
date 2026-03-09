@@ -17,3 +17,4 @@ wheels/
 
 .vscode*
 #.github/copilot-instructions.md
+*.swp
