@@ -1,5 +1,7 @@
 # MCP-OpenStack-Ops
 
+[![MCP Toplist](https://mcptoplist.com/badge/smithery%2Fcall518%2Fmcp-openstack-ops.svg)](https://mcptoplist.com/server/smithery%2Fcall518%2Fmcp-openstack-ops)
+
 > **MCP OpenStack Operations Server**: A comprehensive MCP (Model Context Protocol) server providing OpenStack project management and monitoring capabilities with built-in safety controls and single-project scope.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
