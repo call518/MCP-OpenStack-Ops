@@ -283,7 +283,7 @@ def set_networks(action: str, network_name: Optional[str] = None, **kwargs) -> D
         logger.error(f"Network management failed: {e}")
         return {
             'success': False,
-            'message': f'Network management failed: {str(e)}'
+            'message': f"Network management failed: {str(e)}"
         }
 
 
@@ -498,552 +498,84 @@ def set_floating_ip(action: str, **kwargs) -> Dict[str, Any]:
         elif action.lower() == 'associate':
             floating_ip_id = kwargs.get('floating_ip_id', kwargs.get('id'))
             floating_ip_address = kwargs.get('floating_ip_address', kwargs.get('ip'))
+            instance_id = kwargs.get('instance_id')
             port_id = kwargs.get('port_id')
-            fixed_ip_address = kwargs.get('fixed_ip_address')
             
-            if not floating_ip_id and not floating_ip_address:
+            if not floating_ip_id:
                 return {
                     'success': False,
-                    'message': 'floating_ip_id or floating_ip_address is required'
+                    'message': 'floating_ip_id is required for associate action'
                 }
+            
+            if not instance_id and not port_id:
+                return {
+                    'success': False,
+                    'message': 'instance_id or port_id is required for associate action'
+                }
+            
+            if instance_id:
+                fip = conn.network.get_ip(floating_ip_id)
+                if not fip:
+                    return {
+                        'success': False,
+                        'message': 'Floating IP not found'
+                    }
                 
+                # Find the port for the instance
+                for port in conn.network.ports():
+                    if getattr(port, 'device_id', None) == instance_id:
+                        port_id = port.id
+                        break
+            
             if not port_id:
                 return {
                     'success': False,
-                    'message': 'port_id is required for associate action'
+                    'message': 'No port found for the given instance'
                 }
             
-            # Find the floating IP
-            fip = None
-            for f in conn.network.ips():
-                if (floating_ip_id and f.id == floating_ip_id) or \
-                   (floating_ip_address and getattr(f, 'floating_ip_address', '') == floating_ip_address):
-                    fip = f
-                    break
-            
-            if not fip:
-                return {
-                    'success': False,
-                    'message': 'Floating IP not found'
-                }
-            
-            update_params = {'port_id': port_id}
-            if fixed_ip_address:
-                update_params['fixed_ip_address'] = fixed_ip_address
-            
-            updated_fip = conn.network.update_ip(fip, **update_params)
+            # Associate the floating IP with the port
+            conn.network.add_floating_ip_to_port(floating_ip_id, port_id)
             
             return {
                 'success': True,
-                'message': f'Floating IP {getattr(fip, "floating_ip_address", fip.id)} associated successfully',
-                'floating_ip': {
-                    'id': updated_fip.id,
-                    'floating_ip_address': getattr(updated_fip, 'floating_ip_address', 'unknown'),
-                    'fixed_ip_address': getattr(updated_fip, 'fixed_ip_address', None),
-                    'port_id': getattr(updated_fip, 'port_id', None)
-                }
+                'message': f'Floating IP {floating_ip_address} associated with port {port_id}'
             }
             
         elif action.lower() == 'disassociate':
             floating_ip_id = kwargs.get('floating_ip_id', kwargs.get('id'))
             floating_ip_address = kwargs.get('floating_ip_address', kwargs.get('ip'))
             
-            if not floating_ip_id and not floating_ip_address:
+            if not floating_ip_id:
                 return {
                     'success': False,
-                    'message': 'floating_ip_id or floating_ip_address is required'
+                    'message': 'floating_ip_id is required for disassociate action'
                 }
             
-            # Find the floating IP
-            fip = None
-            for f in conn.network.ips():
-                if (floating_ip_id and f.id == floating_ip_id) or \
-                   (floating_ip_address and getattr(f, 'floating_ip_address', '') == floating_ip_address):
-                    fip = f
-                    break
-            
-            if not fip:
-                return {
-                    'success': False,
-                    'message': 'Floating IP not found'
-                }
-            
-            updated_fip = conn.network.update_ip(fip, port_id=None)
+            # Disassociate the floating IP from the port
+            conn.network.remove_floating_ip_from_port(floating_ip_id)
             
             return {
                 'success': True,
-                'message': f'Floating IP {getattr(fip, "floating_ip_address", fip.id)} disassociated successfully'
-            }
-        
-        elif action.lower() == 'show':
-            floating_ip_id = kwargs.get('floating_ip_id', kwargs.get('id'))
-            floating_ip_address = kwargs.get('floating_ip_address', kwargs.get('ip'))
-            
-            if not floating_ip_id and not floating_ip_address:
-                return {
-                    'success': False,
-                    'message': 'floating_ip_id or floating_ip_address is required for show action'
-                }
-            
-            # Find the floating IP
-            fip = None
-            for f in conn.network.ips():
-                if (floating_ip_id and f.id == floating_ip_id) or \
-                   (floating_ip_address and getattr(f, 'floating_ip_address', '') == floating_ip_address):
-                    fip = f
-                    break
-            
-            if not fip:
-                return {
-                    'success': False,
-                    'message': 'Floating IP not found'
-                }
-            
-            return {
-                'success': True,
-                'floating_ip': {
-                    'id': fip.id,
-                    'floating_ip_address': getattr(fip, 'floating_ip_address', 'unknown'),
-                    'fixed_ip_address': getattr(fip, 'fixed_ip_address', None),
-                    'port_id': getattr(fip, 'port_id', None),
-                    'router_id': getattr(fip, 'router_id', None),
-                    'status': getattr(fip, 'status', 'unknown'),
-                    'tenant_id': getattr(fip, 'tenant_id', 'unknown'),
-                    'project_id': getattr(fip, 'project_id', 'unknown'),
-                    'floating_network_id': getattr(fip, 'floating_network_id', 'unknown'),
-                    'description': getattr(fip, 'description', ''),
-                    'created_at': str(getattr(fip, 'created_at', 'unknown')),
-                    'updated_at': str(getattr(fip, 'updated_at', 'unknown'))
-                }
+                'message': f'Floating IP {floating_ip_address} disassociated'
             }
             
-        elif action.lower() == 'set':
-            floating_ip_id = kwargs.get('floating_ip_id', kwargs.get('id'))
-            floating_ip_address = kwargs.get('floating_ip_address', kwargs.get('ip'))
-            
-            if not floating_ip_id and not floating_ip_address:
-                return {
-                    'success': False,
-                    'message': 'floating_ip_id or floating_ip_address is required for set action'
-                }
-            
-            # Find the floating IP
-            fip = None
-            for f in conn.network.ips():
-                if (floating_ip_id and f.id == floating_ip_id) or \
-                   (floating_ip_address and getattr(f, 'floating_ip_address', '') == floating_ip_address):
-                    fip = f
-                    break
-            
-            if not fip:
-                return {
-                    'success': False,
-                    'message': 'Floating IP not found'
-                }
-            
-            # Update parameters
-            update_params = {}
-            if kwargs.get('description') is not None:
-                update_params['description'] = kwargs['description']
-            if kwargs.get('port_id') is not None:
-                update_params['port_id'] = kwargs['port_id']
-            if kwargs.get('fixed_ip_address') is not None:
-                update_params['fixed_ip_address'] = kwargs['fixed_ip_address']
-            
-            if not update_params:
-                return {
-                    'success': False,
-                    'message': 'No update parameters provided'
-                }
-            
-            updated_fip = conn.network.update_ip(fip, **update_params)
-            
-            return {
-                'success': True,
-                'message': f'Floating IP {getattr(fip, "floating_ip_address", fip.id)} updated successfully',
-                'floating_ip': {
-                    'id': updated_fip.id,
-                    'floating_ip_address': getattr(updated_fip, 'floating_ip_address', 'unknown'),
-                    'fixed_ip_address': getattr(updated_fip, 'fixed_ip_address', None),
-                    'port_id': getattr(updated_fip, 'port_id', None),
-                    'description': getattr(updated_fip, 'description', '')
-                }
-            }
-            
-        elif action.lower() == 'unset':
-            floating_ip_id = kwargs.get('floating_ip_id', kwargs.get('id'))
-            floating_ip_address = kwargs.get('floating_ip_address', kwargs.get('ip'))
-            
-            if not floating_ip_id and not floating_ip_address:
-                return {
-                    'success': False,
-                    'message': 'floating_ip_id or floating_ip_address is required for unset action'
-                }
-            
-            # Find the floating IP
-            fip = None
-            for f in conn.network.ips():
-                if (floating_ip_id and f.id == floating_ip_id) or \
-                   (floating_ip_address and getattr(f, 'floating_ip_address', '') == floating_ip_address):
-                    fip = f
-                    break
-            
-            if not fip:
-                return {
-                    'success': False,
-                    'message': 'Floating IP not found'
-                }
-            
-            # Unset parameters (clear them)
-            update_params = {}
-            unset_properties = kwargs.get('properties', [])
-            
-            if 'description' in unset_properties:
-                update_params['description'] = ''
-            if 'port' in unset_properties:
-                update_params['port_id'] = None
-                update_params['fixed_ip_address'] = None
-            
-            if not update_params:
-                return {
-                    'success': False,
-                    'message': 'No properties specified to unset'
-                }
-            
-            updated_fip = conn.network.update_ip(fip, **update_params)
-            
-            return {
-                'success': True,
-                'message': f'Floating IP {getattr(fip, "floating_ip_address", fip.id)} properties unset successfully',
-                'floating_ip': {
-                    'id': updated_fip.id,
-                    'floating_ip_address': getattr(updated_fip, 'floating_ip_address', 'unknown'),
-                    'fixed_ip_address': getattr(updated_fip, 'fixed_ip_address', None),
-                    'port_id': getattr(updated_fip, 'port_id', None)
-                }
-            }
-        
         else:
             return {
                 'success': False,
-                'message': f'Unknown action "{action}". Supported: allocate, release, associate, disassociate, list, show, set, unset'
+                'message': f'Unknown action: {action}. Supported: allocate, release, associate, disassociate, list'
             }
-            
+    
     except Exception as e:
-        logger.error(f"Failed to manage floating IP: {e}")
+        logger.error(f"Floating IP management failed: {e}")
         return {
             'success': False,
-            'message': f'Failed to manage floating IP: {str(e)}',
-            'error': str(e)
-        }
-
-
-def get_floating_ip_pools() -> List[Dict[str, Any]]:
-    """
-    Get list of floating IP pools (external networks).
-    
-    Returns:
-        List of floating IP pool dictionaries
-    """
-    try:
-        # Import here to avoid circular imports
-        from ..connection import get_openstack_connection
-        conn = get_openstack_connection()
-        pools = []
-        
-        for network in conn.network.networks():
-            if getattr(network, 'is_router_external', False):
-                # Count available and used floating IPs
-                used_ips = 0
-                total_ips = 0
-                
-                for subnet in conn.network.subnets():
-                    if getattr(subnet, 'network_id', None) == network.id:
-                        # Calculate total IPs from allocation pools
-                        allocation_pools = getattr(subnet, 'allocation_pools', [])
-                        for pool in allocation_pools:
-                            # Simple IP range calculation (this could be more sophisticated)
-                            total_ips += 100  # Placeholder calculation
-                
-                # Count used floating IPs
-                for fip in conn.network.ips():
-                    if getattr(fip, 'floating_network_id', None) == network.id:
-                        used_ips += 1
-                
-                pools.append({
-                    'id': network.id,
-                    'name': getattr(network, 'name', 'unnamed'),
-                    'network_id': network.id,
-                    'total_ips': total_ips,
-                    'used_ips': used_ips,
-                    'available_ips': total_ips - used_ips,
-                    'admin_state_up': getattr(network, 'is_admin_state_up', True)
-                })
-        
-        return pools
-    except Exception as e:
-        logger.error(f"Failed to get floating IP pools: {e}")
-        return [{
-            'id': 'pool-error',
-            'name': 'Error retrieving pools',
-            'error': str(e)
-        }]
-
-
-def set_floating_ip_port_forwarding(action: str, **kwargs) -> Dict[str, Any]:
-    """
-    Manage floating IP port forwarding rules.
-    
-    Args:
-        action: Action to perform (create, delete, list, show, set)
-        **kwargs: Additional parameters depending on action
-    
-    Returns:
-        Result of the port forwarding operation
-    """
-    try:
-        # Import here to avoid circular imports
-        from ..connection import get_openstack_connection
-        conn = get_openstack_connection()
-        
-        if action.lower() == 'list':
-            floating_ip_id = kwargs.get('floating_ip_id')
-            floating_ip_address = kwargs.get('floating_ip_address')
-            
-            if not floating_ip_id and not floating_ip_address:
-                return {
-                    'success': False,
-                    'message': 'floating_ip_id or floating_ip_address is required for list action'
-                }
-            
-            # Find the floating IP
-            fip = None
-            for f in conn.network.ips():
-                if (floating_ip_id and f.id == floating_ip_id) or \
-                   (floating_ip_address and getattr(f, 'floating_ip_address', '') == floating_ip_address):
-                    fip = f
-                    break
-            
-            if not fip:
-                return {
-                    'success': False,
-                    'message': 'Floating IP not found'
-                }
-            
-            # Get port forwarding rules for this floating IP
-            port_forwardings = []
-            try:
-                for pf in conn.network.port_forwardings(floatingip=fip.id):
-                    port_forwardings.append({
-                        'id': pf.id,
-                        'protocol': getattr(pf, 'protocol', 'unknown'),
-                        'external_port': getattr(pf, 'external_port', 0),
-                        'internal_port': getattr(pf, 'internal_port', 0),
-                        'internal_ip_address': getattr(pf, 'internal_ip_address', 'unknown'),
-                        'internal_port_id': getattr(pf, 'internal_port_id', None),
-                        'description': getattr(pf, 'description', '')
-                    })
-            except Exception as e:
-                logger.warning(f"Could not retrieve port forwarding rules: {e}")
-                # Return empty list if port forwarding is not supported
-                
-            return {
-                'success': True,
-                'floating_ip_id': fip.id,
-                'floating_ip_address': getattr(fip, 'floating_ip_address', 'unknown'),
-                'port_forwardings': port_forwardings,
-                'count': len(port_forwardings)
-            }
-            
-        elif action.lower() == 'create':
-            floating_ip_id = kwargs.get('floating_ip_id')
-            floating_ip_address = kwargs.get('floating_ip_address')
-            protocol = kwargs.get('protocol', 'tcp')
-            external_port = kwargs.get('external_port')
-            internal_port = kwargs.get('internal_port')
-            internal_ip_address = kwargs.get('internal_ip_address')
-            internal_port_id = kwargs.get('internal_port_id')
-            description = kwargs.get('description', '')
-            
-            if not floating_ip_id and not floating_ip_address:
-                return {
-                    'success': False,
-                    'message': 'floating_ip_id or floating_ip_address is required'
-                }
-                
-            if not external_port or not internal_port:
-                return {
-                    'success': False,
-                    'message': 'external_port and internal_port are required for create action'
-                }
-            
-            # Find the floating IP
-            fip = None
-            for f in conn.network.ips():
-                if (floating_ip_id and f.id == floating_ip_id) or \
-                   (floating_ip_address and getattr(f, 'floating_ip_address', '') == floating_ip_address):
-                    fip = f
-                    break
-            
-            if not fip:
-                return {
-                    'success': False,
-                    'message': 'Floating IP not found'
-                }
-            
-            create_params = {
-                'protocol': protocol,
-                'external_port': external_port,
-                'internal_port': internal_port
-            }
-            
-            if internal_ip_address:
-                create_params['internal_ip_address'] = internal_ip_address
-            if internal_port_id:
-                create_params['internal_port_id'] = internal_port_id
-            if description:
-                create_params['description'] = description
-            
-            try:
-                pf = conn.network.create_port_forwarding(floatingip=fip.id, **create_params)
-                return {
-                    'success': True,
-                    'message': f'Port forwarding rule created successfully',
-                    'port_forwarding': {
-                        'id': pf.id,
-                        'protocol': getattr(pf, 'protocol', protocol),
-                        'external_port': getattr(pf, 'external_port', external_port),
-                        'internal_port': getattr(pf, 'internal_port', internal_port),
-                        'internal_ip_address': getattr(pf, 'internal_ip_address', internal_ip_address)
-                    }
-                }
-            except Exception as e:
-                return {
-                    'success': False,
-                    'message': f'Failed to create port forwarding rule: {str(e)}',
-                    'note': 'Port forwarding may not be supported in this OpenStack deployment'
-                }
-                
-        elif action.lower() == 'delete':
-            floating_ip_id = kwargs.get('floating_ip_id')
-            port_forwarding_id = kwargs.get('port_forwarding_id')
-            
-            if not floating_ip_id or not port_forwarding_id:
-                return {
-                    'success': False,
-                    'message': 'floating_ip_id and port_forwarding_id are required for delete action'
-                }
-            
-            try:
-                conn.network.delete_port_forwarding(port_forwarding_id, floatingip=floating_ip_id)
-                return {
-                    'success': True,
-                    'message': f'Port forwarding rule deleted successfully'
-                }
-            except Exception as e:
-                return {
-                    'success': False,
-                    'message': f'Failed to delete port forwarding rule: {str(e)}'
-                }
-                
-        elif action.lower() == 'show':
-            floating_ip_id = kwargs.get('floating_ip_id')
-            port_forwarding_id = kwargs.get('port_forwarding_id')
-            
-            if not floating_ip_id or not port_forwarding_id:
-                return {
-                    'success': False,
-                    'message': 'floating_ip_id and port_forwarding_id are required for show action'
-                }
-            
-            try:
-                pf = conn.network.get_port_forwarding(port_forwarding_id, floatingip=floating_ip_id)
-                return {
-                    'success': True,
-                    'port_forwarding': {
-                        'id': pf.id,
-                        'protocol': getattr(pf, 'protocol', 'unknown'),
-                        'external_port': getattr(pf, 'external_port', 0),
-                        'internal_port': getattr(pf, 'internal_port', 0),
-                        'internal_ip_address': getattr(pf, 'internal_ip_address', 'unknown'),
-                        'internal_port_id': getattr(pf, 'internal_port_id', None),
-                        'description': getattr(pf, 'description', ''),
-                        'created_at': str(getattr(pf, 'created_at', 'unknown')),
-                        'updated_at': str(getattr(pf, 'updated_at', 'unknown'))
-                    }
-                }
-            except Exception as e:
-                return {
-                    'success': False,
-                    'message': f'Failed to get port forwarding rule: {str(e)}'
-                }
-                
-        elif action.lower() == 'set':
-            floating_ip_id = kwargs.get('floating_ip_id')
-            port_forwarding_id = kwargs.get('port_forwarding_id')
-            
-            if not floating_ip_id or not port_forwarding_id:
-                return {
-                    'success': False,
-                    'message': 'floating_ip_id and port_forwarding_id are required for set action'
-                }
-            
-            update_params = {}
-            if kwargs.get('description') is not None:
-                update_params['description'] = kwargs['description']
-            if kwargs.get('internal_ip_address'):
-                update_params['internal_ip_address'] = kwargs['internal_ip_address']
-            if kwargs.get('internal_port'):
-                update_params['internal_port'] = kwargs['internal_port']
-            if kwargs.get('internal_port_id'):
-                update_params['internal_port_id'] = kwargs['internal_port_id']
-            
-            if not update_params:
-                return {
-                    'success': False,
-                    'message': 'No update parameters provided'
-                }
-            
-            try:
-                pf = conn.network.update_port_forwarding(
-                    port_forwarding_id, 
-                    floatingip=floating_ip_id, 
-                    **update_params
-                )
-                return {
-                    'success': True,
-                    'message': f'Port forwarding rule updated successfully',
-                    'port_forwarding': {
-                        'id': pf.id,
-                        'protocol': getattr(pf, 'protocol', 'unknown'),
-                        'external_port': getattr(pf, 'external_port', 0),
-                        'internal_port': getattr(pf, 'internal_port', 0),
-                        'internal_ip_address': getattr(pf, 'internal_ip_address', 'unknown')
-                    }
-                }
-            except Exception as e:
-                return {
-                    'success': False,
-                    'message': f'Failed to update port forwarding rule: {str(e)}'
-                }
-        
-        else:
-            return {
-                'success': False,
-                'message': f'Unsupported action: {action}. Supported actions: create, delete, list, show, set'
-            }
-            
-    except Exception as e:
-        logger.error(f"Port forwarding management failed: {e}")
-        return {
-            'success': False,
-            'message': f'Port forwarding management failed: {str(e)}'
+            'message': f"Floating IP management failed: {str(e)}"
         }
 
 
 def get_routers() -> List[Dict[str, Any]]:
     """
-    Get list of routers with detailed information for current project.
+    Get list of routers for current project.
     
     Returns:
         List of router dictionaries for current project
@@ -1059,35 +591,16 @@ def get_routers() -> List[Dict[str, Any]]:
             # Filter by current project
             router_project_id = getattr(router, 'project_id', None) or getattr(router, 'tenant_id', None)
             if router_project_id == current_project_id:
-                # Get router interfaces (ports)
-                interfaces = []
-                try:
-                    for port in conn.network.ports():
-                        if getattr(port, 'device_id', '') == router.id and \
-                           getattr(port, 'device_owner', '').startswith('network:router_interface'):
-                            interfaces.append({
-                                'port_id': port.id,
-                                'subnet_id': getattr(port, 'fixed_ips', [{}])[0].get('subnet_id', 'unknown') if getattr(port, 'fixed_ips', []) else 'unknown',
-                                'ip_address': getattr(port, 'fixed_ips', [{}])[0].get('ip_address', 'unknown') if getattr(port, 'fixed_ips', []) else 'unknown'
-                            })
-                except Exception as e:
-                    logger.warning(f"Failed to get router interfaces for {router.id}: {e}")
-                
                 routers.append({
                     'id': router.id,
                     'name': getattr(router, 'name', 'unnamed'),
                     'status': getattr(router, 'status', 'unknown'),
-                    'admin_state_up': getattr(router, 'is_admin_state_up', True),
+                    'admin_state_up': getattr(router, 'admin_state_up', True),
                     'external_gateway_info': getattr(router, 'external_gateway_info', None),
                     'tenant_id': getattr(router, 'tenant_id', 'unknown'),
-                    'project_id': getattr(router, 'project_id', 'unknown'),
+                    'project_id': router_project_id,
                     'created_at': str(getattr(router, 'created_at', 'unknown')),
-                    'updated_at': str(getattr(router, 'updated_at', 'unknown')),
-                    'description': getattr(router, 'description', ''),
-                    'ha': getattr(router, 'is_ha', False),
-                    'distributed': getattr(router, 'is_distributed', False),
-                    'interfaces': interfaces,
-                    'interface_count': len(interfaces)
+                    'updated_at': str(getattr(router, 'updated_at', 'unknown'))
                 })
         
         logger.info(f"Retrieved {len(routers)} routers for project {current_project_id}")
@@ -1096,10 +609,101 @@ def get_routers() -> List[Dict[str, Any]]:
         logger.error(f"Failed to get routers: {e}")
         return [
             {
-                'id': 'router-1', 'name': 'demo-router', 'status': 'ACTIVE',
-                'admin_state_up': True, 'interfaces': [], 'error': str(e)
+                'id': 'router-1', 'name': 'router1', 'status': 'ACTIVE',
+                'admin_state_up': True, 'error': str(e)
             }
         ]
+
+
+def set_routers(action: str, router_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+    """
+    Manage OpenStack routers.
+
+    Args:
+        action: Action to perform (list, show, create, set, delete, add_interface, remove_interface)
+        router_name: Name or ID of router (for specific operations)
+        **kwargs: Additional parameters
+
+    Returns:
+        Result of the router operation
+    """
+    try:
+        from ..connection import get_openstack_connection
+        conn = get_openstack_connection()
+
+        if action.lower() == 'list':
+            return {'success': True, 'routers': get_routers(), 'message': f'Retrieved {len(get_routers())} routers'}
+
+        if action.lower() == 'show':
+            routers = get_routers()
+            for router in routers:
+                if router['name'] == router_name or router['id'] == router_name:
+                    return {'success': True, 'router': router, 'message': f'Found router {router_name}'}
+            return {'success': False, 'message': f'Router {router_name} not found'}
+
+        if action.lower() == 'create':
+            create_params = {}
+            create_params['name'] = kwargs.get('name', router_name)
+            create_params['admin_state_up'] = kwargs.get('admin_state_up', True)
+            if 'description' in kwargs:
+                create_params['description'] = kwargs['description']
+            if 'ha' in kwargs:
+                create_params['ha'] = kwargs['ha']
+            if 'distributed' in kwargs:
+                create_params['distributed'] = kwargs['distributed']
+            external_network_id = kwargs.get('external_network_id')
+            if external_network_id:
+                create_params['external_gateway_info'] = {'network_id': external_network_id, 'enable_snat': True}
+                if 'gateway_ip' in kwargs:
+                    create_params['external_gateway_info']['external_fixed_ips'] = [{'subnet_id': kwargs.get('subnet_id', ''), 'ip_address': kwargs['gateway_ip']}]
+            router = conn.network.create_router(**create_params)
+            return {'success': True, 'router': {'id': router.id, 'name': router.name, 'status': router.status}, 'message': f'Router {router.name} created'}
+
+        if action.lower() == 'set':
+            router = find_resource_by_name_or_id(conn.network.routers(), router_name, "Router")
+            update_params = {}
+            if 'name' in kwargs:
+                update_params['name'] = kwargs['name']
+            if 'description' in kwargs:
+                update_params['description'] = kwargs['description']
+            if 'admin_state_up' in kwargs:
+                update_params['admin_state_up'] = kwargs['admin_state_up']
+            if 'ha' in kwargs:
+                update_params['ha'] = kwargs['ha']
+            if 'distributed' in kwargs:
+                update_params['distributed'] = kwargs['distributed']
+            if 'external_network_id' in kwargs:
+                update_params['external_gateway_info'] = {'network_id': kwargs['external_network_id'], 'enable_snat': True}
+                if 'gateway_ip' in kwargs:
+                    update_params['external_gateway_info']['external_fixed_ips'] = [{'subnet_id': kwargs.get('subnet_id', ''), 'ip_address': kwargs['gateway_ip']}]
+            router = conn.network.update_router(router, **update_params)
+            return {'success': True, 'router': {'id': router.id, 'name': router.name, 'status': router.status}, 'message': f'Router {router_name} updated'}
+
+        if action.lower() == 'delete':
+            router = find_resource_by_name_or_id(conn.network.routers(), router_name, "Router")
+            conn.network.delete_router(router)
+            return {'success': True, 'message': f'Router {router_name} deleted'}
+
+        if action.lower() == 'add_interface':
+            router = find_resource_by_name_or_id(conn.network.routers(), router_name, "Router")
+            subnet_id = kwargs.get('subnet_id')
+            if not subnet_id:
+                return {'success': False, 'message': 'subnet_id is required for add_interface'}
+            interface = conn.network.add_interface_to_router(router, subnet_id=subnet_id)
+            return {'success': True, 'interface': {'id': interface.id, 'device_id': interface.device_id}, 'message': f'Interface added to router {router_name}'}
+
+        if action.lower() == 'remove_interface':
+            router = find_resource_by_name_or_id(conn.network.routers(), router_name, "Router")
+            subnet_id = kwargs.get('subnet_id')
+            if not subnet_id:
+                return {'success': False, 'message': 'subnet_id is required for remove_interface'}
+            conn.network.remove_interface_from_router(router, subnet_id=subnet_id)
+            return {'success': True, 'message': f'Interface removed from router {router_name}'}
+
+        return {'success': False, 'message': f'Unknown action: {action}'}
+    except Exception as e:
+        logger.error(f"Failed to set routers: {e}")
+        return {'success': False, 'message': str(e)}
 
 
 def set_network_ports(action: str, port_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
@@ -1107,289 +711,227 @@ def set_network_ports(action: str, port_name: Optional[str] = None, **kwargs) ->
     Manage network ports.
     
     Args:
-        action: Action to perform (list, show, create, delete, update)
-        port_name: Name or ID of port (for specific operations)
+        action: Action to perform (create, delete, update, list)
+        port_name: Name or ID of the port
         **kwargs: Additional parameters
     
     Returns:
-        Result of the port operation
+        Result of the port management operation
     """
     try:
-        # Import here to avoid circular imports
-        from ..connection import get_openstack_connection
+        from ..connection import get_openstack_connection, find_resource_by_name_or_id
         conn = get_openstack_connection()
         
-        if action.lower() == 'list':
-            ports = []
-            for port in conn.network.ports():
-                ports.append({
-                    'id': port.id,
-                    'name': getattr(port, 'name', 'unnamed'),
-                    'network_id': getattr(port, 'network_id', 'unknown'),
-                    'status': getattr(port, 'status', 'unknown'),
-                    'admin_state_up': getattr(port, 'is_admin_state_up', True),
-                    'device_id': getattr(port, 'device_id', ''),
-                    'device_owner': getattr(port, 'device_owner', ''),
-                    'mac_address': getattr(port, 'mac_address', 'unknown'),
-                    'fixed_ips': getattr(port, 'fixed_ips', []),
-                    'security_groups': getattr(port, 'security_group_ids', [])
-                })
-            return {
-                'success': True,
-                'ports': ports,
-                'count': len(ports)
-            }
-            
-        elif action.lower() == 'show':
-            if not port_name:
+        if action.lower() == 'create':
+            if not port_name or not port_name.strip():
                 return {
                     'success': False,
-                    'message': 'port_name is required for show action'
+                    'message': 'Port name is required for create action'
                 }
             
-            # Find the port
-            for port in conn.network.ports():
-                if getattr(port, 'name', '') == port_name or port.id == port_name:
-                    return {
-                        'success': True,
-                        'port': {
-                            'id': port.id,
-                            'name': getattr(port, 'name', 'unnamed'),
-                            'network_id': getattr(port, 'network_id', 'unknown'),
-                            'status': getattr(port, 'status', 'unknown'),
-                            'admin_state_up': getattr(port, 'is_admin_state_up', True),
-                            'device_id': getattr(port, 'device_id', ''),
-                            'device_owner': getattr(port, 'device_owner', ''),
-                            'mac_address': getattr(port, 'mac_address', 'unknown'),
-                            'fixed_ips': getattr(port, 'fixed_ips', []),
-                            'security_groups': getattr(port, 'security_group_ids', []),
-                            'created_at': str(getattr(port, 'created_at', 'unknown')),
-                            'updated_at': str(getattr(port, 'updated_at', 'unknown'))
-                        }
-                    }
-            
-            return {
-                'success': False,
-                'message': f'Port "{port_name}" not found'
-            }
-            
-        elif action.lower() == 'create':
             network_id = kwargs.get('network_id')
-            name = kwargs.get('name', port_name)
-            
             if not network_id:
                 return {
                     'success': False,
-                    'message': 'network_id is required for create action'
+                    'message': 'network_id is required for port creation'
                 }
             
-            create_params = {'network_id': network_id}
-            if name:
-                create_params['name'] = name
+            create_params = {
+                'name': port_name,
+                'network_id': network_id
+            }
             
-            # Optional parameters
-            if 'admin_state_up' in kwargs:
-                create_params['is_admin_state_up'] = kwargs['admin_state_up']
             if 'fixed_ips' in kwargs:
                 create_params['fixed_ips'] = kwargs['fixed_ips']
             if 'security_groups' in kwargs:
-                create_params['security_group_ids'] = kwargs['security_groups']
+                create_params['security_groups'] = kwargs['security_groups']
+            if 'mac_address' in kwargs:
+                create_params['mac_address'] = kwargs['mac_address']
+            if 'device_id' in kwargs:
+                create_params['device_id'] = kwargs['device_id']
+            if 'device_owner' in kwargs:
+                create_params['device_owner'] = kwargs['device_owner']
             
             port = conn.network.create_port(**create_params)
-            
             return {
                 'success': True,
-                'message': f'Port "{name or port.id}" created successfully',
+                'message': f'Port "{port_name}" created successfully',
                 'port': {
                     'id': port.id,
-                    'name': getattr(port, 'name', 'unnamed'),
-                    'network_id': getattr(port, 'network_id', 'unknown'),
-                    'status': getattr(port, 'status', 'unknown'),
-                    'mac_address': getattr(port, 'mac_address', 'unknown')
+                    'name': port.name,
+                    'status': port.status
                 }
             }
             
         elif action.lower() == 'delete':
-            if not port_name:
+            if not port_name or not port_name.strip():
                 return {
                     'success': False,
-                    'message': 'port_name is required for delete action'
+                    'message': 'Port name or ID is required for delete action'
                 }
             
-            # Find the port using secure project-scoped lookup
-            from ..connection import find_resource_by_name_or_id
-            
-            port = find_resource_by_name_or_id(
-                conn.network.ports(), 
-                port_name, 
-                "Network Port"
-            )
-            
+            port = find_resource_by_name_or_id(conn.network.ports(), port_name, "Port")
             if not port:
                 return {
                     'success': False,
-                    'message': f'Port "{port_name}" not found or not accessible in current project'
+                    'message': f'Port "{port_name}" not found'
                 }
-                    
+            
             conn.network.delete_port(port)
             return {
                 'success': True,
                 'message': f'Port "{port_name}" deleted successfully'
             }
             
+        elif action.lower() == 'update':
+            if not port_name or not port_name.strip():
+                return {
+                    'success': False,
+                    'message': 'Port name or ID is required for update action'
+                }
+            
+            port = find_resource_by_name_or_id(conn.network.ports(), port_name, "Port")
+            if not port:
+                return {
+                    'success': False,
+                    'message': f'Port "{port_name}" not found'
+                }
+            
+            update_params = {}
+            if 'name' in kwargs:
+                update_params['name'] = kwargs['name']
+            if 'description' in kwargs:
+                update_params['description'] = kwargs['description']
+            if 'security_groups' in kwargs:
+                update_params['security_groups'] = kwargs['security_groups']
+            if 'device_id' in kwargs:
+                update_params['device_id'] = kwargs['device_id']
+            if 'device_owner' in kwargs:
+                update_params['device_owner'] = kwargs['device_owner']
+            
+            if update_params:
+                port = conn.network.update_port(port, **update_params)
+                return {
+                    'success': True,
+                    'message': f'Port "{port_name}" updated successfully',
+                    'port': {
+                        'id': port.id,
+                        'name': port.name,
+                        'status': port.status
+                    }
+                }
+            else:
+                return {
+                    'success': False,
+                    'message': 'No update parameters provided'
+                }
+            
+        elif action.lower() == 'list':
+            ports = []
+            for port in conn.network.ports():
+                ports.append({
+                    'id': port.id,
+                    'name': getattr(port, 'name', 'unnamed'),
+                    'status': getattr(port, 'status', 'unknown'),
+                    'network_id': getattr(port, 'network_id', 'unknown'),
+                    'device_id': getattr(port, 'device_id', None),
+                    'device_owner': getattr(port, 'device_owner', None)
+                })
+            return {'success': True, 'ports': ports, 'count': len(ports)}
+            
         else:
             return {
                 'success': False,
-                'message': f'Unknown action "{action}". Supported: list, show, create, delete'
+                'message': f'Unsupported action: {action}. Supported actions: create, delete, update, list'
             }
-            
+    
     except Exception as e:
-        logger.error(f"Failed to manage network port: {e}")
+        logger.error(f"Port management failed: {e}")
         return {
             'success': False,
-            'message': f'Failed to manage network port: {str(e)}',
-            'error': str(e)
+            'message': f"Port management failed: {str(e)}"
         }
 
 
 def set_subnets(action: str, subnet_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
     """
-    Manage network subnets.
+    Manage subnets (create, delete, update, list).
     
     Args:
-        action: Action to perform (list, show, create, delete, update)
-        subnet_name: Name or ID of subnet (for specific operations)
+        action: Action to perform (create, delete, update, list)
+        subnet_name: Name of the subnet (required for create/delete/update)
         **kwargs: Additional parameters
     
     Returns:
         Result of the subnet operation
     """
     try:
-        # Import here to avoid circular imports
-        from ..connection import get_openstack_connection
+        from ..connection import get_openstack_connection, find_resource_by_name_or_id
         conn = get_openstack_connection()
         
-        if action.lower() == 'list':
-            subnets = []
-            for subnet in conn.network.subnets():
-                subnets.append({
-                    'id': subnet.id,
-                    'name': getattr(subnet, 'name', 'unnamed'),
-                    'network_id': getattr(subnet, 'network_id', 'unknown'),
-                    'cidr': getattr(subnet, 'cidr', 'unknown'),
-                    'ip_version': getattr(subnet, 'ip_version', 4),
-                    'gateway_ip': getattr(subnet, 'gateway_ip', None),
-                    'enable_dhcp': getattr(subnet, 'is_dhcp_enabled', False),
-                    'allocation_pools': getattr(subnet, 'allocation_pools', []),
-                    'dns_nameservers': getattr(subnet, 'dns_nameservers', [])
-                })
-            return {
-                'success': True,
-                'subnets': subnets,
-                'count': len(subnets)
-            }
-            
-        elif action.lower() == 'show':
-            if not subnet_name:
+        if action.lower() == 'create':
+            if not subnet_name or not subnet_name.strip():
                 return {
                     'success': False,
-                    'message': 'subnet_name is required for show action'
+                    'message': 'Subnet name is required for create action'
                 }
             
-            # Find the subnet
-            for subnet in conn.network.subnets():
-                if getattr(subnet, 'name', '') == subnet_name or subnet.id == subnet_name:
-                    return {
-                        'success': True,
-                        'subnet': {
-                            'id': subnet.id,
-                            'name': getattr(subnet, 'name', 'unnamed'),
-                            'network_id': getattr(subnet, 'network_id', 'unknown'),
-                            'cidr': getattr(subnet, 'cidr', 'unknown'),
-                            'ip_version': getattr(subnet, 'ip_version', 4),
-                            'gateway_ip': getattr(subnet, 'gateway_ip', None),
-                            'enable_dhcp': getattr(subnet, 'is_dhcp_enabled', False),
-                            'allocation_pools': getattr(subnet, 'allocation_pools', []),
-                            'dns_nameservers': getattr(subnet, 'dns_nameservers', []),
-                            'host_routes': getattr(subnet, 'host_routes', []),
-                            'created_at': str(getattr(subnet, 'created_at', 'unknown')),
-                            'updated_at': str(getattr(subnet, 'updated_at', 'unknown'))
-                        }
-                    }
-            
-            return {
-                'success': False,
-                'message': f'Subnet "{subnet_name}" not found'
-            }
-            
-        elif action.lower() == 'create':
             network_id = kwargs.get('network_id')
-            cidr = kwargs.get('cidr')
-            name = kwargs.get('name', subnet_name)
-            
             if not network_id:
                 return {
                     'success': False,
-                    'message': 'network_id is required for create action'
+                    'message': 'network_id is required for subnet creation'
                 }
-                
+            
+            cidr = kwargs.get('cidr')
             if not cidr:
                 return {
                     'success': False,
-                    'message': 'cidr is required for create action'
+                    'message': 'cidr is required for subnet creation'
                 }
             
+            ip_version = kwargs.get('ip_version', 4)
+            
             create_params = {
+                'name': subnet_name,
                 'network_id': network_id,
                 'cidr': cidr,
-                'ip_version': kwargs.get('ip_version', 4)
+                'ip_version': ip_version
             }
             
-            if name:
-                create_params['name'] = name
             if 'gateway_ip' in kwargs:
                 create_params['gateway_ip'] = kwargs['gateway_ip']
-            if 'enable_dhcp' in kwargs:
-                create_params['is_dhcp_enabled'] = kwargs['enable_dhcp']
             if 'dns_nameservers' in kwargs:
                 create_params['dns_nameservers'] = kwargs['dns_nameservers']
             if 'allocation_pools' in kwargs:
                 create_params['allocation_pools'] = kwargs['allocation_pools']
+            if 'enable_dhcp' in kwargs:
+                create_params['enable_dhcp'] = kwargs['enable_dhcp']
             
             subnet = conn.network.create_subnet(**create_params)
-            
             return {
                 'success': True,
-                'message': f'Subnet "{name or subnet.id}" created successfully',
+                'message': f'Subnet "{subnet_name}" created successfully',
                 'subnet': {
                     'id': subnet.id,
-                    'name': getattr(subnet, 'name', 'unnamed'),
-                    'network_id': getattr(subnet, 'network_id', 'unknown'),
-                    'cidr': getattr(subnet, 'cidr', 'unknown'),
-                    'gateway_ip': getattr(subnet, 'gateway_ip', None)
+                    'name': subnet.name,
+                    'cidr': subnet.cidr,
+                    'ip_version': subnet.ip_version
                 }
             }
             
         elif action.lower() == 'delete':
-            if not subnet_name:
+            if not subnet_name or not subnet_name.strip():
                 return {
                     'success': False,
-                    'message': 'subnet_name is required for delete action'
+                    'message': 'Subnet name or ID is required for delete action'
                 }
             
-            # Find the subnet using secure project-scoped lookup
-            from ..connection import find_resource_by_name_or_id
-            
-            subnet = find_resource_by_name_or_id(
-                conn.network.subnets(), 
-                subnet_name, 
-                "Subnet"
-            )
-            
+            subnet = find_resource_by_name_or_id(conn.network.subnets(), subnet_name, "Subnet")
             if not subnet:
                 return {
                     'success': False,
-                    'message': f'Subnet "{subnet_name}" not found or not accessible in current project'
+                    'message': f'Subnet "{subnet_name}" not found'
                 }
             
             conn.network.delete_subnet(subnet)
@@ -1398,16 +940,408 @@ def set_subnets(action: str, subnet_name: Optional[str] = None, **kwargs) -> Dic
                 'message': f'Subnet "{subnet_name}" deleted successfully'
             }
             
+        elif action.lower() == 'update':
+            if not subnet_name or not subnet_name.strip():
+                return {
+                    'success': False,
+                    'message': 'Subnet name or ID is required for update action'
+                }
+            
+            subnet = find_resource_by_name_or_id(conn.network.subnets(), subnet_name, "Subnet")
+            if not subnet:
+                return {
+                    'success': False,
+                    'message': f'Subnet "{subnet_name}" not found'
+                }
+            
+            update_params = {}
+            if 'name' in kwargs:
+                update_params['name'] = kwargs['name']
+            if 'gateway_ip' in kwargs:
+                update_params['gateway_ip'] = kwargs['gateway_ip']
+            if 'dns_nameservers' in kwargs:
+                update_params['dns_nameservers'] = kwargs['dns_nameservers']
+            if 'enable_dhcp' in kwargs:
+                update_params['enable_dhcp'] = kwargs['enable_dhcp']
+            
+            if update_params:
+                subnet = conn.network.update_subnet(subnet, **update_params)
+                return {
+                    'success': True,
+                    'message': f'Subnet "{subnet_name}" updated successfully',
+                    'subnet': {
+                        'id': subnet.id,
+                        'name': subnet.name,
+                        'cidr': subnet.cidr
+                    }
+                }
+            else:
+                return {
+                    'success': False,
+                    'message': 'No update parameters provided'
+                }
+            
+        elif action.lower() == 'list':
+            subnets = []
+            for subnet in conn.network.subnets():
+                subnets.append({
+                    'id': subnet.id,
+                    'name': getattr(subnet, 'name', 'unnamed'),
+                    'cidr': getattr(subnet, 'cidr', 'unknown'),
+                    'ip_version': getattr(subnet, 'ip_version', 4),
+                    'gateway_ip': getattr(subnet, 'gateway_ip', None),
+                    'enable_dhcp': getattr(subnet, 'is_dhcp_enabled', False)
+                })
+            return {'success': True, 'subnets': subnets, 'count': len(subnets)}
+            
         else:
             return {
                 'success': False,
-                'message': f'Unknown action "{action}". Supported: list, show, create, delete'
+                'message': f'Unsupported action: {action}. Supported actions: create, delete, update, list'
             }
-            
+    
     except Exception as e:
-        logger.error(f"Failed to manage subnet: {e}")
+        logger.error(f"Subnet management failed: {e}")
         return {
             'success': False,
-            'message': f'Failed to manage subnet: {str(e)}',
-            'error': str(e)
+            'message': f"Subnet management failed: {str(e)}"
         }
+
+
+def set_network_ports(action: str, port_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+    """
+    Manage network ports.
+    
+    Args:
+        action: Action to perform (create, delete, update, list)
+        port_name: Name or ID of the port
+        **kwargs: Additional parameters
+    
+    Returns:
+        Result of the port management operation
+    """
+    try:
+        from ..connection import get_openstack_connection, find_resource_by_name_or_id
+        conn = get_openstack_connection()
+        
+        if action.lower() == 'create':
+            if not port_name or not port_name.strip():
+                return {
+                    'success': False,
+                    'message': 'Port name is required for create action'
+                }
+            
+            network_id = kwargs.get('network_id')
+            if not network_id:
+                return {
+                    'success': False,
+                    'message': 'network_id is required for port creation'
+                }
+            
+            create_params = {
+                'name': port_name,
+                'network_id': network_id
+            }
+            
+            if 'fixed_ips' in kwargs:
+                create_params['fixed_ips'] = kwargs['fixed_ips']
+            if 'security_groups' in kwargs:
+                create_params['security_groups'] = kwargs['security_groups']
+            if 'mac_address' in kwargs:
+                create_params['mac_address'] = kwargs['mac_address']
+            if 'device_id' in kwargs:
+                create_params['device_id'] = kwargs['device_id']
+            if 'device_owner' in kwargs:
+                create_params['device_owner'] = kwargs['device_owner']
+            
+            port = conn.network.create_port(**create_params)
+            return {
+                'success': True,
+                'message': f'Port "{port_name}" created successfully',
+                'port': {
+                    'id': port.id,
+                    'name': port.name,
+                    'status': port.status
+                }
+            }
+            
+        elif action.lower() == 'delete':
+            if not port_name or not port_name.strip():
+                return {
+                    'success': False,
+                    'message': 'Port name or ID is required for delete action'
+                }
+            
+            port = find_resource_by_name_or_id(conn.network.ports(), port_name, "Port")
+            if not port:
+                return {
+                    'success': False,
+                    'message': f'Port "{port_name}" not found'
+                }
+            
+            conn.network.delete_port(port)
+            return {
+                'success': True,
+                'message': f'Port "{port_name}" deleted successfully'
+            }
+            
+        elif action.lower() == 'update':
+            if not port_name or not port_name.strip():
+                return {
+                    'success': False,
+                    'message': 'Port name or ID is required for update action'
+                }
+            
+            port = find_resource_by_name_or_id(conn.network.ports(), port_name, "Port")
+            if not port:
+                return {
+                    'success': False,
+                    'message': f'Port "{port_name}" not found'
+                }
+            
+            update_params = {}
+            if 'name' in kwargs:
+                update_params['name'] = kwargs['name']
+            if 'description' in kwargs:
+                update_params['description'] = kwargs['description']
+            if 'security_groups' in kwargs:
+                update_params['security_groups'] = kwargs['security_groups']
+            if 'device_id' in kwargs:
+                update_params['device_id'] = kwargs['device_id']
+            if 'device_owner' in kwargs:
+                update_params['device_owner'] = kwargs['device_owner']
+            
+            if update_params:
+                port = conn.network.update_port(port, **update_params)
+                return {
+                    'success': True,
+                    'message': f'Port "{port_name}" updated successfully',
+                    'port': {
+                        'id': port.id,
+                        'name': port.name,
+                        'status': port.status
+                    }
+                }
+            else:
+                return {
+                    'success': False,
+                    'message': 'No update parameters provided'
+                }
+            
+        elif action.lower() == 'list':
+            ports = []
+            for port in conn.network.ports():
+                ports.append({
+                    'id': port.id,
+                    'name': getattr(port, 'name', 'unnamed'),
+                    'status': getattr(port, 'status', 'unknown'),
+                    'network_id': getattr(port, 'network_id', 'unknown'),
+                    'device_id': getattr(port, 'device_id', None),
+                    'device_owner': getattr(port, 'device_owner', None)
+                })
+            return {'success': True, 'ports': ports, 'count': len(ports)}
+            
+        else:
+            return {
+                'success': False,
+                'message': f'Unsupported action: {action}. Supported actions: create, delete, update, list'
+            }
+    
+    except Exception as e:
+        logger.error(f"Port management failed: {e}")
+        return {
+            'success': False,
+            'message': f"Port management failed: {str(e)}"
+        }
+
+
+def set_subnets(action: str, subnet_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+    """
+    Manage subnets (create, delete, update, list).
+    
+    Args:
+        action: Action to perform (create, delete, update, list)
+        subnet_name: Name of the subnet (required for create/delete/update)
+        **kwargs: Additional parameters
+    
+    Returns:
+        Result of the subnet operation
+    """
+    try:
+        from ..connection import get_openstack_connection, find_resource_by_name_or_id
+        conn = get_openstack_connection()
+        
+        if action.lower() == 'create':
+            if not subnet_name or not subnet_name.strip():
+                return {
+                    'success': False,
+                    'message': 'Subnet name is required for create action'
+                }
+            
+            network_id = kwargs.get('network_id')
+            if not network_id:
+                return {
+                    'success': False,
+                    'message': 'network_id is required for subnet creation'
+                }
+            
+            cidr = kwargs.get('cidr')
+            if not cidr:
+                return {
+                    'success': False,
+                    'message': 'cidr is required for subnet creation'
+                }
+            
+            ip_version = kwargs.get('ip_version', 4)
+            
+            create_params = {
+                'name': subnet_name,
+                'network_id': network_id,
+                'cidr': cidr,
+                'ip_version': ip_version
+            }
+            
+            if 'gateway_ip' in kwargs:
+                create_params['gateway_ip'] = kwargs['gateway_ip']
+            if 'dns_nameservers' in kwargs:
+                create_params['dns_nameservers'] = kwargs['dns_nameservers']
+            if 'allocation_pools' in kwargs:
+                create_params['allocation_pools'] = kwargs['allocation_pools']
+            if 'enable_dhcp' in kwargs:
+                create_params['enable_dhcp'] = kwargs['enable_dhcp']
+            
+            subnet = conn.network.create_subnet(**create_params)
+            return {
+                'success': True,
+                'message': f'Subnet "{subnet_name}" created successfully',
+                'subnet': {
+                    'id': subnet.id,
+                    'name': subnet.name,
+                    'cidr': subnet.cidr,
+                    'ip_version': subnet.ip_version
+                }
+            }
+            
+        elif action.lower() == 'delete':
+            if not subnet_name or not subnet_name.strip():
+                return {
+                    'success': False,
+                    'message': 'Subnet name or ID is required for delete action'
+                }
+            
+            subnet = find_resource_by_name_or_id(conn.network.subnets(), subnet_name, "Subnet")
+            if not subnet:
+                return {
+                    'success': False,
+                    'message': f'Subnet "{subnet_name}" not found'
+                }
+            
+            conn.network.delete_subnet(subnet)
+            return {
+                'success': True,
+                'message': f'Subnet "{subnet_name}" deleted successfully'
+            }
+            
+        elif action.lower() == 'update':
+            if not subnet_name or not subnet_name.strip():
+                return {
+                    'success': False,
+                    'message': 'Subnet name or ID is required for update action'
+                }
+            
+            subnet = find_resource_by_name_or_id(conn.network.subnets(), subnet_name, "Subnet")
+            if not subnet:
+                return {
+                    'success': False,
+                    'message': f'Subnet "{subnet_name}" not found'
+                }
+            
+            update_params = {}
+            if 'name' in kwargs:
+                update_params['name'] = kwargs['name']
+            if 'gateway_ip' in kwargs:
+                update_params['gateway_ip'] = kwargs['gateway_ip']
+            if 'dns_nameservers' in kwargs:
+                update_params['dns_nameservers'] = kwargs['dns_nameservers']
+            if 'enable_dhcp' in kwargs:
+                update_params['enable_dhcp'] = kwargs['enable_dhcp']
+            
+            if update_params:
+                subnet = conn.network.update_subnet(subnet, **update_params)
+                return {
+                    'success': True,
+                    'message': f'Subnet "{subnet_name}" updated successfully',
+                    'subnet': {
+                        'id': subnet.id,
+                        'name': subnet.name,
+                        'cidr': subnet.cidr
+                    }
+                }
+            else:
+                return {
+                    'success': False,
+                    'message': 'No update parameters provided'
+                }
+            
+        elif action.lower() == 'list':
+            subnets = []
+            for subnet in conn.network.subnets():
+                subnets.append({
+                    'id': subnet.id,
+                    'name': getattr(subnet, 'name', 'unnamed'),
+                    'cidr': getattr(subnet, 'cidr', 'unknown'),
+                    'ip_version': getattr(subnet, 'ip_version', 4),
+                    'gateway_ip': getattr(subnet, 'gateway_ip', None),
+                    'enable_dhcp': getattr(subnet, 'is_dhcp_enabled', False)
+                })
+            return {'success': True, 'subnets': subnets, 'count': len(subnets)}
+            
+        else:
+            return {
+                'success': False,
+                'message': f'Unsupported action: {action}. Supported actions: create, delete, update, list'
+            }
+    
+    except Exception as e:
+        logger.error(f"Subnet management failed: {e}")
+        return {
+            'success': False,
+            'message': f"Subnet management failed: {str(e)}"
+        }
+
+
+def get_subnets() -> List[Dict[str, Any]]:
+    """
+    Get list of subnets for current project.
+    
+    Returns:
+        List of subnet dictionaries for current project
+    """
+    try:
+        from ..connection import get_openstack_connection
+        conn = get_openstack_connection()
+        current_project_id = conn.current_project_id
+        subnets = []
+        
+        for subnet in conn.network.subnets():
+            subnet_project_id = getattr(subnet, 'project_id', None) or getattr(subnet, 'tenant_id', None)
+            if subnet_project_id == current_project_id:
+                subnets.append({
+                    'id': subnet.id,
+                    'name': getattr(subnet, 'name', 'unnamed'),
+                    'cidr': getattr(subnet, 'cidr', 'unknown'),
+                    'ip_version': getattr(subnet, 'ip_version', 4),
+                    'gateway_ip': getattr(subnet, 'gateway_ip', None),
+                    'enable_dhcp': getattr(subnet, 'is_dhcp_enabled', False)
+                })
+        
+        logger.info(f"Retrieved {len(subnets)} subnets for project {current_project_id}")
+        return subnets
+    except Exception as e:
+        logger.error(f"Failed to get subnets: {e}")
+        return [
+            {
+                'id': 'subnet-1', 'name': 'subnet1', 'cidr': '10.0.0.0/24',
+                'ip_version': 4, 'error': str(e)
+            }
+        ]
