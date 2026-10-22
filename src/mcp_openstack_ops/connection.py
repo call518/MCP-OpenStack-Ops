@@ -152,10 +152,13 @@ def get_current_project_id() -> str:
     """
     try:
         conn = get_openstack_connection()
-        # Get project ID from the token
+        # Get project ID from the token scope. conn.auth only holds the
+        # configured auth args, so it has no project_id when the connection
+        # is scoped by project name.
         token = conn.identity.get_token()
-        project_id = conn.auth.get('project_id') or conn.auth.get('tenant_id')
-        
+        project_id = conn.current_project_id or \
+                     conn.auth.get('project_id') or conn.auth.get('tenant_id')
+
         if not project_id:
             # Fallback: get from project name
             project_name = os.environ.get("OS_PROJECT_NAME")
