@@ -17,6 +17,19 @@
 
 [![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-blue)](https://deepwiki.com/call518/MCP-OpenStack-Ops)
 
+## Package and GitHub Releases
+
+Pushing a release tag runs the GitHub Actions publication workflow: build and
+validate distributions, publish to TestPyPI, publish to PyPI, then create a GitHub
+Release named after the tag. Tags must use `X.Y.Z` or `vX.Y.Z`, optionally followed
+by `aN`, `bN`, or `rcN`; both distribution versions must match the tag.
+
+Release notes include full commit messages since the most recently published
+non-draft GitHub Release, in oldest-first topological order. The first Release
+includes all commit history. Existing published Releases are left unchanged;
+an existing draft or a previous Release outside the tag's ancestry stops release
+creation for manual review. Prereleases are marked as such and are not made latest.
+
 ---
 
 ## Features
