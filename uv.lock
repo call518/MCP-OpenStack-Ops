@@ -752,7 +752,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastmcp", specifier = ">=2.12.3" },
-    { name = "openstacksdk", specifier = ">=4.1.0,<=4.20.0" },
+    { name = "openstacksdk", specifier = ">=4.1.0,<=4.21.0" },
     { name = "pre-commit", specifier = ">=4.6.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.0" },
