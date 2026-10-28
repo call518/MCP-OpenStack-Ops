@@ -1,0 +1,28 @@
+name: Unit tests
+
+on:
+  push:
+    branches: ["main", "feat/73-per-user-connections"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12.x"
+      - name: Install uv
+        run: pip install uv==0.7.20
+      - name: Install locked test dependencies
+        run: uv sync --locked --extra dev
+      - name: Run unit tests without cloud credentials
+        run: uv run --locked --extra dev python -m pytest -q tests

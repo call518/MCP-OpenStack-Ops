@@ -23,6 +23,11 @@
 
 ## Features
 
+Experimental per-user remote connections are available for testing with the
+opt-in `--multi-user` mode. See the [phase 1 setup and validation guide](docs/multi-user-phase1.md)
+for authentication, client limitations, and the test checklist. Administrator
+cross-project queries are outside this phase.
+
 - ✅ **Project-Scoped Operations**: Every tool enforces the configured `OS_PROJECT_NAME`, validating resource ownership so actions stay inside a single tenant.
 - ✅ **Safety-Gated Writes**: Modify (`set_*`) tooling only registers when `ALLOW_MODIFY_OPERATIONS=true`, keeping default deployments read-only and auditable.
 - ✅ **90+ Purpose-Built Tools**: Broad coverage across compute, networking, storage, images, identity, Heat, and Octavia load balancing tasks—all constrained to the current project.
@@ -589,6 +594,51 @@ Add to your Claude Desktop configuration:
 ```
 
 ---
+
+## Claude Code Integration
+
+Install Claude Code and start the MCP server in `streamable-http` mode first.
+Register the MCP server's `/mcp` URL, not the MCPO/OpenAPI proxy URL. The example
+below uses the Docker host port `18005`; replace the host/port for your deployment
+and use HTTPS for remote connections. Registration does not start the server.
+
+For the existing single-account mode with `REMOTE_AUTH_ENABLE=true`, enter the
+server's `REMOTE_SECRET_KEY` without saving its literal value in shell history:
+
+```bash
+read -rsp 'MCP Bearer token: ' OPENSTACK_MCP_TOKEN
+echo
+export OPENSTACK_MCP_TOKEN
+
+claude mcp add-json --scope user openstack-ops '{"type":"http","url":"http://127.0.0.1:18005/mcp","headers":{"Authorization":"Bearer ${OPENSTACK_MCP_TOKEN}"}}'
+claude mcp list
+claude
+```
+
+Keep `OPENSTACK_MCP_TOKEN` exported in the terminal that launches Claude Code.
+`--scope user` saves the registration in your normal user configuration. If server
+authentication is disabled, use this registration command instead:
+
+```bash
+claude mcp add --transport http --scope user openstack-ops http://127.0.0.1:18005/mcp
+```
+
+In Claude Code, check `/mcp` and ask, for example:
+
+```text
+Use openstack-ops to list all instances in the project.
+```
+
+Remove the registration when no longer needed (this does not stop the server):
+
+```bash
+claude mcp remove --scope user openstack-ops
+unset OPENSTACK_MCP_TOKEN
+```
+
+This Bearer configuration uses the server's configured OpenStack account. For
+experimental per-user authentication, see the [phase 1 guide](docs/multi-user-phase1.md).
+See also the [Claude Code MCP documentation](https://code.claude.com/docs/en/mcp).
 
 ## Server Configuration
 

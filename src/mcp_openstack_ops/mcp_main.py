@@ -5,6 +5,8 @@ import sys
 from typing import Any, Optional, Dict, List
 from fastmcp import FastMCP
 from fastmcp.server.auth import StaticTokenVerifier
+from starlette.middleware import Middleware as ASGIMiddleware
+from . import user_connection
 
 # Add the current directory to sys.path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -172,6 +174,7 @@ def _build_static_token_auth(secret_key: str) -> StaticTokenVerifier:
 # Runtime authentication is configured in main() before mcp.run().
 logger.info("Initializing MCP instance")
 mcp = FastMCP("mcp-openstack-ops")
+mcp.add_middleware(user_connection.UserAuditMiddleware())
 
 # =============================================================================
 # Safety Control Functions
@@ -445,6 +448,10 @@ def main(argv: Optional[List[str]] = None) -> None:
         dest="secret_key",
         help="Secret key for Bearer token authentication. Required when auth is enabled.",
     )
+    parser.add_argument(
+        "--multi-user", action="store_true",
+        help="Use request-local Application Credentials (streamable-http only).",
+    )
     
     # Allow future extension without breaking unknown args usage
     args = parser.parse_args(argv)
@@ -480,6 +487,19 @@ def main(argv: Optional[List[str]] = None) -> None:
     else:
         auth_enable = args.auth_enable
     secret_key = args.secret_key or os.getenv("REMOTE_SECRET_KEY", "")
+    multi_user = args.multi_user or _parse_bool_env(os.getenv("MCP_MULTI_USER", "false"))
+    if multi_user:
+        if transport_type != "streamable-http":
+            parser.error("--multi-user requires streamable-http")
+        if auth_enable or secret_key:
+            parser.error("Multi-user authentication replaces shared Bearer authentication")
+        if os.getenv("OS_AUTH_PROTOCOL", "http").lower() != "https":
+            parser.error("Multi-user mode requires OS_AUTH_PROTOCOL=https")
+        if not os.getenv("OS_AUTH_HOST"):
+            parser.error("Multi-user mode requires OS_AUTH_HOST")
+        if log_level.upper() == "DEBUG":
+            parser.error("Multi-user mode does not allow DEBUG credential wire logging")
+    user_connection.configure(multi_user)
     
     # Validation for streamable-http mode with authentication
     if transport_type == "streamable-http":
@@ -489,7 +509,7 @@ def main(argv: Optional[List[str]] = None) -> None:
                 logger.error("Please set REMOTE_SECRET_KEY environment variable or use --secret-key argument.")
                 return
             logger.info("Authentication enabled for streamable-http transport")
-        else:
+        elif not multi_user:
             logger.warning("WARNING: streamable-http mode without authentication enabled!")
             logger.warning("This server will accept requests without Bearer token verification.")
             logger.warning("Set REMOTE_AUTH_ENABLE=true and REMOTE_SECRET_KEY to enable authentication.")
@@ -503,7 +523,14 @@ def main(argv: Optional[List[str]] = None) -> None:
     # Execution based on transport mode
     if transport_type == "streamable-http":
         logger.info(f"Starting streamable-http server on {host}:{port}")
-        mcp.run(transport="streamable-http", host=host, port=port)
+        if multi_user:
+            mcp.run(
+                transport="streamable-http", host=host, port=port,
+                stateless_http=True, json_response=True,
+                middleware=[ASGIMiddleware(user_connection.UserConnectionMiddleware)],
+            )
+        else:
+            mcp.run(transport="streamable-http", host=host, port=port)
     else:
         logger.info("Starting stdio transport for local usage")
         mcp.run(transport='stdio')
