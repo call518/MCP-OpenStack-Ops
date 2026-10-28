@@ -35,10 +35,23 @@ the same as cancelling already submitted asynchronous OpenStack operations.
 
 ## Server setup
 
-Run from this branch using the project's Python 3.12+ and uv environment:
+With Git, Python 3.12+, and uv installed on the server, clone and install the
+test branch instead of using `main` or a published release:
 
 ```bash
+git clone --branch feat/73-per-user-connections --single-branch \
+  https://github.com/call518/MCP-OpenStack-Ops.git
+cd MCP-OpenStack-Ops
 uv sync --locked --extra dev
+```
+
+`uv sync` installs the checked-out source and its locked dependencies into the
+project environment; a separate `pip install -e .` is not needed. The `dev` extra
+includes the dependencies for the validation tests below.
+
+From that directory, configure and start the server:
+
+```bash
 export OS_AUTH_HOST=cloud.example.com
 export OS_AUTH_PORT=5000
 export OS_AUTH_PROTOCOL=https
