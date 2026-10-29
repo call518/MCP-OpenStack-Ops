@@ -50,7 +50,7 @@ async def set_floating_ip(action: str, floating_network_id: str = "", port_id: s
         
         kwargs = {}
         if floating_network_id.strip():
-            kwargs['floating_network_id'] = floating_network_id.strip()
+            kwargs['network'] = floating_network_id.strip()
         if port_id.strip():
             kwargs['port_id'] = port_id.strip()
         if floating_ip_id.strip():
