@@ -14,7 +14,8 @@ async def set_volume_groups(
     description: str = "",
     group_type: str = "default",
     availability_zone: str = "",
-    delete_volumes: bool = False
+    delete_volumes: bool = False,
+    volume_types: str = ""
 ) -> str:
     """
     Manage OpenStack volume groups for consistent group operations
@@ -26,6 +27,9 @@ async def set_volume_groups(
         group_type: Type of volume group (default: 'default')
         availability_zone: Availability zone for the group
         delete_volumes: Delete volumes when deleting group (default: False)
+        volume_types: Comma-delimited volume type names/IDs, required for create
+
+    Requires Cinder generic groups, a group type and API microversion >= 3.13.
         
     Returns:
         JSON string with volume group operation results
@@ -45,7 +49,8 @@ async def set_volume_groups(
             description=description,
             group_type=group_type,
             availability_zone=availability_zone if availability_zone else None,
-            delete_volumes=delete_volumes
+            delete_volumes=delete_volumes,
+            volume_types=[v.strip() for v in volume_types.split(",") if v.strip()]
         )
         return json.dumps(result, indent=2)
     except Exception as e:

@@ -295,19 +295,11 @@ def set_image_members(action: str, image_name: str, member_project: Optional[str
         from ..connection import get_openstack_connection
         conn = get_openstack_connection()
         
-        # Find the image
-        image = None
-        for img in conn.image.images():
-            if img.name == image_name or img.id == image_name:
-                image = img
-                break
-                
-        if not image:
-            return {
-                'success': False,
-                'message': f'Image "{image_name}" not found'
-            }
-        
+        image = conn.image.find_image(image_name, ignore_missing=False)
+        if action.lower() in {'add', 'remove'}:
+            if image.owner != conn.current_project_id:
+                raise ValueError('Image is not owned by the current project')
+
         if action.lower() == 'list':
             members = []
             try:
@@ -341,7 +333,7 @@ def set_image_members(action: str, image_name: str, member_project: Optional[str
                 }
                 
             try:
-                member = conn.image.add_member(image.id, member_project)
+                member = conn.image.add_member(image.id, member_id=member_project)
                 return {
                     'success': True,
                     'message': f'Project "{member_project}" added as member to image "{image_name}"',
@@ -363,7 +355,9 @@ def set_image_members(action: str, image_name: str, member_project: Optional[str
                 }
                 
             try:
-                conn.image.remove_member(image.id, member_project)
+                conn.image.remove_member(
+                    member_project, image=image.id, ignore_missing=False,
+                )
                 return {
                     'success': True,
                     'message': f'Project "{member_project}" removed as member from image "{image_name}"',

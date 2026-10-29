@@ -11,10 +11,10 @@ async def set_service_logs(
     log_level: str = "INFO"
 ) -> str:
     """
-    Manage OpenStack service logs and logging configuration
+    List service metadata; actual log retrieval is unavailable.
     
     Args:
-        action: Action to perform - list, show
+        action: Action to perform - list; show returns an explicit unsupported error
         service_name: Name of the service to get logs for
         log_level: Log level filter (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         

@@ -89,7 +89,7 @@ def set_domains(action: str, domain_name: Optional[str] = None, **kwargs) -> Dic
                 domain = conn.identity.create_domain(
                     name=domain_name,
                     description=description,
-                    enabled=enabled
+                    is_enabled=enabled
                 )
                 return {
                     'success': True,
@@ -103,10 +103,28 @@ def set_domains(action: str, domain_name: Optional[str] = None, **kwargs) -> Dic
                     'message': f'Failed to create domain: {str(e)}'
                 }
         
+        elif action.lower() in {'show', 'delete', 'update'}:
+            if not domain_name:
+                raise ValueError('domain_name is required')
+            domain = conn.identity.find_domain(domain_name, ignore_missing=False)
+            if action.lower() == 'delete':
+                # Keystone requires a disabled domain; never disable implicitly.
+                if domain.is_enabled:
+                    raise ValueError('Disable the domain explicitly before deleting it')
+                conn.identity.delete_domain(domain, ignore_missing=False)
+                return {'success': True, 'message': 'Domain deletion accepted'}
+            if action.lower() == 'update':
+                domain = conn.identity.update_domain(
+                    domain, description=kwargs.get('description', ''),
+                    is_enabled=kwargs.get('enabled', True),
+                )
+            return {'success': True, 'domain': domain.to_dict()}
+
         else:
             return {
                 'success': False,
-                'message': f'Unknown action "{action}". Supported: list, create'
+                'message': f'Unknown action "{
+                    action}". Supported: list, create, show, update, delete'
             }
             
     except Exception as e:
@@ -739,3 +757,45 @@ def set_project(project_name: str, action: str, **kwargs) -> Dict[str, Any]:
             'message': f'Failed to manage project: {str(e)}',
             'error': str(e)
         }
+
+def set_users(
+    action: str, user_name: str, domain_id: str = 'default',
+    password_env: str = '', description: str = '', enabled: bool = True,
+) -> Dict[str, Any]:
+    """Create/delete Keystone users; passwords are read only from a named env var.
+
+    Creating a user does not grant project roles. Cloud policy controls access.
+    """
+    import os
+
+    try:
+        if action.lower() not in {'create', 'delete'} or not user_name.strip():
+            raise ValueError('Use create/delete and provide user_name')
+        conn = get_openstack_connection()
+        if action.lower() == 'create':
+            password = os.environ.get(password_env) if password_env else None
+            if not password:
+                return {
+                    'success': False,
+                    'message': 'password_env must name a populated server variable',
+                }
+            user = conn.identity.create_user(
+                name=user_name, domain_id=domain_id, password=password,
+                description=description, is_enabled=enabled,
+            )
+            return {'success': True, 'user': {'id': user.id, 'name': user.name,
+                    'domain_id': user.domain_id, 'enabled': user.is_enabled}}
+        user = conn.identity.find_user(user_name, domain_id=domain_id,
+            ignore_missing=False)
+        if user.id == conn.session.get_user_id():
+            return {
+                'success': False,
+                'message': 'Refusing to delete the authenticated user',
+            }
+        conn.identity.delete_user(user, ignore_missing=False)
+        return {'success': True, 'message': 'User deletion accepted'}
+    except Exception:
+        # Identity API errors can contain the submitted password.
+        return {'success': False,
+            'message': 'User operation failed; check input, cloud policy and password '
+                'environment configuration'}

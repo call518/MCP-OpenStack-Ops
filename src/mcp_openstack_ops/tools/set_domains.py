@@ -18,7 +18,7 @@ async def set_domains(
     Manage OpenStack domains for multi-tenancy organization
     
     Args:
-        action: Action to perform - list, create
+        action: Action to perform - list, show, create, delete, update
         domain_name: Name of the domain (required for create)
         description: Description for the domain
         enabled: Enable the domain (default: True)
@@ -27,7 +27,8 @@ async def set_domains(
         JSON string with domain management operation results
     """
     
-    if not _is_modify_operation_allowed() and action.lower() in ['create']:
+    if not _is_modify_operation_allowed() and action.lower() in ['create', 'delete',
+        'update']:
         return json.dumps({
             'success': False,
             'message': f'Modify operations are not allowed in current environment for action: {action}',

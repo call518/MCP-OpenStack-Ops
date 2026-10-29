@@ -408,7 +408,7 @@ For requests like "Create cluster status report", "Show cluster operational repo
 - `get_service_status()` - Check all OpenStack service availability
 
 **2. Infrastructure & Resource Analysis:**
-- `monitor_resources()` - Physical resource utilization (CPU, RAM, storage)
+- `get_resource_monitoring()` - Physical resource utilization (CPU, RAM, storage)
 - `get_hypervisor_details()` - Physical infrastructure and hypervisor status
 
 **3. Compute Resources:**
@@ -434,7 +434,7 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 - `search_instances`: Flexible instance search with partial matching and case-sensitive options
 - `get_instance_by_name`: Quick single instance lookup
 - `get_instances_by_status`: Filter instances by operational status
-- `monitor_resources`: CPU, memory, storage usage by hypervisor (physical_usage + quota_usage)
+- `get_resource_monitoring`: current project flavor allocations, separate quota limits and visible hypervisor capacity; no live utilization or trends
 
 ### 🌐 **Network Management Tools (12 tools)**
 **Core Network Operations:**
@@ -450,14 +450,14 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 
 **Floating IP Management:**
 - `get_floating_ips`: List floating IPs and status (always available)
-- `get_floating_ip_pools`: List available floating IP pools and capacity (always available)
+- `get_floating_ip_pools`: Visible allocation-range totals and Floating IP counts; global free capacity is unknown (`available_ips=null`)
 - `set_floating_ip`: Enhanced floating IP operations (create/delete/associate/disassociate/set/show/unset) (**Conditional Tool**)
 - `set_floating_ip_port_forwarding`: Port forwarding rule management (create/delete/list/show/set) (**Conditional Tool**)
 
 **Network Advanced Features:**
 - `get_routers`: Router configuration and routing tables (always available)
-- `set_network_qos_policies`: QoS policy operations (**Conditional Tool**)
-- `set_network_agents`: Network agent operations (**Conditional Tool**)
+- `set_network_qos_policies`: Create/list/delete project QoS policy containers (**Conditional Tool**); no automatic bandwidth rules
+- `set_network_agents`: List/enable/disable cloud-wide agents (**Conditional Tool**); OpenStack admin policy may apply
 
 ### 💾 **Storage Management Tools (8 tools)**
 - `get_volume_list`: List all volumes with status (always available)
@@ -524,7 +524,7 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 - `get_role_assignments`: User permissions
 - `get_quota` / `set_quota`: Project quotas and limits
 - `get_project_details` / `set_project`: Project information and management (**Conditional Tool**)
-- `get_usage_statistics`: Project usage and quota consumption
+- `get_usage_statistics`: Current-project Nova period allocation-hours in `period_compute`; compute/network/storage snapshots are separate, not period history or monetary charges
 - `set_domains`: Create/manage domains (**Conditional Tool**)
 - `set_identity_groups`: User group operations (**Conditional Tool**)
 - `set_roles`: Role creation and assignment (**Conditional Tool**)
@@ -549,7 +549,7 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 ### 📊 **Monitoring & Logging (4 tools)**
 - `set_service_logs`: Service log operations (**Conditional Tool**)
 - `set_metrics`: Metrics collection and monitoring (**Conditional Tool**)
-- `set_alarms`: Alert configuration and management (**Conditional Tool**)
+- `set_alarms`: Real Aodh/Gnocchi resource threshold alarms (**Conditional Tool**); requires an alarming catalog endpoint and collected metric; no simulation fallback
 - `set_compute_agents`: Compute service agent operations (**Conditional Tool**)
 
 **Total: 93 comprehensive OpenStack management tools**
@@ -568,13 +568,13 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 **For comprehensive cluster reports, use these tool combinations:**
 
 - **"Create cluster status report"** / **"Cluster status report"** / **"클러스터 운영 현황"** → 
-  - `get_service_status()` + `monitor_resources()` + `get_hypervisor_details()` + `get_instance_details()` + `get_project_details()` + `get_network_details()` + `get_volume_list()` + `get_load_balancer_details()` + `get_heat_stacks()`
+  - `get_service_status()` + `get_resource_monitoring()` + `get_hypervisor_details()` + `get_instance_details()` + `get_project_details()` + `get_network_details()` + `get_volume_list()` + `get_load_balancer_details()` + `get_heat_stacks()`
 
 - **"Show detailed cluster analysis"** / **"resource utilization"** → 
-  - `monitor_resources()` + `get_hypervisor_details()` + `get_instance_details()` + `get_volume_list()`
+  - `get_resource_monitoring()` + `get_hypervisor_details()` + `get_instance_details()` + `get_volume_list()`
 
 - **"Cluster overview"** / **"cluster status"** → 
-  - `get_service_status()` + `monitor_resources()` + `get_instance_details()` + `get_project_details()` + `get_network_details()`
+  - `get_service_status()` + `get_resource_monitoring()` + `get_instance_details()` + `get_project_details()` + `get_network_details()`
 
 - **"Server groups"** / **"affinity policies"** → 
   - `get_instance_details()` (includes server group info) + `search_instances()` for specific policies
@@ -582,8 +582,9 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 - **"Availability zones"** / **"zone status"** → 
   - `get_hypervisor_details()` (includes AZ information) + `get_service_status()`
 
-- **"Usage statistics"** / **"billing trends"** → 
-  - `get_project_details()` (all projects with resource breakdown) + `monitor_resources()`
+- **"Usage statistics"** →
+  - `get_usage_statistics()` (Nova period allocation-hours; API >= 2.40) + `get_resource_monitoring()` (current inventory)
+  - Monetary billing and billing trends require separate pricing and billing data.
 
 - **"Project quotas"** / **"quota limits"** → 
   - `get_project_details()` (includes quota information for all projects)
@@ -608,7 +609,7 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 - "Create/delete stack" → `set_heat_stack("stack_name", "action")`
 
 ### 📈 **Monitoring & Resources**
-- "Hypervisor statistics" / "resource monitoring" → `monitor_resources`
+- "Hypervisor statistics" / "resource monitoring" → `get_resource_monitoring`
 
 ---
 
@@ -644,8 +645,8 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 
 ### 📊 **Common Operations**
 ```
-"Create cluster status report" → Use tool combination: get_service_status() + monitor_resources() + get_hypervisor_details() + get_instance_details() + get_project_details() + get_network_details() + get_volume_list() + get_load_balancer_details() + get_heat_stacks()
-"클러스터 운영 현황 보고해줘" → Use tool combination: get_service_status() + monitor_resources() + get_hypervisor_details() + get_instance_details() + get_project_details() + get_network_details() + get_volume_list() + get_load_balancer_details() + get_heat_stacks()
+"Create cluster status report" → Use tool combination: get_service_status() + get_resource_monitoring() + get_hypervisor_details() + get_instance_details() + get_project_details() + get_network_details() + get_volume_list() + get_load_balancer_details() + get_heat_stacks()
+"클러스터 운영 현황 보고해줘" → Use tool combination: get_service_status() + get_resource_monitoring() + get_hypervisor_details() + get_instance_details() + get_project_details() + get_network_details() + get_volume_list() + get_load_balancer_details() + get_heat_stacks()
 
 # Enhanced examples with new API structure
 "Start web-server-01" → set_instance(action="start", instance_names="web-server-01")
@@ -668,7 +669,7 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 "Create port forwarding" → set_floating_ip_port_forwarding("create", floating_ip_address="IP", external_port=80, internal_port=8080)
 "Create 50GB volume" → set_volume("vol-name", "create", size=50)
 "Check instance states" → get_instance_details() + get_instances_by_status()  [Instance state analysis across projects]
-"Show hypervisor utilization" → monitor_resources() + get_hypervisor_details()  [Resource utilization monitoring]
+"Show hypervisor utilization" → get_resource_monitoring() + get_hypervisor_details()  [Resource utilization monitoring]
 "Check load balancer status" → get_load_balancer_details()  [Load balancer health monitoring]
 ```
 
@@ -700,7 +701,7 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 "Give me a cluster overview with resource utilization"
 ```
 
-**Tools Used:** `get_cluster_status()`, `monitor_resources()`, `get_service_status()`
+**Tools Used:** `get_service_status()`, `get_resource_monitoring()`, `get_service_status()`
 
 ### 🖥️ **Instance Management**
 
@@ -803,7 +804,7 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 "Display storage capacity statistics"
 ```
 
-**Tools Used:** `monitor_resources()`, `get_quota()`, `get_usage_statistics()`
+**Tools Used:** `get_resource_monitoring()`, `get_quota()`, `get_usage_statistics()`
 
 ### 🛠️ **Troubleshooting**
 
@@ -836,7 +837,7 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 "Check storage I/O performance"
 ```
 
-**Tools Used:** `get_instance_details()`, `monitor_resources()`, `get_resource_monitoring()`
+**Tools Used:** `get_instance_details()`, `get_resource_monitoring()`, `get_resource_monitoring()`
 
 ### 🎛️ **Batch Operations**
 
@@ -866,7 +867,7 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 ```
 "Troubleshoot performance issues" →
 1. get_instance_details() (instance status & specs)
-2. monitor_resources() (resource utilization)
+2. get_resource_monitoring() (resource utilization)
 3. get_hypervisor_details() (host capacity)
 4. get_service_status() (service health)
 ```
@@ -896,3 +897,20 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 ---
 
 **Enhanced with 89 comprehensive OpenStack management tools including advanced server management, network operations, storage management, identity & access control, image management, orchestration, and monitoring capabilities. Optimized for production environments with built-in safety controls and performance optimization.**
+
+
+### Additional API-backed operations
+
+- `set_routers`, `set_security_groups`: create/delete project-owned resources; do not implicitly detach dependencies.
+- `get_network_qos_policies`: read-only listing of project policy containers.
+- `set_volume_types`: create/delete types subject to administrative policy.
+- `get_volume_backups`, `get_volume_groups`, `get_volume_qos`, `get_volume_transfers`: read-only Cinder inventories. Transfer authorization keys are excluded.
+- `set_volume_groups`: list/create/show/delete; create requires existing group and volume types and Cinder API >= 3.13. Async responses mean accepted, not completed.
+- `set_volume_qos`: list/create/show/set/delete specifications; does not automatically associate volume types.
+- `set_users`: create/delete; `password_env` names a server environment variable. Never ask for passwords in chat. No role assignments are made.
+- `get_domains`, `get_identity_groups`: read-only Keystone listings. `set_domains` and `set_identity_groups` support list/create/show/update/delete. Domains must be explicitly disabled before deletion.
+- `get_image_members`: read-only image member listing. `set_image_members(action="add")` adds a recipient project to a shared image; recipient acceptance is separate.
+- `get_heat_stack_details`: `section` is resources/events/template/outputs.
+- `set_service_logs(action="show")` and `set_metrics(action="show")` are unavailable without additional backend implementation. Never claim to have retrieved logs or telemetry samples from metadata-only results.
+
+API paths have local mocked tests, and selected paths passed single-node Kolla Ansible integration checks. See docs/integration-validation.md for coverage: successful Aodh/Neutron QoS lifecycles and live network-agent state changes remain unverified. Check returned errors and partial flags; never describe an accepted asynchronous request as a completed operation. Usage date bounds are UTC midnight, start inclusive/end exclusive. Missing physical capacity is null, not zero. Physical capacity and project allocations have different scopes and must not be divided into a utilization rate.

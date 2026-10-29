@@ -11,15 +11,17 @@ from ..mcp_main import (
 @mcp.tool()
 async def get_resource_monitoring() -> str:
     """
-    Monitors real-time resource usage across the OpenStack cluster.
+    Read current project allocations and visible hypervisor capacity.
     
     Functions:
-    - Monitor cluster-wide CPU, memory, and storage usage rates
+    - Report project flavor allocations, not live CPU or memory utilization
     - Collect hypervisor statistics and resource allocation
-    - Track resource utilization trends and capacity planning data
-    - Provide resource usage summaries and utilization percentages
+    - Separate project quota limits from visible physical capacity
+    - Return null for unavailable capacity or incomplete flavor allocations
     
-    Use when user requests resource monitoring, capacity planning, usage analysis, or performance monitoring.
+    Use for current inventory and capacity planning. No historical trends or
+    telemetry samples are collected. Physical totals and project allocations
+    have different scopes and should not be divided into a utilization rate.
     
     Returns:
         Resource monitoring data in JSON format with cluster summary, hypervisor details, and usage statistics.

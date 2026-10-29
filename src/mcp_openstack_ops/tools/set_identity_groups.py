@@ -18,7 +18,7 @@ async def set_identity_groups(
     Manage OpenStack identity groups for user organization
     
     Args:
-        action: Action to perform - list, create
+        action: Action to perform - list, show, create, delete, update
         group_name: Name of the group (required for create)
         description: Description for the group
         domain_id: Domain ID for the group (default: 'default')
@@ -27,7 +27,8 @@ async def set_identity_groups(
         JSON string with identity group management operation results
     """
     
-    if not _is_modify_operation_allowed() and action.lower() in ['create']:
+    if not _is_modify_operation_allowed() and action.lower() in ['create', 'delete',
+        'update']:
         return json.dumps({
             'success': False,
             'message': f'Modify operations are not allowed in current environment for action: {action}',

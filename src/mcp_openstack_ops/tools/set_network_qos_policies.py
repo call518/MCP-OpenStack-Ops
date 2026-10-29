@@ -15,7 +15,9 @@ async def set_network_qos_policies(
     shared: bool = False
 ) -> str:
     """
-    Manage OpenStack network QoS policies for bandwidth and traffic control
+    Create/list/delete project-owned Neutron QoS policy containers.
+
+    This tool does not create bandwidth rules or attach policies to ports.
     
     Args:
         action: Action to perform - list, create, delete

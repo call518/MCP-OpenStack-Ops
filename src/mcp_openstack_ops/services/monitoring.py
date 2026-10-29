@@ -7,7 +7,7 @@ getting usage statistics, quotas, and availability information.
 
 import logging
 from typing import Dict, List, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -25,7 +25,9 @@ def get_resource_monitoring() -> Dict[str, Any]:
         from ..connection import get_openstack_connection
         conn = get_openstack_connection()
         current_project_id = conn.current_project_id
-        
+        if not current_project_id:
+            raise ValueError('A project-scoped connection is required')
+
         monitoring_data = {
             'timestamp': datetime.now().isoformat(),
             'project_id': current_project_id,
@@ -40,98 +42,83 @@ def get_resource_monitoring() -> Dict[str, Any]:
             all_servers = list(conn.compute.servers())
             servers = [s for s in all_servers if getattr(s, 'project_id', None) == current_project_id]
             
-            # Calculate actual compute usage from instances
-            total_used_vcpus = 0
-            total_used_ram_mb = 0
-            total_used_disk_gb = 0
-            running_servers = 0
-            
+            # These are allocations, not sampled CPU load or resident memory.
+            allocations = {'vcpus': 0, 'ram': 0, 'disk': 0}
+            allocation_errors = []
             for server in servers:
-                if server.status == 'ACTIVE':
-                    running_servers += 1
-                
-                # Get resource usage from server's flavor
-                flavor = server.flavor
-                if flavor:
-                    # Server flavor is already a flavor object with resource info
-                    vcpus = getattr(flavor, 'vcpus', 0) or 0
-                    ram_mb = getattr(flavor, 'ram', 0) or 0
-                    disk_gb = getattr(flavor, 'disk', 0) or 0
-                    ephemeral_gb = getattr(flavor, 'OS-FLV-EXT-DATA:ephemeral', 0) or 0
-                    swap_gb = getattr(flavor, 'swap', 0) or 0
-                    
-                    # Convert swap from MB to GB if it's in MB (some OpenStack versions use MB)
-                    if swap_gb > 100:  # Likely in MB
-                        swap_gb = swap_gb / 1024
-                    
-                    total_instance_disk = disk_gb + ephemeral_gb + swap_gb
-                    
-                    total_used_vcpus += vcpus
-                    total_used_ram_mb += ram_mb
-                    total_used_disk_gb += total_instance_disk
-            
-            # Try to get hypervisor totals (physical capacity)
-            total_physical_vcpus = 0
-            total_physical_ram_mb = 0
-            total_physical_disk_gb = 0
-            hypervisor_count = 0
-            
+                try:
+                    flavor = server.flavor
+                    values = dict(flavor) if flavor else {}
+                    if (not values.get('vcpus') or not values.get('ram')
+                            or values.get('disk') is None):
+                        flavor_id = values.get('id')
+                        if not flavor_id:
+                            raise ValueError('Flavor resource sizes are unavailable')
+                        values = conn.compute.get_flavor(flavor_id).to_dict()
+                    if (not values.get('vcpus') or not values.get('ram')
+                            or values.get('disk') is None):
+                        raise ValueError('Flavor resource sizes are unavailable')
+                    allocations['vcpus'] += values['vcpus']
+                    allocations['ram'] += values['ram']
+                    # Nova flavor swap is specified in MiB.
+                    ephemeral = values.get('ephemeral')
+                    if ephemeral is None:
+                        ephemeral = values.get('OS-FLV-EXT-DATA:ephemeral', 0)
+                    allocations['disk'] += (
+                        values['disk'] + (ephemeral or 0)
+                        + float(values.get('swap') or 0) / 1024
+                    )
+                except Exception as exc:
+                    allocation_errors.append({'server_id': server.id,
+                        'error': str(exc)})
+            physical = {'vcpus': None, 'memory_mb': None, 'local_gb': None}
+            hypervisor_count = None
+            capacity_error = None
             try:
-                hypervisors = list(conn.compute.hypervisors())
+                hypervisors = list(conn.compute.hypervisors(details=True))
                 hypervisor_count = len(hypervisors)
-                
-                # Since hypervisor detailed stats are not available in this environment,
-                # try to get quota limits as a reasonable approximation of capacity
-                try:
-                    quota = conn.compute.get_quota_set(current_project_id)
-                    # Use quota limits as approximate capacity indicators
-                    if hasattr(quota, 'cores') and quota.cores and quota.cores > 0:
-                        total_physical_vcpus = quota.cores
-                    if hasattr(quota, 'ram') and quota.ram and quota.ram > 0:
-                        total_physical_ram_mb = quota.ram
-                        
-                except Exception as quota_error:
-                    logger.info(f"Could not get quota for capacity estimation: {quota_error}")
-                
-                # Alternative: Try to get aggregate/availability zone stats
-                try:
-                    # Some deployments provide compute service stats
-                    services = list(conn.compute.services(binary='nova-compute'))
-                    if services and hypervisor_count > 0:
-                        # Rough estimation: assume each compute service represents similar capacity
-                        # This is just a fallback when hypervisor stats aren't available
-                        if total_physical_vcpus == 0:
-                            # Very rough estimate: if we can't get real data, 
-                            # assume some reasonable default per hypervisor
-                            estimated_vcpus_per_hypervisor = max(total_used_vcpus * 2, 8)  # At least double usage or 8
-                            total_physical_vcpus = estimated_vcpus_per_hypervisor * hypervisor_count
-                            
-                        if total_physical_ram_mb == 0:
-                            estimated_ram_per_hypervisor = max(total_used_ram_mb * 2, 16384)  # At least double usage or 16GB
-                            total_physical_ram_mb = estimated_ram_per_hypervisor * hypervisor_count
-                            
-                except Exception:
-                    pass
-                    
-            except Exception:
-                # If hypervisor access fails, we'll still show instance usage
-                pass
-            
+                for key, aliases in (
+                    ('vcpus', ('vcpus',)),
+                    ('memory_mb', ('memory_size', 'memory_mb', 'memory_size_mb')),
+                    ('local_gb', ('local_disk_size', 'local_gb', 'local_disk_size_gb')),
+                ):
+                    values = []
+                    for hypervisor in hypervisors:
+                        data = hypervisor.to_dict()
+                        values.append(next((data[a] for a in aliases
+                                            if data.get(a) is not None), None))
+                    if hypervisors and all(value is not None for value in values):
+                        physical[key] = sum(values)
+            except Exception as exc:
+                capacity_error = str(exc)
+            quota_limits = None
+            quota_error = None
+            try:
+                quota = conn.compute.get_quota_set(current_project_id)
+                quota_limits = {'vcpus': quota.cores, 'memory_mb': quota.ram}
+            except Exception as exc:
+                quota_error = str(exc)
             compute_stats = {
                 'total_servers': len(servers),
-                'running_servers': running_servers,
+                'running_servers': sum(s.status == 'ACTIVE' for s in servers),
                 'total_hypervisors': hypervisor_count,
-                # Physical capacity (from hypervisors)
-                'total_vcpus': total_physical_vcpus,
-                'total_memory_mb': total_physical_ram_mb,
-                'total_disk_gb': total_physical_disk_gb,
-                # Usage (from instances)
-                'used_vcpus': total_used_vcpus,
-                'used_memory_mb': total_used_ram_mb,
-                'used_disk_gb': total_used_disk_gb,  # Calculated from instance flavors
-                'project_server_count': len(servers)
+                'total_vcpus': physical['vcpus'],
+                'total_memory_mb': physical['memory_mb'],
+                'total_disk_gb': physical['local_gb'],
+                'used_vcpus': None if allocation_errors else allocations['vcpus'],
+                'used_memory_mb': None if allocation_errors else allocations['ram'],
+                'used_disk_gb': None if allocation_errors else allocations['disk'],
+                'project_server_count': len(servers),
+                'physical_capacity_scope': 'visible_hypervisors',
+                'physical_capacity_source': 'nova_hypervisor_details',
+                'usage_scope': 'current_project',
+                'usage_basis': 'flavor_allocations_not_live_utilization',
+                'quota_limits': quota_limits,
+                'capacity_error': capacity_error,
+                'quota_error': quota_error,
+                'allocation_errors': allocation_errors,
             }
-            
+
             monitoring_data['compute'] = compute_stats
         except Exception as e:
             monitoring_data['compute'] = {'error': str(e)}
@@ -219,8 +206,11 @@ def get_resource_monitoring() -> Dict[str, Any]:
             monitoring_data['identity'] = {'error': str(e)}
             logger.warning(f"Failed to get identity monitoring data: {e}")
         
+        errors = [key for key in ('compute', 'network', 'storage', 'identity')
+                  if 'error' in monitoring_data[key]]
         return {
-            'success': True,
+            'success': not errors, 'partial': bool(errors),
+            'failed_sections': errors,
             'monitoring_data': monitoring_data
         }
         
@@ -288,6 +278,49 @@ def get_compute_quota_usage(conn) -> Dict[str, Any]:
         }
 
 
+def _get_period_compute_usage(conn, start: datetime, end: datetime) -> Dict[str, Any]:
+    """Merge Nova 2.40 usage pages without following arbitrary next-link URLs."""
+    from urllib.parse import quote
+    from openstack.compute.v2.usage import Usage
+
+    project_id = conn.current_project_id
+    path = '/os-simple-tenant-usage/' + quote(project_id, safe='')
+    params = {'start': start.isoformat(), 'end': end.isoformat(), 'limit': 1000}
+    totals = ('total_hours', 'total_vcpus_usage', 'total_memory_mb_usage',
+        'total_local_gb_usage')
+    combined = None
+    seen = set()
+    while True:
+        response = conn.compute.get(path, params=dict(params), microversion='2.40')
+        response.raise_for_status()
+        payload = response.json()
+        usage = payload['tenant_usage']
+        if not usage:
+            usage = {'tenant_id': project_id, 'server_usages': [],
+                     'start': start.isoformat(), 'stop': end.isoformat(),
+                     **{key: 0 for key in totals}}
+        if usage.get('tenant_id') != project_id:
+            raise ValueError('Usage response belongs to another project')
+        servers = usage.get('server_usages') or []
+        ids = [server['instance_id'] for server in servers]
+        if len(set(ids)) != len(ids) or seen.intersection(ids):
+            raise ValueError('Usage pages contain repeated instances')
+        seen.update(ids)
+        normalized = Usage(**usage).to_dict()
+        if combined is None:
+            combined = normalized
+        else:
+            combined['server_usages'].extend(normalized['server_usages'] or [])
+            for key in totals:
+                combined[key] += normalized[key]
+        links = payload.get('tenant_usage_links', [])
+        if not any(link.get('rel') == 'next' for link in links):
+            return combined
+        if not ids:
+            raise ValueError('Usage pagination has no continuation marker')
+        params['marker'] = ids[-1]
+
+
 def get_usage_statistics(start_date: str = "", end_date: str = "") -> Dict[str, Any]:
     """
     Get usage statistics for the current project.
@@ -304,26 +337,42 @@ def get_usage_statistics(start_date: str = "", end_date: str = "") -> Dict[str, 
         from ..connection import get_openstack_connection
         conn = get_openstack_connection()
         
-        # Set default dates if not provided
-        if not end_date:
-            end_date = datetime.now().strftime('%Y-%m-%d')
-        if not start_date:
-            start_datetime = datetime.now() - timedelta(days=30)
-            start_date = start_datetime.strftime('%Y-%m-%d')
-        
+        # Date-only bounds are UTC midnight; the end boundary is exclusive.
+        today = datetime.now(timezone.utc).date()
+        start = (
+            datetime.strptime(start_date, '%Y-%m-%d') if start_date
+            else datetime.combine(today - timedelta(days=30), datetime.min.time())
+        )
+        end = (
+            datetime.strptime(end_date, '%Y-%m-%d') if end_date
+            else datetime.combine(today, datetime.min.time())
+        )
+        if start >= end:
+            raise ValueError('start_date must be earlier than end_date')
+        if not conn.current_project_id:
+            raise ValueError('A project-scoped connection is required')
+        period_usage = _get_period_compute_usage(conn, start, end)
         usage_stats = {
             'period': {
-                'start_date': start_date,
-                'end_date': end_date
+                'start_date': start.strftime('%Y-%m-%d'),
+                'end_date': end.strftime('%Y-%m-%d'),
+                'timezone': 'UTC', 'end_exclusive': True,
             },
-            'compute': {},
-            'network': {},
-            'storage': {}
+            'project_id': conn.current_project_id,
+            'period_compute': period_usage,
+            'period_compute_source': 'nova_simple_tenant_usage',
+            'snapshot_timestamp': datetime.now(timezone.utc).isoformat(),
+            'snapshot_fields': ['compute', 'network', 'storage'],
+            'note': 'Current snapshots are separate from period compute '
+                'allocation-hours; these are not utilization samples or monetary '
+                'charges.',
+            'compute': {}, 'network': {}, 'storage': {},
         }
-        
+
         # Compute usage
         try:
-            servers = list(conn.compute.servers())
+            servers = [s for s in conn.compute.servers()
+                       if s.project_id == conn.current_project_id]
             flavors = {f.id: f for f in conn.compute.flavors()}
             
             server_stats = {
@@ -338,12 +387,21 @@ def get_usage_statistics(start_date: str = "", end_date: str = "") -> Dict[str, 
                 status = server.status
                 server_stats['servers_by_status'][status] = server_stats['servers_by_status'].get(status, 0) + 1
                 
-                flavor_id = getattr(server, 'flavor', {}).get('id')
-                if flavor_id and flavor_id in flavors:
-                    flavor_name = flavors[flavor_id].name
-                    server_stats['servers_by_flavor'][flavor_name] = server_stats['servers_by_flavor'].get(flavor_name, 0) + 1
-                    server_stats['total_vcpus'] += getattr(flavors[flavor_id], 'vcpus', 0)
-                    server_stats['total_memory_mb'] += getattr(flavors[flavor_id], 'ram', 0)
+                flavor = dict(server.flavor or {})
+                flavor_id = flavor.get('id')
+                if flavor_id in flavors:
+                    flavor = flavors[flavor_id].to_dict()
+                if not flavor.get('vcpus') or not flavor.get('ram'):
+                    raise ValueError(
+                        f'Flavor allocation unavailable for server {server.id}')
+                flavor_name = (
+                    flavor.get('name') or flavor.get('original_name')
+                    or flavor_id or 'unknown'
+                )
+                by_flavor = server_stats['servers_by_flavor']
+                by_flavor[flavor_name] = by_flavor.get(flavor_name, 0) + 1
+                server_stats['total_vcpus'] += flavor['vcpus']
+                server_stats['total_memory_mb'] += flavor['ram']
             
             usage_stats['compute'] = server_stats
             
@@ -353,10 +411,22 @@ def get_usage_statistics(start_date: str = "", end_date: str = "") -> Dict[str, 
         
         # Network usage
         try:
-            networks = list(conn.network.networks())
-            subnets = list(conn.network.subnets())
-            ports = list(conn.network.ports())
-            floating_ips = list(conn.network.ips())
+            networks = [
+                resource for resource in conn.network.networks()
+                if resource.project_id == conn.current_project_id
+            ]
+            subnets = [
+                resource for resource in conn.network.subnets()
+                if resource.project_id == conn.current_project_id
+            ]
+            ports = [
+                resource for resource in conn.network.ports()
+                if resource.project_id == conn.current_project_id
+            ]
+            floating_ips = [
+                resource for resource in conn.network.ips()
+                if resource.project_id == conn.current_project_id
+            ]
             
             network_stats = {
                 'total_networks': len(networks),
@@ -415,8 +485,11 @@ def get_usage_statistics(start_date: str = "", end_date: str = "") -> Dict[str, 
             usage_stats['storage'] = {'error': str(e)}
             logger.warning(f"Failed to get storage usage: {e}")
         
+        errors = [key for key in ('compute', 'network', 'storage')
+                  if 'error' in usage_stats[key]]
         return {
-            'success': True,
+            'success': not errors, 'partial': bool(errors),
+            'failed_sections': errors,
             'usage_statistics': usage_stats
         }
         

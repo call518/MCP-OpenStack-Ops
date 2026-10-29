@@ -11,10 +11,10 @@ async def set_metrics(
     resource_id: str = ""
 ) -> str:
     """
-    Manage OpenStack metrics collection and monitoring
+    List/summary resource metadata; telemetry samples are unavailable.
     
     Args:
-        action: Action to perform - list, show, summary
+        action: Action to perform - list, summary; show returns an explicit unsupported error
         resource_type: Type of resource (compute, network, storage, identity)
         resource_id: Specific resource ID to get metrics for
         

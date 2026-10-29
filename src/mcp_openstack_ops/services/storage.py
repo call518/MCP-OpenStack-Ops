@@ -550,217 +550,147 @@ def set_snapshot(snapshot_name: str, action: str, **kwargs) -> Dict[str, Any]:
 
 
 def set_volume_backups(action: str, backup_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
-    """
-    Manage volume backups.
-    
-    Args:
-        action: Action to perform (list, create, delete, restore)
-        backup_name: Name of backup (for specific operations)
-        **kwargs: Additional parameters
-    
-    Returns:
-        Result of the backup operation
-    """
+    """List, create, show, delete or restore real Cinder backups."""
+    from ..connection import get_openstack_connection
+
     try:
-        # Import here to avoid circular imports
-        from ..connection import get_openstack_connection
-        conn = get_openstack_connection()
-        
-        if action.lower() == 'list':
-            backups = []
-            try:
-                for backup in conn.volume.backups():
-                    backups.append({
-                        'id': backup.id,
-                        'name': getattr(backup, 'name', 'unnamed'),
-                        'status': getattr(backup, 'status', 'unknown'),
-                        'size': getattr(backup, 'size', 0),
-                        'volume_id': getattr(backup, 'volume_id', 'unknown'),
-                        'created_at': str(getattr(backup, 'created_at', 'unknown')),
-                        'description': getattr(backup, 'description', '')
-                    })
-            except Exception as e:
-                logger.warning(f"Backup service may not be available: {e}")
-                return {
-                    'success': False,
-                    'message': 'Backup service not available or configured',
-                    'backups': []
-                }
-            
-            return {
-                'success': True,
-                'backups': backups,
-                'count': len(backups)
-            }
-            
-        elif action.lower() == 'create':
-            volume_id = kwargs.get('volume_id')
-            description = kwargs.get('description', f'Backup {backup_name}')
-            
-            if not backup_name:
-                return {
-                    'success': False,
-                    'message': 'backup_name is required for create action'
-                }
-                
-            if not volume_id:
-                return {
-                    'success': False,
-                    'message': 'volume_id is required for create action'
-                }
-            
-            try:
-                backup = conn.volume.create_backup(
-                    volume_id=volume_id,
-                    name=backup_name,
-                    description=description
-                )
-                
-                return {
-                    'success': True,
-                    'message': f'Backup "{backup_name}" created successfully',
-                    'backup': {
-                        'id': backup.id,
-                        'name': getattr(backup, 'name', 'unnamed'),
-                        'status': getattr(backup, 'status', 'unknown'),
-                        'volume_id': getattr(backup, 'volume_id', 'unknown')
-                    }
-                }
-            except Exception as e:
-                return {
-                    'success': False,
-                    'message': f'Failed to create backup: {str(e)}'
-                }
-                
-        else:
-            return {
-                'success': False,
-                'message': f'Unknown action "{action}". Supported: list, create'
-            }
-            
-    except Exception as e:
-        logger.error(f"Failed to manage backup: {e}")
-        return {
-            'success': False,
-            'message': f'Failed to manage backup: {str(e)}',
-            'error': str(e)
-        }
+        action = action.lower()
+        if action not in {'list', 'create', 'show', 'delete', 'restore'}:
+            raise ValueError('Supported actions: list, create, show, delete, restore')
+        if action != 'list' and not (backup_name and backup_name.strip()):
+            raise ValueError('backup_name is required')
+        api = get_openstack_connection().block_storage
+        if action == 'list':
+            backups = [b.to_dict() for b in api.backups()]
+            return {'success': True, 'backups': backups, 'count': len(backups)}
+        if action == 'create':
+            if not kwargs.get('volume_id'):
+                raise ValueError('volume_id is required for create')
+            backup = api.create_backup(
+                volume_id=kwargs['volume_id'], name=backup_name,
+                description=kwargs.get('description', ''),
+                is_incremental=kwargs.get('incremental', False),
+                force=kwargs.get('force', False),
+            )
+            return {'success': True, 'backup': backup.to_dict(),
+                    'message': 'Backup creation accepted; check status before use'}
+        backup = api.find_backup(backup_name, ignore_missing=False)
+        if action == 'show':
+            return {'success': True, 'backup': backup.to_dict()}
+        if action == 'delete':
+            api.delete_backup(backup, ignore_missing=False)
+            return {'success': True, 'message': 'Backup deletion accepted'}
+        restored = api.restore_backup(
+            backup, volume_id=kwargs.get('volume_id'),
+                name=kwargs.get('volume_name') or None,
+        )
+        return {'success': True, 'restore': restored.to_dict(),
+                'message': 'Backup restoration accepted; check status before use'}
+    except Exception as exc:
+        return {'success': False, 'message': 'Backup operation failed',
+            'error': str(exc)}
 
 
 def set_volume_groups(action: str, group_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
-    """
-    Manage volume groups (consistency groups).
-    
-    Args:
-        action: Action to perform (list, create, delete)
-        group_name: Name of group (for specific operations)
-        **kwargs: Additional parameters
-    
-    Returns:
-        Result of the group operation
-    """
+    """List, create, show or delete Cinder generic volume groups (API >= 3.13)."""
+    from ..connection import get_openstack_connection
+
     try:
-        # Import here to avoid circular imports
-        from ..connection import get_openstack_connection
+        action = action.lower()
+        if action not in {'list', 'create', 'show', 'delete'}:
+            raise ValueError('Supported actions: list, create, show, delete')
+        if action != 'list' and not (group_name and group_name.strip()):
+            raise ValueError('group_name is required')
         conn = get_openstack_connection()
-        
-        if action.lower() == 'list':
-            groups = []
-            try:
-                for group in conn.volume.groups():
-                    groups.append({
-                        'id': group.id,
-                        'name': getattr(group, 'name', 'unnamed'),
-                        'status': getattr(group, 'status', 'unknown'),
-                        'description': getattr(group, 'description', ''),
-                        'group_type': getattr(group, 'group_type', 'unknown'),
-                        'volume_types': getattr(group, 'volume_types', []),
-                        'created_at': str(getattr(group, 'created_at', 'unknown'))
-                    })
-            except Exception as e:
-                logger.warning(f"Volume groups may not be supported: {e}")
-                return {
-                    'success': False,
-                    'message': 'Volume groups not supported or available',
-                    'groups': []
-                }
-            
-            return {
-                'success': True,
-                'groups': groups,
-                'count': len(groups)
-            }
-            
-        else:
-            return {
-                'success': False,
-                'message': f'Action "{action}" not implemented for volume groups'
-            }
-            
-    except Exception as e:
-        logger.error(f"Failed to manage volume group: {e}")
-        return {
-            'success': False,
-            'message': f'Failed to manage volume group: {str(e)}',
-            'error': str(e)
-        }
+        api = conn.block_storage
+        if action == 'list':
+            groups = [g.to_dict() for g in api.groups()]
+            return {'success': True, 'groups': groups, 'count': len(groups)}
+        if action == 'create':
+            volume_types = kwargs.get('volume_types') or []
+            if not volume_types:
+                raise ValueError('At least one volume_type is required')
+            group_type = api.find_group_type(kwargs.get('group_type', 'default'),
+                ignore_missing=False)
+            types = [api.find_type(t, ignore_missing=False).id for t in volume_types]
+            attrs = {'name': group_name, 'group_type': group_type.id,
+                     'volume_types': types, 'description': kwargs.get('description',
+                         '')}
+            if kwargs.get('availability_zone'):
+                attrs['availability_zone'] = kwargs['availability_zone']
+            group = api.create_group(**attrs)
+            return {'success': True, 'group': group.to_dict(),
+                    'message': 'Group creation accepted; check status before use'}
+        # Cinder group details may omit project_id on older microversions;
+        # the default listing is scoped to the authenticated project by Cinder.
+        groups = list(api.groups())
+        matches = [g for g in groups if g.id == group_name]
+        if not matches:
+            matches = [g for g in groups if g.name == group_name]
+        if len(matches) != 1:
+            raise ValueError('Group not found or name is ambiguous; use an ID')
+        group = matches[0]
+        if action == 'show':
+            return {'success': True, 'group': api.get_group(group.id).to_dict()}
+        api.delete_group(group, delete_volumes=kwargs.get('delete_volumes', False))
+        return {'success': True, 'message': 'Group deletion accepted'}
+    except Exception as exc:
+        return {'success': False, 'message': 'Volume group operation failed',
+            'error': str(exc)}
 
 
 def set_volume_qos(action: str, qos_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
-    """
-    Manage volume QoS policies.
-    
-    Args:
-        action: Action to perform (list, create, delete, show)
-        qos_name: Name of QoS policy (for specific operations)
-        **kwargs: Additional parameters
-    
-    Returns:
-        Result of the QoS operation
-    """
+    """Manage Cinder QoS specifications through its authenticated REST proxy."""
+    from urllib.parse import quote
+    from ..connection import get_openstack_connection
+
     try:
-        # Import here to avoid circular imports
-        from ..connection import get_openstack_connection
-        conn = get_openstack_connection()
-        
-        if action.lower() == 'list':
-            qos_policies = []
-            try:
-                for qos in conn.volume.qos_specs():
-                    qos_policies.append({
-                        'id': qos.id,
-                        'name': getattr(qos, 'name', 'unnamed'),
-                        'consumer': getattr(qos, 'consumer', 'unknown'),
-                        'specs': getattr(qos, 'specs', {}),
-                        'created_at': str(getattr(qos, 'created_at', 'unknown'))
-                    })
-            except Exception as e:
-                logger.warning(f"QoS specs may not be supported: {e}")
-                return {
-                    'success': False,
-                    'message': 'QoS specs not supported or available',
-                    'qos_policies': []
-                }
-            
-            return {
-                'success': True,
-                'qos_policies': qos_policies,
-                'count': len(qos_policies)
-            }
-            
+        action = action.lower()
+        if action not in {'list', 'create', 'show', 'delete', 'set'}:
+            raise ValueError('Supported actions: list, create, show, delete, set')
+        if action != 'list' and not (qos_name and qos_name.strip()):
+            raise ValueError('qos_name is required')
+        specs = kwargs.get('specs', {})
+        if not isinstance(specs, dict):
+            raise ValueError('specs must be a JSON object')
+        if {'name', 'consumer'} & specs.keys():
+            raise ValueError('Use qos_name/consumer instead of reserved spec keys')
+        api = get_openstack_connection().block_storage
+        if action == 'create':
+            consumer = kwargs.get('consumer', 'back-end')
+            if consumer not in {'front-end', 'back-end', 'both'}:
+                raise ValueError('Invalid consumer')
+            response = api.post('/qos-specs', json={
+                'qos_specs': {**specs, 'name': qos_name, 'consumer': consumer},
+            })
+            response.raise_for_status()
+            return {'success': True, 'qos_policy': response.json()['qos_specs']}
+        response = api.get('/qos-specs')
+        response.raise_for_status()
+        policies = response.json()['qos_specs']
+        if action == 'list':
+            return {'success': True, 'qos_policies': policies, 'count': len(policies)}
+        matches = [q for q in policies if q['id'] == qos_name]
+        if not matches:
+            matches = [q for q in policies if q['name'] == qos_name]
+        if len(matches) != 1:
+            raise ValueError(
+                'QoS specification not found or name is ambiguous; use an ID')
+        path = '/qos-specs/' + quote(matches[0]['id'], safe='')
+        if action == 'delete':
+            response = api.delete(path, params={'force': str(kwargs.get('force',
+                False)).lower()})
+            response.raise_for_status()
+            return {'success': True, 'message': 'QoS deletion accepted'}
+        if action == 'set':
+            response = api.put(path, json={'qos_specs': specs})
         else:
-            return {
-                'success': False,
-                'message': f'Action "{action}" not implemented for QoS policies'
-            }
-            
-    except Exception as e:
-        logger.error(f"Failed to manage QoS policy: {e}")
-        return {
-            'success': False,
-            'message': f'Failed to manage QoS policy: {str(e)}',
-            'error': str(e)
-        }
+            response = api.get(path)
+        response.raise_for_status()
+        return {'success': True, 'qos_policy': response.json()['qos_specs']}
+    except Exception as exc:
+        return {'success': False, 'message': 'Volume QoS operation failed',
+            'error': str(exc)}
 
 
 def get_server_volumes(instance_name: str) -> List[Dict[str, Any]]:
@@ -1012,3 +942,37 @@ def set_server_volume(instance_name: str, action: str, **kwargs) -> Dict[str, An
             'message': f'Failed to manage server volume: {str(e)}',
             'error': str(e)
         }
+
+def set_volume_types(action: str, type_name: str, description: str = '') -> Dict[str,
+    Any]:
+    """Create or delete volume types; requires the cloud's administrative policy."""
+    from ..connection import get_openstack_connection
+
+    try:
+        if action.lower() not in {'create', 'delete'} or not type_name.strip():
+            raise ValueError('Use create/delete and provide type_name')
+        api = get_openstack_connection().block_storage
+        if action.lower() == 'create':
+            resource = api.create_type(name=type_name, description=description)
+            return {'success': True, 'volume_type': resource.to_dict()}
+        resource = api.find_type(type_name, ignore_missing=False)
+        api.delete_type(resource, ignore_missing=False)
+        return {'success': True, 'message': 'Volume type deletion accepted'}
+    except Exception as exc:
+        return {'success': False, 'message': 'Volume type operation failed',
+            'error': str(exc)}
+
+
+def get_volume_transfers() -> Dict[str, Any]:
+    """List transfer requests visible in the authenticated Cinder project."""
+    from ..connection import get_openstack_connection
+
+    try:
+        # Exclude transfer authorization keys from inventory responses.
+        transfers = [{key: value for key,
+            value in t.to_dict().items() if key != 'auth_key'}
+                     for t in get_openstack_connection().block_storage.transfers()]
+        return {'success': True, 'transfers': transfers, 'count': len(transfers)}
+    except Exception as exc:
+        return {'success': False, 'message': 'Volume transfer listing failed',
+            'error': str(exc)}

@@ -6,6 +6,7 @@ security groups, floating IPs, and other networking components.
 """
 
 import logging
+from ipaddress import ip_address
 from typing import Dict, List, Any, Optional
 
 # Configure logging
@@ -762,8 +763,11 @@ def get_floating_ip_pools() -> List[Dict[str, Any]]:
                         # Calculate total IPs from allocation pools
                         allocation_pools = getattr(subnet, 'allocation_pools', [])
                         for pool in allocation_pools:
-                            # Simple IP range calculation (this could be more sophisticated)
-                            total_ips += 100  # Placeholder calculation
+                            start = ip_address(pool['start'])
+                            end = ip_address(pool['end'])
+                            if start.version != end.version or end < start:
+                                raise ValueError("Invalid allocation pool range")
+                            total_ips += int(end) - int(start) + 1
                 
                 # Count used floating IPs
                 for fip in conn.network.ips():
@@ -776,7 +780,14 @@ def get_floating_ip_pools() -> List[Dict[str, Any]]:
                     'network_id': network.id,
                     'total_ips': total_ips,
                     'used_ips': used_ips,
-                    'available_ips': total_ips - used_ips,
+                    # Floating IP visibility does not establish global free capacity.
+                    'available_ips': None,
+                    'data_source': 'subnet_allocation_pools',
+                    'used_ips_scope': 'visible_floating_ip_allocations',
+                    'available_ips_note': (
+                        'Global free capacity is unknown: other projects and '
+                            'non-floating port allocations may consume addresses'
+                    ),
                     'admin_state_up': getattr(network, 'is_admin_state_up', True)
                 })
         
@@ -1411,3 +1422,128 @@ def set_subnets(action: str, subnet_name: Optional[str] = None, **kwargs) -> Dic
             'message': f'Failed to manage subnet: {str(e)}',
             'error': str(e)
         }
+
+def set_network_qos_policies(
+    action: str, policy_name: Optional[str] = None, **kwargs
+) -> Dict[str, Any]:
+    """List, create or delete project-owned Neutron QoS policy containers."""
+    from ..connection import get_openstack_connection
+
+    try:
+        action = action.lower()
+        if action not in {'list', 'create', 'delete'}:
+            raise ValueError('Supported actions: list, create, delete')
+        if action != 'list' and not (policy_name and policy_name.strip()):
+            raise ValueError('policy_name is required')
+        conn = get_openstack_connection()
+        project_id = conn.current_project_id
+        if not project_id:
+            raise ValueError('A project-scoped connection is required')
+        if action == 'create':
+            policy = conn.network.create_qos_policy(
+                name=policy_name, project_id=project_id,
+                description=kwargs.get('description', ''),
+                is_shared=kwargs.get('shared', False),
+            )
+            return {'success': True, 'policy': policy.to_dict()}
+        policies = [p for p in conn.network.qos_policies(project_id=project_id)
+                    if p.project_id == project_id]
+        if action == 'list':
+            return {'success': True, 'policies': [p.to_dict() for p in policies],
+                    'count': len(policies)}
+        matches = [p for p in policies if p.id == policy_name]
+        if not matches:
+            matches = [p for p in policies if p.name == policy_name]
+        if len(matches) != 1:
+            raise ValueError('Policy not found or name is ambiguous; use an ID')
+        conn.network.delete_qos_policy(matches[0], ignore_missing=False)
+        return {'success': True, 'message': 'QoS policy deletion accepted'}
+    except Exception as exc:
+        return {'success': False, 'message': 'Network QoS operation failed',
+                'error': str(exc)}
+
+
+def set_network_agents(
+    action: str, agent_id: Optional[str] = None, **kwargs
+) -> Dict[str, Any]:
+    """List or change Neutron agent administrative state; cloud-wide/admin API."""
+    from ..connection import get_openstack_connection
+
+    try:
+        action = action.lower()
+        if action not in {'list', 'enable', 'disable'}:
+            raise ValueError('Supported actions: list, enable, disable')
+        if action != 'list' and not agent_id:
+            raise ValueError('agent_id is required')
+        conn = get_openstack_connection()
+        if action == 'list':
+            agents = [a.to_dict() for a in conn.network.agents()]
+            return {'success': True, 'agents': agents, 'count': len(agents)}
+        agent = conn.network.update_agent(
+            agent_id, is_admin_state_up=action == 'enable',
+        )
+        return {'success': True, 'agent': agent.to_dict()}
+    except Exception as exc:
+        return {'success': False, 'message': 'Network agent operation failed',
+                'error': str(exc)}
+
+
+def _find_owned_network_resource(resources, name_or_id: str, project_id: str):
+    """Reject missing/ambiguous matches and resources owned by another project."""
+    if not project_id:
+        raise ValueError('A project-scoped connection is required')
+    resources = [r for r in resources if r.project_id == project_id]
+    matches = [r for r in resources if r.id == name_or_id]
+    if not matches:
+        matches = [r for r in resources if r.name == name_or_id]
+    if len(matches) != 1:
+        raise ValueError('Resource not found or name is ambiguous; use an ID')
+    return matches[0]
+
+
+def set_routers(
+    action: str, router_name: str, description: str = ''
+) -> Dict[str, Any]:
+    """Create or delete a project-owned router without changing interfaces."""
+    from ..connection import get_openstack_connection
+
+    try:
+        if action.lower() not in {'create', 'delete'} or not router_name.strip():
+            raise ValueError('Use create/delete and provide router_name')
+        conn = get_openstack_connection()
+        if action.lower() == 'create':
+            router = conn.network.create_router(name=router_name,
+                description=description)
+            return {'success': True, 'router': router.to_dict()}
+        router = _find_owned_network_resource(
+            conn.network.routers(), router_name, conn.current_project_id,
+        )
+        conn.network.delete_router(router, ignore_missing=False)
+        return {'success': True, 'message': 'Router deletion accepted'}
+    except Exception as exc:
+        return {'success': False, 'message': 'Router operation failed',
+            'error': str(exc)}
+
+
+def set_security_groups(
+    action: str, group_name: str, description: str = ''
+) -> Dict[str, Any]:
+    """Create or delete a project-owned Neutron security group."""
+    from ..connection import get_openstack_connection
+
+    try:
+        if action.lower() not in {'create', 'delete'} or not group_name.strip():
+            raise ValueError('Use create/delete and provide group_name')
+        conn = get_openstack_connection()
+        if action.lower() == 'create':
+            group = conn.network.create_security_group(name=group_name,
+                description=description)
+            return {'success': True, 'security_group': group.to_dict()}
+        group = _find_owned_network_resource(
+            conn.network.security_groups(), group_name, conn.current_project_id,
+        )
+        conn.network.delete_security_group(group, ignore_missing=False)
+        return {'success': True, 'message': 'Security group deletion accepted'}
+    except Exception as exc:
+        return {'success': False, 'message': 'Security group operation failed',
+            'error': str(exc)}

@@ -109,13 +109,21 @@ def get_openstack_connection():
             image_endpoint=f"{os_auth_protocol}://{os_auth_host}:{image_port}",
             placement_endpoint=f"{os_auth_protocol}://{os_auth_host}:{placement_port}",
             orchestration_endpoint=f"{os_auth_protocol}://{os_auth_host}:{heat_stack_port}/v1",
+            orchestration_api_version="1",
             timeout=10
         )
         
         # Test the connection
         try:
-            token = _connection_cache.identity.get_token()
-            logger.info(f"OpenStack connection successful. Token acquired: {token[:20]}...")
+            _connection_cache.identity.get_token()
+            # Heat URLs include the project ID, available only after authentication.
+            project_id = _connection_cache.current_project_id
+            if not project_id:
+                raise ValueError("A project-scoped OpenStack connection is required")
+            _connection_cache.config.config["orchestration_endpoint_override"] = (
+                f"{os_auth_protocol}://{os_auth_host}:{heat_stack_port}/v1/{project_id}"
+            )
+            logger.info("OpenStack connection successful")
         except Exception as test_e:
             logger.error(f"Connection test failed: {test_e}")
             raise

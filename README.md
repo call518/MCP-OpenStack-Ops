@@ -25,10 +25,10 @@
 
 - ✅ **Project-Scoped Operations**: Every tool enforces the configured `OS_PROJECT_NAME`, validating resource ownership so actions stay inside a single tenant.
 - ✅ **Safety-Gated Writes**: Modify (`set_*`) tooling only registers when `ALLOW_MODIFY_OPERATIONS=true`, keeping default deployments read-only and auditable.
-- ✅ **90+ Purpose-Built Tools**: Broad coverage across compute, networking, storage, images, identity, Heat, and Octavia load balancing tasks—all constrained to the current project.
+- ✅ **90+ Purpose-Built Tools**: Broad coverage across compute, networking, storage, images, identity, Heat, and Octavia load balancing tasks. Project resources are scoped to the active project; cloud-wide administrative APIs remain subject to OpenStack policy.
 - ✅ **Bulk & Filtered Actions**: Instance, volume, network, image, snapshot, and keypair managers accept comma-delimited targets or filter criteria to orchestrate bulk changes intentionally.
 - ✅ **Post-Action Feedback & Async Guidance**: Mutating tools reuse a shared result handler that adds emoji status checks, asynchronous timing notes, and follow-up verification commands.
-- ✅ **Monitoring & Usage Insights**: `get_service_status`, `get_resource_monitoring`, `get_usage_statistics`, and quota tools surface service availability, utilization, and capacity for the active project.
+- ✅ **Monitoring & Usage Insights**: `get_service_status`, `get_resource_monitoring`, `get_usage_statistics`, and quota tools report service probes, project allocations, separate quota limits, and API-backed compute allocation-hours. Live utilization and historical trends are not collected.
 - ✅ **Unified Instance Queries**: The `get_instance` tool consolidates name, ID, status, and free-form search paths with pagination plus summary/detailed modes.
 - ✅ **Server Insight & Audit Trail**: Dedicated tools expose server events, hypervisor details, availability zones, quotas, and resource ownership to speed diagnostics.
 - ✅ **Load Balancer Management**: Octavia tools cover listeners, pools, members, health monitors, flavors, quotas, and amphora operations with the same safety gates.
@@ -162,6 +162,11 @@ New consolidated `get_instance` tool replaces multiple separate tools:
 
 **Detailed Mapping by Category**
 
+✅ indicates an implemented API path, subject to cloud services and policy.
+Live-validated paths and deployment limits are listed in
+[integration validation](docs/integration-validation.md). Also see
+[API prerequisites and result semantics](#api-prerequisites-and-result-semantics).
+
 ### 1. 🖥️ **Compute (Nova)**
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
@@ -226,7 +231,7 @@ New consolidated `get_instance` tool replaces multiple separate tools:
 | `openstack subnet list` | `get_network_details` (includes subnets) | ✅ | Subnet information included |
 | `openstack subnet create/delete` | `set_subnets` | ✅ | Subnet management |
 | `openstack router list` | `get_routers` | ✅ | Router listing |
-| `openstack router create/delete` | (Not yet implemented) | 🚧 | Router management |
+| `openstack router create/delete` | `set_routers` | ✅ | Project-owned routers; attached interfaces are not removed automatically |
 | `openstack floating ip list` | `get_floating_ips` | ✅ | Floating IP listing |
 | `openstack floating ip create` | `set_floating_ip` (action="create") | ✅ | Floating IP creation |
 | `openstack floating ip delete` | `set_floating_ip` (action="delete") | ✅ | Floating IP deletion |
@@ -240,13 +245,13 @@ New consolidated `get_instance` tool replaces multiple separate tools:
 | `openstack floating ip port forwarding set` | `set_floating_ip_port_forwarding` (action="set") | ✅ | Port forwarding updates |
 | `openstack floating ip port forwarding show` | `set_floating_ip_port_forwarding` (action="show") | ✅ | Port forwarding details |
 | `openstack security group list` | `get_security_groups` | ✅ | Security group listing |
-| `openstack security group create/delete` | (Not yet implemented) | 🚧 | Security group management |
+| `openstack security group create/delete` | `set_security_groups` | ✅ | Project-owned security groups |
 | `openstack port list` | `get_network_details` (includes ports) | ✅ | Port information included |
 | `openstack port create/delete` | `set_network_ports` | ✅ | Port management |
-| `openstack network qos policy list` | (Not yet implemented) | 🚧 | QoS policy listing |
-| `openstack network qos policy create` | `set_network_qos_policies` | ✅ | QoS policy management |
+| `openstack network qos policy list` | `get_network_qos_policies` | ✅ | Current-project policy containers |
+| `openstack network qos policy create` | `set_network_qos_policies` | ✅ | Create/list/delete policy containers; does not create bandwidth rules |
 | `openstack network agent list` | `get_service_status` (includes agents) | ✅ | Network agents |
-| `openstack network agent set` | `set_network_agents` | ✅ | Network agent management |
+| `openstack network agent set` | `set_network_agents` | ✅ | Enable/disable cloud-wide agents; usually admin-only |
 
 ### 3. 💾 **Storage (Cinder)**
 
@@ -257,18 +262,18 @@ New consolidated `get_instance` tool replaces multiple separate tools:
 | `openstack volume create/delete` | `set_volume` | ✅ | Volume creation/deletion |
 | `openstack volume set` | `set_volume` (action="modify") | ✅ | Volume property modification |
 | `openstack volume type list` | `get_volume_types` | ✅ | Volume type listing |
-| `openstack volume type create/delete` | (Not yet implemented) | 🚧 | Volume type management |
+| `openstack volume type create/delete` | `set_volume_types` | ✅ | Volume type management; usually admin-only |
 | `openstack volume snapshot list` | `get_volume_snapshots` | ✅ | Snapshot listing |
 | `openstack volume snapshot create/delete` | `set_snapshot` | ✅ | Snapshot management |
-| `openstack backup list` | (Not yet implemented) | 🚧 | Backup listing |
+| `openstack backup list` | `get_volume_backups` | ✅ | Current-project backup listing |
 | `openstack backup create/delete` | `set_volume_backups` | ✅ | Volume backup management |
-| `openstack volume transfer request list` | (Not yet implemented) | 🚧 | Volume transfer |
+| `openstack volume transfer request list` | `get_volume_transfers` | ✅ | Request listing only; authorization keys are excluded |
 | `openstack server volume list` | `get_server_volumes` | ✅ | Server volume listing |
 | `openstack server add/remove volume` | `set_server_volume` | ✅ | Server volume attach/detach |
-| `openstack volume group list` | (Not yet implemented) | 🚧 | Volume group listing |
-| `openstack volume group create` | `set_volume_groups` | ✅ | Volume group management |
-| `openstack volume qos list` | (Not yet implemented) | 🚧 | QoS listing |
-| `openstack volume qos create` | `set_volume_qos` | ✅ | QoS management |
+| `openstack volume group list` | `get_volume_groups` | ✅ | Requires Cinder generic groups (API >= 3.13) |
+| `openstack volume group create` | `set_volume_groups` | ✅ | Create/list/show/delete; create requires group_type and volume_types |
+| `openstack volume qos list` | `get_volume_qos` | ✅ | Cinder QoS specifications; subject to cloud policy |
+| `openstack volume qos create` | `set_volume_qos` | ✅ | Create/list/show/set/delete specifications; no automatic type association |
 
 ### 4. 🖼️ **Image (Glance)**
 
@@ -280,8 +285,8 @@ New consolidated `get_instance` tool replaces multiple separate tools:
 | `openstack image delete` | `set_image` (action="delete") | ✅ | Image deletion |
 | `openstack image set` | `set_image` (action="update") | ✅ | Image property modification |
 | `openstack image save` | `set_image` (action="save") | ✅ | Image download |
-| `openstack image add project` | (Not yet implemented) | 🚧 | Project sharing |
-| `openstack image member list` | (Not yet implemented) | 🚧 | Member listing |
+| `openstack image add project` | `set_image_members` (action="add") | ✅ | Add a project to an image with shared visibility |
+| `openstack image member list` | `get_image_members` | ✅ | Image member listing |
 | `openstack image member create` | `set_image_members` | ✅ | Image member management |
 | `openstack image set --property` | `set_image_metadata` | ✅ | Image metadata |
 | `openstack image set --public/private` | `set_image_visibility` | ✅ | Image visibility setting |
@@ -292,16 +297,16 @@ New consolidated `get_instance` tool replaces multiple separate tools:
 |---------------------|---------|------|------|
 | `openstack user list` | `get_user_list` | ✅ | User listing |
 | `openstack user show` | `get_user_list` (filtering) | ✅ | Specific user query |
-| `openstack user create/delete` | (Not yet implemented) | 🚧 | User management |
+| `openstack user create/delete` | `set_users` | ✅ | Password from a server environment variable; no role grants |
 | `openstack project list` | `get_project_details` | ✅ | Project listing |
 | `openstack project show` | `get_project_details` (name param) | ✅ | Specific project query |
 | `openstack project create/delete` | `set_project` | ✅ | Project management |
 | `openstack role list` | `get_role_assignments` | ✅ | Role listing |
 | `openstack role assignment list` | `get_role_assignments` | ✅ | Role assignment listing |
 | `openstack role create/delete` | `set_roles` | ✅ | Role management |
-| `openstack domain list` | (Not yet implemented) | 🚧 | Domain listing |
-| `openstack domain create/delete` | `set_domains` | ✅ | Domain management |
-| `openstack group list` | (Not yet implemented) | 🚧 | Group listing |
+| `openstack domain list` | `get_domains` | ✅ | Subject to Keystone policy |
+| `openstack domain create/delete` | `set_domains` | ✅ | Disable explicitly with update before delete |
+| `openstack group list` | `get_identity_groups` | ✅ | Subject to Keystone policy |
 | `openstack group create/delete` | `set_identity_groups` | ✅ | Group management |
 | `openstack service list` | `get_service_status` | ✅ | Service listing |
 | `openstack service create/delete` | `set_services` | ✅ | Service management |
@@ -317,10 +322,10 @@ New consolidated `get_instance` tool replaces multiple separate tools:
 | `openstack stack delete` | `set_heat_stack` (action="delete") | ✅ | Stack deletion |
 | `openstack stack update` | `set_heat_stack` (action="update") | ✅ | Stack update |
 | `openstack stack suspend/resume` | `set_heat_stack` | ✅ | Stack suspend/resume |
-| `openstack stack resource list` | (Not yet implemented) | 🚧 | Stack resource listing |
-| `openstack stack event list` | (Not yet implemented) | 🚧 | Stack event listing |
-| `openstack stack template show` | (Not yet implemented) | 🚧 | Template query |
-| `openstack stack output list` | (Not yet implemented) | 🚧 | Stack output listing |
+| `openstack stack resource list` | `get_heat_stack_details` (section="resources") | ✅ | Actual Heat resources |
+| `openstack stack event list` | `get_heat_stack_details` (section="events") | ✅ | Actual Heat events |
+| `openstack stack template show` | `get_heat_stack_details` (section="template") | ✅ | Original template document |
+| `openstack stack output list` | `get_heat_stack_details` (section="outputs") | ✅ | Resolved stack outputs |
 
 ### 7. ⚖️ **Load Balancer (Octavia)**
 
@@ -420,14 +425,14 @@ New consolidated `get_instance` tool replaces multiple separate tools:
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
-| Resource monitoring | `get_resource_monitoring` | ✅ | Resource monitoring |
+| Resource monitoring | `get_resource_monitoring` | ✅ | Project allocations, separate quotas and visible hypervisor capacity; no live utilization |
 | Service status | `get_service_status` | ✅ | Service status query |
-| Cluster overview | `get_cluster_status` | ✅ | Cluster overview |
-| Service logs | `set_service_logs` | ✅ | Service log management |
-| System metrics | `set_metrics` | ✅ | Metrics management |
-| Alarm management | `set_alarms` | ✅ | Alarm management |
+| Cluster overview | `get_service_status` + `get_resource_monitoring` | ✅ | Service probes and current inventory |
+| Service log metadata | `set_service_logs` | Partial | Service listing only; log retrieval is unavailable without a logging backend |
+| Resource metadata | `set_metrics` | Partial | list/summary only; telemetry sample retrieval is unavailable |
+| Alarm management | `set_alarms` | ✅ | Real Aodh/Gnocchi resource threshold alarms; requires services and collected metrics |
 | Compute agents | `set_compute_agents` | ✅ | Compute agent management |
-| Usage statistics | `get_usage_statistics` | ✅ | Usage statistics |
+| Usage statistics | `get_usage_statistics` | ✅ | Period compute allocation-hours plus separately labeled current snapshots |
 
 ### 9. 📏 **Usage & Quota**
 
@@ -435,11 +440,24 @@ New consolidated `get_instance` tool replaces multiple separate tools:
 |---------------------|---------|------|------|
 | `openstack quota show` | `get_quota` | ✅ | Quota query |
 | `openstack quota set` | `set_quota` | ✅ | Quota setting |
-| `openstack usage show` | `get_usage_statistics` | ✅ | Usage query |
+| `openstack usage show` | `get_usage_statistics` | ✅ | Current-project Nova simple tenant usage; not monetary charges |
 | `openstack limits show` | `get_quota` (includes limits) | ✅ | Limits query |
-| Resource utilization | `get_resource_monitoring` | ✅ | Resource utilization |
+| Resource allocations | `get_resource_monitoring` | ✅ | Flavor allocations; not CPU load or resident memory samples |
 
 ---
+
+### API prerequisites and result semantics
+
+The feature table marks implemented API paths, not verification against every OpenStack deployment. The management and query paths have local mocked API tests. Selected paths also passed live tests on a single-node Kolla Ansible deployment; see [integration validation](docs/integration-validation.md) for coverage and skipped operations. A missing service, extension, required microversion, or permission is an operation failure, not an empty successful result.
+
+- **Modification tools:** the MCP server registers `set_*` management tools only when `ALLOW_MODIFY_OPERATIONS=true`. Existing action guards also reject writes when disabled. Dedicated read-only `get_*` tools remain available. API authorization is enforced by the target cloud; agent, user, domain, type and QoS administration may require elevated OpenStack roles.
+- **Alarms:** `set_alarms` calls the Keystone catalog's `alarming` endpoint for the configured interface/region. It supports list/create/show/delete of project alarms and creates `gnocchi_resources_threshold` alarms. Aodh, Gnocchi, the specified resource and a collected metric are required. The default metric is `cpu_util`, which is not collected by every deployment. `metric`, `resource_type`, `aggregation_method`, `granularity`, `evaluation_periods`, and `alarm_actions` can be supplied. An empty action list creates an alarm without notifications. There is no simulation fallback.
+- **Usage:** `get_usage_statistics` calls Nova simple tenant usage for the current project. Requires Nova API microversion 2.40 or newer for complete pagination. Date bounds are UTC midnight, start inclusive and end exclusive; start must precede end. `usage_statistics.period_compute` contains paginated Nova allocation-hours, not actual CPU load, billed currency, or network/storage history. Nova accounts using VM lifetime and the latest flavor; stop/pause/resize history is not reconstructed. Existing `compute`, `network`, and `storage` fields are current snapshots, labeled by `snapshot_fields` and `snapshot_timestamp`. An unavailable period API returns failure. A failed snapshot section is reported as partial failure.
+- **Capacity:** `get_resource_monitoring` separates flavor allocations from project quota limits and the physical totals of visible hypervisors. Missing physical totals or incomplete flavor allocations return `null`, not invented capacity or zero usage. Physical totals and project allocations have different scopes. This tool does not collect live utilization or trends.
+- **Floating IP pools:** `total_ips` is the exact sum of visible subnet allocation ranges; `used_ips` counts visible Floating IP objects. Global `available_ips` is `null`: other projects and non-floating ports may consume addresses that are not visible to the caller.
+- **Volume groups:** the cloud must support Cinder generic groups (microversion 3.13 or newer). Create requires an existing `group_type` and comma-delimited `volume_types`. Deletion does not delete member volumes unless `delete_volumes=true` is explicitly supplied. Async creation/deletion responses mean accepted, not finished.
+- **Identity and images:** `set_users` reads a new user's password from the server variable named by `password_env`; never put passwords in prompts. It does not grant project roles. Disable a domain explicitly with `set_domains(action="update", enabled=false)` before deleting it. Image member modifications require an image owned by the current project, shared visibility, and appropriate Glance policy; adding a member does not automatically accept the recipient's membership.
+- **Logs and telemetry:** `set_service_logs(action="show")` and `set_metrics(action="show")` return explicit unsupported errors. No centralized logging or telemetry sample backend is implemented. Their list/summary operations expose service or resource metadata only.
 
 ## Quick Start
 

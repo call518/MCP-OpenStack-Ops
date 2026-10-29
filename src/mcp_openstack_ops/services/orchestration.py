@@ -198,3 +198,34 @@ def set_heat_stack(stack_name: str, action: str, **kwargs) -> Dict[str, Any]:
             'message': f'Failed to manage stack: {str(e)}',
             'error': str(e)
         }
+
+def get_heat_stack_details(stack_name: str, section: str = 'resources') -> Dict[str,
+    Any]:
+    """Read resources, events, the template or resolved outputs for a Heat stack."""
+    from ..connection import get_openstack_connection
+
+    try:
+        if section not in {'resources', 'events', 'template', 'outputs'}:
+            raise ValueError('Supported sections: resources, events, template, outputs')
+        if not stack_name.strip():
+            raise ValueError('stack_name is required')
+        api = get_openstack_connection().orchestration
+        stack = api.find_stack(stack_name, ignore_missing=False)
+        if section == 'resources':
+            data = [r.to_dict() for r in api.resources(stack)]
+        elif section == 'events':
+            data = [e.to_dict() for e in api.stack_events(stack)]
+        elif section == 'template':
+            # Return the original template document, including vendor/CFN keys.
+            from urllib.parse import quote
+            path = '/stacks/' + quote(stack.name, safe='') + '/' + quote(stack.id,
+                safe='') + '/template'
+            response = api.get(path)
+            response.raise_for_status()
+            data = response.json()
+        else:
+            data = api.get_stack(stack, resolve_outputs=True).outputs
+        return {'success': True, 'stack_id': stack.id, section: data}
+    except Exception as exc:
+        return {'success': False, 'message': 'Heat stack query failed',
+            'error': str(exc)}

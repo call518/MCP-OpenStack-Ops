@@ -11,19 +11,21 @@ from ..mcp_main import (
 @mcp.tool()
 async def get_usage_statistics(start_date: str = "", end_date: str = "") -> str:
     """
-    Get usage statistics for projects (similar to 'openstack usage list' command).
+    Get current-project Nova allocation-hours and separate current snapshots.
     
     Functions:
     - Show project usage statistics over a specified time period
     - Display servers, RAM MB-Hours, CPU Hours, and Disk GB-Hours
     - Provide detailed server usage breakdown when available
-    - Calculate usage summary across all projects
+    - Keep current compute/network/storage snapshots separate from period data
     
-    Use when user requests usage statistics, billing information, resource consumption analysis, or project usage reports.
+    Use for project usage reports. Period data comes from Nova simple tenant usage.
+    It measures allocation-hours, not live utilization or monetary charges.
+    Missing or denied usage API returns failure without synthetic fallback.
     
     Args:
-        start_date: Start date in YYYY-MM-DD format (optional, defaults to 30 days ago)
-        end_date: End date in YYYY-MM-DD format (optional, defaults to today)
+        start_date: Inclusive start date at UTC midnight (YYYY-MM-DD; defaults to 30 days ago)
+        end_date: Exclusive end date at UTC midnight (YYYY-MM-DD; defaults to today)
         
     Returns:
         Usage statistics in JSON format with project usage data, server details, and summary information.

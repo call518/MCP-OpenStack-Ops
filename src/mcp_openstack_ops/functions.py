@@ -47,6 +47,10 @@ def get_service_status() -> List[Dict[str, Any]]:
                 })
         except Exception as e:
             logger.warning(f"Failed to get compute services: {e}")
+            services.append({
+                'binary': 'nova-compute', 'service_type': 'compute',
+                'status': 'unknown', 'state': 'unknown', 'error': str(e),
+            })
             
         # Get network services if available
         try:
@@ -54,15 +58,21 @@ def get_service_status() -> List[Dict[str, Any]]:
                 services.append({
                     'binary': agent.binary,
                     'host': agent.host,
-                    'status': 'enabled' if agent.is_admin_state_up else 'disabled',
-                    'state': 'up' if agent.alive else 'down',
+                    'status': ('unknown' if agent.is_admin_state_up is None else
+                               'enabled' if agent.is_admin_state_up else 'disabled'),
+                    'state': ('unknown' if agent.is_alive is None else
+                              'up' if agent.is_alive else 'down'),
                     'zone': getattr(agent, 'availability_zone', 'unknown'),
-                    'updated_at': str(getattr(agent, 'heartbeat_timestamp', 'unknown')),
+                    'updated_at': str(getattr(agent, 'last_heartbeat_at', 'unknown')),
                     'agent_type': agent.agent_type,
                     'service_type': 'network'
                 })
         except Exception as e:
             logger.warning(f"Failed to get network agents: {e}")
+            services.append({
+                'binary': 'neutron-agent', 'service_type': 'network',
+                'status': 'unknown', 'state': 'unknown', 'error': str(e),
+            })
             
         # Get volume services (Cinder)
         try:
@@ -79,6 +89,10 @@ def get_service_status() -> List[Dict[str, Any]]:
                 })
         except Exception as e:
             logger.warning(f"Failed to get volume services: {e}")
+            services.append({
+                'binary': 'cinder-volume', 'service_type': 'volume',
+                'status': 'unknown', 'state': 'unknown', 'error': str(e),
+            })
             
         # Get image service status (Glance) - Check if service catalog is available
         try:
@@ -86,7 +100,7 @@ def get_service_status() -> List[Dict[str, Any]]:
             list(conn.image.images(limit=1))
             services.append({
                 'binary': 'glance-api',
-                'host': 'controller',  # Default host name
+                'host': 'unknown',  # Default host name
                 'status': 'enabled',
                 'state': 'up',
                 'zone': 'internal',
@@ -95,54 +109,44 @@ def get_service_status() -> List[Dict[str, Any]]:
                 'service_type': 'image'
             })
         except Exception as e:
-            logger.warning(f"Image service (Glance) appears to be down: {e}")
+            logger.warning(f"Image service (Glance) probe failed: {e}")
             services.append({
                 'binary': 'glance-api',
-                'host': 'controller',
-                'status': 'enabled',
-                'state': 'down',
+                'host': 'unknown',
+                'status': 'unknown',
+                'state': 'unknown',
                 'zone': 'internal',
                 'updated_at': 'unknown',
                 'disabled_reason': f'Service check failed: {str(e)}',
                 'service_type': 'image'
             })
             
-        # Get orchestration service status (Heat) - Skip due to timeout issues
         try:
-            # Skip Heat service check due to network timeout issues
-            logger.warning("Skipping Heat service check due to known timeout issues")
+            list(conn.orchestration.stacks(limit=1))
             services.append({
-                'binary': 'heat-engine',
-                'host': 'controller',
-                'status': 'enabled',
-                'state': 'unknown',
-                'zone': 'internal',
-                'updated_at': 'skipped',
-                'disabled_reason': 'Skipped due to timeout issues',
-                'service_type': 'orchestration'
+                'binary': 'heat-api', 'host': 'unknown',
+                'status': 'enabled', 'state': 'up',
+                'service_type': 'orchestration',
+                'updated_at': datetime.now().isoformat(),
             })
         except Exception as e:
-            logger.warning(f"Orchestration service (Heat) check skipped: {e}")
             services.append({
-                'binary': 'heat-engine',
-                'host': 'controller',
-                'status': 'enabled',
-                'state': 'down',
-                'zone': 'internal',
-                'updated_at': 'unknown',
-                'disabled_reason': f'Service check failed: {str(e)}',
-                'service_type': 'orchestration'
+                'binary': 'heat-api', 'host': 'unknown',
+                'status': 'unknown', 'state': 'unknown',
+                'service_type': 'orchestration', 'error': str(e),
             })
-            
-        return services if services else [
-            {'binary': 'nova-compute', 'host': 'controller', 'status': 'enabled', 'state': 'up', 'zone': 'nova', 'service_type': 'compute'},
-            {'binary': 'neutron-server', 'host': 'controller', 'status': 'enabled', 'state': 'up', 'zone': 'internal', 'service_type': 'network'}
-        ]
+
+        return services
+
     except Exception as e:
         logger.error(f"Failed to get service status: {e}")
         return [
-            {'binary': 'nova-compute', 'host': 'controller', 'status': 'enabled', 'state': 'up', 'zone': 'nova', 'service_type': 'compute', 'error': str(e)},
-            {'binary': 'neutron-server', 'host': 'controller', 'status': 'enabled', 'state': 'up', 'zone': 'internal', 'service_type': 'network', 'error': str(e)}
+            {'binary': 'nova-compute', 'host': 'unknown', 'status': 'unknown',
+                'state': 'unknown', 'zone': 'nova', 'service_type': 'compute',
+                    'error': str(e)},
+            {'binary': 'neutron-server', 'host': 'unknown', 'status': 'unknown',
+                'state': 'unknown', 'zone': 'internal', 'service_type': 'network',
+                    'error': str(e)}
         ]
 
 # =============================================================================
@@ -226,10 +230,26 @@ def set_identity_groups(action: str, group_name: Optional[str] = None, **kwargs)
                     'message': f'Failed to create group: {str(e)}'
                 }
         
+        elif action.lower() in {'show', 'delete', 'update'}:
+            if not group_name:
+                raise ValueError('group_name is required')
+            group = conn.identity.find_group(
+                group_name, ignore_missing=False, domain_id=kwargs.get('domain_id',
+                    'default'),
+            )
+            if action.lower() == 'delete':
+                conn.identity.delete_group(group, ignore_missing=False)
+                return {'success': True, 'message': 'Identity group deletion accepted'}
+            if action.lower() == 'update':
+                group = conn.identity.update_group(group,
+                    description=kwargs.get('description', ''))
+            return {'success': True, 'group': group.to_dict()}
+
         else:
             return {
                 'success': False,
-                'message': f'Unknown action "{action}". Supported: list, create'
+                'message': f'Unknown action "{
+                    action}". Supported: list, create, show, update, delete'
             }
             
     except Exception as e:
@@ -438,18 +458,11 @@ def set_service_logs(
                     'message': 'Service name required for show action'
                 }
                 
-            # This would normally query actual log files or log aggregation service
-            # For now, return service status and configuration info
-            service_info = {
-                'service_name': service_name,
-                'log_level': log_level,
-                'message': f'Log information for {service_name} (log level: {log_level})',
-                'note': 'Log aggregation would require additional configuration with centralized logging system'
-            }
-            
             return {
-                'success': True,
-                'service_logs': service_info
+                'success': False,
+                'message': 'Service log retrieval is not implemented; a centralized '
+                    'logging backend is required',
+                'error': 'LOG_BACKEND_NOT_CONFIGURED',
             }
         
         else:
@@ -551,19 +564,13 @@ def set_metrics(
                     'message': 'Resource ID required for show action'
                 }
                 
-            # Get specific resource metrics
-            resource_metrics = {
-                'resource_type': resource_type,
-                'resource_id': resource_id,
-                'timestamp': datetime.utcnow().isoformat(),
-                'note': 'Detailed metrics would require integration with monitoring system like Prometheus or Ceilometer'
-            }
-            
             return {
-                'success': True,
-                'resource_metrics': resource_metrics
+                'success': False,
+                'message': 'Telemetry samples are not implemented; list/summary expose'
+                    ' current resource metadata only',
+                'error': 'TELEMETRY_BACKEND_NOT_CONFIGURED',
             }
-            
+
         elif action.lower() == 'summary':
             # Get summary metrics across all resource types
             summary = {
@@ -615,131 +622,7 @@ def set_metrics(
         }
 
 
-def set_alarms(
-    action: str,
-    alarm_name: str = None,
-    resource_id: str = None,
-    threshold: float = None,
-    comparison: str = "gt"
-) -> Dict[str, Any]:
-    """
-    Manage OpenStack alarms and alerting (requires Aodh service).
-    
-    Args:
-        action: Action to perform - list, create, show, delete
-        alarm_name: Name of the alarm
-        resource_id: Resource ID to monitor
-        threshold: Threshold value for alarm
-        comparison: Comparison operator (gt, lt, eq, ne, ge, le)
-        
-    Returns:
-        Alarm management information
-    """
-    try:
-        conn = get_openstack_connection()
-        
-        # Note: This would require Aodh (alarming service) to be installed
-        # For now, we'll simulate alarm management
-        
-        if action.lower() == 'list':
-            # List available alarms (simulated)
-            alarms = [
-                {
-                    'name': 'cpu-high-alarm',
-                    'type': 'threshold',
-                    'state': 'ok',
-                    'enabled': True,
-                    'description': 'CPU usage alarm for compute instances'
-                },
-                {
-                    'name': 'memory-high-alarm',
-                    'type': 'threshold',
-                    'state': 'alarm',
-                    'enabled': True,
-                    'description': 'Memory usage alarm for compute instances'
-                }
-            ]
-            
-            return {
-                'success': True,
-                'alarms': alarms,
-                'count': len(alarms),
-                'note': 'Alarm management requires Aodh service to be installed and configured'
-            }
-            
-        elif action.lower() == 'create':
-            if not alarm_name:
-                return {
-                    'success': False,
-                    'message': 'Alarm name required for create action'
-                }
-                
-            # Simulate alarm creation
-            alarm = {
-                'name': alarm_name,
-                'resource_id': resource_id,
-                'threshold': threshold,
-                'comparison': comparison,
-                'state': 'insufficient data',
-                'enabled': True,
-                'created_at': datetime.utcnow().isoformat()
-            }
-            
-            return {
-                'success': True,
-                'alarm': alarm,
-                'message': f'Alarm "{alarm_name}" created (simulation - requires Aodh service)'
-            }
-            
-        elif action.lower() == 'show':
-            if not alarm_name:
-                return {
-                    'success': False,
-                    'message': 'Alarm name required for show action'
-                }
-                
-            # Simulate alarm details
-            alarm_details = {
-                'name': alarm_name,
-                'type': 'threshold',
-                'state': 'ok',
-                'enabled': True,
-                'threshold': threshold or 80.0,
-                'comparison': comparison,
-                'resource_id': resource_id,
-                'description': f'Alarm monitoring for {alarm_name}'
-            }
-            
-            return {
-                'success': True,
-                'alarm_details': alarm_details
-            }
-            
-        elif action.lower() == 'delete':
-            if not alarm_name:
-                return {
-                    'success': False,
-                    'message': 'Alarm name required for delete action'
-                }
-                
-            return {
-                'success': True,
-                'message': f'Alarm "{alarm_name}" deleted (simulation - requires Aodh service)'
-            }
-        
-        else:
-            return {
-                'success': False,
-                'message': f'Unknown action "{action}". Supported: list, create, show, delete'
-            }
-            
-    except Exception as e:
-        logger.error(f"Failed to manage alarms: {e}")
-        return {
-            'success': False,
-            'message': f'Failed to manage alarms: {str(e)}',
-            'error': str(e)
-        }
+from .services.alarms import set_alarms
 
 
 def set_compute_agents(
@@ -1031,34 +914,6 @@ from .services.load_balancer import (
 
 
 # =============================================================================
-# ADDITIONAL UTILITY FUNCTIONS (TEMPORARY IMPLEMENTATIONS)
+# Additional network management functions
 # =============================================================================
-
-def set_network_qos_policies(action: str, policy_name: str = None, **kwargs) -> Dict[str, Any]:
-    """
-    Temporary implementation for network QoS policies management
-    TODO: Implement full functionality in network.py
-    """
-    return {
-        "error": "Network QoS policies management not yet implemented in modular structure",
-        "success": False,
-        "action": action,
-        "policy_name": policy_name
-    }
-
-def set_network_agents(action: str, agent_id: str = None, **kwargs) -> Dict[str, Any]:
-    """
-    Temporary implementation for network agents management
-    TODO: Implement full functionality in network.py
-    """
-    return {
-        "error": "Network agents management not yet implemented in modular structure", 
-        "success": False,
-        "action": action,
-        "agent_id": agent_id
-    }
-
-
-# =============================================================================
-# END OF FILE - ALL FUNCTIONS SUCCESSFULLY MODULARIZED
-# =============================================================================
+from .services.network import set_network_qos_policies, set_network_agents
