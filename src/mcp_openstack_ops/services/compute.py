@@ -12,6 +12,52 @@ from typing import Dict, List, Any, Optional
 logger = logging.getLogger(__name__)
 
 
+def _get_server_image(conn: Any, server: Any) -> Dict[str, str]:
+    """Resolve image references, including volume-backed instance provenance."""
+    from ..connection import validate_resource_ownership
+
+    reference = getattr(server, 'image', None)
+    image_id = (reference.get('id') if isinstance(reference, dict)
+                else getattr(reference, 'id', None))
+    info = {'id': image_id or 'unknown', 'name': 'unknown'}
+    if not image_id:
+        attachments = (getattr(server, 'attached_volumes', None)
+                       or getattr(server, 'volumes_attached', None) or [])
+        roots = [a for a in attachments if isinstance(a, dict)
+                 and str(a.get('boot_index')) == '0']
+        candidates = []
+        for attachment in roots or attachments:
+            if isinstance(attachment, dict):
+                volume_id = attachment.get('volume_id') or attachment.get('id')
+            else:
+                volume_id = (getattr(attachment, 'volume_id', None)
+                             or getattr(attachment, 'id', None))
+            if not volume_id:
+                return info
+            try:
+                volume = conn.block_storage.get_volume(volume_id)
+                if not validate_resource_ownership(volume, 'Volume'):
+                    return info
+                if str(getattr(volume, 'is_bootable', False)).lower() == 'true':
+                    candidates.append(volume.volume_image_metadata or {})
+            except Exception as error:
+                logger.warning("Could not get boot volume image metadata: %s", error)
+                return info
+        # Several bootable volumes can be attached; never guess which booted it.
+        if len(candidates) != 1:
+            return info
+        image_id = candidates[0].get('image_id')
+        if not image_id:
+            return info
+        info = {'id': image_id, 'name': candidates[0].get('image_name') or 'unknown'}
+    try:
+        image = conn.image.get_image(image_id)
+        info['name'] = getattr(image, 'name', None) or info['name']
+    except Exception as error:
+        logger.warning("Could not get image details for %s: %s", image_id, error)
+    return info
+
+
 def get_instance_details(
     instance_names: Optional[List[str]] = None,
     limit: int = 50,
@@ -102,22 +148,7 @@ def get_instance_details(
                         }
                 
                 # Get server image details
-                image_info = {'id': 'unknown', 'name': 'unknown'}
-                if hasattr(server, 'image') and server.image:
-                    if isinstance(server.image, dict):
-                        image_id = server.image.get('id')
-                    else:
-                        image_id = getattr(server.image, 'id', None)
-                    
-                    if image_id:
-                        try:
-                            image = conn.image.get_image(image_id)
-                            image_info = {
-                                'id': image.id,
-                                'name': getattr(image, 'name', 'unknown')
-                            }
-                        except Exception as e:
-                            logger.warning(f"Could not get image details for {image_id}: {e}")
+                image_info = _get_server_image(conn, server)
                 
                 # Get network information
                 networks = []

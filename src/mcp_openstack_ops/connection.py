@@ -15,6 +15,7 @@ import os
 from typing import Optional, Any, Dict
 from dotenv import load_dotenv
 from openstack import connection
+from . import user_connection
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -29,6 +30,9 @@ def get_openstack_connection():
     Returns cached connection if available to improve performance.
     """
     global _connection_cache
+    request_connection = user_connection.get_connection()
+    if request_connection is not None:
+        return request_connection
     
     if _connection_cache is not None:
         try:
@@ -167,7 +171,7 @@ def get_current_project_id() -> str:
         project_id = conn.current_project_id or \
                      conn.auth.get('project_id') or conn.auth.get('tenant_id')
 
-        if not project_id:
+        if not project_id and not user_connection.enabled:
             # Fallback: get from project name
             project_name = os.environ.get("OS_PROJECT_NAME")
             if project_name:
