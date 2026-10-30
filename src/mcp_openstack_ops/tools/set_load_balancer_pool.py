@@ -47,7 +47,7 @@ async def set_load_balancer_pool(
         JSON string with operation results and pool details
     """
     try:
-        from .functions import set_load_balancer_pool
+        from ..functions import set_load_balancer_pool
         
         result = set_load_balancer_pool(
             action=action,

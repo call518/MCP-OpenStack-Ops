@@ -165,12 +165,43 @@ New consolidated `get_instance` tool replaces multiple separate tools:
 
 ## 📊 OpenStack CLI vs MCP Tools Mapping
 
-**Detailed Mapping by Category**
+**Validation snapshot — 2026-10-30** (main working tree based on `dd98993`,
+with the uncommitted fixes described in the report):
 
-✅ indicates an implemented API path, subject to cloud services and policy.
-Live-validated paths and deployment limits are listed in
-[integration validation](docs/integration-validation.md). Also see
+<table border="1" rules="cols">
+  <thead>
+    <tr><th>Verification type</th><th>Item</th><th>Result</th></tr>
+  </thead>
+  <tbody>
+    <tr><td rowspan="5">Live tool checks</td><td>Registered tools invoked and classified</td><td><strong>105</strong></td></tr>
+    <tr><td>Passed within the exercised live scenarios</td><td><strong>74</strong></td></tr>
+    <tr><td>Implemented, live unverified: service/API unavailable</td><td><strong>28</strong></td></tr>
+    <tr><td>Intentional capability limitations</td><td><strong>3</strong></td></tr>
+    <tr><td>Reproduced code defects / state-check timeouts in the retest</td><td><strong>0 / 0</strong></td></tr>
+    <tr><td>Local unit tests</td><td>Test cases in <code>tests/test_*.py</code></td><td><strong>160/160 (100%)</strong></td></tr>
+  </tbody>
+</table>
+
+State polling allowed 180 seconds; soft reboot completed in 131.66 seconds
+(previously it exceeded the 90-second check). No reboot implementation change
+was needed.
+
+The 10 previously reproduced tool defects were corrected. The 28 unavailable
+paths are **not live-validated successes**: 24 Octavia tools, two Neutron QoS
+tools, one Aodh tool, and one Neutron port-forwarding tool. Each affected table
+row is marked **⚠️ Live unverified**. An absent tool/action is marked **❌ Not
+implemented** rather than presented as an available feature.
+
+✅ means an implemented API path; it does not certify every action or backend.
+The live-pass count covers only the scenarios in the
+[latest retest report](docs/main-live-retest-2026-10-30.md), with
+[sanitized evidence](docs/main-live-retest-2026-10-30.json). API policy, asynchronous
+completion, production HTTPS/client compatibility, load, and guest I/O limits
+are stated there. All test resources were cleaned up; the final audit found zero
+remaining test resources across 24 categories. See also
 [API prerequisites and result semantics](#api-prerequisites-and-result-semantics).
+
+**Detailed Mapping by Category**
 
 ### 1. 🖥️ **Compute (Nova)**
 
@@ -181,7 +212,7 @@ Live-validated paths and deployment limits are listed in
 | `openstack server create` | `set_instance` (action="create") | ✅ | **ENHANCED** - Bulk creation support |
 | `openstack server start/stop/reboot` | `set_instance` | ✅ | **ENHANCED** - Bulk operations with filtering |
 | `openstack server delete` | `set_instance` (action="delete") | ✅ | **ENHANCED** - Bulk deletion with name_contains filtering |
-| `openstack server backup create` | `set_server_backup` | ✅ | Backup creation with rotation |
+| `openstack server backup create` | `set_server_backup` | ✅ | Nova backup action with rotation; asynchronous, no custom metadata |
 | `openstack server image create` | `set_instance` (action="snapshot") | ✅ | Image/snapshot creation |
 | `openstack server shelve/unshelve` | `set_instance` | ✅ | Instance shelving |
 | `openstack server lock/unlock` | `set_instance` | ✅ | Instance locking |
@@ -213,11 +244,11 @@ Live-validated paths and deployment limits are listed in
 | `openstack server remove volume` | `set_server_volume` (action="detach") | ✅ | Volume detachment |
 | `openstack server set` | `set_server_properties` (action="set") | ✅ | Server property setting |
 | `openstack server unset` | `set_server_properties` (action="unset") | ✅ | Server property unsetting |
-| `openstack server dump create` | `set_server_dump` | ✅ | Server dump creation |
+| `openstack server dump create` | `set_server_dump` | ❌ Unsupported | Returns an explicit unsupported result; no dump is created |
 | `openstack server event list` | `get_server_events` | ✅ | Server event tracking |
 | `openstack server group list` | `get_server_groups` | ✅ | Server group listing |
 | `openstack server group create/delete` | `set_server_group` | ✅ | Server group management |
-| `openstack flavor list` | `get_flavor_list` (via cluster_status) | ✅ | Flavor listing |
+| `openstack flavor list` | `set_flavor` (action="list") | ✅ | Requires modification tools to be enabled for registration |
 | `openstack flavor create/delete` | `set_flavor` | ✅ | Flavor management |
 | `openstack keypair list` | `get_keypair_list` | ✅ | Keypair listing |
 | `openstack keypair create/delete` | `set_keypair` | ✅ | Keypair management |
@@ -244,17 +275,17 @@ Live-validated paths and deployment limits are listed in
 | `openstack floating ip show` | `set_floating_ip` (action="show") | ✅ | Floating IP details |
 | `openstack floating ip unset` | `set_floating_ip` (action="unset") | ✅ | Floating IP property clearing |
 | `openstack floating ip pool list` | `get_floating_ip_pools` | ✅ | Floating IP pool listing |
-| `openstack floating ip port forwarding create` | `set_floating_ip_port_forwarding` (action="create") | ✅ | Port forwarding creation |
-| `openstack floating ip port forwarding delete` | `set_floating_ip_port_forwarding` (action="delete") | ✅ | Port forwarding deletion |
-| `openstack floating ip port forwarding list` | `set_floating_ip_port_forwarding` (action="list") | ✅ | Port forwarding listing |
-| `openstack floating ip port forwarding set` | `set_floating_ip_port_forwarding` (action="set") | ✅ | Port forwarding updates |
-| `openstack floating ip port forwarding show` | `set_floating_ip_port_forwarding` (action="show") | ✅ | Port forwarding details |
+| `openstack floating ip port forwarding create` | `set_floating_ip_port_forwarding` (action="create") | ⚠️ Live unverified | Implemented; test platform port-forwarding endpoint returns HTTP 404 |
+| `openstack floating ip port forwarding delete` | `set_floating_ip_port_forwarding` (action="delete") | ⚠️ Live unverified | Implemented; test platform port-forwarding endpoint returns HTTP 404 |
+| `openstack floating ip port forwarding list` | `set_floating_ip_port_forwarding` (action="list") | ⚠️ Live unverified | Implemented; test platform port-forwarding endpoint returns HTTP 404 |
+| `openstack floating ip port forwarding set` | `set_floating_ip_port_forwarding` (action="set") | ⚠️ Live unverified | Implemented; test platform port-forwarding endpoint returns HTTP 404 |
+| `openstack floating ip port forwarding show` | `set_floating_ip_port_forwarding` (action="show") | ⚠️ Live unverified | Implemented; test platform port-forwarding endpoint returns HTTP 404 |
 | `openstack security group list` | `get_security_groups` | ✅ | Security group listing |
 | `openstack security group create/delete` | `set_security_groups` | ✅ | Project-owned security groups |
 | `openstack port list` | `get_network_details` (includes ports) | ✅ | Port information included |
 | `openstack port create/delete` | `set_network_ports` | ✅ | Port management |
-| `openstack network qos policy list` | `get_network_qos_policies` | ✅ | Current-project policy containers |
-| `openstack network qos policy create` | `set_network_qos_policies` | ✅ | Create/list/delete policy containers; does not create bandwidth rules |
+| `openstack network qos policy list` | `get_network_qos_policies` | ⚠️ Live unverified | Implemented; test platform QoS endpoint returns HTTP 404 |
+| `openstack network qos policy create` | `set_network_qos_policies` | ⚠️ Live unverified | Implemented; test platform QoS endpoint returns HTTP 404. Policy containers only; no bandwidth rules |
 | `openstack network agent list` | `get_service_status` (includes agents) | ✅ | Network agents |
 | `openstack network agent set` | `set_network_agents` | ✅ | Enable/disable cloud-wide agents; usually admin-only |
 
@@ -336,95 +367,95 @@ Live-validated paths and deployment limits are listed in
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
-| `openstack loadbalancer list` | `get_load_balancer_status` | ✅ | Load balancer listing with pagination |
-| `openstack loadbalancer show` | `get_load_balancer_status` | ✅ | Load balancer detailed information |
-| `openstack loadbalancer create` | `set_load_balancer` (action="create") | ✅ | Load balancer creation |
-| `openstack loadbalancer delete` | `set_load_balancer` (action="delete") | ✅ | Load balancer deletion |
-| `openstack loadbalancer set` | `set_load_balancer` (action="update") | ✅ | Load balancer property update |
-| `openstack loadbalancer stats show` | `get_load_balancer_status` | ✅ | Load balancer statistics |
-| `openstack loadbalancer status show` | `get_load_balancer_status` | ✅ | Load balancer status tree |
-| `openstack loadbalancer failover` | `set_load_balancer` (action="failover") | ✅ | Load balancer failover |
-| `openstack loadbalancer unset` | `set_load_balancer` (action="unset") | ✅ | Load balancer property unset |
+| `openstack loadbalancer list` | `get_load_balancer_list` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer listing with pagination |
+| `openstack loadbalancer show` | `get_load_balancer_details` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer detailed information |
+| `openstack loadbalancer create` | `set_load_balancer` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer creation |
+| `openstack loadbalancer delete` | `set_load_balancer` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer deletion |
+| `openstack loadbalancer set` | `set_load_balancer` (action="update") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer property update |
+| `openstack loadbalancer stats show` | `set_load_balancer` (action="stats") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer statistics |
+| `openstack loadbalancer status show` | `set_load_balancer` (action="status") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer status tree |
+| `openstack loadbalancer failover` | `set_load_balancer` (action="failover") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer failover |
+| `openstack loadbalancer unset` | `set_load_balancer` (action="unset") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer property unset |
 | **Listener Management** | | | |
-| `openstack loadbalancer listener list` | `get_load_balancer_listeners` | ✅ | Listener listing for load balancer |
-| `openstack loadbalancer listener create` | `set_load_balancer_listener` (action="create") | ✅ | Listener creation (HTTP/HTTPS/TCP/UDP) |
-| `openstack loadbalancer listener delete` | `set_load_balancer_listener` (action="delete") | ✅ | Listener deletion |
-| `openstack loadbalancer listener show` | `get_load_balancer_listeners` | ✅ | Listener detailed information |
-| `openstack loadbalancer listener set` | `set_load_balancer_listener` (action="update") | ✅ | Listener property update |
-| `openstack loadbalancer listener stats show` | `get_load_balancer_listeners` | ✅ | Listener statistics |
-| `openstack loadbalancer listener unset` | `set_load_balancer_listener` (action="unset") | ✅ | Listener property unset |
+| `openstack loadbalancer listener list` | `get_load_balancer_listeners` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Listener listing for load balancer |
+| `openstack loadbalancer listener create` | `set_load_balancer_listener` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Listener creation (HTTP/HTTPS/TCP/UDP) |
+| `openstack loadbalancer listener delete` | `set_load_balancer_listener` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Listener deletion |
+| `openstack loadbalancer listener show` | `get_load_balancer_listeners` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Listener detailed information |
+| `openstack loadbalancer listener set` | `set_load_balancer_listener` (action="update") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Listener property update |
+| `openstack loadbalancer listener stats show` | `set_load_balancer_listener` (action="stats") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Listener statistics |
+| `openstack loadbalancer listener unset` | `set_load_balancer_listener` (action="unset") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Listener property unset |
 | **Pool Management** | | | |
-| `openstack loadbalancer pool list` | `get_load_balancer_pools` | ✅ | Pool listing (all or by listener) |
-| `openstack loadbalancer pool create` | `set_load_balancer_pool` (action="create") | ✅ | Pool creation with algorithms |
-| `openstack loadbalancer pool delete` | `set_load_balancer_pool` (action="delete") | ✅ | Pool deletion |
-| `openstack loadbalancer pool set` | `set_load_balancer_pool` (action="update") | ✅ | Pool property update |
-| `openstack loadbalancer pool show` | `get_load_balancer_pools` | ✅ | Pool detailed information |
-| `openstack loadbalancer pool stats show` | `get_load_balancer_pools` | ✅ | Pool statistics |
-| `openstack loadbalancer pool unset` | `set_load_balancer_pool` (action="unset") | ✅ | Pool property unset |
+| `openstack loadbalancer pool list` | `get_load_balancer_pools` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool listing (all or by listener) |
+| `openstack loadbalancer pool create` | `set_load_balancer_pool` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool creation with algorithms |
+| `openstack loadbalancer pool delete` | `set_load_balancer_pool` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool deletion |
+| `openstack loadbalancer pool set` | `set_load_balancer_pool` (action="set") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool property update |
+| `openstack loadbalancer pool show` | `get_load_balancer_pools` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool detailed information |
+| `openstack loadbalancer pool stats show` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
+| `openstack loadbalancer pool unset` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | **Member Management** | | | |
-| `openstack loadbalancer member list` | `get_load_balancer_members` | ✅ | Pool member listing |
-| `openstack loadbalancer member create` | `set_load_balancer_member` (action="create") | ✅ | Pool member creation |
-| `openstack loadbalancer member delete` | `set_load_balancer_member` (action="delete") | ✅ | Pool member deletion |
-| `openstack loadbalancer member set` | `set_load_balancer_member` (action="update") | ✅ | Pool member property update |
-| `openstack loadbalancer member show` | `get_load_balancer_members` | ✅ | Pool member detailed information |
-| `openstack loadbalancer member unset` | `set_load_balancer_member` (action="unset") | ✅ | Pool member property unset |
+| `openstack loadbalancer member list` | `get_load_balancer_pool_members` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool member listing |
+| `openstack loadbalancer member create` | `set_load_balancer_pool_member` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool member creation |
+| `openstack loadbalancer member delete` | `set_load_balancer_pool_member` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool member deletion |
+| `openstack loadbalancer member set` | `set_load_balancer_pool_member` (action="set") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool member property update |
+| `openstack loadbalancer member show` | `get_load_balancer_pool_members` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool member detailed information |
+| `openstack loadbalancer member unset` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | **Health Monitor Management** | | | |
-| `openstack loadbalancer healthmonitor list` | `get_load_balancer_health_monitors` | ✅ | Health monitor listing |
-| `openstack loadbalancer healthmonitor create` | `set_load_balancer_health_monitor` (action="create") | ✅ | Health monitor creation |
-| `openstack loadbalancer healthmonitor delete` | `set_load_balancer_health_monitor` (action="delete") | ✅ | Health monitor deletion |
-| `openstack loadbalancer healthmonitor set` | `set_load_balancer_health_monitor` (action="update") | ✅ | Health monitor update |
-| `openstack loadbalancer healthmonitor show` | `get_load_balancer_health_monitors` | ✅ | Health monitor detailed information |
-| `openstack loadbalancer healthmonitor unset` | `set_load_balancer_health_monitor` (action="unset") | ✅ | Health monitor property unset |
+| `openstack loadbalancer healthmonitor list` | `get_load_balancer_health_monitors` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Health monitor listing |
+| `openstack loadbalancer healthmonitor create` | `set_load_balancer_health_monitor` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Health monitor creation |
+| `openstack loadbalancer healthmonitor delete` | `set_load_balancer_health_monitor` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Health monitor deletion |
+| `openstack loadbalancer healthmonitor set` | `set_load_balancer_health_monitor` (action="set") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Health monitor update |
+| `openstack loadbalancer healthmonitor show` | `get_load_balancer_health_monitors` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Health monitor detailed information |
+| `openstack loadbalancer healthmonitor unset` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | **L7 Policy Management** | | | |
-| `openstack loadbalancer l7policy list` | `get_load_balancer_l7_policies` | ✅ | L7 policy listing |
-| `openstack loadbalancer l7policy create` | `set_load_balancer_l7_policy` (action="create") | ✅ | L7 policy creation |
-| `openstack loadbalancer l7policy delete` | `set_load_balancer_l7_policy` (action="delete") | ✅ | L7 policy deletion |
-| `openstack loadbalancer l7policy set` | `set_load_balancer_l7_policy` (action="update") | ✅ | L7 policy update |
-| `openstack loadbalancer l7policy show` | `get_load_balancer_l7_policies` | ✅ | L7 policy details |
-| `openstack loadbalancer l7policy unset` | `set_load_balancer_l7_policy` (action="unset") | ✅ | L7 policy property unset |
+| `openstack loadbalancer l7policy list` | `get_load_balancer_l7_policies` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. L7 policy listing |
+| `openstack loadbalancer l7policy create` | `set_load_balancer_l7_policy` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. L7 policy creation |
+| `openstack loadbalancer l7policy delete` | `set_load_balancer_l7_policy` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. L7 policy deletion |
+| `openstack loadbalancer l7policy set` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
+| `openstack loadbalancer l7policy show` | `get_load_balancer_l7_policies` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. L7 policy details |
+| `openstack loadbalancer l7policy unset` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | **L7 Rule Management** 🆕 | | | |
-| `openstack loadbalancer l7rule list` | `get_load_balancer_l7_rules` | ✅ | L7 rule listing |
-| `openstack loadbalancer l7rule create` | `set_load_balancer_l7_rule` (action="create") | ✅ | L7 rule creation |
-| `openstack loadbalancer l7rule delete` | `set_load_balancer_l7_rule` (action="delete") | ✅ | L7 rule deletion |
-| `openstack loadbalancer l7rule set` | `set_load_balancer_l7_rule` (action="update") | ✅ | L7 rule update |
-| `openstack loadbalancer l7rule show` | `get_load_balancer_l7_rules` | ✅ | L7 rule details |
-| `openstack loadbalancer l7rule unset` | `set_load_balancer_l7_rule` (action="unset") | ✅ | L7 rule property unset |
+| `openstack loadbalancer l7rule list` | `get_load_balancer_l7_rules` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. L7 rule listing |
+| `openstack loadbalancer l7rule create` | `set_load_balancer_l7_rule` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. L7 rule creation |
+| `openstack loadbalancer l7rule delete` | `set_load_balancer_l7_rule` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. L7 rule deletion |
+| `openstack loadbalancer l7rule set` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
+| `openstack loadbalancer l7rule show` | `get_load_balancer_l7_rules` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. L7 rule details |
+| `openstack loadbalancer l7rule unset` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | **Amphora Management** 🆕 | | | |
-| `openstack loadbalancer amphora list` | `get_load_balancer_amphorae` | ✅ | Amphora listing |
-| `openstack loadbalancer amphora show` | `set_load_balancer_amphora` (action="show") | ✅ | Amphora details |
-| `openstack loadbalancer amphora configure` | `set_load_balancer_amphora` (action="configure") | ✅ | Amphora configuration |
-| `openstack loadbalancer amphora failover` | `set_load_balancer_amphora` (action="failover") | ✅ | Amphora failover |
+| `openstack loadbalancer amphora list` | `get_load_balancer_amphorae` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Amphora listing |
+| `openstack loadbalancer amphora show` | `set_load_balancer_amphora` (action="show") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Amphora details |
+| `openstack loadbalancer amphora configure` | `set_load_balancer_amphora` (action="configure") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Amphora configuration |
+| `openstack loadbalancer amphora failover` | `set_load_balancer_amphora` (action="failover") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Amphora failover |
 | `openstack loadbalancer amphora delete` | N/A | ❌ | Not supported by OpenStack SDK |
 | `openstack loadbalancer amphora stats show` | N/A | ❌ | Not supported by OpenStack SDK |
 | **Provider Management** | | | |
-| `openstack loadbalancer provider list` | `get_load_balancer_providers` | ✅ | Provider listing |
-| `openstack loadbalancer provider capability list` | `get_load_balancer_providers` | ✅ | Provider capability listing |
+| `openstack loadbalancer provider list` | `get_load_balancer_providers` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Provider listing |
+| `openstack loadbalancer provider capability list` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | **Availability Zone Management** 🆕 | | | |
-| `openstack loadbalancer availabilityzone list` | `get_load_balancer_availability_zones` | ✅ | Availability zone listing |
-| `openstack loadbalancer availabilityzone show` | `get_load_balancer_availability_zones` | ✅ | Availability zone details |
-| `openstack loadbalancer availabilityzone create` | `set_load_balancer_availability_zone` (action="create") | ✅ | Availability zone creation |
-| `openstack loadbalancer availabilityzone delete` | `set_load_balancer_availability_zone` (action="delete") | ✅ | Availability zone deletion |
-| `openstack loadbalancer availabilityzone set` | `set_load_balancer_availability_zone` (action="update") | ✅ | Availability zone update |
-| `openstack loadbalancer availabilityzone unset` | `set_load_balancer_availability_zone` (action="unset") | ✅ | Availability zone property unset |
+| `openstack loadbalancer availabilityzone list` | `get_load_balancer_availability_zones` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Availability zone listing |
+| `openstack loadbalancer availabilityzone show` | `get_load_balancer_availability_zones` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Availability zone details |
+| `openstack loadbalancer availabilityzone create` | `set_load_balancer_availability_zone` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Availability zone creation |
+| `openstack loadbalancer availabilityzone delete` | `set_load_balancer_availability_zone` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Availability zone deletion |
+| `openstack loadbalancer availabilityzone set` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
+| `openstack loadbalancer availabilityzone unset` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | **Flavor Management** 🆕 | | | |
-| `openstack loadbalancer flavor list` | `get_load_balancer_flavors` | ✅ | Flavor listing |
-| `openstack loadbalancer flavor show` | `get_load_balancer_flavors` | ✅ | Flavor details |
-| `openstack loadbalancer flavor create` | `set_load_balancer_flavor` (action="create") | ✅ | Flavor creation |
-| `openstack loadbalancer flavor delete` | `set_load_balancer_flavor` (action="delete") | ✅ | Flavor deletion |
-| `openstack loadbalancer flavor set` | `set_load_balancer_flavor` (action="update") | ✅ | Flavor update |
-| `openstack loadbalancer flavor unset` | `set_load_balancer_flavor` (action="unset") | ✅ | Flavor property unset |
+| `openstack loadbalancer flavor list` | `get_load_balancer_flavors` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Flavor listing |
+| `openstack loadbalancer flavor show` | `get_load_balancer_flavors` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Flavor details |
+| `openstack loadbalancer flavor create` | `set_load_balancer_flavor` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Flavor creation |
+| `openstack loadbalancer flavor delete` | `set_load_balancer_flavor` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Flavor deletion |
+| `openstack loadbalancer flavor set` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
+| `openstack loadbalancer flavor unset` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | **Flavor Profile Management** | | | |
-| `openstack loadbalancer flavorprofile list` | `get_load_balancer_flavor_profiles` | ✅ | Flavor profile listing |
-| `openstack loadbalancer flavorprofile show` | `get_load_balancer_flavor_profiles` | ✅ | Flavor profile details |
-| `openstack loadbalancer flavorprofile create` | `set_load_balancer_flavor_profile` (action="create") | ✅ | Flavor profile creation |
-| `openstack loadbalancer flavorprofile set` | `set_load_balancer_flavor_profile` (action="update") | ✅ | Flavor profile update |
-| `openstack loadbalancer flavorprofile unset` | `set_load_balancer_flavor_profile` (action="unset") | ✅ | Flavor profile property unset |
-| `openstack loadbalancer flavorprofile delete` | `set_load_balancer_flavor_profile` (action="delete") | 🚧 | Pending implementation |
+| `openstack loadbalancer flavorprofile list` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
+| `openstack loadbalancer flavorprofile show` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
+| `openstack loadbalancer flavorprofile create` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
+| `openstack loadbalancer flavorprofile set` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
+| `openstack loadbalancer flavorprofile unset` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
+| `openstack loadbalancer flavorprofile delete` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | **Quota Management** 🆕 | | | |
-| `openstack loadbalancer quota list` | `get_load_balancer_quotas` | ✅ | Quota listing |
-| `openstack loadbalancer quota show` | `get_load_balancer_quotas` | ✅ | Quota details |
-| `openstack loadbalancer quota set` | `set_load_balancer_quota` (action="set") | ✅ | Quota setting |
-| `openstack loadbalancer quota reset` | `set_load_balancer_quota` (action="reset") | ✅ | Quota reset |
+| `openstack loadbalancer quota list` | `get_load_balancer_quotas` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Quota listing |
+| `openstack loadbalancer quota show` | `get_load_balancer_quotas` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Quota details |
+| `openstack loadbalancer quota set` | `set_load_balancer_quota` (action="set") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Quota setting |
+| `openstack loadbalancer quota reset` | `set_load_balancer_quota` (action="reset") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Quota reset |
 
 ### 8. 📊 **Monitoring & Logging**
 
@@ -435,7 +466,7 @@ Live-validated paths and deployment limits are listed in
 | Cluster overview | `get_service_status` + `get_resource_monitoring` | ✅ | Service probes and current inventory |
 | Service log metadata | `set_service_logs` | Partial | Service listing only; log retrieval is unavailable without a logging backend |
 | Resource metadata | `set_metrics` | Partial | list/summary only; telemetry sample retrieval is unavailable |
-| Alarm management | `set_alarms` | ✅ | Real Aodh/Gnocchi resource threshold alarms; requires services and collected metrics |
+| Alarm management | `set_alarms` | ⚠️ Live unverified | Implemented; Aodh/Gnocchi unavailable in the test platform. Requires services and collected metrics |
 | Compute agents | `set_compute_agents` | ✅ | Compute agent management |
 | Usage statistics | `get_usage_statistics` | ✅ | Period compute allocation-hours plus separately labeled current snapshots |
 
@@ -444,7 +475,8 @@ Live-validated paths and deployment limits are listed in
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
 | `openstack quota show` | `get_quota` | ✅ | Quota query |
-| `openstack quota set` | `set_quota` | ✅ | Quota setting |
+| `openstack quota set` | `set_quota` (action="set") | ✅ | Routes supplied fields to Nova/Neutron/Cinder; partial failures are reported |
+| `openstack quota delete` | `set_quota` (action="delete") | ✅ | Resets all three service quotas to defaults; requires modification tools |
 | `openstack usage show` | `get_usage_statistics` | ✅ | Current-project Nova simple tenant usage; not monetary charges |
 | `openstack limits show` | `get_quota` (includes limits) | ✅ | Limits query |
 | Resource allocations | `get_resource_monitoring` | ✅ | Flavor allocations; not CPU load or resident memory samples |

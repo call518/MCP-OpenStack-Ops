@@ -923,6 +923,19 @@ def set_quota(project_name: str, service: str, **kwargs) -> Dict[str, Any]:
             }
         
         service = service.lower()
+        action = kwargs.pop('action', 'set').lower()
+        if action == 'delete':
+            if service == 'compute':
+                conn.compute.revert_quota_set(project.id)
+            elif service == 'network':
+                conn.network.delete_quota(project.id, ignore_missing=False)
+            elif service == 'volume':
+                conn.volume.revert_quota_set(project.id)
+            else:
+                raise ValueError(f'Unknown quota service "{service}"')
+            return {'success': True, 'message': f'{service} quotas reset to defaults'}
+        if action != 'set':
+            raise ValueError('Supported quota actions: set, delete')
         
         if service == 'compute':
             # Update compute quotas
@@ -946,9 +959,14 @@ def set_quota(project_name: str, service: str, **kwargs) -> Dict[str, Any]:
                 
         elif service == 'network':
             # Update network quotas
+            if 'floatingips' in kwargs and 'floating_ips' not in kwargs:
+                kwargs['floating_ips'] = kwargs.pop('floatingips')
             quota_updates = {}
             for key, value in kwargs.items():
-                if key in ['networks', 'subnets', 'ports', 'routers', 'floatingips', 'security_groups', 'security_group_rules']:
+                if key in [
+                    'networks', 'subnets', 'ports', 'routers', 'floating_ips',
+                    'security_groups', 'security_group_rules',
+                ]:
                     quota_updates[key] = int(value)
             
             if quota_updates:

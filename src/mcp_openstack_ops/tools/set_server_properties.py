@@ -49,10 +49,10 @@ async def set_server_properties(
         logger.info(f"Managing server properties: {instance_name}, action: {action}")
         
         kwargs = {
-            'name': name,
-            'description': description,
-            'metadata': metadata,
-            'properties': properties
+            key: value for key, value in {
+                'name': name, 'description': description,
+                'metadata': metadata, 'properties': properties,
+            }.items() if value
         }
         
         result = _set_server_properties(instance_name.strip(), action.strip(), **kwargs)

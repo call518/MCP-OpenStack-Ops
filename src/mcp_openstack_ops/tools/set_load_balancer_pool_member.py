@@ -53,7 +53,7 @@ async def set_load_balancer_pool_member(
         JSON string with operation results and member details
     """
     try:
-        from .functions import set_load_balancer_pool_member
+        from ..functions import set_load_balancer_pool_member
         
         result = set_load_balancer_pool_member(
             action=action,

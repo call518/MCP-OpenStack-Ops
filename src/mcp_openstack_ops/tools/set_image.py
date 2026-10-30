@@ -91,7 +91,6 @@ async def set_image(image_names: str, action: str, container_format: str = "bare
         # Handle JSON list format: ["name1", "name2"]
         if names_str.startswith('[') and names_str.endswith(']'):
             try:
-                import json
                 name_list = json.loads(names_str)
                 if not isinstance(name_list, list):
                     return "Error: Invalid JSON list format for image names"

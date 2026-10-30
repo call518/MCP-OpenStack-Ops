@@ -23,7 +23,7 @@ async def set_server_backup(
     Functions:
     - Create server backup with rotation policy
     - Set backup type (daily, weekly, etc.)
-    - Add backup metadata and labels
+    - Nova backup action does not accept custom metadata
     - Manage backup lifecycle
     
     Use when user requests:
@@ -37,7 +37,7 @@ async def set_server_backup(
         backup_name: Name for the backup image
         backup_type: Type of backup (daily, weekly, monthly)
         rotation: Number of backups to keep
-        metadata: Additional metadata for the backup
+        metadata: Reserved; Nova's backup action does not accept custom metadata
         
     Returns:
         JSON string containing backup operation results

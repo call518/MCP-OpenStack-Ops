@@ -111,7 +111,7 @@ def set_heat_stack(stack_name: str, action: str, **kwargs) -> Dict[str, Any]:
                 template=template,
                 parameters=kwargs.get('parameters', {}),
                 timeout=kwargs.get('timeout', 60),
-                tags=kwargs.get('tags', [])
+                tags=kwargs.get('tags', '')
             )
             return {
                 'success': True,
@@ -119,7 +119,7 @@ def set_heat_stack(stack_name: str, action: str, **kwargs) -> Dict[str, Any]:
                 'stack': {
                     'id': stack.id,
                     'name': stack.name,
-                    'status': stack.stack_status
+                    'status': stack.status
                 }
             }
             

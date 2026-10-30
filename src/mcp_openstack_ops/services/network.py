@@ -844,7 +844,7 @@ def set_floating_ip_port_forwarding(action: str, **kwargs) -> Dict[str, Any]:
             # Get port forwarding rules for this floating IP
             port_forwardings = []
             try:
-                for pf in conn.network.port_forwardings(floatingip=fip.id):
+                for pf in conn.network.port_forwardings(fip.id):
                     port_forwardings.append({
                         'id': pf.id,
                         'protocol': getattr(pf, 'protocol', 'unknown'),
@@ -856,7 +856,7 @@ def set_floating_ip_port_forwarding(action: str, **kwargs) -> Dict[str, Any]:
                     })
             except Exception as e:
                 logger.warning(f"Could not retrieve port forwarding rules: {e}")
-                # Return empty list if port forwarding is not supported
+                return {'success': False, 'message': str(e)}
                 
             return {
                 'success': True,
@@ -916,7 +916,9 @@ def set_floating_ip_port_forwarding(action: str, **kwargs) -> Dict[str, Any]:
                 create_params['description'] = description
             
             try:
-                pf = conn.network.create_port_forwarding(floatingip=fip.id, **create_params)
+                pf = conn.network.create_port_forwarding(
+                    floatingip_id=fip.id, **create_params
+                )
                 return {
                     'success': True,
                     'message': f'Port forwarding rule created successfully',
@@ -946,7 +948,9 @@ def set_floating_ip_port_forwarding(action: str, **kwargs) -> Dict[str, Any]:
                 }
             
             try:
-                conn.network.delete_port_forwarding(port_forwarding_id, floatingip=floating_ip_id)
+                conn.network.delete_port_forwarding(
+                    port_forwarding_id, floating_ip=floating_ip_id
+                )
                 return {
                     'success': True,
                     'message': f'Port forwarding rule deleted successfully'
@@ -968,7 +972,9 @@ def set_floating_ip_port_forwarding(action: str, **kwargs) -> Dict[str, Any]:
                 }
             
             try:
-                pf = conn.network.get_port_forwarding(port_forwarding_id, floatingip=floating_ip_id)
+                pf = conn.network.get_port_forwarding(
+                    port_forwarding_id, floating_ip=floating_ip_id
+                )
                 return {
                     'success': True,
                     'port_forwarding': {
@@ -1018,7 +1024,7 @@ def set_floating_ip_port_forwarding(action: str, **kwargs) -> Dict[str, Any]:
             try:
                 pf = conn.network.update_port_forwarding(
                     port_forwarding_id, 
-                    floatingip=floating_ip_id, 
+                    floating_ip=floating_ip_id,
                     **update_params
                 )
                 return {

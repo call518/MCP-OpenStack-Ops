@@ -31,7 +31,7 @@ async def get_load_balancer_pool_members(pool_name_or_id: str) -> str:
         JSON string containing member details for the pool
     """
     try:
-        from .functions import get_load_balancer_pool_members
+        from ..functions import get_load_balancer_pool_members
         
         result = get_load_balancer_pool_members(pool_name_or_id)
         

@@ -31,7 +31,7 @@ async def get_load_balancer_health_monitors(pool_name_or_id: str = "") -> str:
         JSON string containing health monitor details
     """
     try:
-        from .functions import get_load_balancer_health_monitors
+        from ..functions import get_load_balancer_health_monitors
         
         result = get_load_balancer_health_monitors(pool_name_or_id)
         

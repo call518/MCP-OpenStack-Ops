@@ -1,7 +1,9 @@
 """Tool implementation for set_quota."""
 
 from ..functions import set_quota as _set_quota
+from ..functions import get_quota as _get_quota
 from ..mcp_main import (
+    _is_modify_operation_allowed,
     conditional_tool,
     handle_operation_result,
     logger,
@@ -76,7 +78,40 @@ async def set_quota(
         if security_group_rules is not None:
             quota_params['security_group_rules'] = security_group_rules
         
-        quota_result = _set_quota(project_name=project_name, action=action, **quota_params)
+        action = action.strip().lower()
+        if action == 'list':
+            quota_result = _get_quota(project_name)
+        elif action not in ('set', 'delete'):
+            quota_result = {'success': False, 'message': 'Use list, set, or delete'}
+        elif not _is_modify_operation_allowed():
+            return '{"success": false, "error": "MODIFY_OPERATIONS_DISABLED"}'
+        else:
+            fields = {
+                'compute': ('cores', 'instances', 'ram'),
+                'network': (
+                    'networks', 'ports', 'routers', 'floating_ips',
+                    'security_groups', 'security_group_rules',
+                ),
+                'volume': ('volumes', 'snapshots', 'gigabytes'),
+            }
+            results = {}
+            for service, keys in fields.items():
+                params = {k: quota_params[k] for k in keys if k in quota_params}
+                if params or action == 'delete':
+                    results[service] = _set_quota(
+                        project_name=project_name, service=service,
+                        action=action, **params,
+                    )
+            failed = [s for s, r in results.items() if not r.get('success')]
+            success = bool(results) and not failed
+            quota_result = {
+                'success': success,
+                'results': results,
+                'message': (
+                    'Quota operation completed' if success else
+                    f'Quota operation incomplete: {results or "no limits supplied"}'
+                ),
+            }
         
         # Use centralized result handling
         return handle_operation_result(

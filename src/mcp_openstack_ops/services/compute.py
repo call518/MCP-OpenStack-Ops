@@ -2163,34 +2163,34 @@ def set_server_properties(instance_name: str, action: str, **kwargs) -> Dict[str
                 update_params['description'] = kwargs['description']
             
             # Metadata updates
-            if 'metadata' in kwargs:
-                metadata = kwargs['metadata']
-                if isinstance(metadata, dict):
-                    update_params['metadata'] = metadata
-                else:
-                    return {
-                        'success': False,
-                        'message': 'metadata parameter must be a dictionary'
-                    }
+            metadata_updates = kwargs.get('metadata', {})
+            if not isinstance(metadata_updates, dict):
+                return {
+                    'success': False,
+                    'message': 'metadata parameter must be a dictionary'
+                }
+            metadata_updates = metadata_updates.copy()
             
             # Individual property updates
-            property_keys = ['property']
             for key in kwargs:
                 if key.startswith('property_'):
                     prop_name = key[9:]  # Remove 'property_' prefix
-                    if 'metadata' not in update_params:
-                        update_params['metadata'] = {}
-                    update_params['metadata'][prop_name] = kwargs[key]
+                    metadata_updates[prop_name] = kwargs[key]
             
-            if not update_params:
+            if not update_params and not metadata_updates:
                 return {
                     'success': False,
                     'message': 'No properties to update. Specify name, description, metadata, or property_* parameters'
                 }
-            
-            conn.compute.update_server(server, **update_params)
-            
+
+            if update_params:
+                conn.compute.update_server(server, **update_params)
+            if metadata_updates:
+                conn.compute.set_server_metadata(server, **metadata_updates)
+
             updated_fields = list(update_params.keys())
+            if metadata_updates:
+                updated_fields.append('metadata')
             return {
                 'success': True,
                 'message': f'Server "{instance_name}" properties updated: {", ".join(updated_fields)}'
@@ -2198,7 +2198,7 @@ def set_server_properties(instance_name: str, action: str, **kwargs) -> Dict[str
             
         elif action.lower() == 'unset':
             # Properties to unset
-            unset_metadata = kwargs.get('metadata', kwargs.get('properties', []))
+            unset_metadata = kwargs.get('metadata') or kwargs.get('properties', [])
             if isinstance(unset_metadata, str):
                 unset_metadata = [unset_metadata]
             
@@ -2212,11 +2212,9 @@ def set_server_properties(instance_name: str, action: str, **kwargs) -> Dict[str
             current_metadata = getattr(server, 'metadata', {})
             
             # Remove specified keys
-            updated_metadata = current_metadata.copy()
             removed_keys = []
             for key in unset_metadata:
-                if key in updated_metadata:
-                    del updated_metadata[key]
+                if key in current_metadata:
                     removed_keys.append(key)
             
             if not removed_keys:
@@ -2226,7 +2224,7 @@ def set_server_properties(instance_name: str, action: str, **kwargs) -> Dict[str
                 }
             
             # Update server with new metadata
-            conn.compute.update_server(server, metadata=updated_metadata)
+            conn.compute.delete_server_metadata(server, keys=removed_keys)
             
             return {
                 'success': True,
@@ -2277,19 +2275,10 @@ def create_server_backup(instance_name: str, backup_name: str, **kwargs) -> Dict
                 'message': f'Server "{instance_name}" not found'
             }
         
-        # Create backup (same as snapshot but with backup metadata)
-        metadata = kwargs.get('metadata', {})
-        metadata.update({
-            'backup_type': 'daily',  # or weekly, etc.
-            'source_server': getattr(server, 'name', 'unknown'),
-            'source_server_id': server.id,
-            'backup_created': str(conn.current_time) if hasattr(conn, 'current_time') else 'unknown'
-        })
-        
         backup_type = kwargs.get('backup_type', 'daily')
         rotation = kwargs.get('rotation', 1)
         
-        backup_id = conn.compute.create_server_backup(
+        conn.compute.backup_server(
             server,
             name=backup_name,
             backup_type=backup_type,
@@ -2299,7 +2288,8 @@ def create_server_backup(instance_name: str, backup_name: str, **kwargs) -> Dict
         return {
             'success': True,
             'message': f'Backup "{backup_name}" creation started for server "{instance_name}"',
-            'backup_id': backup_id,
+            # Nova's backup action returns no image ID; inspect Glance by name.
+            'backup_id': None,
             'backup_type': backup_type,
             'rotation': rotation
         }

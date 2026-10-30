@@ -1,0 +1,2745 @@
+{
+  "date": "2026-10-30",
+  "source_commit": "dd98993564f9ca6f7978822e51caf6ee37185ce2",
+  "branch": "main",
+  "registered_tools": 105,
+  "invoked_unique_tools": 105,
+  "assessment_counts": {
+    "OBSERVED PASS": 68,
+    "UNAVAILABLE": 23,
+    "DEFECT": 10,
+    "TIMING LIMIT": 1,
+    "LIMITED": 3
+  },
+  "tools": [
+    {
+      "tool": "get_availability_zones",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read"
+    },
+    {
+      "tool": "get_domains",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read; MCP protocol call"
+    },
+    {
+      "tool": "get_floating_ip_pools",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read"
+    },
+    {
+      "tool": "get_floating_ips",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read; MCP protocol call"
+    },
+    {
+      "tool": "get_heat_stack_details",
+      "assessment": "OBSERVED PASS",
+      "evidence": "resources; events; template; outputs"
+    },
+    {
+      "tool": "get_heat_stacks",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read"
+    },
+    {
+      "tool": "get_hypervisor_details",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read"
+    },
+    {
+      "tool": "get_identity_groups",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read"
+    },
+    {
+      "tool": "get_image_detail_list",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read"
+    },
+    {
+      "tool": "get_image_members",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read; added member read"
+    },
+    {
+      "tool": "get_instance",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read; disposable VM read"
+    },
+    {
+      "tool": "get_instance_by_name",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read; disposable VM read"
+    },
+    {
+      "tool": "get_instance_details",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read; disposable VM read"
+    },
+    {
+      "tool": "get_instances_by_status",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read"
+    },
+    {
+      "tool": "get_keypair_list",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read"
+    },
+    {
+      "tool": "get_load_balancer_amphorae",
+      "assessment": "UNAVAILABLE",
+      "evidence": "Octavia endpoint absent; successful functionality could not be tested."
+    },
+    {
+      "tool": "get_load_balancer_availability_zones",
+      "assessment": "UNAVAILABLE",
+      "evidence": "Octavia endpoint absent; successful functionality could not be tested."
+    },
+    {
+      "tool": "get_load_balancer_details",
+      "assessment": "UNAVAILABLE",
+      "evidence": "Octavia endpoint absent; successful functionality could not be tested."
+    },
+    {
+      "tool": "get_load_balancer_flavors",
+      "assessment": "UNAVAILABLE",
+      "evidence": "Octavia endpoint absent; successful functionality could not be tested."
+    },
+    {
+      "tool": "get_load_balancer_health_monitors",
+      "assessment": "DEFECT",
+      "evidence": "Wrong relative import: tools.functions does not exist."
+    },
+    {
+      "tool": "get_load_balancer_l7_policies",
+      "assessment": "UNAVAILABLE",
+      "evidence": "Octavia endpoint absent; successful functionality could not be tested."
+    },
+    {
+      "tool": "get_load_balancer_l7_rules",
+      "assessment": "UNAVAILABLE",
+      "evidence": "Octavia endpoint absent; successful functionality could not be tested."
+    },
+    {
+      "tool": "get_load_balancer_list",
+      "assessment": "UNAVAILABLE",
+      "evidence": "Octavia endpoint absent; successful functionality could not be tested."
+    },
+    {
+      "tool": "get_load_balancer_listeners",
+      "assessment": "UNAVAILABLE",
+      "evidence": "Octavia endpoint absent; successful functionality could not be tested."
+    },
+    {
+      "tool": "get_load_balancer_pool_members",
+      "assessment": "DEFECT",
+      "evidence": "Wrong relative import: tools.functions does not exist."
+    },
+    {
+      "tool": "get_load_balancer_pools",
+      "assessment": "UNAVAILABLE",
+      "evidence": "Octavia endpoint absent; successful functionality could not be tested."
+    },
+    {
+      "tool": "get_load_balancer_providers",
+      "assessment": "UNAVAILABLE",
+      "evidence": "Octavia endpoint absent; successful functionality could not be tested."
+    },
+    {
+      "tool": "get_load_balancer_quotas",
+      "assessment": "UNAVAILABLE",
+      "evidence": "Octavia endpoint absent; successful functionality could not be tested."
+    },
+    {
+      "tool": "get_network_details",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read; MCP protocol call"
+    },
+    {
+      "tool": "get_network_qos_policies",
+      "assessment": "UNAVAILABLE",
+      "evidence": "Neutron QoS endpoint returned HTTP 404."
+    },
+    {
+      "tool": "get_project_details",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read"
+    },
+    {
+      "tool": "get_quota",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read"
+    },
+    {
+      "tool": "get_resource_monitoring",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read"
+    },
+    {
+      "tool": "get_role_assignments",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read"
+    },
+    {
+      "tool": "get_routers",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read"
+    },
+    {
+      "tool": "get_security_groups",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read"
+    },
+    {
+      "tool": "get_server_events",
+      "assessment": "OBSERVED PASS",
+      "evidence": "corrected schema read; disposable VM read"
+    },
+    {
+      "tool": "get_server_groups",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read"
+    },
+    {
+      "tool": "get_server_volumes",
+      "assessment": "OBSERVED PASS",
+      "evidence": "corrected schema read; disposable VM read; attached volume read"
+    },
+    {
+      "tool": "get_service_status",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read"
+    },
+    {
+      "tool": "get_usage_statistics",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read"
+    },
+    {
+      "tool": "get_user_list",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read"
+    },
+    {
+      "tool": "get_volume_backups",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read"
+    },
+    {
+      "tool": "get_volume_groups",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read"
+    },
+    {
+      "tool": "get_volume_list",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read"
+    },
+    {
+      "tool": "get_volume_qos",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read"
+    },
+    {
+      "tool": "get_volume_snapshots",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read"
+    },
+    {
+      "tool": "get_volume_transfers",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read"
+    },
+    {
+      "tool": "get_volume_types",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read"
+    },
+    {
+      "tool": "search_instances",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read"
+    },
+    {
+      "tool": "set_alarms",
+      "assessment": "UNAVAILABLE",
+      "evidence": "No alarming/metric catalog services."
+    },
+    {
+      "tool": "set_compute_agents",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read-only action; read"
+    },
+    {
+      "tool": "set_domains",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read-only action; read; create; show; update disable"
+    },
+    {
+      "tool": "set_flavor",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read-only action; create; cleanup via tool"
+    },
+    {
+      "tool": "set_floating_ip",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read-only action; read; #82 create; #82 API allocation read-back; show; update; #82 delete; #82 deletion read-back; #82 allocate; delete final allocation; final allocation absence"
+    },
+    {
+      "tool": "set_floating_ip_port_forwarding",
+      "assessment": "DEFECT",
+      "evidence": "Creation fails with missing floatingip_id; list uses wrong floating_ip argument and masks the error as empty results."
+    },
+    {
+      "tool": "set_heat_stack",
+      "assessment": "DEFECT",
+      "evidence": "Scalar-name JSON template fails with unbound json. JSON-array names bypass that error but tags=[] causes HTTP 400; SDK string-tags control succeeded."
+    },
+    {
+      "tool": "set_identity_groups",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read-only action; read; create; show; update"
+    },
+    {
+      "tool": "set_image",
+      "assessment": "DEFECT",
+      "evidence": "Local json import shadows module import; list and scalar-name create fail. JSON-array-name creation succeeded."
+    },
+    {
+      "tool": "set_image_members",
+      "assessment": "OBSERVED PASS",
+      "evidence": "add; API sharing read-back; remove"
+    },
+    {
+      "tool": "set_image_metadata",
+      "assessment": "OBSERVED PASS",
+      "evidence": "set"
+    },
+    {
+      "tool": "set_image_visibility",
+      "assessment": "OBSERVED PASS",
+      "evidence": "set"
+    },
+    {
+      "tool": "set_instance",
+      "assessment": "TIMING LIMIT",
+      "evidence": "Create, stop/start, pause/unpause and delete succeeded. Soft reboot exceeded 90s, later ACTIVE with no task."
+    },
+    {
+      "tool": "set_keypair",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read-only action; create"
+    },
+    {
+      "tool": "set_load_balancer",
+      "assessment": "UNAVAILABLE",
+      "evidence": "Octavia endpoint absent; successful functionality could not be tested."
+    },
+    {
+      "tool": "set_load_balancer_amphora",
+      "assessment": "UNAVAILABLE",
+      "evidence": "Octavia endpoint absent; successful functionality could not be tested."
+    },
+    {
+      "tool": "set_load_balancer_availability_zone",
+      "assessment": "UNAVAILABLE",
+      "evidence": "Octavia endpoint absent; successful functionality could not be tested."
+    },
+    {
+      "tool": "set_load_balancer_flavor",
+      "assessment": "UNAVAILABLE",
+      "evidence": "Octavia endpoint absent; successful functionality could not be tested."
+    },
+    {
+      "tool": "set_load_balancer_health_monitor",
+      "assessment": "UNAVAILABLE",
+      "evidence": "Octavia endpoint absent; successful functionality could not be tested."
+    },
+    {
+      "tool": "set_load_balancer_l7_policy",
+      "assessment": "UNAVAILABLE",
+      "evidence": "Octavia endpoint absent; successful functionality could not be tested."
+    },
+    {
+      "tool": "set_load_balancer_l7_rule",
+      "assessment": "UNAVAILABLE",
+      "evidence": "Octavia endpoint absent; successful functionality could not be tested."
+    },
+    {
+      "tool": "set_load_balancer_listener",
+      "assessment": "UNAVAILABLE",
+      "evidence": "Octavia endpoint absent; successful functionality could not be tested."
+    },
+    {
+      "tool": "set_load_balancer_pool",
+      "assessment": "DEFECT",
+      "evidence": "Wrong relative import: tools.functions does not exist."
+    },
+    {
+      "tool": "set_load_balancer_pool_member",
+      "assessment": "DEFECT",
+      "evidence": "Wrong relative import: tools.functions does not exist."
+    },
+    {
+      "tool": "set_load_balancer_quota",
+      "assessment": "UNAVAILABLE",
+      "evidence": "Octavia endpoint absent; successful functionality could not be tested."
+    },
+    {
+      "tool": "set_metrics",
+      "assessment": "LIMITED",
+      "evidence": "Metadata list succeeded; telemetry samples / actual log retrieval not validated."
+    },
+    {
+      "tool": "set_network_agents",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read-only action; read"
+    },
+    {
+      "tool": "set_network_ports",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read-only action; read; create; API read-back"
+    },
+    {
+      "tool": "set_network_qos_policies",
+      "assessment": "UNAVAILABLE",
+      "evidence": "Neutron QoS endpoint returned HTTP 404."
+    },
+    {
+      "tool": "set_networks",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read-only action; create with cloud-selected MTU; API read-back after MTU retry; update"
+    },
+    {
+      "tool": "set_project",
+      "assessment": "OBSERVED PASS",
+      "evidence": "create disposable identity project"
+    },
+    {
+      "tool": "set_quota",
+      "assessment": "DEFECT",
+      "evidence": "Wrapper omits required service argument; documented list fails before an API request."
+    },
+    {
+      "tool": "set_roles",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read-only action; read; create"
+    },
+    {
+      "tool": "set_routers",
+      "assessment": "OBSERVED PASS",
+      "evidence": "create"
+    },
+    {
+      "tool": "set_security_groups",
+      "assessment": "OBSERVED PASS",
+      "evidence": "create; cleanup via tool"
+    },
+    {
+      "tool": "set_server_backup",
+      "assessment": "DEFECT",
+      "evidence": "Calls create_server_backup, absent from the installed Compute Proxy."
+    },
+    {
+      "tool": "set_server_dump",
+      "assessment": "LIMITED",
+      "evidence": "Explicitly unsupported by the implementation; no dump created."
+    },
+    {
+      "tool": "set_server_fixed_ip",
+      "assessment": "OBSERVED PASS",
+      "evidence": "add; remove"
+    },
+    {
+      "tool": "set_server_floating_ip",
+      "assessment": "OBSERVED PASS",
+      "evidence": "associate; association API read-back; disassociate; disassociation API read-back"
+    },
+    {
+      "tool": "set_server_group",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read-only action; correct policy input"
+    },
+    {
+      "tool": "set_server_migration",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read-only list"
+    },
+    {
+      "tool": "set_server_network",
+      "assessment": "OBSERVED PASS",
+      "evidence": "add port; attached port read-back; remove port"
+    },
+    {
+      "tool": "set_server_properties",
+      "assessment": "DEFECT",
+      "evidence": "Metadata-only call sends empty name; explicit-name retry sends metadata to the server-update API, which rejects that field."
+    },
+    {
+      "tool": "set_server_security_group",
+      "assessment": "OBSERVED PASS",
+      "evidence": "add; remove"
+    },
+    {
+      "tool": "set_server_volume",
+      "assessment": "OBSERVED PASS",
+      "evidence": "attach; asynchronous state; detach"
+    },
+    {
+      "tool": "set_service_logs",
+      "assessment": "LIMITED",
+      "evidence": "Metadata list succeeded; telemetry samples / actual log retrieval not validated."
+    },
+    {
+      "tool": "set_services",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read-only action; read"
+    },
+    {
+      "tool": "set_snapshot",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read-only action; create; asynchronous state; cleanup via tool"
+    },
+    {
+      "tool": "set_subnets",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read-only action; read; create; API read-back; default gateway observation"
+    },
+    {
+      "tool": "set_users",
+      "assessment": "OBSERVED PASS",
+      "evidence": "create disposable identity user"
+    },
+    {
+      "tool": "set_volume",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read-only action; create; asynchronous state"
+    },
+    {
+      "tool": "set_volume_backups",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read-only action; read; create valid volume_id; asynchronous state; show; restore with tracked name; cleanup via tool"
+    },
+    {
+      "tool": "set_volume_groups",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read-only action; read; create; asynchronous state; show; cleanup via tool"
+    },
+    {
+      "tool": "set_volume_qos",
+      "assessment": "OBSERVED PASS",
+      "evidence": "read-only action; read; create; show; set; updated API read-back"
+    },
+    {
+      "tool": "set_volume_types",
+      "assessment": "OBSERVED PASS",
+      "evidence": "create"
+    }
+  ],
+  "checks": [
+    {
+      "tool": "get_availability_zones",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_domains",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_floating_ip_pools",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_floating_ips",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_heat_stacks",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_hypervisor_details",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_identity_groups",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_image_detail_list",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_instance",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_instance_details",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_instances_by_status",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_keypair_list",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_load_balancer_amphorae",
+      "scenario": "read",
+      "status": "UNAVAILABLE",
+      "detail": ""
+    },
+    {
+      "tool": "get_load_balancer_availability_zones",
+      "scenario": "read",
+      "status": "UNAVAILABLE",
+      "detail": ""
+    },
+    {
+      "tool": "get_load_balancer_flavors",
+      "scenario": "read",
+      "status": "UNAVAILABLE",
+      "detail": ""
+    },
+    {
+      "tool": "get_load_balancer_health_monitors",
+      "scenario": "read",
+      "status": "FAIL",
+      "detail": "{\"timestamp\": \"2026-10-30t15:22:59.950360\", \"error\": \"error: failed to get health monitors - no module named 'mcp_openstack_ops.tools.functions'\", \"success\": false}"
+    },
+    {
+      "tool": "get_load_balancer_l7_policies",
+      "scenario": "read",
+      "status": "UNAVAILABLE",
+      "detail": ""
+    },
+    {
+      "tool": "get_load_balancer_list",
+      "scenario": "read",
+      "status": "UNAVAILABLE",
+      "detail": ""
+    },
+    {
+      "tool": "get_load_balancer_pools",
+      "scenario": "read",
+      "status": "UNAVAILABLE",
+      "detail": ""
+    },
+    {
+      "tool": "get_load_balancer_providers",
+      "scenario": "read",
+      "status": "UNAVAILABLE",
+      "detail": ""
+    },
+    {
+      "tool": "get_load_balancer_quotas",
+      "scenario": "read",
+      "status": "UNAVAILABLE",
+      "detail": ""
+    },
+    {
+      "tool": "get_network_details",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_network_qos_policies",
+      "scenario": "read",
+      "status": "UNAVAILABLE",
+      "detail": "{\"success\": false, \"message\": \"network qos operation failed\", \"error\": \"notfoundexception: 404: client error for url: [endpoint] the resource could not be found.\"}"
+    },
+    {
+      "tool": "get_project_details",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_quota",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_resource_monitoring",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_role_assignments",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_routers",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_security_groups",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_server_groups",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_service_status",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_usage_statistics",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_user_list",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_volume_backups",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_volume_groups",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_volume_list",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_volume_qos",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_volume_snapshots",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_volume_transfers",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_volume_types",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "search_instances",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_compute_agents",
+      "scenario": "read-only action",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_network_agents",
+      "scenario": "read-only action",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_domains",
+      "scenario": "read-only action",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_identity_groups",
+      "scenario": "read-only action",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_roles",
+      "scenario": "read-only action",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_services",
+      "scenario": "read-only action",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_metrics",
+      "scenario": "read-only action",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_service_logs",
+      "scenario": "read-only action",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_alarms",
+      "scenario": "read-only action",
+      "status": "UNAVAILABLE",
+      "detail": "{\"success\": false, \"message\": \"aodh alarm operation failed\", \"error\": \"internal endpoint for alarming service in regionone region not found\"}"
+    },
+    {
+      "tool": "set_network_qos_policies",
+      "scenario": "read-only action",
+      "status": "UNAVAILABLE",
+      "detail": "{\"success\": false, \"message\": \"network qos operation failed\", \"error\": \"notfoundexception: 404: client error for url: [endpoint] the resource could not be found.\"}"
+    },
+    {
+      "tool": "set_volume_qos",
+      "scenario": "read-only action",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_volume_groups",
+      "scenario": "read-only action",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_volume_backups",
+      "scenario": "read-only action",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_subnets",
+      "scenario": "read-only action",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_network_ports",
+      "scenario": "read-only action",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_floating_ip",
+      "scenario": "read-only action",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_networks",
+      "scenario": "read-only action",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_volume",
+      "scenario": "read-only action",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_image",
+      "scenario": "read-only action",
+      "status": "FAIL",
+      "detail": "\"error: failed to manage image(s) '' - cannot access local variable 'json' where it is not associated with a value\""
+    },
+    {
+      "tool": "set_flavor",
+      "scenario": "read-only action",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_keypair",
+      "scenario": "read-only action",
+      "status": "INPUT_REJECTED",
+      "detail": "\"error: either specify keypair_names directly or provide filtering parameters (name_contains)\""
+    },
+    {
+      "tool": "set_snapshot",
+      "scenario": "read-only action",
+      "status": "INPUT_REJECTED",
+      "detail": "\"error: either specify snapshot_names directly or provide filtering parameters (name_contains, status)\""
+    },
+    {
+      "tool": "set_load_balancer",
+      "scenario": "read-only action",
+      "status": "UNAVAILABLE",
+      "detail": ""
+    },
+    {
+      "tool": "set_load_balancer_pool",
+      "scenario": "read-only action",
+      "status": "FAIL",
+      "detail": "{\"timestamp\": \"2026-10-30t15:25:01.841336\", \"error\": \"error: failed to manage load balancer pool - no module named 'mcp_openstack_ops.tools.functions'\", \"success\": false}"
+    },
+    {
+      "tool": "set_load_balancer_listener",
+      "scenario": "read-only action",
+      "status": "UNAVAILABLE",
+      "detail": ""
+    },
+    {
+      "tool": "set_load_balancer_health_monitor",
+      "scenario": "read-only action",
+      "status": "UNAVAILABLE",
+      "detail": ""
+    },
+    {
+      "tool": "set_load_balancer_flavor",
+      "scenario": "read-only action",
+      "status": "UNAVAILABLE",
+      "detail": ""
+    },
+    {
+      "tool": "set_load_balancer_availability_zone",
+      "scenario": "read-only action",
+      "status": "UNAVAILABLE",
+      "detail": ""
+    },
+    {
+      "tool": "set_load_balancer_quota",
+      "scenario": "read-only action",
+      "status": "UNAVAILABLE",
+      "detail": ""
+    },
+    {
+      "tool": "set_load_balancer_amphora",
+      "scenario": "read-only action",
+      "status": "UNAVAILABLE",
+      "detail": ""
+    },
+    {
+      "tool": "get_instance_by_name",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_server_events",
+      "scenario": "read",
+      "status": "HARNESS_ERROR",
+      "detail": "TypeError: get_server_events() got an unexpected keyword argument 'instance_names'"
+    },
+    {
+      "tool": "get_server_volumes",
+      "scenario": "read",
+      "status": "HARNESS_ERROR",
+      "detail": "TypeError: get_server_volumes() got an unexpected keyword argument 'instance_names'"
+    },
+    {
+      "tool": "get_image_members",
+      "scenario": "read",
+      "status": "FAIL",
+      "detail": "{\"success\": false, \"message\": \"failed to list image members: forbiddenexception: 403: client error for url: [endpoint] not allowed to list members for image [resource-id]: only shared images have members.<br /><br />\\n\\n\\n\", \"members\": []}"
+    },
+    {
+      "tool": "multi-user prerequisites",
+      "scenario": "HTTPS probe port 443",
+      "status": "UNAVAILABLE",
+      "detail": "ConnectionError"
+    },
+    {
+      "tool": "multi-user prerequisites",
+      "scenario": "HTTPS probe port 5000",
+      "status": "UNAVAILABLE",
+      "detail": "SSLError"
+    },
+    {
+      "tool": "get_server_events",
+      "scenario": "corrected schema read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_server_volumes",
+      "scenario": "corrected schema read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_quota",
+      "scenario": "read-only action",
+      "status": "FAIL",
+      "detail": "\"error: failed to manage quota - set_quota() missing 1 required positional argument: 'service'\""
+    },
+    {
+      "tool": "set_server_group",
+      "scenario": "read-only action",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_keypair",
+      "scenario": "read-only action",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_snapshot",
+      "scenario": "read-only action",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "MCP protocol",
+      "scenario": "list_tools",
+      "status": "PASS",
+      "detail": "105 registered tools"
+    },
+    {
+      "tool": "get_domains",
+      "scenario": "MCP protocol call",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_floating_ips",
+      "scenario": "MCP protocol call",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_network_details",
+      "scenario": "MCP protocol call",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_quota",
+      "scenario": "documented list action",
+      "status": "FAIL",
+      "detail": "\"error: failed to manage quota - set_quota() missing 1 required positional argument: 'service'\""
+    },
+    {
+      "tool": "set_compute_agents",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_network_agents",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_domains",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_identity_groups",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_roles",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_services",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_metrics",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_service_logs",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_alarms",
+      "scenario": "read",
+      "status": "UNAVAILABLE",
+      "detail": "{\"success\": false, \"message\": \"aodh alarm operation failed\", \"error\": \"internal endpoint for alarming service in regionone region not found\"}"
+    },
+    {
+      "tool": "set_network_qos_policies",
+      "scenario": "read",
+      "status": "UNAVAILABLE",
+      "detail": "{\"success\": false, \"message\": \"network qos operation failed\", \"error\": \"notfoundexception: 404: client error for url: [endpoint] the resource could not be found.\"}"
+    },
+    {
+      "tool": "set_volume_qos",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_volume_groups",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_volume_backups",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_subnets",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_network_ports",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_floating_ip",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_networks",
+      "scenario": "create",
+      "status": "CONFIGURATION_LIMIT",
+      "detail": "Default MTU 1500 was rejected by this 1450-MTU cloud; mtu=0 retry succeeded."
+    },
+    {
+      "tool": "set_networks",
+      "scenario": "API read-back",
+      "status": "CONFIGURATION_LIMIT",
+      "detail": "Default MTU 1500 was rejected by this 1450-MTU cloud; mtu=0 retry succeeded."
+    },
+    {
+      "tool": "set_routers",
+      "scenario": "create",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_security_groups",
+      "scenario": "create",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_floating_ip",
+      "scenario": "#82 create",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_floating_ip",
+      "scenario": "#82 API allocation read-back",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_floating_ip",
+      "scenario": "show",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_floating_ip",
+      "scenario": "update",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_floating_ip",
+      "scenario": "#82 delete",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_floating_ip",
+      "scenario": "#82 deletion read-back",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_floating_ip",
+      "scenario": "#82 allocate",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_floating_ip",
+      "scenario": "#82 API allocation read-back",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_floating_ip",
+      "scenario": "show",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_floating_ip",
+      "scenario": "update",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_floating_ip",
+      "scenario": "#82 delete",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_floating_ip",
+      "scenario": "#82 deletion read-back",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_flavor",
+      "scenario": "create",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_keypair",
+      "scenario": "create",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_server_group",
+      "scenario": "create",
+      "status": "HARNESS_ERROR",
+      "detail": "Initial harness argument did not follow the tool schema/docs; corrected-input checks supersede it."
+    },
+    {
+      "tool": "set_image",
+      "scenario": "create",
+      "status": "FAIL",
+      "detail": "\"error: failed to manage image(s) 'mcp-check-ab23568b-image' - cannot access local variable 'json' where it is not associated with a value\""
+    },
+    {
+      "tool": "set_heat_stack",
+      "scenario": "create",
+      "status": "FAIL",
+      "detail": "\"error: failed to manage stack(s) 'mcp-check-ab23568b-stack' - cannot access local variable 'json' where it is not associated with a value\""
+    },
+    {
+      "tool": "set_volume",
+      "scenario": "create",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_volume",
+      "scenario": "asynchronous state",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_snapshot",
+      "scenario": "create",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_snapshot",
+      "scenario": "asynchronous state",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_volume_types",
+      "scenario": "create",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_volume_qos",
+      "scenario": "create",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_networks",
+      "scenario": "create with cloud-selected MTU",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_networks",
+      "scenario": "API read-back after MTU retry",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_networks",
+      "scenario": "update",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_subnets",
+      "scenario": "create",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_network_ports",
+      "scenario": "create",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_subnets",
+      "scenario": "API read-back",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_network_ports",
+      "scenario": "API read-back",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_server_group",
+      "scenario": "correct policy input",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_volume_qos",
+      "scenario": "show",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_volume_qos",
+      "scenario": "set",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_volume_qos",
+      "scenario": "updated API read-back",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "fixture",
+      "scenario": "SDK image creation",
+      "status": "PASS",
+      "detail": "Fixture only; set_image creator remains failed"
+    },
+    {
+      "tool": "set_image_metadata",
+      "scenario": "set",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_image_visibility",
+      "scenario": "set",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_image_members",
+      "scenario": "read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "fixture",
+      "scenario": "SDK empty Heat stack",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_heat_stack_details",
+      "scenario": "resources",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_heat_stack_details",
+      "scenario": "events",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_heat_stack_details",
+      "scenario": "template",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_heat_stack_details",
+      "scenario": "outputs",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_volume_backups",
+      "scenario": "create",
+      "status": "HARNESS_ERROR",
+      "detail": "Initial harness argument did not follow the tool schema/docs; corrected-input checks supersede it."
+    },
+    {
+      "tool": "set_project",
+      "scenario": "create disposable identity project",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_users",
+      "scenario": "create disposable identity user",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_project",
+      "scenario": "create disposable identity project",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_users",
+      "scenario": "create disposable identity user",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_project",
+      "scenario": "create disposable identity project",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_users",
+      "scenario": "create disposable identity user",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73",
+      "scenario": "Application Credential principal alice",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73 volume fixture",
+      "scenario": "asynchronous state",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73",
+      "scenario": "Application Credential principal bob",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73 volume fixture",
+      "scenario": "asynchronous state",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73",
+      "scenario": "Application Credential principal reader",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73",
+      "scenario": "get_network_details own-resource visibility alice",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73",
+      "scenario": "get_network_details concurrent foreign-resource isolation alice",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73",
+      "scenario": "get_network_details own-resource visibility bob",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73",
+      "scenario": "get_network_details concurrent foreign-resource isolation bob",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73",
+      "scenario": "get_volume_list own-resource visibility alice",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73",
+      "scenario": "get_volume_list concurrent foreign-resource isolation alice",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73",
+      "scenario": "get_volume_list own-resource visibility bob",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73",
+      "scenario": "get_volume_list concurrent foreign-resource isolation bob",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73",
+      "scenario": "foreign network ID lookup alice",
+      "status": "HARNESS_ERROR",
+      "detail": "Assertion inspected echoed request ID; replaced by payload-only verification below."
+    },
+    {
+      "tool": "#73",
+      "scenario": "foreign network ID lookup bob",
+      "status": "HARNESS_ERROR",
+      "detail": "Assertion inspected echoed request ID; replaced by payload-only verification below."
+    },
+    {
+      "tool": "#73",
+      "scenario": "missing credential rejected",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73",
+      "scenario": "invalid credential rejected without environment fallback",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73",
+      "scenario": "runtime writes disabled for registered legacy tool",
+      "status": "LIMITATION",
+      "detail": "Legacy tool remains callable after runtime flag toggle; default-startup registration is checked separately. Disposable resource is registered for cleanup."
+    },
+    {
+      "tool": "#73",
+      "scenario": "runtime guarded write tool blocked",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73 + #82",
+      "scenario": "create under alice",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73 + #82",
+      "scenario": "delete under alice",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73 + #82",
+      "scenario": "allocate under bob",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73 + #82",
+      "scenario": "delete under bob",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73",
+      "scenario": "reader role enforced by Neutron",
+      "status": "PASS",
+      "detail": "ForbiddenException"
+    },
+    {
+      "tool": "#73",
+      "scenario": "foreign network payload excluded alice",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73",
+      "scenario": "Neutron foreign ID policy alice",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73",
+      "scenario": "foreign network payload excluded bob",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73",
+      "scenario": "Neutron foreign ID policy bob",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73",
+      "scenario": "credential revocation next request",
+      "status": "HARNESS_ERROR",
+      "detail": "Deletion probe used reversed SDK arguments; no credential was deleted. Replaced below by confirmed deletion."
+    },
+    {
+      "tool": "#73",
+      "scenario": "other user survives credential revocation",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73",
+      "scenario": "successful HTTP requests close connections",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73",
+      "scenario": "audit user/project attribution alice",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73",
+      "scenario": "audit user/project attribution bob",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73",
+      "scenario": "audit excludes all observed credentials/tokens",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73",
+      "scenario": "revocation follow-up HTTP status",
+      "status": "HARNESS_ERROR",
+      "detail": "Deletion probe used reversed SDK arguments; no credential was deleted. Replaced below by confirmed deletion."
+    },
+    {
+      "tool": "#73",
+      "scenario": "credential absent after owner-scoped deletion",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#73",
+      "scenario": "confirmed revocation next HTTP request",
+      "status": "PASS",
+      "detail": "HTTP 401, 0.25s from deletion start"
+    },
+    {
+      "tool": "#73",
+      "scenario": "other principal remains authenticated",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_volume_backups",
+      "scenario": "create valid volume_id",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_volume_backups",
+      "scenario": "asynchronous state",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_volume_backups",
+      "scenario": "show",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_volume_backups",
+      "scenario": "restore with tracked name",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_volume_backups",
+      "scenario": "asynchronous state",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_volume_groups",
+      "scenario": "create",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_volume_groups",
+      "scenario": "asynchronous state",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_volume_groups",
+      "scenario": "show",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_instance",
+      "scenario": "create",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_instance",
+      "scenario": "asynchronous state",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_instance_by_name",
+      "scenario": "disposable VM read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_instance_details",
+      "scenario": "disposable VM read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_instance",
+      "scenario": "disposable VM read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_server_events",
+      "scenario": "disposable VM read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_server_volumes",
+      "scenario": "disposable VM read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_server_properties",
+      "scenario": "metadata set",
+      "status": "FAIL",
+      "detail": "\"\\u274c **server properties management failed**\\n\\n**error**: failed to manage server properties: badrequestexception: 400: client error for url: [endpoint] invalid input for field/attribute name. value: . '' should be non-empty\\n\\n**action**: set\\n**instance**: mcp-check-ab23568b-vm\\n**name**: not specified\\n**description**: not specified\""
+    },
+    {
+      "tool": "set_server_security_group",
+      "scenario": "add",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_server_security_group",
+      "scenario": "remove",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_server_volume",
+      "scenario": "attach",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_server_volume",
+      "scenario": "asynchronous state",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_server_volumes",
+      "scenario": "attached volume read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_server_volume",
+      "scenario": "detach",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_server_volume",
+      "scenario": "asynchronous state",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_instance",
+      "scenario": "stop",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_instance stop",
+      "scenario": "asynchronous state",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_instance",
+      "scenario": "start",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_instance start",
+      "scenario": "asynchronous state",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_instance",
+      "scenario": "pause",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_instance pause",
+      "scenario": "asynchronous state",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_instance",
+      "scenario": "unpause",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_instance unpause",
+      "scenario": "asynchronous state",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_instance",
+      "scenario": "restart",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_instance restart",
+      "scenario": "asynchronous state",
+      "status": "FAIL",
+      "detail": "Timed out waiting for ACTIVE"
+    },
+    {
+      "tool": "get_load_balancer_details",
+      "scenario": "read-only unavailable-service probe",
+      "status": "UNAVAILABLE",
+      "detail": "{\"timestamp\": \"2026-10-30t15:39:51.360646\", \"result\": {\"success\": false, \"message\": \"failed to get load balancer details: internal endpoint for load-balancer service in regionone region not found\", \"error\": \"internal endpoint for load-balancer service in regionone region not found\"}}"
+    },
+    {
+      "tool": "get_load_balancer_listeners",
+      "scenario": "read-only unavailable-service probe",
+      "status": "UNAVAILABLE",
+      "detail": "{\"timestamp\": \"2026-10-30t15:39:51.364600\", \"result\": {\"success\": false, \"message\": \"failed to get load balancer listeners: internal endpoint for load-balancer service in regionone region not found\", \"error\": \"internal endpoint for load-balancer service in regionone region not found\"}}"
+    },
+    {
+      "tool": "get_load_balancer_l7_rules",
+      "scenario": "read-only unavailable-service probe",
+      "status": "UNAVAILABLE",
+      "detail": "{\"timestamp\": \"2026-10-30t15:39:51.367768\", \"result\": {\"success\": false, \"message\": \"failed to get l7 rules: internal endpoint for load-balancer service in regionone region not found\", \"error\": \"internal endpoint for load-balancer service in regionone region not found\"}}"
+    },
+    {
+      "tool": "get_load_balancer_pool_members",
+      "scenario": "read-only unavailable-service probe",
+      "status": "FAIL",
+      "detail": "{\"timestamp\": \"2026-10-30t15:39:51.371188\", \"error\": \"error: failed to get pool members - no module named 'mcp_openstack_ops.tools.functions'\", \"success\": false}"
+    },
+    {
+      "tool": "set_load_balancer_pool_member",
+      "scenario": "read-only unavailable-service probe",
+      "status": "FAIL",
+      "detail": "{\"timestamp\": \"2026-10-30t15:39:51.374656\", \"error\": \"error: failed to manage pool member - no module named 'mcp_openstack_ops.tools.functions'\", \"success\": false}"
+    },
+    {
+      "tool": "set_load_balancer_l7_policy",
+      "scenario": "read-only unavailable-service probe",
+      "status": "UNAVAILABLE",
+      "detail": "{\"timestamp\": \"2026-10-30t15:39:51.377447\", \"action\": \"list\", \"result\": {\"success\": false, \"message\": \"unknown action \\\"list\\\". supported: create, delete, set, unset, show\"}}"
+    },
+    {
+      "tool": "set_load_balancer_l7_rule",
+      "scenario": "read-only unavailable-service probe",
+      "status": "UNAVAILABLE",
+      "detail": "{\"timestamp\": \"2026-10-30t15:39:51.380477\", \"action\": \"list\", \"result\": {\"success\": false, \"message\": \"unknown action \\\"list\\\". supported: create, delete\"}}"
+    },
+    {
+      "tool": "set_instance",
+      "scenario": "post-timeout read-only observation",
+      "status": "INFO",
+      "detail": "status=ACTIVE; task_state=None"
+    },
+    {
+      "tool": "set_server_migration",
+      "scenario": "read-only list",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_server_dump",
+      "scenario": "unsupported capability check",
+      "status": "UNSUPPORTED",
+      "detail": "\"\\u274c **server dump creation failed**\\n\\n**error**: server dump creation is not supported by the current openstack sdk. this feature requires vendor-specific implementation.\\n\\n**instance**: mcp-check-ab23568b-vm\""
+    },
+    {
+      "tool": "#73",
+      "scenario": "fresh process default registration",
+      "status": "PASS",
+      "detail": "MCP protocol listed 50 read tools and zero write tools with ALLOW_MODIFY_OPERATIONS=false"
+    },
+    {
+      "tool": "get_load_balancer_details",
+      "scenario": "read-only unavailable-service probe",
+      "status": "UNAVAILABLE",
+      "detail": "{\"timestamp\": \"2026-10-30t15:41:34.747412\", \"result\": {\"success\": false, \"message\": \"failed to get load balancer details: internal endpoint for load-balancer service in regionone region not found\", \"error\": \"internal endpoint for load-balancer service in regionone region not found\"}}"
+    },
+    {
+      "tool": "get_load_balancer_listeners",
+      "scenario": "read-only unavailable-service probe",
+      "status": "UNAVAILABLE",
+      "detail": "{\"timestamp\": \"2026-10-30t15:41:34.753188\", \"result\": {\"success\": false, \"message\": \"failed to get load balancer listeners: internal endpoint for load-balancer service in regionone region not found\", \"error\": \"internal endpoint for load-balancer service in regionone region not found\"}}"
+    },
+    {
+      "tool": "get_load_balancer_l7_rules",
+      "scenario": "read-only unavailable-service probe",
+      "status": "UNAVAILABLE",
+      "detail": "{\"timestamp\": \"2026-10-30t15:41:34.760087\", \"result\": {\"success\": false, \"message\": \"failed to get l7 rules: internal endpoint for load-balancer service in regionone region not found\", \"error\": \"internal endpoint for load-balancer service in regionone region not found\"}}"
+    },
+    {
+      "tool": "get_load_balancer_pool_members",
+      "scenario": "read-only unavailable-service probe",
+      "status": "FAIL",
+      "detail": "{\"timestamp\": \"2026-10-30t15:41:34.763562\", \"error\": \"error: failed to get pool members - no module named 'mcp_openstack_ops.tools.functions'\", \"success\": false}"
+    },
+    {
+      "tool": "set_load_balancer_pool_member",
+      "scenario": "read-only unavailable-service probe",
+      "status": "FAIL",
+      "detail": "{\"timestamp\": \"2026-10-30t15:41:34.766421\", \"error\": \"error: failed to manage pool member - no module named 'mcp_openstack_ops.tools.functions'\", \"success\": false}"
+    },
+    {
+      "tool": "set_load_balancer_l7_policy",
+      "scenario": "read-only unavailable-service probe",
+      "status": "UNAVAILABLE",
+      "detail": "{\"timestamp\": \"2026-10-30t15:41:34.770005\", \"action\": \"list\", \"result\": {\"success\": false, \"message\": \"unknown action \\\"list\\\". supported: create, delete, set, unset, show\"}}"
+    },
+    {
+      "tool": "set_load_balancer_l7_rule",
+      "scenario": "read-only unavailable-service probe",
+      "status": "UNAVAILABLE",
+      "detail": "{\"timestamp\": \"2026-10-30t15:41:34.774224\", \"action\": \"list\", \"result\": {\"success\": false, \"message\": \"unknown action \\\"list\\\". supported: create, delete\"}}"
+    },
+    {
+      "tool": "set_domains",
+      "scenario": "create",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_domains",
+      "scenario": "show",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_domains",
+      "scenario": "update disable",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_identity_groups",
+      "scenario": "create",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_identity_groups",
+      "scenario": "show",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_identity_groups",
+      "scenario": "update",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_roles",
+      "scenario": "create",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_image",
+      "scenario": "JSON-list create",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_image",
+      "scenario": "JSON-list create API read-back",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_heat_stack",
+      "scenario": "JSON-list create",
+      "status": "FAIL",
+      "detail": "\"\\u274c **heat stack management failed**\\n\\n**error**: failed to manage stack: badrequestexception: 400: client error for url: [endpoint] bad request\\n\\n**action**: create\\n**stack name**: mcp-check-ab23568b-toolstack\\n**template**: provided\\n**parameters**: not provided\""
+    },
+    {
+      "tool": "set_heat_stack",
+      "scenario": "JSON-list create API read-back",
+      "status": "FAIL",
+      "detail": ""
+    },
+    {
+      "tool": "set_image_members",
+      "scenario": "add",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "get_image_members",
+      "scenario": "added member read",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_image_members",
+      "scenario": "API sharing read-back",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_image_members",
+      "scenario": "remove",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_server_migration",
+      "scenario": "read-only list",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_server_properties",
+      "scenario": "explicit-name metadata set",
+      "status": "FAIL",
+      "detail": "\"\\u274c **server properties management failed**\\n\\n**error**: failed to manage server properties: badrequestexception: 400: client error for url: [endpoint] invalid input for field/attribute server. value: {'metadata': {'validation': 'mcp-check-ab23568b'}, 'description': ''}. additional properties are not allowed ('metadata' was unexpected)\\n\\n**action**: set\\n**instance**: mcp-check-ab23568b-vm\\n**name**: mcp-check-ab23568b-vm\\n**description**: not specified\""
+    },
+    {
+      "tool": "set_server_properties",
+      "scenario": "metadata API read-back",
+      "status": "FAIL",
+      "detail": ""
+    },
+    {
+      "tool": "set_server_network",
+      "scenario": "add port",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_server_network",
+      "scenario": "attached port read-back",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_server_network",
+      "scenario": "remove port",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_server_fixed_ip",
+      "scenario": "add",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_server_fixed_ip",
+      "scenario": "remove",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_server_backup",
+      "scenario": "create",
+      "status": "FAIL",
+      "detail": "\"\\u274c **server backup creation failed**\\n\\n**error**: failed to create server backup: 'proxy' object has no attribute 'create_server_backup'\\n\\n**instance**: mcp-check-ab23568b-vm\\n**backup name**: mcp-check-ab23568b-serverbackup\\n**backup type**: daily\\n**rotation**: 1\""
+    },
+    {
+      "tool": "set_heat_stack",
+      "scenario": "SDK tags-array reproduction",
+      "status": "INFO",
+      "detail": "BadRequestException: Bad Request"
+    },
+    {
+      "tool": "set_heat_stack",
+      "scenario": "SDK string-tags control",
+      "status": "PASS",
+      "detail": "Control only; tool create remains failed"
+    },
+    {
+      "tool": "set_subnets",
+      "scenario": "default gateway observation",
+      "status": "PASS",
+      "detail": "Fixture was created without an explicit gateway; a gateway is added for routing tests."
+    },
+    {
+      "tool": "set_subnets",
+      "scenario": "default gateway observation",
+      "status": "PASS",
+      "detail": "Fixture was created without an explicit gateway; a gateway is added for routing tests."
+    },
+    {
+      "tool": "set_server_floating_ip",
+      "scenario": "associate",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_server_floating_ip",
+      "scenario": "association API read-back",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_server_floating_ip",
+      "scenario": "disassociate",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_server_floating_ip",
+      "scenario": "disassociation API read-back",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_floating_ip_port_forwarding",
+      "scenario": "list",
+      "status": "UNVERIFIED",
+      "detail": "An empty success response is not valid evidence: the implementation suppresses an SDK argument error."
+    },
+    {
+      "tool": "set_floating_ip_port_forwarding",
+      "scenario": "create",
+      "status": "FAIL",
+      "detail": "{\"timestamp\": \"2026-10-30t15:45:36.756429\", \"action\": \"create\", \"parameters\": {\"floating_ip_id\": \"[resource-id]\", \"floating_ip_address\": null, \"port_forwarding_id\": null, \"protocol\": \"tcp\", \"description\": null, \"external_port\": 18022, \"internal_port\": 22, \"internal_ip_address\": \"[ip]\", \"internal_port_id\": \"[resource-id]\"}, \"result\": {\"success\": false, \"message\": \"failed to create port forwarding rule: 'floatingip_id'\", \"note\": \"port forwarding may not be supported in this openstack deployment\"}}"
+    },
+    {
+      "tool": "set_floating_ip",
+      "scenario": "delete final allocation",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_floating_ip",
+      "scenario": "final allocation absence",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#82",
+      "scenario": "real stdio subprocess tool registration",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#82",
+      "scenario": "stdio create API read-back",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#82",
+      "scenario": "stdio delete API absence",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#82",
+      "scenario": "stdio allocate API read-back",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "#82",
+      "scenario": "stdio delete API absence",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_floating_ip_port_forwarding",
+      "scenario": "isolated failure diagnostic",
+      "status": "INFO",
+      "detail": "Failed to create port forwarding rule: 'floatingip_id'"
+    },
+    {
+      "tool": "set_server_properties",
+      "scenario": "isolated failure diagnostic",
+      "status": "INFO",
+      "detail": "❌ **Server Properties Management Failed**\n\n**Error**: Failed to manage server properties: BadRequestException: 400: Client Error for url: [endpoint] Invalid input for field/attribute server. Value: {'metadata': {'validation': 'mcp-check-ab23568b'}, 'description': ''}. Additional properties are not allowed ('metadata' was unexpected)\n\n**Action**: set\n**Instance**: mcp-check-ab23568b-vm\n**Name**: mcp-check-ab23568b-vm\n**Description**: Not specified"
+    },
+    {
+      "tool": "coverage",
+      "scenario": "all registered tools invoked",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_instance",
+      "scenario": "cleanup via tool",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_volume_backups",
+      "scenario": "cleanup via tool",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_snapshot",
+      "scenario": "cleanup via tool",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_volume_groups",
+      "scenario": "cleanup via tool",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_heat_stack",
+      "scenario": "cleanup via tool",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_image",
+      "scenario": "cleanup via tool",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_security_groups",
+      "scenario": "cleanup via tool",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "set_flavor",
+      "scenario": "cleanup via tool",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "router interface",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "port",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "port",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "router",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "subnet",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "network",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "network",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "network",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "network",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "group type",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "qos",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "volume",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "user-scoped volume",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "user-scoped volume",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "restored volume",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "volume type",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "image",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "keypair",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "server group",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "identity group",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "application credential",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "application credential",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "user",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "user",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "user",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "project",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "project",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "project",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "role",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "domain",
+      "status": "PASS",
+      "detail": "Confirmed API absence"
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "security group",
+      "status": "HARNESS_ERROR",
+      "detail": "Verifier omitted a resource kind; cleanup and absence are rechecked below."
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "stack",
+      "status": "HARNESS_ERROR",
+      "detail": "Verifier omitted a resource kind; cleanup and absence are rechecked below."
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "stack",
+      "status": "HARNESS_ERROR",
+      "detail": "Verifier omitted a resource kind; cleanup and absence are rechecked below."
+    },
+    {
+      "tool": "cleanup recheck",
+      "scenario": "security group",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "cleanup recheck",
+      "scenario": "stack",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "cleanup recheck",
+      "scenario": "stack",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "temporary-project default security group",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "cleanup",
+      "scenario": "temporary-project default security group",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "tool": "final resource audit",
+      "scenario": "servers",
+      "status": "PASS",
+      "detail": "0 remaining test resources"
+    },
+    {
+      "tool": "final resource audit",
+      "scenario": "networks",
+      "status": "PASS",
+      "detail": "0 remaining test resources"
+    },
+    {
+      "tool": "final resource audit",
+      "scenario": "subnets",
+      "status": "PASS",
+      "detail": "0 remaining test resources"
+    },
+    {
+      "tool": "final resource audit",
+      "scenario": "ports",
+      "status": "PASS",
+      "detail": "0 remaining test resources"
+    },
+    {
+      "tool": "final resource audit",
+      "scenario": "routers",
+      "status": "PASS",
+      "detail": "0 remaining test resources"
+    },
+    {
+      "tool": "final resource audit",
+      "scenario": "security groups",
+      "status": "PASS",
+      "detail": "0 remaining test resources"
+    },
+    {
+      "tool": "final resource audit",
+      "scenario": "images",
+      "status": "PASS",
+      "detail": "0 remaining test resources"
+    },
+    {
+      "tool": "final resource audit",
+      "scenario": "flavors",
+      "status": "PASS",
+      "detail": "0 remaining test resources"
+    },
+    {
+      "tool": "final resource audit",
+      "scenario": "keypairs",
+      "status": "PASS",
+      "detail": "0 remaining test resources"
+    },
+    {
+      "tool": "final resource audit",
+      "scenario": "server groups",
+      "status": "PASS",
+      "detail": "0 remaining test resources"
+    },
+    {
+      "tool": "final resource audit",
+      "scenario": "volumes",
+      "status": "PASS",
+      "detail": "0 remaining test resources"
+    },
+    {
+      "tool": "final resource audit",
+      "scenario": "snapshots",
+      "status": "PASS",
+      "detail": "0 remaining test resources"
+    },
+    {
+      "tool": "final resource audit",
+      "scenario": "backups",
+      "status": "PASS",
+      "detail": "0 remaining test resources"
+    },
+    {
+      "tool": "final resource audit",
+      "scenario": "volume types",
+      "status": "PASS",
+      "detail": "0 remaining test resources"
+    },
+    {
+      "tool": "final resource audit",
+      "scenario": "volume groups",
+      "status": "PASS",
+      "detail": "0 remaining test resources"
+    },
+    {
+      "tool": "final resource audit",
+      "scenario": "group types",
+      "status": "PASS",
+      "detail": "0 remaining test resources"
+    },
+    {
+      "tool": "final resource audit",
+      "scenario": "stacks",
+      "status": "PASS",
+      "detail": "0 remaining test resources"
+    },
+    {
+      "tool": "final resource audit",
+      "scenario": "users",
+      "status": "PASS",
+      "detail": "0 remaining test resources"
+    },
+    {
+      "tool": "final resource audit",
+      "scenario": "projects",
+      "status": "PASS",
+      "detail": "0 remaining test resources"
+    },
+    {
+      "tool": "final resource audit",
+      "scenario": "domains",
+      "status": "PASS",
+      "detail": "0 remaining test resources"
+    },
+    {
+      "tool": "final resource audit",
+      "scenario": "identity groups",
+      "status": "PASS",
+      "detail": "0 remaining test resources"
+    },
+    {
+      "tool": "final resource audit",
+      "scenario": "roles",
+      "status": "PASS",
+      "detail": "0 remaining test resources"
+    },
+    {
+      "tool": "final resource audit",
+      "scenario": "volume QoS",
+      "status": "PASS",
+      "detail": "0 remaining test resources"
+    },
+    {
+      "tool": "final resource audit",
+      "scenario": "floating IPs",
+      "status": "PASS",
+      "detail": "0 tracked allocations remain"
+    }
+  ],
+  "cleanup": {
+    "tracked_entries": 47,
+    "categories": {
+      "servers": 0,
+      "networks": 0,
+      "subnets": 0,
+      "ports": 0,
+      "routers": 0,
+      "security groups": 0,
+      "images": 0,
+      "flavors": 0,
+      "keypairs": 0,
+      "server groups": 0,
+      "volumes": 0,
+      "snapshots": 0,
+      "backups": 0,
+      "volume types": 0,
+      "volume groups": 0,
+      "group types": 0,
+      "stacks": 0,
+      "users": 0,
+      "projects": 0,
+      "domains": 0,
+      "identity groups": 0,
+      "roles": 0,
+      "volume QoS": 0,
+      "floating IPs": 0
+    }
+  },
+  "unit_tests": {
+    "command": "UV_CACHE_DIR=/tmp/mcp-openstack-uv-cache uv run --locked --extra dev --no-sync python -m pytest -q tests",
+    "exit_code": 0,
+    "passed": 132,
+    "warnings": 12,
+    "duration_seconds": 40.92
+  }
+}
