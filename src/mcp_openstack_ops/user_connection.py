@@ -5,6 +5,7 @@ import logging
 import os
 from contextvars import ContextVar
 from dataclasses import dataclass, field
+from time import perf_counter
 from typing import Any
 from urllib.parse import urlsplit
 from uuid import uuid4
@@ -129,19 +130,23 @@ class UserAuditMiddleware(Middleware):
             identity.request_id, identity.user_id, identity.project_id,
             context.message.name,
         )
+        started = perf_counter()
         try:
             result = await call_next(context)
-        except Exception:
+        except BaseException as error:
             logger.warning(
-                "OpenStack tool failed request_id=%s user_id=%s project_id=%s tool=%s",
+                "OpenStack tool failed request_id=%s user_id=%s project_id=%s "
+                "tool=%s duration_ms=%.3f error_type=%s",
                 identity.request_id, identity.user_id, identity.project_id,
-                context.message.name,
+                context.message.name, (perf_counter() - started) * 1000,
+                type(error).__name__,
             )
             raise
         logger.info(
-            "OpenStack tool returned request_id=%s user_id=%s project_id=%s tool=%s",
+            "OpenStack tool returned request_id=%s user_id=%s project_id=%s "
+            "tool=%s duration_ms=%.3f",
             identity.request_id, identity.user_id, identity.project_id,
-            context.message.name,
+            context.message.name, (perf_counter() - started) * 1000,
         )
         return result
 
@@ -182,7 +187,7 @@ def authenticate(credential_id: str, secret: str) -> RequestIdentity:
         }
         for service, variable, default, path in (
             ("compute", "OS_COMPUTE_PORT", "8774", "/v2.1"),
-            ("network", "OS_NETWORK_PORT", "9696", ""),
+            ("network", "OS_NETWORK_PORT", "9696", "/v2.0"),
             ("block_storage", "OS_VOLUME_PORT", "8776", f"/v3/{access.project_id}"),
             ("image", "OS_IMAGE_PORT", "9292", ""),
             ("placement", "OS_PLACEMENT_PORT", "8780", ""),
@@ -236,6 +241,7 @@ class UserConnectionMiddleware:
             )(scope, receive, send)
             return
         request_id = str(uuid4())
+        started = perf_counter()
         authentication = asyncio.create_task(
             anyio.to_thread.run_sync(authenticate, ids[0], secrets[0])
         )
@@ -248,17 +254,21 @@ class UserConnectionMiddleware:
             auth_exceptions.Unauthorized,
             auth_exceptions.Forbidden,
             auth_exceptions.NotFound,
-        ):
+        ) as error:
             logger.warning(
-                "OpenStack authentication rejected request_id=%s", request_id
+                "OpenStack authentication rejected request_id=%s "
+                "auth_duration_ms=%.3f error_type=%s", request_id,
+                (perf_counter() - started) * 1000, type(error).__name__
             )
             await JSONResponse({"error": "Authentication failed"}, status_code=401)(
                 scope, receive, send
             )
             return
-        except Exception:
+        except Exception as error:
             logger.warning(
-                "OpenStack authentication unavailable request_id=%s", request_id
+                "OpenStack authentication unavailable request_id=%s "
+                "auth_duration_ms=%.3f error_type=%s", request_id,
+                (perf_counter() - started) * 1000, type(error).__name__
             )
             await JSONResponse(
                 {"error": "OpenStack authentication unavailable"}, status_code=503
@@ -267,8 +277,10 @@ class UserConnectionMiddleware:
         identity.request_id = request_id
         token = _identity.set(identity)
         logger.info(
-            "OpenStack request started request_id=%s user_id=%s project_id=%s",
+            "OpenStack request started request_id=%s user_id=%s project_id=%s "
+            "auth_duration_ms=%.3f",
             request_id, identity.user_id, identity.project_id,
+            (perf_counter() - started) * 1000,
         )
         status = 500
 
@@ -280,6 +292,12 @@ class UserConnectionMiddleware:
 
         try:
             await self.app(scope, receive, audit_send)
+        except BaseException as error:
+            logger.warning(
+                "OpenStack request interrupted request_id=%s error_type=%s",
+                request_id, type(error).__name__,
+            )
+            raise
         finally:
             try:
                 # Connection.close unregisters its atexit hook. cache_auth=False
@@ -288,7 +306,8 @@ class UserConnectionMiddleware:
             finally:
                 logger.info(
                     "OpenStack request finished request_id=%s user_id=%s "
-                    "project_id=%s http_status=%s", request_id,
+                    "project_id=%s http_status=%s duration_ms=%.3f", request_id,
                     identity.user_id, identity.project_id, status,
+                    (perf_counter() - started) * 1000,
                 )
                 _identity.reset(token)

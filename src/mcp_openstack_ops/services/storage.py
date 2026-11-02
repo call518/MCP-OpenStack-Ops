@@ -65,12 +65,7 @@ def get_volume_list() -> List[Dict[str, Any]]:
         return volumes
     except Exception as e:
         logger.error(f"Failed to get volume list: {e}")
-        return [
-            {
-                'id': 'vol-1', 'name': 'demo-volume', 'status': 'available',
-                'size': 10, 'volume_type': 'unknown', 'attachments': [], 'error': str(e)
-            }
-        ]
+        raise RuntimeError("OpenStack resource query failed") from None
 
 
 def set_volume(volume_name: str, action: str, **kwargs) -> Dict[str, Any]:
@@ -215,47 +210,24 @@ def set_volume(volume_name: str, action: str, **kwargs) -> Dict[str, Any]:
             }
             
         elif action.lower() == 'attach':
-            instance_id = kwargs.get('instance_id', kwargs.get('server_id'))
-            device = kwargs.get('device')
-            
-            if not instance_id:
+            instance = (kwargs.get('instance_name') or kwargs.get('instance_id')
+                        or kwargs.get('server_id'))
+            if not instance:
                 return {
                     'success': False,
-                    'message': 'instance_id parameter is required for attach action'
+                    'message': 'instance_name or instance_id is required for attach action'
                 }
-            
-            # Find the volume
-            volume = None
-            for vol in conn.volume.volumes():
-                if getattr(vol, 'name', '') == volume_name or vol.id == volume_name:
-                    volume = vol
-                    break
-            
-            if not volume:
-                return {
-                    'success': False,
-                    'message': f'Volume "{volume_name}" not found'
-                }
-            
-            attach_params = {'server_id': instance_id}
-            if device:
-                attach_params['device'] = device
-            
-            conn.compute.create_volume_attachment(volume.id, **attach_params)
-            
-            return {
-                'success': True,
-                'message': f'Volume "{volume_name}" attached to instance "{instance_id}"'
-            }
-            
+            return set_server_volume(
+                instance, 'attach', volume_name=volume_name,
+                device=kwargs.get('device'),
+            )
+
         elif action.lower() == 'detach':
-            # Find the volume
-            volume = None
-            for vol in conn.volume.volumes():
-                if getattr(vol, 'name', '') == volume_name or vol.id == volume_name:
-                    volume = vol
-                    break
-            
+            from ..connection import find_resource_by_name_or_id
+            volume = find_resource_by_name_or_id(
+                conn.volume.volumes(), volume_name, "Volume"
+            )
+
             if not volume:
                 return {
                     'success': False,
@@ -269,12 +241,19 @@ def set_volume(volume_name: str, action: str, **kwargs) -> Dict[str, Any]:
                     'message': f'Volume "{volume_name}" is not attached'
                 }
             
-            # Detach from all servers
-            for attachment in attachments:
-                server_id = attachment.get('server_id')
-                if server_id:
-                    conn.compute.delete_volume_attachment(volume.id, server_id)
-            
+            # Validate every attachment before changing any server.
+            servers = list(conn.compute.servers())
+            targets = [find_resource_by_name_or_id(
+                servers, attachment.get('server_id'), "Instance"
+            ) for attachment in attachments]
+            if not all(targets):
+                return {
+                    'success': False,
+                    'message': 'Attached server not found or not accessible in current project'
+                }
+            for server in targets:
+                conn.compute.delete_volume_attachment(server.id, volume.id)
+
             return {
                 'success': True,
                 'message': f'Volume "{volume_name}" detached successfully'
@@ -401,12 +380,7 @@ def get_volume_snapshots() -> List[Dict[str, Any]]:
         return snapshots
     except Exception as e:
         logger.error(f"Failed to get volume snapshots: {e}")
-        return [
-            {
-                'id': 'snap-1', 'name': 'demo-snapshot', 'status': 'available',
-                'size': 10, 'volume_id': 'vol-1', 'error': str(e)
-            }
-        ]
+        raise RuntimeError("OpenStack resource query failed") from None
 
 
 def set_snapshot(snapshot_name: str, action: str, **kwargs) -> Dict[str, Any]:
@@ -794,16 +768,15 @@ def set_server_volume(instance_name: str, action: str, **kwargs) -> Dict[str, An
     """
     try:
         # Import here to avoid circular imports
-        from ..connection import get_openstack_connection
+        from ..connection import (
+            get_openstack_connection, find_resource_by_name_or_id,
+        )
         conn = get_openstack_connection()
         
-        # Find the server first
-        server = None
-        for srv in conn.compute.servers():
-            if getattr(srv, 'name', '') == instance_name or srv.id == instance_name:
-                server = srv
-                break
-        
+        server = find_resource_by_name_or_id(
+            conn.compute.servers(), instance_name, "Instance"
+        )
+
         if not server:
             return {
                 'success': False,
@@ -830,12 +803,9 @@ def set_server_volume(instance_name: str, action: str, **kwargs) -> Dict[str, An
                     'message': 'volume_name or volume_id is required for attach action'
                 }
             
-            # Find the volume
-            volume = None
-            for vol in conn.volume.volumes():
-                if getattr(vol, 'name', '') == volume_name or vol.id == volume_name:
-                    volume = vol
-                    break
+            volume = find_resource_by_name_or_id(
+                conn.volume.volumes(), volume_name, "Volume"
+            )
             
             if not volume:
                 return {
@@ -852,16 +822,15 @@ def set_server_volume(instance_name: str, action: str, **kwargs) -> Dict[str, An
                 }
             
             # Attach the volume
-            attach_params = {
-                'volume_id': volume.id,
-                'instance_uuid': server.id
-            }
+            attach_params = {}
             
             if device:
                 attach_params['device'] = device
             
             try:
-                attachment = conn.compute.create_volume_attachment(server.id, **attach_params)
+                attachment = conn.compute.create_volume_attachment(
+                    server.id, volume.id, **attach_params
+                )
                 return {
                     'success': True,
                     'message': f'Volume "{volume_name}" attached to server "{instance_name}"',
@@ -889,12 +858,9 @@ def set_server_volume(instance_name: str, action: str, **kwargs) -> Dict[str, An
                     'message': 'volume_name or volume_id is required for detach action'
                 }
             
-            # Find the volume
-            volume = None
-            for vol in conn.volume.volumes():
-                if getattr(vol, 'name', '') == volume_name or vol.id == volume_name:
-                    volume = vol
-                    break
+            volume = find_resource_by_name_or_id(
+                conn.volume.volumes(), volume_name, "Volume"
+            )
             
             if not volume:
                 return {
@@ -918,7 +884,7 @@ def set_server_volume(instance_name: str, action: str, **kwargs) -> Dict[str, An
                 }
             
             try:
-                conn.compute.delete_volume_attachment(volume.id, server.id)
+                conn.compute.delete_volume_attachment(server.id, volume.id)
                 return {
                     'success': True,
                     'message': f'Volume "{volume_name}" detached from server "{instance_name}"'

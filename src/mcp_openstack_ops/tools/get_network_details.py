@@ -1,5 +1,11 @@
 """Tool implementation for get_network_details."""
 
+from functools import partial
+
+from anyio import to_thread
+
+from fastmcp.exceptions import ToolError
+
 import json
 from datetime import datetime
 from ..functions import get_network_details as _get_network_details
@@ -29,7 +35,7 @@ async def get_network_details(network_name: str = "all") -> str:
     """
     try:
         logger.info(f"Fetching network details: {network_name}")
-        details = _get_network_details(network_name)
+        details = await to_thread.run_sync(partial(_get_network_details, network_name))
         
         result = {
             "timestamp": datetime.now().isoformat(), 
@@ -39,7 +45,6 @@ async def get_network_details(network_name: str = "all") -> str:
         
         return json.dumps(result, indent=2, ensure_ascii=False)
         
-    except Exception as e:
-        error_msg = f"Error: Failed to fetch network information - {str(e)}"
-        logger.error(error_msg)
-        return error_msg
+    except Exception as error:
+        logger.error("get_network_details failed error_type=%s", type(error).__name__)
+        raise ToolError("OpenStack query failed: get_network_details") from None

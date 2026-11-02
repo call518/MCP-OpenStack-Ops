@@ -62,7 +62,10 @@ def get_instance_details(
     instance_names: Optional[List[str]] = None,
     limit: int = 50,
     offset: int = 0,
-    include_all: bool = False
+    include_all: bool = False,
+    *,
+    enrich_images: bool = True,
+    status_filter: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Get detailed information about OpenStack instances with pagination support.
@@ -92,7 +95,10 @@ def get_instance_details(
         instances = []
         
         # Get all servers with project filtering enabled
-        all_servers = list(conn.compute.servers(details=True, all_projects=False))
+        filters = {"status": status_filter.upper()} if status_filter else {}
+        all_servers = list(conn.compute.servers(
+            details=True, all_projects=False, **filters
+        ))
         
         # Additional project validation for security
         current_project_id = get_current_project_id()
@@ -106,6 +112,11 @@ def get_instance_details(
         
         all_servers = validated_servers
         
+        if status_filter:
+            all_servers = [server for server in all_servers
+                           if str(getattr(server, "status", "")).upper()
+                           == status_filter.upper()]
+
         # Filter by instance names if provided
         if instance_names:
             filtered_servers = []
@@ -148,7 +159,13 @@ def get_instance_details(
                         }
                 
                 # Get server image details
-                image_info = _get_server_image(conn, server)
+                if enrich_images:
+                    image_info = _get_server_image(conn, server)
+                else:
+                    reference = getattr(server, "image", None)
+                    image_id = (reference.get("id") if isinstance(reference, dict)
+                                else getattr(reference, "id", None))
+                    image_info = {"id": image_id or "unknown", "name": "unknown"}
                 
                 # Get network information
                 networks = []
@@ -303,8 +320,12 @@ def search_instances(
     search_term: str,
     search_fields: Optional[List[str]] = None,
     limit: int = 50,
-    include_inactive: bool = False
-) -> List[Dict[str, Any]]:
+    include_inactive: bool = False,
+    offset: int = 0,
+    case_sensitive: bool = False,
+    *,
+    with_pagination: bool = False,
+) -> List[Dict[str, Any]] | Dict[str, Any]:
     """
     Search for instances by various fields.
     
@@ -313,9 +334,12 @@ def search_instances(
         search_fields: Fields to search in (default: name, id)
         limit: Maximum results to return
         include_inactive: Include non-active instances
+        offset: Number of matches to skip
+        case_sensitive: Match the original case when True
+        with_pagination: Include page metadata for MCP callers
         
     Returns:
-        List of matching instances
+        Matching instances, optionally with pagination metadata
     """
     try:
         # Import here to avoid circular imports
@@ -325,11 +349,31 @@ def search_instances(
         if search_fields is None:
             search_fields = ['name', 'id']
         
+        aliases = {'flavor': 'flavor_name', 'image': 'image_name'}
+        if 'all' in search_fields:
+            search_fields = ['name', 'id', 'status', 'host', 'availability_zone',
+                             'ip', 'flavor_name', 'image_name']
+        else:
+            search_fields = [aliases.get(field.strip(), field.strip())
+                             for field in search_fields]
+        needs_images = bool(search_term and 'image_name' in search_fields)
         matching_instances = []
-        all_instances_result = get_instance_details(limit=limit*2, include_all=True)
+        limit = max(1, min(limit, 200))
+        all_instances_result = get_instance_details(
+            include_all=True,
+            enrich_images=needs_images,
+            status_filter=None if include_inactive else 'ACTIVE',
+        )
+        if all_instances_result.get('success') is False:
+            raise RuntimeError('OpenStack instance search failed')
         all_instances = all_instances_result.get('instances', [])
         
-        search_term_lower = search_term.lower()
+        offset = max(0, offset)
+        needle = search_term if case_sensitive else search_term.lower()
+
+        def matches(value):
+            text = str(value)
+            return needle in (text if case_sensitive else text.lower())
         
         for instance in all_instances:
             # Skip inactive instances if not requested
@@ -339,8 +383,7 @@ def search_instances(
             match_found = False
             
             for field in search_fields:
-                field_value = str(instance.get(field, '')).lower()
-                if search_term_lower in field_value:
+                if matches(instance.get(field, '')):
                     match_found = True
                     break
                     
@@ -348,34 +391,59 @@ def search_instances(
                 if field == 'ip':
                     for network in instance.get('networks', []):
                         for addr in network.get('addresses', []):
-                            if search_term_lower in addr.get('addr', '').lower():
+                            if matches(addr.get('addr', '')):
                                 match_found = True
                                 break
                         if match_found:
                             break
                 elif field == 'flavor_name':
                     flavor = instance.get('flavor', {})
-                    if search_term_lower in str(flavor.get('name', '')).lower():
+                    if matches(flavor.get('name', '')):
                         match_found = True
                 elif field == 'image_name':
                     image = instance.get('image', {})
-                    if search_term_lower in str(image.get('name', '')).lower():
+                    if matches(image.get('name', '')):
                         match_found = True
             
             if match_found:
                 matching_instances.append(instance)
                 
-            if len(matching_instances) >= limit:
+            if len(matching_instances) >= offset + limit + int(with_pagination):
                 break
         
+        has_more = len(matching_instances) > offset + limit
+        matching_instances = matching_instances[offset:offset + limit]
+        if matching_instances and not needs_images:
+            details = get_instance_details(
+                instance_names=[row['id'] for row in matching_instances],
+                include_all=True,
+            )
+            if details.get('success') is False:
+                raise RuntimeError('OpenStack instance search failed')
+            matching_instances = details['instances']
+        if with_pagination:
+            return {
+                'instances': matching_instances,
+                'search_info': {
+                    'search_term': search_term,
+                    'search_in': ','.join(search_fields),
+                    'case_sensitive': case_sensitive,
+                    'matches_found': len(matching_instances),
+                },
+                'pagination': {
+                    'limit': limit, 'offset': offset, 'has_more': has_more,
+                },
+            }
         return matching_instances
         
     except Exception as e:
-        logger.error(f"Failed to search instances: {e}")
-        return []
+        logger.error("Failed to search instances: %s", type(e).__name__)
+        raise RuntimeError("OpenStack instance search failed") from None
 
 
-def get_instances_by_status(status: str) -> List[Dict[str, Any]]:
+def get_instances_by_status(
+    status: str, *, enrich_images: bool = True
+) -> List[Dict[str, Any]]:
     """
     Get instances filtered by status.
     
@@ -386,7 +454,11 @@ def get_instances_by_status(status: str) -> List[Dict[str, Any]]:
         List of instances with matching status
     """
     try:
-        result = get_instance_details(include_all=True)
+        result = get_instance_details(
+            include_all=True, enrich_images=enrich_images, status_filter=status
+        )
+        if result.get('success') is False:
+            raise RuntimeError('OpenStack instance status query failed')
         instances = result.get('instances', [])
         
         status_lower = status.lower()
@@ -396,8 +468,8 @@ def get_instances_by_status(status: str) -> List[Dict[str, Any]]:
         ]
         
     except Exception as e:
-        logger.error(f"Failed to get instances by status: {e}")
-        return []
+        logger.error("Failed to get instances by status: %s", type(e).__name__)
+        raise RuntimeError("OpenStack instance status query failed") from None
 
 
 def set_instance(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
@@ -847,12 +919,7 @@ def get_flavor_list() -> List[Dict[str, Any]]:
         return flavors
     except Exception as e:
         logger.error(f"Failed to get flavor list: {e}")
-        return [
-            {
-                'id': 'flavor-1', 'name': 'demo-flavor', 'vcpus': 1, 'ram': 512, 
-                'disk': 1, 'is_public': True, 'error': str(e)
-            }
-        ]
+        raise RuntimeError("OpenStack resource query failed") from None
 
 
 def get_server_events(instance_name: str, limit: int = 50) -> Dict[str, Any]:

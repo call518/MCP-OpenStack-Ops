@@ -1,5 +1,11 @@
 """Tool implementation for get_instances_by_status."""
 
+from functools import partial
+
+from anyio import to_thread
+
+from fastmcp.exceptions import ToolError
+
 import json
 from datetime import datetime
 from ..functions import get_instances_by_status as _get_instances_by_status
@@ -22,7 +28,7 @@ async def get_instances_by_status(status: str) -> str:
     try:
         logger.info(f"Getting instances with status: {status}")
         
-        instances = _get_instances_by_status(status.upper())
+        instances = await to_thread.run_sync(partial(_get_instances_by_status, status.upper()))
         
         result = {
             "timestamp": datetime.now().isoformat(),
@@ -33,7 +39,6 @@ async def get_instances_by_status(status: str) -> str:
         
         return json.dumps(result, indent=2, ensure_ascii=False)
         
-    except Exception as e:
-        error_msg = f"Error: Failed to get instances with status '{status}' - {str(e)}"
-        logger.error(error_msg)
-        return error_msg
+    except Exception as error:
+        logger.error("get_instances_by_status failed error_type=%s", type(error).__name__)
+        raise ToolError("OpenStack query failed: get_instances_by_status") from None

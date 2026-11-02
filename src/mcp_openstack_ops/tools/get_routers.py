@@ -1,5 +1,7 @@
 """Tool implementation for get_routers."""
 
+from fastmcp.exceptions import ToolError
+
 import json
 from datetime import datetime
 from ..functions import get_routers as _get_routers
@@ -36,7 +38,6 @@ async def get_routers() -> str:
         
         return json.dumps(result, indent=2, ensure_ascii=False)
         
-    except Exception as e:
-        error_msg = f"Error: Failed to fetch routers - {str(e)}"
-        logger.error(error_msg)
-        return error_msg
+    except Exception as error:
+        logger.error("get_routers failed error_type=%s", type(error).__name__)
+        raise ToolError("OpenStack query failed: get_routers") from None

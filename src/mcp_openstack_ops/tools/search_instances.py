@@ -1,5 +1,11 @@
 """Tool implementation for search_instances."""
 
+from functools import partial
+
+from anyio import to_thread
+
+from fastmcp.exceptions import ToolError
+
 import json
 from datetime import datetime
 from ..mcp_main import (
@@ -38,12 +44,15 @@ async def search_instances(
     try:
         logger.info(f"Searching instances for '{search_term}' in '{search_in}' with limit {limit}, offset {offset}")
         
-        search_result = _search_instances(
+        search_result = await to_thread.run_sync(partial(_search_instances,
             search_term=search_term, 
             search_fields=search_in.split(',') if search_in else ['name', 'id'],
             limit=limit,
+            offset=offset,
+            case_sensitive=case_sensitive,
+            with_pagination=True,
             include_inactive=True  # 모든 인스턴스를 검색하기 위해
-        )
+        ))
         
         # Handle both old return format (list) and new return format (dict)
         if isinstance(search_result, list):
@@ -68,6 +77,8 @@ async def search_instances(
             pagination_info = {'limit': limit, 'offset': offset, 'has_more': False}
             performance_info = {}
         
+        search_info.update(search_term=search_term, search_in=search_in,
+                           case_sensitive=case_sensitive)
         result = {
             "timestamp": datetime.now().isoformat(),
             "search_info": search_info,
@@ -79,12 +90,6 @@ async def search_instances(
         
         return json.dumps(result, indent=2, ensure_ascii=False)
         
-    except Exception as e:
-        error_msg = f"Error: Failed to search instances - {str(e)}"
-        logger.error(error_msg)
-        return error_msg
-        
-    except Exception as e:
-        error_msg = f"Error: Failed to search instances - {str(e)}"
-        logger.error(error_msg)
-        return error_msg
+    except Exception as error:
+        logger.error("search_instances failed error_type=%s", type(error).__name__)
+        raise ToolError("OpenStack query failed: search_instances") from None

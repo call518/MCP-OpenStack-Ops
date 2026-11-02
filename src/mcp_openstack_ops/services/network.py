@@ -13,6 +13,22 @@ from typing import Dict, List, Any, Optional
 logger = logging.getLogger(__name__)
 
 
+def _can_read_network_subnet(subnet: Any, network: Any, project_id: str) -> bool:
+    """Accept API-visible shared subnets without widening private ownership."""
+    if getattr(subnet, "network_id", None) != network.id:
+        return False
+    owner = getattr(subnet, "project_id", None) or getattr(subnet, "tenant_id", None)
+    network_owner = (getattr(network, "project_id", None)
+                     or getattr(network, "tenant_id", None))
+    if owner and owner == project_id:
+        return True
+    return bool(
+        owner and owner == network_owner
+        and (getattr(network, "is_shared", False)
+             or getattr(network, "is_router_external", False))
+    )
+
+
 def get_network_details(network_name: str = "all") -> List[Dict[str, Any]]:
     """
     Get detailed information about networks in current project.
@@ -37,16 +53,16 @@ def get_network_details(network_name: str = "all") -> List[Dict[str, Any]]:
                 network_project = getattr(network, 'project_id', None) or getattr(network, 'tenant_id', None)
                 
                 # Enhanced project validation with utility functions
-                if (validate_resource_ownership(network, "Network") or 
-                    getattr(network, 'is_shared', False) or 
-                    getattr(network, 'is_router_external', False)):  # Include shared and external networks
+                if (getattr(network, 'is_shared', False) or
+                    getattr(network, 'is_router_external', False) or
+                    validate_resource_ownership(network, "Network")):  # Include shared and external networks
                     
                     # Get subnets for this network with project validation
                     subnets = []
-                    for subnet in conn.network.subnets():
+                    for subnet in conn.network.subnets(network_id=network.id):
                         if getattr(subnet, 'network_id', None) == network.id:
                             # Enhanced validation using utility functions
-                            if validate_resource_ownership(subnet, "Subnet"):
+                            if _can_read_network_subnet(subnet, network, current_project_id):
                                 subnets.append({
                                     'id': subnet.id,
                                     'name': getattr(subnet, 'name', 'unnamed'),
@@ -86,10 +102,10 @@ def get_network_details(network_name: str = "all") -> List[Dict[str, Any]]:
                         
                         # Get subnets for this network
                         subnets = []
-                        for subnet in conn.network.subnets():
+                        for subnet in conn.network.subnets(network_id=network.id):
                             if getattr(subnet, 'network_id', None) == network.id:
                                 subnet_project = getattr(subnet, 'project_id', None) or getattr(subnet, 'tenant_id', None)
-                                if subnet_project == current_project_id:
+                                if _can_read_network_subnet(subnet, network, current_project_id):
                                     subnets.append({
                                         'id': subnet.id,
                                         'name': getattr(subnet, 'name', 'unnamed'),
@@ -125,13 +141,7 @@ def get_network_details(network_name: str = "all") -> List[Dict[str, Any]]:
         
     except Exception as e:
         logger.error(f"Failed to get network details: {e}")
-        return [
-            {
-                'id': 'net-1', 'name': 'demo-network', 'status': 'ACTIVE',
-                'admin_state_up': True, 'shared': False, 'external': False,
-                'subnets': [], 'error': str(e)
-            }
-        ]
+        raise RuntimeError("OpenStack resource query failed") from None
 
 
 def set_networks(action: str, network_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
@@ -1111,12 +1121,7 @@ def get_routers() -> List[Dict[str, Any]]:
         return routers
     except Exception as e:
         logger.error(f"Failed to get routers: {e}")
-        return [
-            {
-                'id': 'router-1', 'name': 'demo-router', 'status': 'ACTIVE',
-                'admin_state_up': True, 'interfaces': [], 'error': str(e)
-            }
-        ]
+        raise RuntimeError("OpenStack resource query failed") from None
 
 
 def set_network_ports(action: str, port_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:

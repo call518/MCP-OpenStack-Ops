@@ -1,5 +1,9 @@
 """Tool implementation for get_security_groups."""
 
+from functools import partial
+
+from anyio import to_thread
+
 import json
 from datetime import datetime
 from ..functions import get_security_groups as _get_security_groups
@@ -26,7 +30,7 @@ async def get_security_groups() -> str:
     """
     try:
         logger.info("Fetching security groups")
-        security_groups = _get_security_groups()
+        security_groups = await to_thread.run_sync(partial(_get_security_groups))
         
         result = {
             "timestamp": datetime.now().isoformat(),

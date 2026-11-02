@@ -1,5 +1,9 @@
 """Tool implementation for get_instance_details."""
 
+from functools import partial
+
+from anyio import to_thread
+
 import json
 from datetime import datetime
 from ..functions import get_instance_details as _get_instance_details
@@ -60,19 +64,19 @@ async def get_instance_details(
             combined_names_ids.extend(ids_list)
         
         if all_instances or (not names_list and not ids_list):
-            details_result = _get_instance_details(
+            details_result = await to_thread.run_sync(partial(_get_instance_details,
                 instance_names=None,
                 limit=limit, 
                 offset=offset, 
                 include_all=include_all
-            )
+            ))
         else:
-            details_result = _get_instance_details(
+            details_result = await to_thread.run_sync(partial(_get_instance_details,
                 instance_names=combined_names_ids,
                 limit=limit, 
                 offset=offset, 
                 include_all=include_all
-            )
+            ))
         
         # Handle both old return format (list) and new return format (dict)
         if isinstance(details_result, dict):

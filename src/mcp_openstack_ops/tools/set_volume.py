@@ -17,7 +17,7 @@ async def set_volume(volume_names: str, action: str, size: int = 1, instance_nam
                    force: bool = False, incremental: bool = False, force_host_copy: bool = False,
                    lock_volume: bool = False) -> str:
     """
-    Manages OpenStack volumes with comprehensive operations including advanced features.
+    Manages project-scoped OpenStack volumes and attachments.
     Supports both single volume and bulk operations.
     
     Functions:
@@ -25,36 +25,33 @@ async def set_volume(volume_names: str, action: str, size: int = 1, instance_nam
     - Delete existing volumes
     - List all volumes with detailed status information
     - Extend volumes to larger sizes
-    - Create volume backups (full or incremental)
     - Create volume snapshots
-    - Clone volumes from existing volumes
-    - Create volume transfers for ownership change
-    - Migrate volumes between hosts/backends
     - Bulk operations: Apply action to multiple volumes at once
     
-    Use when user requests volume management, storage operations, disk management, backup operations, or volume lifecycle tasks.
+    Use for volume lifecycle tasks. Use set_volume_backups for backups.
+    Transfer, clone and migration actions are not exposed here.
     
     Args:
         volume_names: Name(s) of volumes to manage. Support formats:
                      - Single: "volume1" 
                      - Multiple: "volume1,volume2,volume3" or "volume1, volume2, volume3"
                      - List format: '["volume1", "volume2", "volume3"]'
-        action: Management action (create, delete, list, extend, backup, snapshot, clone, transfer, migrate)
-        size: Volume size in GB (default: 1, used for create/clone actions)
-        instance_name: Instance name for attach operations (optional)
+        action: Management action (create, delete, list, extend, attach, detach, snapshot)
+        size: Volume size in GB (default: 1, used for create/extend actions)
+        instance_name: Instance name or ID (required for attach)
         new_size: New size for extend action (required for extend)
-        source_volume: Source volume name/ID for clone action
-        backup_name: Custom backup name (auto-generated if not provided)
+        source_volume: Compatibility parameter; clone is not implemented here
+        backup_name: Compatibility parameter; use set_volume_backups for backups
         snapshot_name: Custom snapshot name (auto-generated if not provided)
-        transfer_name: Custom transfer name (auto-generated if not provided)
-        host: Target host for migrate action (required for migrate)
-        description: Description for create/backup/snapshot operations
+        transfer_name: Compatibility parameter; transfers are not implemented here
+        host: Compatibility parameter; migration is not implemented here
+        description: Description for create/snapshot operations
         volume_type: Volume type for create operations
         availability_zone: Availability zone for create operations
         force: Force operations even when volume is attached
-        incremental: Create incremental backup (default: False)
-        force_host_copy: Force host copy during migration
-        lock_volume: Lock volume during migration
+        incremental: Compatibility parameter; backups use set_volume_backups
+        force_host_copy: Compatibility parameter; migration is not implemented here
+        lock_volume: Compatibility parameter; migration is not implemented here
         
     Returns:
         Volume management operation result in JSON format with success status and volume information.

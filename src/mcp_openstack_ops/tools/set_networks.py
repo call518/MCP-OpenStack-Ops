@@ -28,7 +28,7 @@ async def set_networks(
     provider_network_type: str = "",
     provider_physical_network: str = "",
     provider_segmentation_id: int = 0,
-    mtu: int = 1500
+    mtu: int = 0
 ) -> str:
     """
     Manage OpenStack networks for tenant isolation and connectivity.
@@ -74,7 +74,7 @@ async def set_networks(
         provider_network_type: Provider network type (vlan, vxlan, flat, etc.)
         provider_physical_network: Physical network name for provider mapping
         provider_segmentation_id: VLAN ID or tunnel ID for network segmentation
-        mtu: Maximum transmission unit size (default: 1500)
+        mtu: Maximum transmission unit size (0: use the backend default)
         
     Returns:
         Network management operation result with post-action status verification.
@@ -315,7 +315,7 @@ async def set_networks(
         provider_network_type: Provider network type (vlan, vxlan, flat, etc.)
         provider_physical_network: Physical network name for provider mapping
         provider_segmentation_id: VLAN ID or tunnel ID for network segmentation
-        mtu: Maximum transmission unit size (default: 1500)
+        mtu: Maximum transmission unit size (0: use the backend default)
         
     Returns:
         JSON string with network management operation results
@@ -328,7 +328,7 @@ async def set_networks(
             'admin_state_up': admin_state_up,
             'shared': shared,
             'external': external,
-            'mtu': mtu if mtu > 0 else 1500
+            'mtu': mtu
         }
         
         # Provider network settings

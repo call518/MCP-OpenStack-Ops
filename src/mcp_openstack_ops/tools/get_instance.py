@@ -1,5 +1,9 @@
 """Tool implementation for get_instance."""
 
+from functools import partial
+
+from anyio import to_thread
+
 import json
 from datetime import datetime
 from ..functions import (
@@ -72,24 +76,26 @@ async def get_instance(
         if all_instances:
             # Get all instances
             logger.info("Fetching all instances")
-            result_data = _get_instance_details(
+            result_data = await to_thread.run_sync(partial(_get_instance_details,
                 instance_names=None,
                 limit=limit,
                 offset=offset,
-                include_all=True
-            )
+                include_all=True,
+                enrich_images=detailed
+            ))
             query_description = "All instances"
             
         elif has_direct_names:
             # Get specific instances by names
             logger.info(f"Fetching instances by names: {names}")
             names_list = [name.strip() for name in names.split(',') if name.strip()]
-            result_data = _get_instance_details(
+            result_data = await to_thread.run_sync(partial(_get_instance_details,
                 instance_names=names_list,
                 limit=limit,
                 offset=offset,
-                include_all=True
-            )
+                include_all=True,
+                enrich_images=detailed
+            ))
             query_description = f"Instances by names: {names}"
             
         elif has_direct_ids:
@@ -97,18 +103,19 @@ async def get_instance(
             logger.info(f"Fetching instances by IDs: {ids}")
             # For IDs, we need to use names parameter since the function doesn't support IDs directly
             ids_list = [id.strip() for id in ids.split(',') if id.strip()]
-            result_data = _get_instance_details(
+            result_data = await to_thread.run_sync(partial(_get_instance_details,
                 instance_names=ids_list,  # Use IDs as names for now
                 limit=limit,
                 offset=offset,
-                include_all=True
-            )
+                include_all=True,
+                enrich_images=detailed
+            ))
             query_description = f"Instances by IDs: {ids}"
             
         elif has_status_filter:
             # Filter by status
             logger.info(f"Fetching instances with status: {status}")
-            instances = _get_instances_by_status(status.upper())
+            instances = await to_thread.run_sync(partial(_get_instances_by_status, status.upper(), enrich_images=detailed))
             
             # Apply pagination
             total_count = len(instances)
@@ -129,12 +136,15 @@ async def get_instance(
         elif has_search:
             # Search instances
             logger.info(f"Searching instances for '{search_term}' in '{search_in}'")
-            result_data = _search_instances(
+            result_data = await to_thread.run_sync(partial(_search_instances,
                 search_term=search_term,
                 search_fields=search_in.split(',') if search_in else ['name'],
                 limit=limit,
+                offset=offset,
+                case_sensitive=case_sensitive,
+                with_pagination=True,
                 include_inactive=True
-            )
+            ))
             
             # Enhance result with metadata
             if isinstance(result_data, list):
@@ -147,10 +157,13 @@ async def get_instance(
                     "total_instances": len(result_data),
                     "instances": result_data
                 }
-            elif isinstance(result_data, dict) and 'instances' not in result_data:
+            elif isinstance(result_data, dict):
+                result_data.setdefault('timestamp', datetime.now().isoformat())
                 result_data["query_type"] = "search"
                 result_data["search_term"] = search_term
                 result_data["search_in"] = search_in
+                result_data["case_sensitive"] = case_sensitive
+                result_data["total_instances"] = len(result_data.get('instances', []))
                 
             query_description = f"Search results for '{search_term}' in '{search_in}'"
             

@@ -347,7 +347,7 @@ set_instance(action="restart", name_contains="dev", status="ACTIVE")
 set_volume(action="delete", volume_names="vol1,vol2")
 
 # Filter-based targeting  
-set_volume(action="delete", name_contains="test", status="available")
+# Resolve project-owned volumes first, then pass explicit volume_names.
 set_volume(action="attach", volume_names="data-vol", instance_name="web-server")
 ```
 
@@ -357,8 +357,8 @@ set_volume(action="attach", volume_names="data-vol", instance_name="web-server")
 set_image(action="delete", image_names="img1,img2")
 
 # Filter-based targeting
-set_image(action="delete", name_contains="old", status="active")
-set_image(action="create", image_names="backup-img", instance_id="vm-123")
+# Resolve image names/IDs first, then call set_image(action="delete", image_names="old-image").
+# set_image creates image metadata; it does not snapshot a VM.
 ```
 
 **Network Actions** (use enhanced `set_networks`):
@@ -396,7 +396,7 @@ set_snapshot(action="create", snapshot_names="backup-snap", volume_id="vol-123")
 ### 🔍 **Priority Tools**
 | Pattern | Tool | Usage |
 |---------|------|-------|
-| **"Show details for instance X"** | `get_instance_details(instance_names=["X"])` | **TOP PRIORITY** - Specific instance information |
+| **"Show details for instance X"** | `get_instance_details(instance_names="X")` | **TOP PRIORITY** - Specific instance information |
 | **"Create cluster status report"** | **Use tool combination** | **PRIMARY** - Use multiple get_* tools for comprehensive cluster analysis |
 | **"List volumes/images/networks"** | `get_volume_list()` / `get_image_detail_list()` / `get_network_details("all")` | **PRIORITY** - Resource listing |
 | **"Find instances"** | `search_instances("keyword", "field")` | Advanced instance search with filters |
@@ -461,10 +461,10 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 
 ### 💾 **Storage Management Tools (8 tools)**
 - `get_volume_list`: List all volumes with status (always available)
-- `set_volume`: **ENHANCED** - Volume management with bulk operations and filtering
-  - **New Parameters**: `action`, `volume_names` (supports comma-separated), `name_contains`, `status`, `size_gb`, `instance_name`
+- `set_volume`: **ENHANCED** - Volume management with explicit bulk targeting
+  - **New Parameters**: `action`, `volume_names` (supports comma-separated), `size`, `new_size`, `instance_name`
   - **Bulk Support**: Process multiple volumes: `volume_names="vol1,vol2,vol3"`
-  - **Filter-based**: Direct targeting: `name_contains="test", status="available"`
+  - **Targeting**: Resolve project-owned volume names/IDs first; name/status filter parameters are not exposed.
   - **Post-action Status**: Automatic verification with emoji indicators 🟢🔴🟡
   - **Actions**: create/delete/list/extend/attach/detach (**Conditional Tool**)
 - `get_volume_types`: Available storage types
@@ -532,10 +532,10 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 
 ### 🖼️ **Image Management (5 tools)**
 - `get_image_detail_list`: Enhanced image listing with smart filtering (public, community, shared, project-owned) - prevents zero-image count issues (always available)
-- `set_image`: **ENHANCED** - Image management with bulk operations and filtering
-  - **New Parameters**: `action`, `image_names` (supports comma-separated), `name_contains`, `status`, `instance_id`, `disk_format`, `min_disk`, `min_ram`
+- `set_image`: **ENHANCED** - Image management with explicit bulk targeting
+  - **New Parameters**: `action`, `image_names` (supports comma-separated), `disk_format`, `min_disk`, `min_ram`, `visibility`, `properties`
   - **Bulk Support**: Process multiple images: `image_names="img1,img2,img3"`
-  - **Filter-based**: Direct targeting: `name_contains="old", status="active"`
+  - **Targeting**: Resolve image names/IDs first; name/status filter parameters are not exposed.
   - **Post-action Status**: Automatic verification with emoji indicators 🟢🔴🟡
   - **Actions**: create/delete/update/list (**Conditional Tool**)
 - `set_image_members`: Image sharing and access control (**Conditional Tool**)
@@ -559,7 +559,7 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 ## 3. Decision Flow & Pattern Recognition
 
 ### 🔥 **HIGH PRIORITY Patterns**
-1. **"Show details for instance X"** → `get_instance_details(instance_names=["X"])`
+1. **"Show details for instance X"** → `get_instance_details(instance_names="X")`
 2. **"Create cluster status report"** → **Use TOOL COMBINATION** (see pattern above)
 3. **"List volumes/images/networks"** → `get_volume_list()` / `get_image_detail_list()` / `get_network_details("all")`
 4. **"Find/search instances"** → `search_instances("keyword", "field")`
@@ -596,12 +596,12 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 - "Create VM with rockylinux-9 image" → `set_instance(action="create", instance_names="vm-name", flavor="m1.small", image="rockylinux-9", networks="demo-net", security_groups="default")`
 - "Create network" → `set_networks(action="create", network_names="demo-net", description="Demo network", admin_state_up=True)`
 - "Delete networks containing 'test'" → `set_networks(action="delete", name_contains="test")`
-- "Create image with 20GB min disk" → `set_image(action="create", image_names="backup-image", instance_id="vm-123", disk_format="qcow2", min_disk=20, min_ram=512)`
-- "Delete old images" → `set_image(action="delete", name_contains="old", status="active")`
+- "Create image metadata with 20GB min disk" → `set_image(action="create", image_names="new-image", disk_format="qcow2", min_disk=20, min_ram=512)` (not a VM snapshot)
+- "Delete old images" → Resolve project-visible image names/IDs first, then use `set_image(action="delete", image_names="old-image")`.
 - "Create keypair" → `set_keypair(action="create", keypair_names="new-key")`
 - "Delete temporary keypairs" → `set_keypair(action="delete", name_contains="temp")`
-- "Create volume" → `set_volume(action="create", volume_names="data-vol", size_gb=100)`
-- "Delete available test volumes" → `set_volume(action="delete", name_contains="test", status="available")`
+- "Create volume" → `set_volume(action="create", volume_names="data-vol", size=100)`
+- "Delete available test volumes" → Resolve project-owned volume names/IDs first, then call `set_volume(action="delete", volume_names="test-volume")`.
 - "Associate/disassociate floating IP" → `set_server_floating_ip(server_name="X", action="add/remove", floating_ip="Y")`
 - "List floating IP pools" → `get_floating_ip_pools()`
 - "Create port forwarding rule" → `set_floating_ip_port_forwarding("create", floating_ip_address="IP", external_port=80, internal_port=8080, internal_ip_address="192.168.1.100")`
@@ -637,10 +637,10 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 
 ### 🔥 **Instance Detail Requests (TOP PRIORITY)**
 ```
-"Show details for instance test-rockylinux-9" → get_instance(instance_names="test-rockylinux-9")
-"Get information about web-server-01" → get_instance(instance_names="web-server-01")
-"What's the status of database-vm" → get_instance(instance_names="database-vm")
-"Show all instances" → get_instance(instance_names="all")
+"Show details for instance test-rockylinux-9" → get_instance(names="test-rockylinux-9")
+"Get information about web-server-01" → get_instance(names="web-server-01")
+"What's the status of database-vm" → get_instance(names="database-vm")
+"Show all instances" → get_instance(all_instances=True)
 ```
 
 ### 📊 **Common Operations**
@@ -655,8 +655,8 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 "Create Ubuntu VM" → set_instance(action="create", instance_names="web-server-01", flavor="m1.small", image="ubuntu-20.04", networks="demo-net", security_groups="default")
 "Create network demo-net" → set_networks(action="create", network_names="demo-net", description="Demo network")
 "Delete test networks" → set_networks(action="delete", name_contains="test")
-"Create backup image" → set_image(action="create", image_names="backup-img", instance_id="vm-123")
-"Delete old images" → set_image(action="delete", name_contains="old")
+"Create backup image" → # set_image creates image metadata; it does not snapshot a VM.
+"Delete old images" → set_image(action="delete", image_names="old-image")
 "Create development keypair" → set_keypair(action="create", keypair_names="dev-key")
 "Delete temporary keypairs" → set_keypair(action="delete", name_contains="temp")
 

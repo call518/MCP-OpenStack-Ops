@@ -234,10 +234,7 @@ def get_user_list() -> List[Dict[str, Any]]:
         return users
     except Exception as e:
         logger.error(f"Failed to get user list: {e}")
-        return [
-            {'id': 'user-1', 'name': 'demo-user', 'email': 'demo@example.com', 
-             'enabled': True, 'error': str(e)}
-        ]
+        raise RuntimeError("OpenStack resource query failed") from None
 
 
 def get_role_assignments() -> List[Dict[str, Any]]:
@@ -300,9 +297,7 @@ def get_keypair_list() -> List[Dict[str, Any]]:
         return keypairs
     except Exception as e:
         logger.error(f"Failed to get keypair list: {e}")
-        return [
-            {'name': 'demo-key', 'fingerprint': 'xx:xx:xx:...', 'type': 'ssh', 'error': str(e)}
-        ]
+        raise RuntimeError("OpenStack resource query failed") from None
 
 
 def set_keypair(keypair_name: str, action: str, **kwargs) -> Dict[str, Any]:

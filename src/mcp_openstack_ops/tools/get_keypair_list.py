@@ -1,5 +1,7 @@
 """Tool implementation for get_keypair_list."""
 
+from fastmcp.exceptions import ToolError
+
 import json
 from datetime import datetime
 from ..functions import get_keypair_list as _get_keypair_list
@@ -36,7 +38,6 @@ async def get_keypair_list() -> str:
         
         return json.dumps(result, indent=2, ensure_ascii=False)
         
-    except Exception as e:
-        error_msg = f"Error: Failed to fetch keypair list - {str(e)}"
-        logger.error(error_msg)
-        return error_msg
+    except Exception as error:
+        logger.error("get_keypair_list failed error_type=%s", type(error).__name__)
+        raise ToolError("OpenStack query failed: get_keypair_list") from None
