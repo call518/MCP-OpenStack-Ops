@@ -1,6 +1,7 @@
 """Request-local Application Credential authentication for remote clients."""
 
 import asyncio
+import json
 import logging
 import os
 from contextvars import ContextVar
@@ -214,6 +215,26 @@ def authenticate(credential_id: str, secret: str) -> RequestIdentity:
         raise
 
 
+def _bad_request_reason(body: bytes) -> str:
+    """Classify SDK rejections without exposing response text or request values."""
+    try:
+        payload = json.loads(body)
+    except (ValueError, RecursionError):
+        return "unclassified"
+    error = payload.get("error") if isinstance(payload, dict) else None
+    message = error.get("message") if isinstance(error, dict) else None
+    if isinstance(message, str):
+        for prefix, reason in (
+            ("Parse error:", "invalid_json"),
+            ("Validation error:", "invalid_jsonrpc"),
+            ("Bad Request: Unsupported protocol version:", "unsupported_protocol"),
+            ("Bad Request: Missing session ID", "missing_session_id"),
+        ):
+            if message.startswith(prefix):
+                return reason
+    return "unclassified"
+
+
 class UserConnectionMiddleware:
     """Authenticate every HTTP request and close its connection after delivery.
 
@@ -227,6 +248,22 @@ class UserConnectionMiddleware:
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
+            return
+        # This mode uses application credentials, not OAuth. Never forward these
+        # unsupported discovery/registration routes to an authenticated handler.
+        path = scope.get("path", "")
+        discovery_paths = (
+            "/.well-known/oauth-protected-resource",
+            "/.well-known/oauth-authorization-server",
+            "/.well-known/openid-configuration",
+        )
+        if path in ("/register", "/register/") or any(
+            path == base or path.startswith(base + "/")
+            for base in discovery_paths
+        ):
+            await JSONResponse({"error": "Not found"}, status_code=404)(
+                scope, receive, send
+            )
             return
         headers = Headers(scope=scope)
         ids = headers.getlist("x-openstack-application-credential-id")
@@ -283,11 +320,23 @@ class UserConnectionMiddleware:
             (perf_counter() - started) * 1000,
         )
         status = 500
+        rejection_body = bytearray()
 
         async def audit_send(message: Message) -> None:
             nonlocal status
             if message["type"] == "http.response.start":
                 status = message["status"]
+            elif status == 400 and message["type"] == "http.response.body":
+                # Bound diagnostic memory and never consume or log request bodies.
+                rejection_body.extend(
+                    message.get("body", b"")[:8192 - len(rejection_body)]
+                )
+                if not message.get("more_body", False):
+                    logger.info(
+                        "OpenStack transport rejected request_id=%s "
+                        "http_status=400 reason=%s",
+                        request_id, _bad_request_reason(bytes(rejection_body)),
+                    )
             await send(message)
 
         try:

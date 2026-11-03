@@ -360,3 +360,114 @@ async def test_real_mcp_http_tools_receive_request_identity(monkeypatch):
     assert len(created) == 2
     for item in created:
         item.connection.close.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('path', [
+    '/.well-known/oauth-protected-resource',
+    '/.well-known/oauth-protected-resource/mcp',
+    '/.well-known/oauth-authorization-server',
+    '/.well-known/openid-configuration', '/register', '/register/',
+])
+@pytest.mark.parametrize('method', ['GET', 'POST'])
+async def test_unsupported_oauth_routes_do_not_authenticate(monkeypatch, path, method):
+    auth, app = Mock(), Mock()
+    monkeypatch.setattr(users, 'authenticate', auth)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=users.UserConnectionMiddleware(app)),
+        base_url='https://mcp.example',
+    ) as client:
+        response = await client.request(method, path, headers=headers())
+    assert response.status_code == 404
+    auth.assert_not_called()
+    app.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('path', ['/mcp', '/mcp/', '/register-tool',
+                                  '/.well-known/oauth-protected-resource-other'])
+async def test_other_routes_still_require_credentials(monkeypatch, path):
+    auth, app = Mock(), Mock()
+    monkeypatch.setattr(users, 'authenticate', auth)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=users.UserConnectionMiddleware(app)),
+        base_url='https://mcp.example',
+    ) as client:
+        response = await client.post(path)
+    assert response.status_code == 401
+    auth.assert_not_called()
+    app.assert_not_called()
+
+
+@pytest.mark.parametrize('body,reason', [
+    (b'{"error":{"message":"Parse error: private-value"}}', 'invalid_json'),
+    (b'{"error":{"message":"Validation error: private-value"}}', 'invalid_jsonrpc'),
+    (b'{"error":{"message":"Bad Request: Unsupported protocol version: private-value"}}', 'unsupported_protocol'),
+    (b'{"error":{"message":"Bad Request: Missing session ID"}}', 'missing_session_id'),
+    (b'{"error":{"message":"private-value"}}', 'unclassified'),
+    (b'[]', 'unclassified'), (b'null', 'unclassified'),
+    (b'{"error":[]}', 'unclassified'), (b'\xff', 'unclassified'),
+])
+def test_bad_request_classification_is_safe(body, reason):
+    assert users._bad_request_reason(body) == reason
+
+
+@pytest.mark.asyncio
+async def test_real_transport_rejections_are_diagnosed_without_request_values(
+    monkeypatch, caplog,
+):
+    from fastmcp import FastMCP
+    from starlette.middleware import Middleware
+
+    monkeypatch.setattr(users, 'authenticate', lambda *args: identity())
+    caplog.set_level(logging.INFO, logger=users.__name__)
+    server = FastMCP('transport-diagnostic-test')
+    app = server.http_app(stateless_http=True, json_response=True,
+                         middleware=[Middleware(users.UserConnectionMiddleware)])
+    async with app.router.lifespan_context(app):
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),
+                                     base_url='https://mcp.example') as client:
+            base_headers = {**headers(), 'Accept': 'application/json',
+                            'Content-Type': 'application/json'}
+            replies = [await client.post('/mcp', headers=base_headers,
+                                         content='private-value')]
+            replies.append(await client.post('/mcp', headers=base_headers,
+                                             json={'private-value': True}))
+            replies.append(await client.post('/mcp', headers={
+                **base_headers, 'MCP-Protocol-Version': 'private-value',
+            }, json={'jsonrpc': '2.0', 'id': 1, 'method': 'ping'}))
+            ok = await client.post('/mcp', headers=base_headers,
+                                   json={'jsonrpc': '2.0', 'id': 2, 'method': 'ping'})
+    assert [r.status_code for r in replies] == [400, 400, 400]
+    assert ok.status_code == 200
+    messages = '\n'.join(r.getMessage() for r in caplog.records
+                         if r.name == users.__name__)
+    for reason in ('invalid_json', 'invalid_jsonrpc', 'unsupported_protocol'):
+        assert f'reason={reason}' in messages
+    assert 'private-value' not in messages
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('body', [
+    b'{"error":{"message":"Validation error: private-value"}}',
+    b'private-value' * 2000,
+    b'[' * 2000 + b']' * 2000,
+])
+async def test_chunked_bad_response_is_forwarded_unchanged(monkeypatch, caplog, body):
+    monkeypatch.setattr(users, 'authenticate', lambda *args: identity())
+    caplog.set_level(logging.INFO, logger=users.__name__)
+
+    async def app(scope, receive, send):
+        await send({'type': 'http.response.start', 'status': 400, 'headers': []})
+        await send({'type': 'http.response.body', 'body': body[:15], 'more_body': True})
+        await send({'type': 'http.response.body', 'body': body[15:]})
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=users.UserConnectionMiddleware(app)),
+        base_url='https://mcp.example',
+    ) as client:
+        reply = await client.post('/mcp', headers=headers())
+    assert reply.status_code == 400
+    assert reply.content == body
+    assert 'OpenStack transport rejected' in caplog.text
+    assert 'private-value' not in caplog.text

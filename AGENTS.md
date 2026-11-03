@@ -33,10 +33,12 @@ consistent with the resulting implementation and actual verification.
   Label targeted retests as partial; do not extrapolate them to the full toolset.
   Document polling limits and distinguish accepted requests from confirmed final
   resource states. Explain changes in test conditions that affect comparisons.
-- Keep dated reports as historical evidence and link the latest applicable
-  report from README.md. Reports must state verification limits, observed
-  failures, and cleanup results without exposing credentials, private endpoints,
-  or sensitive resource data.
+- Keep `docs/` for reusable user guidance only. Do not create or retain
+  issue-specific reports, dated test results, or evidence JSON in `docs/`, or
+  embed those records in usage guides. Report case-specific verification results,
+  limits, failures, and cleanup in chat unless the user explicitly requests a
+  separate artifact. Never expose credentials, private endpoints, or sensitive
+  resource data. Do not add report links to README.md.
 - Before completion, check summary arithmetic, percentages, tool/action names,
   Status/Notes, source identity, and evidence links for agreement. If README.ko.md
   exists, maintain equivalent information in both README files.

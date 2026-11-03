@@ -24,7 +24,7 @@
 ## Features
 
 Experimental per-user remote connections are available for testing with the
-opt-in `--multi-user` mode. See the [phase 1 setup and validation guide](docs/multi-user-phase1.md)
+opt-in `--multi-user` mode. See the [multi-user setup and usage guide](docs/multi-user-guide.md)
 for authentication, client limitations, and the test checklist. Administrator
 cross-project queries are outside this phase.
 
@@ -165,80 +165,12 @@ New consolidated `get_instance` tool replaces multiple separate tools:
 
 ## 📊 OpenStack CLI vs MCP Tools Mapping
 
-**Latest targeted validation — 2026-11-02:** working tree based on `6a36b6e`.
-See the [fixes and final retest report](docs/expanded-validation-fixes-2026-11-02.md)
-and [sanitized evidence](docs/expanded-validation-fixes-2026-11-02.json).
-The final executable paths were tested with FastMCP **3.4.10** from `uv.lock`,
-two ordinary-user projects, **20 VMs and 20 one-GiB volumes**. Post-test tool
-wording/prompt corrections are identified separately in the report's source
-fingerprints; Claude replay remains unverified.
-
-| Verification group | Item | Result |
-| --- | --- | --- |
-| Live tool checks | Unique tools retested in limited scenarios | **14/14 (100%)**, 0 failed/unverified within this scope |
-| Live tool checks | Registered inventory not repeated in this final run | **91 of 105** tools; historical evidence below is not a current full sweep |
-| Named live harness cases | Fixture, isolation, lifecycle and grouped load checks | **101/102**, one Cinder storage-permission fixture failure, 0 skipped |
-| Local unit tests | Locked environment, `python -m pytest -q tests` | **199/199 (100%)**, 0 failed/skipped; 21 added regressions |
-| Bounded load requests | Shared-server, two-project bursts | **14/14**, actual overlap up to 8 |
-| Bounded load requests | Same shared server, 120 seconds, four workers | **209/209**, median 2.03 s, p95 2.70 s, max 3.24 s |
-| Backup recovery | After operator corrected one NFS directory permission | **6/6 fresh backups available**, both reader MCP state checks passed |
-| Claude client | Minimal actual model API preflight | Blocked before tools: credit/balance error; no final-source Claude replay |
-
-Network creation now uses the backend's default MTU when omitted; automatic
-1450 and explicit 1400 were verified. Both `set_volume` and `set_server_volume`
-attach/detach reached final states, with cross-project requests rejected. Both
-search wrappers now honor offset/case sensitivity and correct `has_more`.
-Default write restrictions remain in place. These successes do not certify all
-actions of those tools or all 105 registered tools.
-
-The Cinder fixture failure occurred through its API, independently of MCP. The
-operator corrected the failing directory's group-write permission; the original
-failure remains recorded alongside the successful targeted recovery. Actual
-Claude same-URL duplicate registration was not established as a product defect;
-single-entry/distinct-URL attempts also failed before tools. Restoring model API
-access is required for that controlled comparison.
-
-Earlier same-day results are consolidated in the final report's
-[sanitized evidence](docs/expanded-validation-fixes-2026-11-02.json), under
-`historical_evidence.earlier_runs`. The previous 33-tool classification and
-41 actual Claude template attempts belong to the pre-fix source, not this
-final source. The complete 105-tool snapshot below is also historical.
-
-**Validation snapshot — 2026-10-30** (main working tree based on `dd98993`,
-with the uncommitted fixes described in the report):
-
-<table border="1" rules="cols">
-  <thead>
-    <tr><th>Verification type</th><th>Item</th><th>Result</th></tr>
-  </thead>
-  <tbody>
-    <tr><td rowspan="5">Live tool checks</td><td>Registered tools invoked and classified</td><td><strong>105</strong></td></tr>
-    <tr><td>Passed within the exercised live scenarios</td><td><strong>74</strong></td></tr>
-    <tr><td>Implemented, live unverified: service/API unavailable</td><td><strong>28</strong></td></tr>
-    <tr><td>Intentional capability limitations</td><td><strong>3</strong></td></tr>
-    <tr><td>Reproduced code defects / state-check timeouts in the retest</td><td><strong>0 / 0</strong></td></tr>
-    <tr><td>Local unit tests</td><td>Test cases in <code>tests/test_*.py</code></td><td><strong>160/160 (100%)</strong></td></tr>
-  </tbody>
-</table>
-
-State polling allowed 180 seconds; soft reboot completed in 131.66 seconds
-(previously it exceeded the 90-second check). No reboot implementation change
-was needed.
-
-The 10 previously reproduced tool defects were corrected. The 28 unavailable
-paths are **not live-validated successes**: 24 Octavia tools, two Neutron QoS
-tools, one Aodh tool, and one Neutron port-forwarding tool. Each affected table
-row is marked **⚠️ Live unverified**. An absent tool/action is marked **❌ Not
-implemented** rather than presented as an available feature.
-
-✅ means an implemented API path; it does not certify every action or backend.
-The live-pass count covers only the scenarios in the
-[latest retest report](docs/main-live-retest-2026-10-30.md), with
-[sanitized evidence](docs/main-live-retest-2026-10-30.json). API policy, asynchronous
-completion, production HTTPS/client compatibility, load, and guest I/O limits
-are stated there. All test resources were cleaned up; the final audit found zero
-remaining test resources across 24 categories. See also
-[API prerequisites and result semantics](#api-prerequisites-and-result-semantics).
+✅ denotes an implemented API path, not certification of every action or
+OpenStack deployment. **⚠️ Live unverified** identifies paths without successful
+live validation; **❌ Not implemented** identifies unavailable capabilities.
+Service availability, permissions, and asynchronous completion affect results.
+See [API prerequisites and result semantics](#api-prerequisites-and-result-semantics)
+and the [multi-user setup guide](docs/multi-user-guide.md).
 
 **Detailed Mapping by Category**
 
@@ -284,7 +216,7 @@ remaining test resources across 24 categories. See also
 | `openstack server set` | `set_server_properties` (action="set") | ✅ | Server property setting |
 | `openstack server unset` | `set_server_properties` (action="unset") | ✅ | Server property unsetting |
 | `openstack server dump create` | `set_server_dump` | ❌ Unsupported | Returns an explicit unsupported result; no dump is created |
-| `openstack server event list` | `get_server_events` | ✅ | Server event tracking |
+| `openstack server event list` | `get_server_events` | ✅ | Pass the server name or UUID via `instance_name`, not `server_id`; event visibility follows Nova policy |
 | `openstack server group list` | `get_server_groups` | ✅ | Server group listing |
 | `openstack server group create/delete` | `set_server_group` | ✅ | Server group management |
 | `openstack flavor list` | `set_flavor` (action="list") | ✅ | Requires modification tools to be enabled for registration |
@@ -524,7 +456,7 @@ remaining test resources across 24 categories. See also
 
 ### API prerequisites and result semantics
 
-The feature table marks implemented API paths, not verification against every OpenStack deployment. The management and query paths have local mocked API tests. Selected paths also passed live tests on a single-node Kolla Ansible deployment; see [integration validation](docs/integration-validation.md) for coverage and skipped operations. A missing service, extension, required microversion, or permission is an operation failure, not an empty successful result.
+The feature table marks implemented API paths, not verification against every OpenStack deployment. Service and policy requirements must be checked in the target deployment. A missing service, extension, required microversion, or permission is an operation failure, not an empty successful result.
 
 - **Modification tools:** the MCP server registers `set_*` management tools only when `ALLOW_MODIFY_OPERATIONS=true`. Existing action guards also reject writes when disabled. Dedicated read-only `get_*` tools remain available. API authorization is enforced by the target cloud; agent, user, domain, type and QoS administration may require elevated OpenStack roles.
 - **Alarms:** `set_alarms` calls the Keystone catalog's `alarming` endpoint for the configured interface/region. It supports list/create/show/delete of project alarms and creates `gnocchi_resources_threshold` alarms. Aodh, Gnocchi, the specified resource and a collected metric are required. The default metric is `cpu_util`, which is not collected by every deployment. `metric`, `resource_type`, `aggregation_method`, `granularity`, `evaluation_periods`, and `alarm_actions` can be supplied. An empty action list creates an alarm without notifications. There is no simulation fallback.
@@ -726,7 +658,7 @@ unset OPENSTACK_MCP_TOKEN
 ```
 
 This Bearer configuration uses the server's configured OpenStack account. For
-experimental per-user authentication, see the [phase 1 guide](docs/multi-user-phase1.md).
+experimental per-user authentication, see the [multi-user guide](docs/multi-user-guide.md).
 See also the [Claude Code MCP documentation](https://code.claude.com/docs/en/mcp).
 
 ## Server Configuration

@@ -14,7 +14,11 @@ async def get_server_events(
     limit: int = 50
 ) -> str:
     """
-    Get recent events for a specific server
+    Get recent events for a server by name or UUID.
+
+    Pass either value using instance_name, for example
+    get_server_events(instance_name="<server UUID>"). There is no server_id
+    parameter; do not use server_id or instance_id as argument names.
     
     Args:
         instance_name: Name or ID of the server instance

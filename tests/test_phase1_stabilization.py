@@ -188,3 +188,15 @@ def test_network_endpoint_override_is_explicitly_versioned(monkeypatch):
         assert principal.connection.config.get_endpoint('network').endswith('/v2.0')
     finally:
         users._close_connection(principal.connection)
+
+
+@pytest.mark.parametrize('identifier', ['vm-name', 'vm-uuid'])
+def test_server_events_accepts_name_or_uuid_under_instance_name(monkeypatch, identifier):
+    server = SimpleNamespace(name='vm-name', id='vm-uuid')
+    conn = Mock()
+    conn.compute.servers.return_value = [server]
+    conn.compute.server_actions.return_value = []
+    monkeypatch.setattr(connection, 'get_openstack_connection', lambda: conn)
+    result = compute.get_server_events(instance_name=identifier)
+    assert result['success']
+    conn.compute.server_actions.assert_called_once_with(server.id)
