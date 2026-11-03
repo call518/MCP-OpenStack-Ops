@@ -77,7 +77,7 @@ def set_load_balancer_l7_policy(action: str, **kwargs) -> Dict[str, Any]:
     Manage L7 policy operations.
     
     Args:
-        action: Action (create, delete, set, unset, show)
+        action: Action (create, delete)
         **kwargs: Parameters based on action
     
     Returns:
@@ -154,7 +154,7 @@ def set_load_balancer_l7_policy(action: str, **kwargs) -> Dict[str, Any]:
         else:
             return {
                 'success': False,
-                'message': f'Unknown action "{action}". Supported: create, delete, set, unset, show'
+                'message': f'Unknown action "{action}". Supported: create, delete'
             }
             
     except Exception as e:

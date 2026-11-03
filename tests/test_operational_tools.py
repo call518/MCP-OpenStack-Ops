@@ -460,7 +460,8 @@ def test_glance_member_sdk_argument_order(conn):
 @pytest.mark.parametrize('section', ['resources', 'events', 'template', 'outputs'])
 def test_heat_queries_use_actual_sdk_or_template_response(conn, section):
     api = conn.orchestration
-    stack = Stack(id='stack-a', name='app', outputs=[{'output_key': 'ip',
+    stack = Stack(id='stack-a', name='app', links=[{'rel': 'self',
+        'href': 'https://heat/v1/project-a/stacks/app/stack-a'}], outputs=[{'output_key': 'ip',
         'output_value': '192.0.2.1'}])
     api.find_stack.return_value = stack
     api.resources.return_value = [Router(id='resource-a')]

@@ -681,6 +681,24 @@ def get_quota(project_name: str = "") -> Dict[str, Any]:
         }
 
 
+def _hypervisor_capacity(hypervisor: Any) -> Dict[str, Any]:
+    """Preserve unknown capacity and SDK field aliases without inventing zeros."""
+    data = hypervisor.to_dict()
+    aliases = {
+        'vcpus': ('vcpus',),
+        'vcpus_used': ('vcpus_used',),
+        'memory_mb': ('memory_size', 'memory_mb', 'memory_size_mb'),
+        'memory_mb_used': ('memory_used', 'memory_mb_used', 'memory_used_mb'),
+        'local_gb': ('local_disk_size', 'local_gb', 'local_disk_size_gb'),
+        'local_gb_used': ('local_disk_used', 'local_gb_used', 'local_disk_used_gb'),
+        'running_vms': ('running_vms',),
+    }
+    return {
+        key: next((data[name] for name in names if data.get(name) is not None), None)
+        for key, names in aliases.items()
+    }
+
+
 def get_hypervisor_details(hypervisor_name: str = "all") -> Dict[str, Any]:
     """
     Get details about hypervisors.
@@ -710,14 +728,7 @@ def get_hypervisor_details(hypervisor_name: str = "all") -> Dict[str, Any]:
             }
             
             for hypervisor in conn.compute.hypervisors(details=True):
-                # Safely get attributes with proper None handling
-                vcpus = getattr(hypervisor, 'vcpus', None) or 0
-                vcpus_used = getattr(hypervisor, 'vcpus_used', None) or 0
-                memory_mb = getattr(hypervisor, 'memory_mb', None) or getattr(hypervisor, 'memory_size_mb', None) or 0
-                memory_mb_used = getattr(hypervisor, 'memory_mb_used', None) or getattr(hypervisor, 'memory_used_mb', None) or 0
-                local_gb = getattr(hypervisor, 'local_gb', None) or getattr(hypervisor, 'local_disk_size_gb', None) or 0
-                local_gb_used = getattr(hypervisor, 'local_gb_used', None) or getattr(hypervisor, 'local_disk_used_gb', None) or 0
-                running_vms = getattr(hypervisor, 'running_vms', None) or 0
+                capacity = _hypervisor_capacity(hypervisor)
                 
                 hyp_data = {
                     'id': hypervisor.id,
@@ -725,27 +736,19 @@ def get_hypervisor_details(hypervisor_name: str = "all") -> Dict[str, Any]:
                     'host_ip': getattr(hypervisor, 'host_ip', 'unknown'),
                     'status': getattr(hypervisor, 'status', 'unknown'),
                     'state': getattr(hypervisor, 'state', 'unknown'),
-                    'vcpus': vcpus,
-                    'vcpus_used': vcpus_used,
-                    'memory_mb': memory_mb,
-                    'memory_mb_used': memory_mb_used,
-                    'local_gb': local_gb,
-                    'local_gb_used': local_gb_used,
-                    'running_vms': running_vms,
+                    **capacity,
                     'hypervisor_type': getattr(hypervisor, 'hypervisor_type', 'unknown'),
                     'hypervisor_version': getattr(hypervisor, 'hypervisor_version', 'unknown')
                 }
                 
-                # Add to totals (now safe since all values are guaranteed integers)
                 total_stats['count'] += 1
-                total_stats['vcpus'] += vcpus
-                total_stats['vcpus_used'] += vcpus_used
-                total_stats['memory_mb'] += memory_mb
-                total_stats['memory_mb_used'] += memory_mb_used
-                total_stats['local_gb'] += local_gb
-                total_stats['local_gb_used'] += local_gb_used
-                total_stats['running_vms'] += running_vms
-                
+                for key, value in capacity.items():
+                    total_stats[key] = (
+                        total_stats[key] + value
+                        if total_stats[key] is not None and value is not None
+                        else None
+                    )
+
                 hypervisors.append(hyp_data)
             
             # Try to get enhanced statistics from Nova API
@@ -758,14 +761,14 @@ def get_hypervisor_details(hypervisor_name: str = "all") -> Dict[str, Any]:
                     
                     if hypervisor_statistics:
                         enhanced_stats = {
-                            'count': hypervisor_statistics.get('count', 0),
-                            'vcpus': hypervisor_statistics.get('vcpus', 0),
-                            'vcpus_used': hypervisor_statistics.get('vcpus_used', 0),
-                            'memory_mb': hypervisor_statistics.get('memory_mb', 0),
-                            'memory_mb_used': hypervisor_statistics.get('memory_mb_used', 0),
-                            'local_gb': hypervisor_statistics.get('local_gb', 0),
-                            'local_gb_used': hypervisor_statistics.get('local_gb_used', 0),
-                            'running_vms': hypervisor_statistics.get('running_vms', 0),
+                            'count': hypervisor_statistics.get('count'),
+                            'vcpus': hypervisor_statistics.get('vcpus'),
+                            'vcpus_used': hypervisor_statistics.get('vcpus_used'),
+                            'memory_mb': hypervisor_statistics.get('memory_mb'),
+                            'memory_mb_used': hypervisor_statistics.get('memory_mb_used'),
+                            'local_gb': hypervisor_statistics.get('local_gb'),
+                            'local_gb_used': hypervisor_statistics.get('local_gb_used'),
+                            'running_vms': hypervisor_statistics.get('running_vms'),
                             'data_source': 'nova_hypervisor_statistics_api'
                         }
             except Exception as e:
@@ -782,14 +785,7 @@ def get_hypervisor_details(hypervisor_name: str = "all") -> Dict[str, Any]:
             # Get specific hypervisor
             for hypervisor in conn.compute.hypervisors(details=True):
                 if getattr(hypervisor, 'name', '') == hypervisor_name:
-                    # Safely get attributes with proper None handling
-                    vcpus = getattr(hypervisor, 'vcpus', None) or 0
-                    vcpus_used = getattr(hypervisor, 'vcpus_used', None) or 0
-                    memory_mb = getattr(hypervisor, 'memory_mb', None) or getattr(hypervisor, 'memory_size_mb', None) or 0
-                    memory_mb_used = getattr(hypervisor, 'memory_mb_used', None) or getattr(hypervisor, 'memory_used_mb', None) or 0
-                    local_gb = getattr(hypervisor, 'local_gb', None) or getattr(hypervisor, 'local_disk_size_gb', None) or 0
-                    local_gb_used = getattr(hypervisor, 'local_gb_used', None) or getattr(hypervisor, 'local_disk_used_gb', None) or 0
-                    running_vms = getattr(hypervisor, 'running_vms', None) or 0
+                    capacity = _hypervisor_capacity(hypervisor)
                     
                     return {
                         'success': True,
@@ -799,13 +795,7 @@ def get_hypervisor_details(hypervisor_name: str = "all") -> Dict[str, Any]:
                             'host_ip': getattr(hypervisor, 'host_ip', 'unknown'),
                             'status': getattr(hypervisor, 'status', 'unknown'),
                             'state': getattr(hypervisor, 'state', 'unknown'),
-                            'vcpus': vcpus,
-                            'vcpus_used': vcpus_used,
-                            'memory_mb': memory_mb,
-                            'memory_mb_used': memory_mb_used,
-                            'local_gb': local_gb,
-                            'local_gb_used': local_gb_used,
-                            'running_vms': running_vms,
+                            **capacity,
                             'hypervisor_type': getattr(hypervisor, 'hypervisor_type', 'unknown'),
                             'hypervisor_version': getattr(hypervisor, 'hypervisor_version', 'unknown')
                         }
@@ -849,7 +839,7 @@ def get_availability_zones() -> Dict[str, Any]:
             for zone in compute_zones:
                 zones_data['compute'].append({
                     'name': getattr(zone, 'name', 'unknown'),
-                    'available': getattr(zone, 'available', False),
+                    'available': (getattr(zone, 'state', None) or {}).get('available'),
                     'hosts': getattr(zone, 'hosts', {})
                 })
         except Exception as e:
@@ -873,7 +863,7 @@ def get_availability_zones() -> Dict[str, Any]:
             for zone in volume_zones:
                 zones_data['volume'].append({
                     'name': getattr(zone, 'name', 'unknown'),
-                    'available': getattr(zone, 'available', False)
+                    'available': (getattr(zone, 'state', None) or {}).get('available')
                 })
         except Exception as e:
             zones_data['volume'] = [{'error': str(e)}]

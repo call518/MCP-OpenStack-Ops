@@ -6,9 +6,38 @@ This module contains functions for managing Heat stacks and orchestration operat
 
 import logging
 from typing import Dict, List, Any
+from urllib.parse import urlsplit
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+
+def _heat_stack_is_owned(stack: Any, project_id: str) -> bool:
+    """Use Heat's self link when its list response omits the project field."""
+    if not project_id:
+        return False
+    explicit = getattr(stack, 'project_id', None)
+    if explicit and explicit != project_id:
+        return False
+    link_projects = set()
+    for link in getattr(stack, 'links', None) or []:
+        if not isinstance(link, dict) or link.get('rel') != 'self':
+            continue
+        parts = urlsplit(link.get('href', '')).path.strip('/').split('/')
+        for index, part in enumerate(parts):
+            if part == 'stacks' and index >= 2 and parts[index - 2] == 'v1':
+                link_projects.add(parts[index - 1])
+    if link_projects:
+        return link_projects == {project_id}
+    return explicit == project_id
+
+
+def _find_owned_heat_stack(conn: Any, name_or_id: str) -> Any:
+    for stack in conn.orchestration.stacks():
+        if (name_or_id in (getattr(stack, 'name', None), getattr(stack, 'id', None))
+                and _heat_stack_is_owned(stack, conn.current_project_id)):
+            return stack
+    return None
 
 
 def get_heat_stacks() -> List[Dict[str, Any]]:
@@ -28,25 +57,25 @@ def get_heat_stacks() -> List[Dict[str, Any]]:
             # Test Heat service availability
             stacks_iterator = conn.orchestration.stacks()
             current_project_id = conn.current_project_id
+            if not current_project_id:
+                raise ValueError('A project-scoped connection is required')
             stacks = []
             
             for stack in stacks_iterator:
-                # Filter stacks by current project
-                stack_project_id = getattr(stack, 'project_id', None)
-                if stack_project_id == current_project_id:
+                if _heat_stack_is_owned(stack, current_project_id):
                     stacks.append({
                         'id': stack.id,
                         'name': stack.name,
                         'status': stack.status,
-                        'stack_status': getattr(stack, 'stack_status', 'unknown'),
-                        'stack_status_reason': getattr(stack, 'stack_status_reason', ''),
-                        'creation_time': str(getattr(stack, 'creation_time', 'unknown')),
-                        'updated_time': str(getattr(stack, 'updated_time', 'unknown')),
+                        'stack_status': stack.status,
+                        'stack_status_reason': getattr(stack, 'status_reason', ''),
+                        'creation_time': str(getattr(stack, 'created_at', 'unknown')),
+                        'updated_time': str(getattr(stack, 'updated_at', 'unknown')),
                         'description': getattr(stack, 'description', ''),
                         'tags': getattr(stack, 'tags', []),
                         'timeout_mins': getattr(stack, 'timeout_mins', None),
                         'owner': getattr(stack, 'stack_owner', 'unknown'),
-                        'project_id': stack_project_id
+                        'project_id': current_project_id
                     })
             
             logger.info(f"Retrieved {len(stacks)} stacks for project {current_project_id}")
@@ -124,15 +153,8 @@ def set_heat_stack(stack_name: str, action: str, **kwargs) -> Dict[str, Any]:
             }
             
         elif action.lower() == 'delete':
-            # Find the stack using secure project-scoped lookup
-            from ..connection import find_resource_by_name_or_id
             conn = get_openstack_connection()
-            
-            stack = find_resource_by_name_or_id(
-                conn.orchestration.stacks(), 
-                stack_name, 
-                "Heat stack"
-            )
+            stack = _find_owned_heat_stack(conn, stack_name)
                     
             if not stack:
                 return {
@@ -148,15 +170,8 @@ def set_heat_stack(stack_name: str, action: str, **kwargs) -> Dict[str, Any]:
             }
             
         elif action.lower() == 'update':
-            # Find the stack using secure project-scoped lookup
-            from ..connection import find_resource_by_name_or_id
             conn = get_openstack_connection()
-            
-            stack = find_resource_by_name_or_id(
-                conn.orchestration.stacks(), 
-                stack_name, 
-                "Heat stack"
-            )
+            stack = _find_owned_heat_stack(conn, stack_name)
                     
             if not stack:
                 return {
@@ -209,8 +224,11 @@ def get_heat_stack_details(stack_name: str, section: str = 'resources') -> Dict[
             raise ValueError('Supported sections: resources, events, template, outputs')
         if not stack_name.strip():
             raise ValueError('stack_name is required')
-        api = get_openstack_connection().orchestration
+        conn = get_openstack_connection()
+        api = conn.orchestration
         stack = api.find_stack(stack_name, ignore_missing=False)
+        if not _heat_stack_is_owned(stack, conn.current_project_id):
+            raise ValueError('Heat stack is not accessible in the current project')
         if section == 'resources':
             data = [r.to_dict() for r in api.resources(stack)]
         elif section == 'events':

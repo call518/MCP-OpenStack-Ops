@@ -173,7 +173,7 @@ def set_volume(volume_name: str, action: str, **kwargs) -> Dict[str, Any]:
             }
             
         elif action.lower() == 'extend':
-            new_size = kwargs.get('size', kwargs.get('new_size'))
+            new_size = kwargs.get('new_size') or kwargs.get('size')
             if not new_size:
                 return {
                     'success': False,

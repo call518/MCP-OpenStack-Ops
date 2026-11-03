@@ -37,9 +37,9 @@ async def set_volume(volume_names: str, action: str, size: int = 1, instance_nam
                      - Multiple: "volume1,volume2,volume3" or "volume1, volume2, volume3"
                      - List format: '["volume1", "volume2", "volume3"]'
         action: Management action (create, delete, list, extend, attach, detach, snapshot)
-        size: Volume size in GB (default: 1, used for create/extend actions)
+        size: Volume size in GB (default: 1); fallback for extend if new_size is omitted
         instance_name: Instance name or ID (required for attach)
-        new_size: New size for extend action (required for extend)
+        new_size: Target size for extend; takes precedence over size when positive
         source_volume: Compatibility parameter; clone is not implemented here
         backup_name: Compatibility parameter; use set_volume_backups for backups
         snapshot_name: Custom snapshot name (auto-generated if not provided)

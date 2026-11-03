@@ -22,10 +22,10 @@ async def set_load_balancer_l7_policy(
     admin_state_up: bool = True
 ) -> str:
     """
-    Manage L7 policy operations (create, delete, set, unset, show).
+    Manage L7 policy operations (create, delete).
     
     Args:
-        action: Action to perform (create, delete, set, unset, show)
+        action: Action to perform (create, delete)
         listener_name_or_id: Listener name or ID (required for create)
         policy_name_or_id: Policy name or ID (required for delete/update operations)
         name: Policy name (for create)

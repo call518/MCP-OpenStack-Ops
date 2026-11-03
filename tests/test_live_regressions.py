@@ -8,6 +8,7 @@ from unittest.mock import Mock, create_autospec
 import pytest
 from openstack.compute.v2._proxy import Proxy as ComputeProxy
 from openstack.compute.v2.server import Server
+from openstack.compute.v2.hypervisor import Hypervisor
 from openstack.network.v2._proxy import Proxy as NetworkProxy
 from openstack.orchestration.v1._proxy import Proxy as HeatProxy
 from openstack.orchestration.v1.stack import Stack
@@ -85,6 +86,85 @@ def test_heat_create_uses_api_string_tags_and_sdk_status(conn):
     assert result['success'], result
     assert conn.orchestration.create_stack.call_args.kwargs['tags'] == ''
     assert result['stack']['status'] == 'CREATE_IN_PROGRESS'
+
+
+def test_heat_list_requires_matching_owner_from_self_link(conn):
+    conn.orchestration.stacks.return_value = [
+        Stack(id='stack-a', stack_name='stack-a', stack_status='CREATE_COMPLETE',
+              links=[{'rel': 'self', 'href': 'https://heat/v1/project-a/stacks/app/stack-a'}]),
+        Stack(id='stack-b', stack_name='stack-b',
+              links=[{'rel': 'self', 'href': 'https://heat/v1/project-b/stacks/app/stack-b'}]),
+        Stack(id='unknown', stack_name='unknown'),
+        SimpleNamespace(id='foreign', project_id='project-b'),
+    ]
+    result = orchestration.get_heat_stacks()
+    assert [stack['id'] for stack in result] == ['stack-a']
+    assert result[0]['project_id'] == 'project-a'
+    assert result[0]['stack_status'] == 'CREATE_COMPLETE'
+    conn.orchestration.stacks.assert_called_once_with()
+
+
+@pytest.mark.parametrize('action', ['delete', 'update'])
+def test_heat_write_rejects_foreign_and_unknown_owner(conn, action):
+    for stack in [Stack(id='stack-b', stack_name='foreign',
+                        links=[{'rel': 'self', 'href':
+                                'https://heat/v1/project-b/stacks/foreign/stack-b'}]),
+                  Stack(id='stack-b', stack_name='foreign')]:
+        conn.orchestration.stacks.return_value = [stack]
+        result = orchestration.set_heat_stack('foreign', action,
+                                              template={'resources': {}})
+        assert not result['success']
+    conn.orchestration.delete_stack.assert_not_called()
+    conn.orchestration.update_stack.assert_not_called()
+
+
+def test_heat_delete_accepts_stack_with_matching_self_link(conn):
+    stack = Stack(id='stack-a', stack_name='app', links=[{'rel': 'self',
+        'href': 'https://heat/v1/project-a/stacks/app/stack-a'}])
+    conn.orchestration.stacks.return_value = [stack]
+    assert orchestration.set_heat_stack('app', 'delete')['success']
+    conn.orchestration.delete_stack.assert_called_once_with(stack)
+
+
+def test_heat_details_reject_foreign_owner(conn):
+    conn.orchestration.find_stack.return_value = Stack(
+        id='stack-b', stack_name='foreign', links=[{'rel': 'self',
+        'href': 'https://heat/v1/project-b/stacks/foreign/stack-b'}])
+    assert not orchestration.get_heat_stack_details('foreign')['success']
+    conn.orchestration.resources.assert_not_called()
+
+
+def test_heat_list_requires_a_project_scope(conn):
+    conn.current_project_id = None
+    result = orchestration.get_heat_stacks()
+    assert result[0]['status'] == 'ERROR'
+    assert 'project-scoped' in result[0]['error']
+
+
+@pytest.mark.parametrize('name', ['all', 'host-a'])
+def test_hypervisor_missing_capacity_is_unknown_not_zero(conn, name):
+    conn.compute.hypervisors.return_value = [
+        Hypervisor(id='host-a', name='host-a', vcpus=0, memory_mb=1024),
+    ]
+    conn.compute.get.return_value.status_code = 404
+    result = monitoring.get_hypervisor_details(name)
+    host = result['hypervisors'][0] if name == 'all' else result['hypervisor']
+    assert host['vcpus'] == 0
+    assert host['memory_mb'] == 1024
+    assert host['local_gb'] is None
+    if name == 'all':
+        assert result['total_stats']['local_gb'] is None
+
+
+def test_hypervisor_totals_do_not_hide_missing_hosts_capacity(conn):
+    conn.compute.hypervisors.return_value = [
+        Hypervisor(id='a', name='a', vcpus=2),
+        Hypervisor(id='b', name='b'),
+    ]
+    conn.compute.get.return_value.status_code = 404
+    result = monitoring.get_hypervisor_details()
+    assert result['total_stats']['count'] == 2
+    assert result['total_stats']['vcpus'] is None
 
 
 @pytest.mark.asyncio

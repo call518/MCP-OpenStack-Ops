@@ -7,7 +7,7 @@ from unittest.mock import Mock
 import pytest
 
 from mcp_openstack_ops import connection
-from mcp_openstack_ops.services import compute, storage
+from mcp_openstack_ops.services import compute, monitoring, storage
 
 
 @pytest.fixture
@@ -57,6 +57,51 @@ def test_volume_detach_rejects_foreign_server(volume_connection):
     server.project_id = 'other'
     assert not storage.set_volume('data', 'detach')['success']
     conn.compute.delete_volume_attachment.assert_not_called()
+
+
+@pytest.mark.parametrize('kwargs,expected', [
+    ({'size': 1, 'new_size': 2}, 2),
+    ({'size': 3, 'new_size': None}, 3),
+    ({'size': 4}, 4),
+])
+def test_volume_extend_prefers_explicit_new_size(volume_connection, kwargs, expected):
+    conn, _, volume = volume_connection
+    volume.size = 1
+    result = storage.set_volume(volume.name, 'extend', **kwargs)
+    assert result['success']
+    conn.volume.extend_volume.assert_called_once_with(volume, size=expected)
+
+
+@pytest.mark.parametrize(
+    "snapshots,name,expected",
+    [
+        ([{"name": "snap-a", "status": "available"}], "snap-a", "available"),
+        ([{"name": "other", "status": "available"}], "snap-a", "Not Found"),
+        ({"error": "API failure"}, "snap-a", "Not Found"),
+    ],
+)
+def test_snapshot_resource_status(monkeypatch, snapshots, name, expected):
+    from mcp_openstack_ops import mcp_main
+
+    monkeypatch.setattr(mcp_main, "_get_volume_snapshots", lambda: snapshots)
+
+    assert mcp_main._get_resource_status_by_name("snapshot", name) == expected
+
+
+@pytest.mark.parametrize('available', [True, False, None])
+def test_availability_zones_read_sdk_state(monkeypatch, available):
+    from openstack.compute.v2.availability_zone import AvailabilityZone as ComputeZone
+    from openstack.block_storage.v3.availability_zone import AvailabilityZone as VolumeZone
+
+    conn = Mock()
+    state = {'available': available} if available is not None else None
+    conn.compute.availability_zones.return_value = [ComputeZone(name='nova', state=state)]
+    conn.volume.availability_zones.return_value = [VolumeZone(name='nova', state=state)]
+    conn.network.availability_zones.return_value = []
+    monkeypatch.setattr(connection, 'get_openstack_connection', lambda: conn)
+    zones = monitoring.get_availability_zones()['availability_zones']
+    assert zones['compute'][0]['available'] is available
+    assert zones['volume'][0]['available'] is available
 
 
 @pytest.mark.asyncio

@@ -16,7 +16,7 @@ async def get_heat_stacks() -> str:
     Functions:
     - Query Heat stacks and their current status
     - Display stack creation and update timestamps
-    - Show stack templates and resource information
+    - Use get_heat_stack_details for templates, resources, events, or outputs
     - Provide orchestration deployment information
     
     Use when user requests stack information, orchestration queries, or infrastructure-as-code status.

@@ -172,6 +172,24 @@ Service availability, permissions, and asynchronous completion affect results.
 See [API prerequisites and result semantics](#api-prerequisites-and-result-semantics)
 and the [multi-user setup guide](docs/multi-user-guide.md).
 
+**Validation snapshot (2026-11-04; working tree based on `a57b165`):**
+- **Live tool checks:** 105/105 registered tools exercised. At least one live
+  path passed for 76 tools; 28 tools were unavailable because the test cloud
+  lacks Octavia, Aodh, Neutron QoS, or floating-IP port-forwarding APIs; one
+  tool (`set_server_dump`) reached its documented platform limitation. The
+  `set_snapshot` status fix was retested separately after the full run: an
+  actual snapshot reached `available`, and its isolated test project was
+  removed. These are unique-tool classifications, not individual call counts.
+- **Claude Code prompt checks:** 118/118 documented examples were issued to the
+  real MCP servers. 99 completed their tool workflows, including two
+  successful retries after an initial bad placeholder; two of those 99 used
+  disclosed test substitutions and are not exact request matches. Five
+  composite reports were partial because optional APIs were unavailable;
+  seven direct requests could not run because their cloud service or extension
+  is absent; seven read-like requests were limited by the non-interactive
+  Claude permission policy.
+- **Local unit tests:** 249/249 (100%); no failures or skipped tests.
+
 **Detailed Mapping by Category**
 
 ### 1. 🖥️ **Compute (Nova)**
@@ -223,8 +241,8 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
 | `openstack flavor create/delete` | `set_flavor` | ✅ | Flavor management |
 | `openstack keypair list` | `get_keypair_list` | ✅ | Empty scoped read completed; member keypair creation/deletion read-back tested separately |
 | `openstack keypair create/delete` | `set_keypair` | ✅ | Explicit member MCP create/delete read-back passed; no successful Claude write workflow claimed |
-| `openstack hypervisor list` | `get_hypervisor_details` | ⚠️ Live unverified | Reader policy denial; successful administrator MCP lookup was not obtained in this round |
-| `openstack availability zone list` | `get_availability_zones` | ⚠️ Live unverified | Only policy-limited composite requests in this round; individual result not independently attributed |
+| `openstack hypervisor list` | `get_hypervisor_details` | ✅ | Administrator lookup verified; missing per-host capacity and incomplete totals are null, not zero. Global enhanced statistics remain separate |
+| `openstack availability zone list` | `get_availability_zones` | ✅ | Compute/Cinder availability reads the SDK state mapping; missing availability is null. Actual available zones verified |
 
 ### 2. 🌐 **Network (Neutron)**
 
@@ -267,11 +285,12 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
 | `openstack volume list` | `get_volume_list` | ✅ | Exactly ten owned volumes per reader; no other test project volume IDs returned |
 | `openstack volume show` | `get_volume_list` | ✅ | Listing-based client filtering; no dedicated get_volume_list filter argument |
 | `openstack volume create/delete` | `set_volume` | ✅ | Volume creation/deletion |
-| `openstack volume set` | — | ❌ Not implemented | set_volume has no modify/update action; do not send this unsupported action |
+| `openstack volume set --size` | `set_volume` (action="extend") | ✅ | Positive new_size takes precedence over size; size remains a fallback. A test volume reached the requested size and available state; API acceptance alone is not completion |
+| `openstack volume set` (other properties) | — | ❌ Not implemented | set_volume has no modify/update action; do not send this unsupported action |
 | `openstack volume type list` | `get_volume_types` | ✅ | Volume type listing |
 | `openstack volume type create/delete` | `set_volume_types` | ✅ | Volume type management; usually admin-only |
 | `openstack volume snapshot list` | `get_volume_snapshots` | ✅ | Two owned base snapshots per reader; API final states checked |
-| `openstack volume snapshot create/delete` | `set_snapshot` | ✅ | Explicit member MCP snapshots reached available and were deleted; no restore/I/O claim |
+| `openstack volume snapshot create/delete` | `set_snapshot` | ✅ | Explicit member MCP snapshots reached available and were deleted. Post-action status resolves snapshots instead of reporting an unknown resource type; no restore/I/O claim |
 | `openstack backup list` | `get_volume_backups` | ✅ | Three owned available backups per reader; base backup creation used real Cinder APIs |
 | `openstack backup create/delete` | `set_volume_backups` | ✅ | Volume backup management |
 | `openstack volume transfer request list` | `get_volume_transfers` | ✅ | Request listing only; authorization keys are excluded |
@@ -323,16 +342,16 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
-| `openstack stack list` | `get_heat_stacks` | ✅ | Stack listing |
-| `openstack stack show` | `get_heat_stacks` (filtering) | ✅ | Specific stack query |
+| `openstack stack list` | `get_heat_stacks` | ✅ | The stack's project ID or Heat self link must match the current project; unknown and foreign owners are excluded. Own and foreign test stacks were checked |
+| `openstack stack show` | `get_heat_stacks` | ✅ Partial | Select the target from the returned list; no name/filter parameter. Resource/event/template/output queries use get_heat_stack_details |
 | `openstack stack create` | `set_heat_stack` (action="create") | ✅ | Stack creation |
-| `openstack stack delete` | `set_heat_stack` (action="delete") | ✅ | Stack deletion |
-| `openstack stack update` | `set_heat_stack` (action="update") | ✅ | Stack update |
-| `openstack stack suspend/resume` | `set_heat_stack` | ✅ | Stack suspend/resume |
+| `openstack stack delete` | `set_heat_stack` (action="delete") | ✅ | Foreign-project deletion rejected; owned stack deletion completed after the ownership change |
+| `openstack stack update` | `set_heat_stack` (action="update") | ⚠️ Live unverified | Requires matching stack ownership; owned update after the ownership change has not been live retested |
+| `openstack stack suspend/resume` | — | ❌ Not implemented | set_heat_stack supports create, delete and update only |
 | `openstack stack resource list` | `get_heat_stack_details` (section="resources") | ✅ | Actual Heat resources |
-| `openstack stack event list` | `get_heat_stack_details` (section="events") | ✅ | Actual Heat events |
-| `openstack stack template show` | `get_heat_stack_details` (section="template") | ✅ | Original template document |
-| `openstack stack output list` | `get_heat_stack_details` (section="outputs") | ✅ | Resolved stack outputs |
+| `openstack stack event list` | `get_heat_stack_details` (section="events") | ✅ | Owned stack events retrieved after the ownership change |
+| `openstack stack template show` | `get_heat_stack_details` (section="template") | ✅ | Owned stack template retrieved after the ownership change |
+| `openstack stack output list` | `get_heat_stack_details` (section="outputs") | ✅ | Owned stack outputs retrieved after the ownership change |
 
 ### 7. ⚖️ **Load Balancer (Octavia)**
 
@@ -379,7 +398,7 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
 | `openstack loadbalancer healthmonitor unset` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | **L7 Policy Management** | | | |
 | `openstack loadbalancer l7policy list` | `get_load_balancer_l7_policies` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. L7 policy listing |
-| `openstack loadbalancer l7policy create` | `set_load_balancer_l7_policy` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. L7 policy creation |
+| `openstack loadbalancer l7policy create` | `set_load_balancer_l7_policy` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. This management tool supports create/delete only |
 | `openstack loadbalancer l7policy delete` | `set_load_balancer_l7_policy` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. L7 policy deletion |
 | `openstack loadbalancer l7policy set` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | `openstack loadbalancer l7policy show` | `get_load_balancer_l7_policies` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. L7 policy details |

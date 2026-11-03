@@ -135,6 +135,7 @@ from .functions import (
     get_instance_by_name as _get_instance_by_name,
     get_network_details as _get_network_details,
     get_volume_list as _get_volume_list,
+    get_volume_snapshots as _get_volume_snapshots,
     get_image_detail_list as _get_image_detail_list,
     get_keypair_list as _get_keypair_list,
 )
@@ -192,6 +193,14 @@ def _get_resource_status_by_name(resource_type: str, resource_name: str) -> str:
             for volume in volumes:
                 if volume.get('name') == resource_name.strip():
                     return volume.get('status', 'Unknown')
+            return 'Not Found'
+
+        elif resource_type == "snapshot":
+            snapshots = _get_volume_snapshots()
+            if isinstance(snapshots, list):
+                for snapshot in snapshots:
+                    if snapshot.get('name') == resource_name.strip():
+                        return snapshot.get('status', 'Unknown')
             return 'Not Found'
             
         elif resource_type == "image":
