@@ -498,14 +498,23 @@ def main(argv: Optional[List[str]] = None) -> None:
     secret_key = args.secret_key or os.getenv("REMOTE_SECRET_KEY", "")
     multi_user = args.multi_user or _parse_bool_env(os.getenv("MCP_MULTI_USER", "false"))
     if multi_user:
+        protocol = os.getenv("OS_AUTH_PROTOCOL", "http").lower()
+        allow_insecure_http = _parse_bool_env(
+            os.getenv("MCP_MULTI_USER_ALLOW_INSECURE_HTTP", "false")
+        )
         if transport_type != "streamable-http":
             parser.error("--multi-user requires streamable-http")
-        if os.getenv("OS_AUTH_PROTOCOL", "http").lower() != "https":
+        if protocol != "https" and not (protocol == "http" and allow_insecure_http):
             parser.error("Multi-user mode requires OS_AUTH_PROTOCOL=https")
         if not os.getenv("OS_AUTH_HOST"):
             parser.error("Multi-user mode requires OS_AUTH_HOST")
         if log_level.upper() == "DEBUG":
             parser.error("Multi-user mode does not allow DEBUG credential wire logging")
+        if protocol == "http":
+            logger.warning(
+                "INSECURE TEST MODE: Multi-user OpenStack credentials will be "
+                "transmitted over HTTP. Never use this setting in production."
+            )
     user_connection.configure(multi_user)
     
     # Validation for streamable-http mode with authentication

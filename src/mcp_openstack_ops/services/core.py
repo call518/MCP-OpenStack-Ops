@@ -96,7 +96,7 @@ def get_service_status(service_name: str = "") -> Dict[str, Any]:
                     try:
                         service_status['endpoint'] = conn.session.get_endpoint(service_type='identity', interface='public')
                     except Exception:
-                        service_status['endpoint'] = f"{'https' if user_connection.enabled else 'http'}://{os.environ.get('OS_AUTH_HOST', 'localhost')}:{os.environ.get('OS_AUTH_PORT', '5000')}"
+                        service_status['endpoint'] = f"{user_connection.service_protocol()}://{os.environ.get('OS_AUTH_HOST', 'localhost')}:{os.environ.get('OS_AUTH_PORT', '5000')}"
                     
                 elif service == 'orchestration':
                     # Test orchestration service (Heat) with manual API call
@@ -111,7 +111,7 @@ def get_service_status(service_name: str = "") -> Dict[str, Any]:
                         # Construct Heat API URL
                         auth_host = os.environ.get('OS_AUTH_HOST', 'localhost')
                         heat_port = os.environ.get('OS_HEAT_STACK_PORT', '8004')
-                        heat_url = f"{'https' if user_connection.enabled else 'http'}://{auth_host}:{heat_port}/v1/{project_id}/stacks"
+                        heat_url = f"{user_connection.service_protocol()}://{auth_host}:{heat_port}/v1/{project_id}/stacks"
                         
                         headers = {'X-Auth-Token': token}
                         
@@ -124,7 +124,7 @@ def get_service_status(service_name: str = "") -> Dict[str, Any]:
                             
                             # Also get Heat engine services information
                             try:
-                                services_url = f"{'https' if user_connection.enabled else 'http'}://{auth_host}:{heat_port}/v1/{project_id}/services"
+                                services_url = f"{user_connection.service_protocol()}://{auth_host}:{heat_port}/v1/{project_id}/services"
                                 services_response = requests.get(services_url, headers=headers, timeout=3, **_probe_request_options(conn))
                                 
                                 heat_engines_info = "engines status unknown"
@@ -136,7 +136,7 @@ def get_service_status(service_name: str = "") -> Dict[str, Any]:
                             except Exception:
                                 heat_engines_info = "engines status unavailable"
                             
-                            service_status['endpoint'] = f"{'https' if user_connection.enabled else 'http'}://{auth_host}:{heat_port}/v1"
+                            service_status['endpoint'] = f"{user_connection.service_protocol()}://{auth_host}:{heat_port}/v1"
                             service_status['details'] = {
                                 'stacks_count': stacks_count,
                                 'api_version': 'v1',
@@ -379,7 +379,7 @@ def get_service_status(service_name: str = "") -> Dict[str, Any]:
                 
                 for port in lb_ports:
                     try:
-                        lb_url = f"{'https' if user_connection.enabled else 'http'}://{auth_host}:{port}/v2.0/lbaas/loadbalancers"
+                        lb_url = f"{user_connection.service_protocol()}://{auth_host}:{port}/v2.0/lbaas/loadbalancers"
                         headers = {'X-Auth-Token': token}
                         
                         response = timeout_session.get(lb_url, headers=headers, timeout=3, **_probe_request_options(conn))
@@ -1010,7 +1010,7 @@ def get_service_status(service_name: str = "") -> Dict[str, Any]:
                         try:
                             service_status['endpoint'] = conn.session.get_endpoint(service_type='identity', interface='public')
                         except Exception:
-                            service_status['endpoint'] = f"{'https' if user_connection.enabled else 'http'}://{os.environ.get('OS_AUTH_HOST', 'localhost')}:{os.environ.get('OS_AUTH_PORT', '5000')}"
+                            service_status['endpoint'] = f"{user_connection.service_protocol()}://{os.environ.get('OS_AUTH_HOST', 'localhost')}:{os.environ.get('OS_AUTH_PORT', '5000')}"
                         
                     elif service == 'orchestration':
                         # Test orchestration service (Heat) with manual API call
@@ -1024,7 +1024,7 @@ def get_service_status(service_name: str = "") -> Dict[str, Any]:
                             # Construct Heat API URL
                             auth_host = os.environ.get('OS_AUTH_HOST', 'localhost')
                             heat_port = os.environ.get('OS_HEAT_STACK_PORT', '8004')
-                            heat_url = f"{'https' if user_connection.enabled else 'http'}://{auth_host}:{heat_port}/v1/{project_id}/stacks"
+                            heat_url = f"{user_connection.service_protocol()}://{auth_host}:{heat_port}/v1/{project_id}/stacks"
                             
                             headers = {
                                 'X-Auth-Token': token,
@@ -1035,7 +1035,7 @@ def get_service_status(service_name: str = "") -> Dict[str, Any]:
                             response = requests.get(heat_url, headers=headers, timeout=10, **_probe_request_options(conn))
                             
                             if response.status_code in [200, 404]:  # 404 is OK - means no stacks
-                                service_status['endpoint'] = f"{'https' if user_connection.enabled else 'http'}://{auth_host}:{heat_port}"
+                                service_status['endpoint'] = f"{user_connection.service_protocol()}://{auth_host}:{heat_port}"
                                 service_status['version'] = 'v1'
                             else:
                                 raise Exception(f"Heat API returned status {response.status_code}")
@@ -1137,7 +1137,7 @@ def get_service_status(service_name: str = "") -> Dict[str, Any]:
                 try:
                     service_status['endpoint'] = conn.session.get_endpoint(service_type='identity', interface='public')
                 except Exception:
-                    service_status['endpoint'] = f"{'https' if user_connection.enabled else 'http'}://{os.environ.get('OS_AUTH_HOST', 'localhost')}:{os.environ.get('OS_AUTH_PORT', '5000')}"
+                    service_status['endpoint'] = f"{user_connection.service_protocol()}://{os.environ.get('OS_AUTH_HOST', 'localhost')}:{os.environ.get('OS_AUTH_PORT', '5000')}"
                 projects = list(conn.identity.projects())
                 users = list(conn.identity.users())
                 roles = list(conn.identity.roles())
@@ -1163,7 +1163,7 @@ def get_service_status(service_name: str = "") -> Dict[str, Any]:
                     # Construct Heat API URL
                     auth_host = os.environ.get('OS_AUTH_HOST', 'localhost')
                     heat_port = os.environ.get('OS_HEAT_STACK_PORT', '8004')
-                    heat_url = f"{'https' if user_connection.enabled else 'http'}://{auth_host}:{heat_port}/v1/{project_id}/stacks"
+                    heat_url = f"{user_connection.service_protocol()}://{auth_host}:{heat_port}/v1/{project_id}/stacks"
                     
                     headers = {'X-Auth-Token': token}
                     
@@ -1177,7 +1177,7 @@ def get_service_status(service_name: str = "") -> Dict[str, Any]:
                         # Also check Heat engine services status
                         heat_services = []
                         try:
-                            services_url = f"{'https' if user_connection.enabled else 'http'}://{auth_host}:{heat_port}/v1/{project_id}/services"
+                            services_url = f"{user_connection.service_protocol()}://{auth_host}:{heat_port}/v1/{project_id}/services"
                             services_response = requests.get(services_url, headers=headers, timeout=5, **_probe_request_options(conn))
                             
                             if services_response.status_code == 200:
@@ -1190,7 +1190,7 @@ def get_service_status(service_name: str = "") -> Dict[str, Any]:
                         up_services = [s for s in heat_services if s.get('status') == 'up']
                         down_services = [s for s in heat_services if s.get('status') == 'down']
                         
-                        service_status['endpoint'] = f"{'https' if user_connection.enabled else 'http'}://{auth_host}:{heat_port}/v1"
+                        service_status['endpoint'] = f"{user_connection.service_protocol()}://{auth_host}:{heat_port}/v1"
                         service_status['available'] = True
                         service_status['details'] = {
                             'stacks': len(stacks),

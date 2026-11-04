@@ -343,15 +343,56 @@ def test_catalog_or_redirect_cannot_send_token_over_http(monkeypatch):
                                headers={"X-Auth-Token": "token"}).prepare()
     send = Mock()
     monkeypatch.setattr(requests.Session, "send", send)
-    with users.HTTPSOnlySession() as session:
+    with users.RestrictedSession("https") as session:
         with pytest.raises(ValueError, match="require HTTPS"):
             session.send(request)
     send.assert_not_called()
 
 
+def test_insecure_http_mode_builds_http_endpoints(monkeypatch):
+    monkeypatch.setenv("OS_AUTH_HOST", "cloud.example")
+    monkeypatch.setenv("OS_AUTH_PROTOCOL", "http")
+    monkeypatch.setenv("MCP_MULTI_USER_ALLOW_INSECURE_HTTP", "true")
+    access = SimpleNamespace(
+        user_id="alice", project_id="project-a", auth_token="token"
+    )
+    monkeypatch.setattr(users.ApplicationCredential, "get_access", lambda *args: access)
+
+    item = users.authenticate("credential-id", "secret")
+    try:
+        assert item.connection.session.auth.auth_url.startswith("http://")
+        endpoint = item.connection.config.config["compute_endpoint_override"]
+        assert endpoint.startswith("http://")
+    finally:
+        item.connection.close()
+        item.connection.session.session.close()
+
+
+def test_multi_user_http_requires_explicit_insecure_opt_in(monkeypatch):
+    monkeypatch.setenv("OS_AUTH_HOST", "cloud.example")
+    monkeypatch.setenv("OS_AUTH_PROTOCOL", "http")
+    monkeypatch.delenv("MCP_MULTI_USER_ALLOW_INSECURE_HTTP", raising=False)
+
+    with pytest.raises(ValueError, match="requires OS_AUTH_PROTOCOL=https"):
+        users.authenticate("credential-id", "secret")
+
+
+def test_multi_user_startup_rejects_http_without_explicit_opt_in(monkeypatch):
+    from mcp_openstack_ops.mcp_main import main
+    monkeypatch.setenv("OS_AUTH_PROTOCOL", "http")
+    monkeypatch.setenv("OS_AUTH_HOST", "cloud.example")
+    monkeypatch.delenv("MCP_MULTI_USER_ALLOW_INSECURE_HTTP", raising=False)
+
+    with pytest.raises(SystemExit) as error:
+        main(["--multi-user", "--type", "streamable-http"])
+
+    assert error.value.code == 2
+
+
 @pytest.mark.parametrize("args", [["--multi-user"]])
 def test_invalid_startup_modes(monkeypatch, args):
     from mcp_openstack_ops.mcp_main import main
+    monkeypatch.setenv("FASTMCP_TYPE", "stdio")
     monkeypatch.setenv("OS_AUTH_PROTOCOL", "https")
     monkeypatch.setenv("OS_AUTH_HOST", "cloud.example")
     with pytest.raises(SystemExit) as error:
@@ -374,6 +415,21 @@ def test_multi_user_starts_stateless_and_keeps_writes_off(monkeypatch):
     middleware = run.call_args.kwargs["middleware"][0]
     assert middleware.kwargs["bearer_secret"] is None
     assert not mcp_main._is_modify_operation_allowed()
+
+
+def test_multi_user_allows_explicit_insecure_http_test_mode(monkeypatch, caplog):
+    from mcp_openstack_ops import mcp_main
+    monkeypatch.setenv("OS_AUTH_PROTOCOL", "http")
+    monkeypatch.setenv("OS_AUTH_HOST", "cloud.example")
+    monkeypatch.setenv("MCP_MULTI_USER_ALLOW_INSECURE_HTTP", "true")
+    run = Mock()
+    monkeypatch.setattr(mcp_main.mcp, "run", run)
+
+    with caplog.at_level("WARNING"):
+        mcp_main.main(["--multi-user", "--type", "streamable-http"])
+
+    run.assert_called_once()
+    assert "INSECURE TEST MODE" in caplog.text
 
 
 def test_multi_user_and_bearer_start_as_layered_authentication(monkeypatch):

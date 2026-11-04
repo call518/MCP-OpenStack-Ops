@@ -174,7 +174,7 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
 
 **Validation evidence:**
 - **Live snapshot (2026-11-04; working tree based on `a57b165`):** This live
-  snapshot predates the current working-tree tool-schema corrections. Its live
+  snapshot predates the current working-tree changes. Its live
   classifications remain historical evidence and were not rerun for this change.
 - **Live tool checks:** 105/105 registered tools exercised. At least one live
   path passed for 76 tools; 28 tools were unavailable because the test cloud
@@ -194,11 +194,14 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
 - **Follow-up targeted checks:** `/mcp/.well-known/openid-configuration`
   returned 404 without authentication. A real Nova action list explicitly
   reported that the list has no finish time; optional event-detail lookup
-  returned an event result and derived its latest finish time.
-- **Local unit tests (current working tree, 2026-11-04):** 269/269 (100%); no
+  returned an event result and derived its latest finish time. The new
+  HTTP-only multi-user test override is **Live unverified**; only its fail-closed
+  default, explicit opt-in, endpoint generation, and startup warning were tested
+  locally.
+- **Local unit tests (current working tree, 2026-11-05):** 274/274 (100%); no
   failures or skipped tests. These tests include MCP action-description and
-  advanced-parameter forwarding regressions; they do not replace live service
-  validation.
+  advanced-parameter forwarding regressions plus the insecure-HTTP opt-in
+  regressions; they do not replace live service validation.
 
 **Detailed Mapping by Category**
 
@@ -802,7 +805,8 @@ Options:
 | `FASTMCP_HOST` | HTTP host address | `127.0.0.1` | For HTTP mode only |
 | `FASTMCP_PORT` | HTTP port number | `8080` | For HTTP mode only |
 | **Authentication (Optional)** |
-| `MCP_MULTI_USER` | Enable request-scoped per-user Application Credential authentication | `false` | Streamable HTTP only; requires HTTPS OpenStack endpoints and can be combined with shared Bearer authentication |
+| `MCP_MULTI_USER` | Enable request-scoped per-user Application Credential authentication | `false` | Streamable HTTP only; requires HTTPS OpenStack endpoints by default and can be combined with shared Bearer authentication |
+| `MCP_MULTI_USER_ALLOW_INSECURE_HTTP` | Allow multi-user OpenStack API requests over HTTP | `false` | Development/testing only; requires `MCP_MULTI_USER=true` and transmits credentials and tokens in plaintext |
 | `REMOTE_AUTH_ENABLE` | Enable Bearer token authentication for streamable-http mode | `false` | Production security |
 | `REMOTE_SECRET_KEY` | Shared secret for Bearer token authentication | Required when auth enabled | Checked before per-user authentication when both modes are enabled |
 | **Docker Compose** |
@@ -1211,7 +1215,7 @@ uv run python -m mcp_openstack_ops --type streamable-http --auth-enable --secret
 1. **stdio mode** (Default): Local-only access, no authentication needed
 2. **streamable-http + REMOTE_AUTH_ENABLE=false/undefined**: Remote access without authentication ⚠️ **NOT RECOMMENDED for production**
 3. **streamable-http + REMOTE_AUTH_ENABLE=true**: Remote access with Bearer token authentication ✅ **RECOMMENDED for production**
-4. **streamable-http + MCP_MULTI_USER=true**: Each request authenticates with the caller's project-scoped Keystone Application Credential and requires HTTPS OpenStack endpoints.
+4. **streamable-http + MCP_MULTI_USER=true**: Each request authenticates with the caller's project-scoped Keystone Application Credential and requires HTTPS OpenStack endpoints by default. HTTP is available only for isolated development/testing with `MCP_MULTI_USER_ALLOW_INSECURE_HTTP=true`.
 5. **streamable-http + MCP_MULTI_USER=true + REMOTE_AUTH_ENABLE=true**: Each request must pass shared Bearer authentication first and per-user Application Credential authentication second. See the [multi-user guide](docs/multi-user-guide.md).
 
 > **🔒 Default Policy**: `REMOTE_AUTH_ENABLE` and `MCP_MULTI_USER` both default to `false`. A configured `REMOTE_SECRET_KEY` is used only when `REMOTE_AUTH_ENABLE=true`; enabling both modes requires both forms of authentication.

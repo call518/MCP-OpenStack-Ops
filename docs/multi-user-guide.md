@@ -154,13 +154,29 @@ or secret store; the server's non-persistence rule does not cover client storage
 
 This follows the existing configured-host deployment layout: compute, network,
 volume, image, placement, and Heat endpoints use `OS_AUTH_HOST` with the existing
-`OS_*_PORT` variables, now over HTTPS with certificate verification. The identity
-URL ends in `/v3`. Other SDK services use the Keystone catalog, whose endpoints
-must also support HTTPS. Plaintext SDK requests, including redirected requests,
-are rejected. Existing manual Heat/Octavia probes use HTTPS in this mode and do
-not follow redirects. Deployments with HTTP-only internal services cannot use
-this mode without HTTPS endpoints. Standard system trust applies if no CA path is
-set; there is no implicit `verify=False` fallback.
+`OS_*_PORT` variables, using HTTPS with certificate verification by default. The
+identity URL ends in `/v3`. Other SDK services use the Keystone catalog, whose
+endpoints must use the same protocol. Plaintext SDK requests are rejected unless
+the explicit test-only override below is enabled. Redirected requests are always
+rejected. Existing manual Heat/Octavia probes use the validated configured
+protocol and do not follow redirects. Deployments with HTTP-only internal
+services cannot use this mode securely without HTTPS endpoints. Standard system
+trust applies if no CA path is set; there is no implicit `verify=False` fallback.
+
+For isolated development or functional testing against an HTTP-only OpenStack
+cloud, the HTTPS guard can be explicitly disabled:
+
+```bash
+export MCP_MULTI_USER=true
+export MCP_MULTI_USER_ALLOW_INSECURE_HTTP=true
+export OS_AUTH_PROTOCOL=http
+```
+
+This sends Application Credential secrets and issued tokens in plaintext. Use
+only an isolated test network and a disposable, least-privileged credential with
+a short expiration, then delete it after testing. The option defaults to `false`,
+emits an `INSECURE TEST MODE` warning at startup, and must never be enabled in
+production. Redirects remain disabled in both modes.
 
 ## Client compatibility
 

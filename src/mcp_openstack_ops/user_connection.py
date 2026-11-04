@@ -29,17 +29,28 @@ logger = logging.getLogger(__name__)
 enabled = False
 
 
-class HTTPSOnlySession(requests.Session):
-    """Prevent catalog endpoints or redirects from sending tokens over HTTP."""
+class RestrictedSession(requests.Session):
+    """Restrict credential-bearing requests to the configured protocol."""
+
+    def __init__(self, protocol: str) -> None:
+        super().__init__()
+        self.protocol = protocol
 
     def send(
         self, request: requests.PreparedRequest, **kwargs: Any
     ) -> requests.Response:
         """Check the final prepared URL before sending credentials."""
-        if urlsplit(request.url).scheme != "https":
-            raise ValueError("Multi-user OpenStack requests require HTTPS")
+        if urlsplit(request.url).scheme != self.protocol:
+            raise ValueError(
+                f"Multi-user OpenStack requests require {self.protocol.upper()}"
+            )
         kwargs["allow_redirects"] = False
         return super().send(request, **kwargs)
+
+
+def service_protocol() -> str:
+    """Return the validated protocol used by multi-user service probes."""
+    return os.getenv("OS_AUTH_PROTOCOL", "http").lower() if enabled else "http"
 
 
 @dataclass
@@ -157,18 +168,22 @@ def authenticate(credential_id: str, secret: str) -> RequestIdentity:
     """Authenticate afresh; never consult environment credentials or keyrings."""
     host = os.environ["OS_AUTH_HOST"]
     port = int(os.environ.get("OS_AUTH_PORT", "5000"))
-    if os.environ.get("OS_AUTH_PROTOCOL", "http").lower() != "https":
+    protocol = os.environ.get("OS_AUTH_PROTOCOL", "http").lower()
+    allow_insecure_http = os.getenv(
+        "MCP_MULTI_USER_ALLOW_INSECURE_HTTP", "false"
+    ).strip().lower() in ("true", "1", "yes", "on")
+    if protocol != "https" and not (protocol == "http" and allow_insecure_http):
         raise ValueError("Multi-user mode requires OS_AUTH_PROTOCOL=https")
     if any(char in host for char in "/@?#"):
         raise ValueError("OS_AUTH_HOST must be a hostname or IP address")
     auth = ApplicationCredential(
-        auth_url=f"https://{host}:{port}/v3",
+        auth_url=f"{protocol}://{host}:{port}/v3",
         application_credential_id=credential_id,
         application_credential_secret=secret,
         reauthenticate=False,
     )
     session = Session(
-        auth=auth, session=HTTPSOnlySession(),
+        auth=auth, session=RestrictedSession(protocol),
         verify=os.getenv("OS_CACERT") or True, timeout=10, redirect=0,
     )
     conn = None
@@ -185,7 +200,7 @@ def authenticate(credential_id: str, secret: str) -> RequestIdentity:
             "identity_api_version": "3",
             "block_storage_api_version": "3",
             "orchestration_api_version": "1",
-            "identity_endpoint_override": f"https://{host}:{port}/v3",
+            "identity_endpoint_override": f"{protocol}://{host}:{port}/v3",
         }
         for service, variable, default, path in (
             ("compute", "OS_COMPUTE_PORT", "8774", "/v2.1"),
@@ -197,7 +212,7 @@ def authenticate(credential_id: str, secret: str) -> RequestIdentity:
         ):
             service_port = int(os.getenv(variable, default))
             config[f"{service}_endpoint_override"] = (
-                f"https://{host}:{service_port}{path}"
+                f"{protocol}://{host}:{service_port}{path}"
             )
         conn = Connection(config=CloudRegion(
             config=config, session=session, auth_plugin=auth,
