@@ -511,6 +511,12 @@ Prerequisites are Git, Docker with the Compose plugin, a reachable OpenStack
 environment, and a model provider supported by OpenWebUI. The model should
 support reliable native tool calling.
 
+This default path supports an OpenStack deployment whose Identity, Compute,
+Network, Block Storage, Image, Placement, and Orchestration APIs are reachable
+from the Docker host at one hostname with the configured service ports. If your
+cloud uses different hostnames or URL paths per service, check
+[OpenStack endpoint topology](#openstack-endpoint-topology) before starting.
+
 | Quick Start default | Value |
 | --- | --- |
 | OpenStack identity | One account from `.env` |
@@ -579,6 +585,23 @@ docker compose logs mcp-server
 
 Open `http://localhost:3000`, create the first administrator account, and add a
 model provider. Use a model with reliable native function calling.
+
+For the shortest first run, choose one provider:
+
+- **OpenAI:** open **Settings → Admin → Connections**, add an OpenAI API
+  connection, use `https://api.openai.com/v1`, enter the API key, and save it.
+  See the [OpenWebUI OpenAI guide](https://docs.openwebui.com/getting-started/quick-start/connect-a-provider/starting-with-openai/).
+- **Ollama on the Docker host:** the Compose configuration already points
+  OpenWebUI to `http://host.docker.internal:11434`. Ensure Ollama listens where
+  Docker can reach it and select a tool-capable model. See the
+  [OpenWebUI Ollama guide](https://docs.openwebui.com/getting-started/quick-start/connect-a-provider/starting-with-ollama/).
+- **Another OpenAI-compatible provider or local server:** add its base URL and
+  API key under **Settings → Admin → Connections**. When the provider does not
+  expose a model list, enter the model ID manually. See the
+  [OpenAI-compatible provider guide](https://docs.openwebui.com/getting-started/quick-start/connect-a-provider/starting-with-openai-compatible/).
+
+Confirm that the selected model appears in a new chat before configuring the
+MCP integration.
 
 #### 3.1 Add the MCPO OpenAPI connection
 
@@ -698,6 +721,22 @@ Stop the stack without deleting the OpenWebUI data volume with:
 docker compose down
 ```
 
+### 6. Installation variants and detailed guides
+
+The steps above are the local, single-account evaluation path. Use the matching
+guide when your environment differs:
+
+| Environment or requirement | Follow-up guide |
+| --- | --- |
+| OpenStack APIs use HTTPS with a public or private CA | [HTTPS and private CA setup](#https-and-private-ca-setup) |
+| OpenStack services use different hosts or URL paths | [OpenStack endpoint topology](#openstack-endpoint-topology) |
+| Host ports `3000`, `8000`, or `8080` are occupied | [Docker Compose environment variables](#environment-variables) |
+| MCP is exposed beyond localhost | [Bearer authentication and remote-access precautions](#bearer-token-authentication) |
+| Each user supplies a separate OpenStack identity | [Multi-user setup and usage guide](docs/multi-user-guide.md) |
+| Separate fixed accounts or projects need separate MCP entries | [Multi-project configuration](#multi-project-configuration) |
+| Claude Desktop or Claude Code is the client | [Claude Desktop](#claude-desktop-integration) or [Claude Code](#claude-code-integration) |
+| OpenAI reasoning models need explicit reasoning effort | [OpenAI reasoning-model settings](#33-configure-openai-reasoning-models) |
+
 ## Claude Desktop Integration
 
 Use `mcp-config.json.stdio` as a reference. Copy it to the ignored local file,
@@ -816,11 +855,60 @@ Options:
 | `DOCKER_EXTERNAL_PORT_MCPO_PROXY` | MCPO host port | `8080` | OpenAPI proxy and docs |
 | `MCPO_CONFIG_FILE` | MCPO configuration mounted by Compose | `mcp-config.json.http.local` | Copy the tracked HTTP template to this ignored local file before starting Compose |
 
-### HTTPS and local configuration files
+### OpenStack endpoint topology
 
-For HTTPS OpenStack endpoints, set `OS_AUTH_PROTOCOL=https` and mount the CA
-file into `mcp-server` when `OS_CACERT` is a container path. Without
-`OS_CACERT`, single-account HTTPS disables certificate verification.
+Single-account and multi-user connections currently construct service URLs from
+one `OS_AUTH_HOST`, `OS_AUTH_PROTOCOL`, and the `OS_*_PORT` values. This works
+for compact deployments, API gateways, and virtual IPs that expose every listed
+service on one host. The server does not currently discover different service
+hosts or custom URL paths from the Keystone service catalog.
+
+Before starting, confirm that these URLs are reachable from inside the
+`mcp-server` container. If the cloud publishes different service hosts or paths,
+place a gateway or reverse proxy at `OS_AUTH_HOST` that maps the configured ports
+to those endpoints. Do not proceed by entering only the Keystone hostname; the
+MCP server may authenticate successfully and then fail on the first service tool.
+
+`OS_INTERFACE` does not change these explicit endpoint URLs. The current
+single-host configuration uses the internal interface convention.
+
+### HTTPS and private CA setup
+
+For HTTPS OpenStack endpoints signed by a public CA, use the system CA bundle
+already present in the container:
+
+```dotenv
+OS_AUTH_PROTOCOL=https
+OS_CACERT=/etc/pki/tls/certs/ca-bundle.crt
+```
+
+For a private CA, the certificate must exist inside the `mcp-server` container;
+a host path in `.env` alone is not enough.
+
+Uncomment and replace the CA volume example under `mcp-server` in
+`docker-compose.yml`:
+
+```yaml
+volumes:
+  - /absolute/host/path/openstack-ca.pem:/etc/ssl/certs/openstack-ca.pem:ro
+```
+
+Then configure the container path, recreate the MCP path, and check its logs:
+
+```dotenv
+OS_AUTH_PROTOCOL=https
+OS_CACERT=/etc/ssl/certs/openstack-ca.pem
+```
+
+```bash
+docker compose up -d --force-recreate mcp-server mcpo-proxy
+docker compose logs mcp-server
+```
+
+Without `OS_CACERT`, single-account HTTPS disables certificate verification and
+is not a secure production configuration. Multi-user mode fails closed unless
+HTTPS is enabled, and its full requirements are documented in the
+[multi-user guide](docs/multi-user-guide.md).
 
 The tracked `mcp-config.json.*` files are reference templates. Before adding
 credentials, copy only the template you need; all matching `.local` files are
@@ -922,6 +1010,8 @@ python test_project_isolation.py
 - ✅ Service-level project filtering
 - ✅ Secure resource lookup with cross-project protection
 - ✅ Prevention of accidental operations on other projects' resources
+
+### Multi-project configuration
 
 For managing multiple OpenStack projects, deploy multiple MCP server instances with different `OS_PROJECT_NAME` values:
 
