@@ -46,8 +46,8 @@ def commands(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
             return ""
         if args[:2] == ("git", "log"):
             return (
-                f"{'c' * 40}\0feat: first change\n\nBREAKING CHANGE: use start\n\0\n"
-                f"{CURRENT}\0fix: second change\n\n```sh\n$(touch marker)\n```\n\0"
+                f"{CURRENT}\0fix: second change\n\n```sh\n$(touch marker)\n```\n\0\n"
+                f"{'c' * 40}\0feat: first change\n\nBREAKING CHANGE: use start\n\0"
             )
         raise AssertionError(args)
 
@@ -71,13 +71,13 @@ def test_uses_previous_published_release_across_pages(commands) -> None:
     assert args[args.index("--title") + 1] == "0.6.6"
     assert "Changes since 0.6.4." in notes
     assert "0.6.4...0.6.6" in notes
-    assert notes.index("first change") < notes.index("second change")
+    assert notes.index("second change") < notes.index("first change")
     assert "BREAKING CHANGE: use start" in notes
     assert "$(touch marker)" in notes
     assert "````text" in notes
     assert ("git", "merge-base", "--is-ancestor", BASE, CURRENT) in commands["calls"]
     log = next(call for call in commands["calls"] if call[:2] == ("git", "log"))
-    assert "--reverse" in log and "--topo-order" in log
+    assert "--reverse" not in log and "--topo-order" in log
     assert f"{BASE}..{CURRENT}" in log
     assert not Path(args[args.index("--notes-file") + 1]).exists()
 

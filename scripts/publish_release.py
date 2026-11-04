@@ -21,7 +21,7 @@ def command(*args: str) -> str:
 
 
 def release_notes(repository: str, tag: str, previous: str | None) -> str:
-    """Collect full commit messages in oldest-first topological order."""
+    """Collect full commit messages in newest-first topological order."""
     current = command("git", "rev-parse", "--verify", f"refs/tags/{tag}^{{commit}}")
     revision = current
     if previous:
@@ -33,7 +33,6 @@ def release_notes(repository: str, tag: str, previous: str | None) -> str:
     raw = command(
         "git",
         "log",
-        "--reverse",
         "--topo-order",
         "--format=%H%x00%B%x00",
         revision,
