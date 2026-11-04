@@ -1,6 +1,7 @@
 services:
   open-webui:
     env_file: .env
+    # image: ghcr.io/open-webui/open-webui:latest
     image: ghcr.io/open-webui/open-webui:v0.13.0
     container_name: mcp-openstack-ops-open-webui
     ports:
@@ -45,7 +46,7 @@ services:
     ports:
       - "${DOCKER_BIND_ADDRESS:-127.0.0.1}:${DOCKER_EXTERNAL_PORT_MCPO_PROXY}:8000"
     volumes:
-      - ./${MCPO_CONFIG_FILE:-mcp-config.json.http}:/app/config/mcp-config.json:ro
+      - ./${MCPO_CONFIG_FILE:-mcp-config.json.http.local}:/app/config/mcp-config.json:ro
       - ./src:/app/src
     extra_hosts:
       - "host.docker.internal:host-gateway"

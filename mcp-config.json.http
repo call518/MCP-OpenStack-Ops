@@ -2,7 +2,10 @@
   "mcpServers": {
     "mcp-openstack-ops": {
       "type": "streamable-http",
-      "url": "http://mcp-server:8000/mcp"
+      "url": "http://mcp-server:8000/mcp",
+      "headers": {
+        "Authorization": "Bearer <REMOTE_SECRET_KEY>"
+      }
     }
   }
 }

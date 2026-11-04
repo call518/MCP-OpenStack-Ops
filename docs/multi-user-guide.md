@@ -192,13 +192,15 @@ Claude Code example (user configuration; placeholders only):
 }
 ```
 
-Omit `Authorization` when `REMOTE_AUTH_ENABLE=false`. When it is enabled, every
-client receives the shared MCP token separately from its own Application
-Credential.
+The placeholder `Authorization` header may remain when
+`REMOTE_AUTH_ENABLE=false`; the server ignores it. When authentication is
+enabled, replace the placeholder so every client receives the shared MCP token
+separately from its own Application Credential.
 
-The Docker Compose Quick Start uses `mcp-config.json.http` for unauthenticated
-single-account access. For an independent multi-user OpenWebUI/MCPO instance,
-the repository provides this separate template:
+The Docker Compose Quick Start uses an ignored `mcp-config.json.http.local` copy
+of `mcp-config.json.http` for unauthenticated single-account access. For an
+independent multi-user OpenWebUI/MCPO instance, the repository provides this
+separate template:
 
 ```json
 {

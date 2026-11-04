@@ -514,7 +514,7 @@ support reliable native tool calling.
 | Available tools | Read-only; modification tools are hidden |
 | HTTP authentication | Disabled |
 | Published network | Localhost only |
-| MCPO configuration | `mcp-config.json.http` |
+| MCPO configuration | `mcp-config.json.http.local` |
 
 ### 1. Clone and configure
 
@@ -547,6 +547,9 @@ MCPO_CONFIG_FILE=mcp-config.json.http.local
 The local MCPO copy contains no credentials in this mode and connects to the MCP
 container through the private Compose network. It is ignored by Git, so later
 authentication changes do not modify the tracked reference template.
+The placeholder Authorization header is ignored while `REMOTE_AUTH_ENABLE=false`.
+When enabling Bearer authentication, replace `<REMOTE_SECRET_KEY>` in the local
+MCPO copy with the same value configured in `.env`.
 
 ### 2. Start the stack
 
@@ -569,21 +572,83 @@ If `mcp-server` is unhealthy, inspect its log before continuing:
 docker compose logs mcp-server
 ```
 
-### 3. Configure OpenWebUI
+### 3. Configure OpenWebUI 0.13
 
-1. Open `http://localhost:3000` and create the first administrator account.
-2. Add the model provider and select a tool-capable model.
-3. Open **Settings → Admin → Integrations → External Tool Servers** and
-   add this connection:
+Open `http://localhost:3000`, create the first administrator account, and add a
+model provider. Use a model with reliable native function calling.
 
-- Type: `OpenAPI`
-- URL: `http://mcpo-proxy:8000/mcp-openstack-ops`
-- Schema path: `openapi.json`
-- Authentication: `None`
+#### 3.1 Add the MCPO OpenAPI connection
 
-The URL deliberately uses the Compose service name `mcpo-proxy`; it is resolved
-by the OpenWebUI container. Save the connection, then open a chat and enable
-`mcp-openstack-ops` under **+ → Integrations → Tools**.
+Open **Settings → Admin → Tools → Integrations**, find **External Tool
+Servers**, and add this connection:
+
+| Field | Value |
+| --- | --- |
+| Type | `OpenAPI` |
+| Name | `MCP OpenStack Ops` |
+| ID | `mcp-openstack-ops` or the generated value |
+| URL | `http://mcpo-proxy:8000/mcp-openstack-ops` |
+| Authentication | `None` |
+| Function name filter list | Empty |
+| Enabled | On |
+
+This is an administrator-managed connection, so OpenWebUI fetches the schema
+from its own container. Use the Compose service address above, not
+`http://localhost:8080`; inside the OpenWebUI container, `localhost` refers to
+OpenWebUI itself. The UI automatically fetches `openapi.json` from the supplied
+base URL. Save the connection and confirm that the connection check succeeds.
+
+#### 3.2 Enable Tool Search for the full tool inventory
+
+The OpenStack server plus OpenWebUI's built-in tools can exceed a model
+provider's maximum number of function definitions per request. Open
+**Settings → Admin → System → Interface**. This is the administrator
+**Interface** entry below **Authentication**, not the personal Interface entry
+near the top of the settings menu. In the **Chat** section, set:
+
+| Setting | Value |
+| --- | --- |
+| Tool Search | On |
+| Defer Built-in Tools | On |
+| Deferral Threshold (characters) | `0` |
+| Always Loaded Tools | Empty |
+
+Save the settings. Tool Search keeps the complete MCPO inventory available but
+sends only `search_tools`, `call_tool`, and any explicitly always-loaded tools
+to the model until a matching tool is needed. See the
+[OpenWebUI tools documentation](https://docs.openwebui.com/features/extensibility/plugin/tools/).
+
+#### 3.3 Configure OpenAI reasoning models
+
+This step applies only to an OpenAI reasoning model that needs both non-default
+reasoning effort and function tools. In **Settings → Admin → AI → Connections**,
+edit its OpenAI connection and select API type **Responses**. Chat Completions
+does not support function tools together with a non-`none` reasoning effort on
+newer reasoning models.
+
+With OpenWebUI 0.13.0, leave the chat's **Model controls → Advanced Params →
+Reasoning Effort** at **Default**. Selecting **Custom** initializes the field to
+`medium` and sends the Chat Completions parameter `reasoning_effort`, which is
+not valid in a Responses request. Default omits that override and lets the model
+apply its own default effort. To force an explicit Responses value, add this
+custom parameter instead:
+
+```text
+Name: reasoning
+Value: {"effort":"medium"}
+```
+
+See the [OpenAI Responses migration guide](https://developers.openai.com/api/docs/guides/migrate-to-responses)
+and the [OpenWebUI Open Responses guide](https://docs.openwebui.com/getting-started/quick-start/connect-a-provider/starting-with-open-responses/).
+
+Models and providers without this constraint may keep their normal API type and
+reasoning settings.
+
+#### 3.4 Enable the connection in a chat
+
+Open a new chat, select the model, click the **Integrations** icon beside the
+message input, and enable `MCP OpenStack Ops` under **Tools**. Global tool-server
+connections are not automatically enabled in every chat.
 
 ### 4. Verify
 
@@ -600,6 +665,15 @@ tool endpoints. For connection failures, inspect all three services:
 ```bash
 docker compose logs mcp-server mcpo-proxy open-webui
 ```
+
+Common OpenWebUI 0.13 errors:
+
+| Error | Cause | Fix |
+| --- | --- | --- |
+| `Cannot connect to host localhost` | An administrator connection used a browser/host URL from inside the OpenWebUI container | Use `http://mcpo-proxy:8000/mcp-openstack-ops` |
+| `tools: array too long` | External and built-in tool definitions exceeded the model provider's request limit | Enable Tool Search with threshold `0` |
+| `Function tools with reasoning_effort are not supported ... /v1/chat/completions` | Chat Completions received function tools and a non-`none` reasoning effort | Use Responses, or set reasoning effort to `none` if reasoning is not needed |
+| `Unsupported parameter: reasoning_effort ... moved to reasoning.effort` | OpenWebUI 0.13.0 sent a custom Reasoning Effort through a Responses connection | Set Reasoning Effort to Default; use custom `reasoning={"effort":"medium"}` only when an explicit value is required |
 
 ### 5. Enable modifications only when needed
 
@@ -736,7 +810,7 @@ Options:
 | `DOCKER_EXTERNAL_PORT_OPENWEBUI` | OpenWebUI host port | `3000` | Browser access |
 | `DOCKER_EXTERNAL_PORT_MCP_SERVER` | MCP server host port | `8000` | Direct MCP clients |
 | `DOCKER_EXTERNAL_PORT_MCPO_PROXY` | MCPO host port | `8080` | OpenAPI proxy and docs |
-| `MCPO_CONFIG_FILE` | MCPO configuration mounted by Compose | `mcp-config.json.http` | Set to a private `.local` copy when it contains credentials |
+| `MCPO_CONFIG_FILE` | MCPO configuration mounted by Compose | `mcp-config.json.http.local` | Copy the tracked HTTP template to this ignored local file before starting Compose |
 
 ### HTTPS and local configuration files
 
