@@ -706,6 +706,7 @@ Options:
   --port PORT          Port number for HTTP transport (default: 8080)
   --auth-enable        Enable Bearer token authentication for streamable-http mode
   --secret-key SECRET  Secret key for Bearer token authentication
+  --multi-user         Use request-local Application Credentials (streamable-http only)
 ```
 
 ### Environment Variables
@@ -717,9 +718,9 @@ Options:
 | `OS_AUTH_PORT` | OpenStack Identity service port | Required | Authentication port |
 | `OS_AUTH_PROTOCOL` | Connection protocol (http or https) | `http` | Use `https` for production with SSL/TLS |
 | `OS_CACERT` | SSL CA certificate path for HTTPS | Optional | Required for secure HTTPS connections (e.g., `/etc/ssl/certs/ca.pem`). If not set with HTTPS, SSL verification is disabled (insecure) |
-| `OS_USERNAME` | OpenStack username | Required | User credentials |
-| `OS_PASSWORD` | OpenStack password | Required | User credentials |
-| `OS_PROJECT_NAME` | OpenStack project name | Required | Project scope |
+| `OS_USERNAME` | OpenStack username | Required in single-account mode | Unused for multi-user request authentication |
+| `OS_PASSWORD` | OpenStack password | Required in single-account mode | Unused for multi-user request authentication |
+| `OS_PROJECT_NAME` | OpenStack project name | Required in single-account mode | Multi-user scope comes from each Application Credential |
 | `OS_IDENTITY_API_VERSION` | Identity API version | `3` | API version |
 | `OS_PROJECT_DOMAIN_NAME` | Project domain name | `default` | Domain scope |
 | `OS_USER_DOMAIN_NAME` | User domain name | `default` | Domain scope |
@@ -739,8 +740,9 @@ Options:
 | `FASTMCP_HOST` | HTTP host address | `127.0.0.1` | For HTTP mode only |
 | `FASTMCP_PORT` | HTTP port number | `8080` | For HTTP mode only |
 | **Authentication (Optional)** |
+| `MCP_MULTI_USER` | Enable request-scoped per-user Application Credential authentication | `false` | Streamable HTTP only; requires HTTPS OpenStack endpoints and is mutually exclusive with shared Bearer authentication |
 | `REMOTE_AUTH_ENABLE` | Enable Bearer token authentication for streamable-http mode | `false` | Production security |
-| `REMOTE_SECRET_KEY` | Secret key for Bearer token authentication | Required when auth enabled | Production security |
+| `REMOTE_SECRET_KEY` | Shared secret for Bearer token authentication | Required when auth enabled | Must be empty or unset when `MCP_MULTI_USER=true` |
 
 ---
 
@@ -1116,8 +1118,9 @@ uv run python -m mcp_openstack_ops --type streamable-http --auth-enable --secret
 1. **stdio mode** (Default): Local-only access, no authentication needed
 2. **streamable-http + REMOTE_AUTH_ENABLE=false/undefined**: Remote access without authentication ⚠️ **NOT RECOMMENDED for production**
 3. **streamable-http + REMOTE_AUTH_ENABLE=true**: Remote access with Bearer token authentication ✅ **RECOMMENDED for production**
+4. **streamable-http + MCP_MULTI_USER=true**: Each request authenticates with the caller's project-scoped Keystone Application Credential. This replaces shared Bearer authentication and requires HTTPS OpenStack endpoints. See the [multi-user guide](docs/multi-user-guide.md).
 
-> **🔒 Default Policy**: `REMOTE_AUTH_ENABLE` defaults to `false` if undefined, empty, or null. This ensures the server starts even without explicit authentication configuration.
+> **🔒 Default Policy**: `REMOTE_AUTH_ENABLE` and `MCP_MULTI_USER` both default to `false`. Set only one authentication mode for Streamable HTTP; multi-user mode rejects a non-empty `REMOTE_SECRET_KEY` even when shared Bearer authentication is disabled.
 
 #### Client Configuration
 
