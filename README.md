@@ -188,7 +188,11 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
   seven direct requests could not run because their cloud service or extension
   is absent; seven read-like requests were limited by the non-interactive
   Claude permission policy.
-- **Local unit tests:** 249/249 (100%); no failures or skipped tests.
+- **Follow-up targeted checks:** `/mcp/.well-known/openid-configuration`
+  returned 404 without authentication. A real Nova action list explicitly
+  reported that the list has no finish time; optional event-detail lookup
+  returned an event result and derived its latest finish time.
+- **Local unit tests:** 254/254 (100%); no failures or skipped tests.
 
 **Detailed Mapping by Category**
 
@@ -234,7 +238,7 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
 | `openstack server set` | `set_server_properties` (action="set") | ✅ | Server property setting |
 | `openstack server unset` | `set_server_properties` (action="unset") | ✅ | Server property unsetting |
 | `openstack server dump create` | `set_server_dump` | ❌ Unsupported | Returns an explicit unsupported result; no dump is created |
-| `openstack server event list` | `get_server_events` | ✅ | Pass the server name or UUID via `instance_name`, not `server_id`; event visibility follows Nova policy |
+| `openstack server event list` | `get_server_events` | ✅ | Pass the server name or UUID via `instance_name`, not `server_id`. The action list has no completion time; set `include_event_details=true` to fetch per-action event results and derive the latest finish time. Detailed lookup is capped at 10 actions. Event visibility follows Nova policy |
 | `openstack server group list` | `get_server_groups` | ✅ | Server group listing |
 | `openstack server group create/delete` | `set_server_group` | ✅ | Server group management |
 | `openstack flavor list` | `set_flavor` (action="list") | ✅ | Requires modification tools to be enabled for registration |

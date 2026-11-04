@@ -257,7 +257,11 @@ class UserConnectionMiddleware:
             "/.well-known/oauth-authorization-server",
             "/.well-known/openid-configuration",
         )
-        if path in ("/register", "/register/") or any(
+        if path in (
+            "/register",
+            "/register/",
+            "/mcp/.well-known/openid-configuration",
+        ) or any(
             path == base or path.startswith(base + "/")
             for base in discovery_paths
         ):

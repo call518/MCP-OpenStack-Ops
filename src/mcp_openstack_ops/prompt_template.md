@@ -490,7 +490,10 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 - `get_instance`: **NEW UNIFIED** - Replaces get_instance_details/get_instance_info/get_instance_status/get_instance_network_info
   - Single tool for all instance queries with comprehensive information
   - **Parameters**: `instance_names` (supports comma-separated and "all")
-- `get_server_events`: Detailed event logs with timestamps (always available)
+- `get_server_events`: Server action history. Use
+  `include_event_details=true` when completion times and per-action event
+  results are needed. Detailed lookup is capped at 10 actions; visibility
+  follows Nova policy.
 
 **Server Network & IP Management:**
 - `set_server_network`: Add/remove networks and ports (**Conditional Tool**)

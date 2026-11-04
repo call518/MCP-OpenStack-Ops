@@ -367,7 +367,9 @@ async def test_real_mcp_http_tools_receive_request_identity(monkeypatch):
     '/.well-known/oauth-protected-resource',
     '/.well-known/oauth-protected-resource/mcp',
     '/.well-known/oauth-authorization-server',
-    '/.well-known/openid-configuration', '/register', '/register/',
+    '/.well-known/openid-configuration',
+    '/mcp/.well-known/openid-configuration',
+    '/register', '/register/',
 ])
 @pytest.mark.parametrize('method', ['GET', 'POST'])
 async def test_unsupported_oauth_routes_do_not_authenticate(monkeypatch, path, method):

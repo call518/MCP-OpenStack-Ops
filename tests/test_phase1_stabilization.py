@@ -200,3 +200,86 @@ def test_server_events_accepts_name_or_uuid_under_instance_name(monkeypatch, ide
     result = compute.get_server_events(instance_name=identifier)
     assert result['success']
     conn.compute.server_actions.assert_called_once_with(server.id)
+
+
+def test_server_events_explains_missing_list_finish_time(monkeypatch):
+    server = SimpleNamespace(name='vm-name', id='vm-uuid')
+    action = SimpleNamespace(
+        action='live-migration', request_id='req-1', start_time='start',
+        user_id='user', project_id='project', message=None,
+    )
+    conn = Mock()
+    conn.compute.servers.return_value = [server]
+    conn.compute.server_actions.return_value = [action]
+    monkeypatch.setattr(connection, 'get_openstack_connection', lambda: conn)
+
+    result = compute.get_server_events(instance_name=server.name)
+
+    assert result['events'][0]['finish_time'] is None
+    assert result['events'][0]['finish_time_source'] == (
+        'action_list_does_not_include_finish_time'
+    )
+    conn.compute.get_server_action.assert_not_called()
+
+
+def test_server_events_can_fetch_event_completion_details(monkeypatch):
+    server = SimpleNamespace(name='vm-name', id='vm-uuid')
+    action = SimpleNamespace(
+        action='live-migration', request_id='req-1', start_time='start',
+        user_id='user', project_id='project', message=None,
+    )
+    detail = SimpleNamespace(
+        **vars(action),
+        events=[
+            SimpleNamespace(
+                event='compute_live_migration', start_time='event-start',
+                finish_time='2026-11-04T01:02:03', result='Success',
+                traceback=None,
+            )
+        ],
+    )
+    conn = Mock()
+    conn.compute.servers.return_value = [server]
+    conn.compute.server_actions.return_value = [action]
+    conn.compute.get_server_action.return_value = detail
+    monkeypatch.setattr(connection, 'get_openstack_connection', lambda: conn)
+
+    result = compute.get_server_events(
+        instance_name=server.name, include_event_details=True,
+    )
+
+    event = result['events'][0]
+    assert event['finish_time'] == '2026-11-04T01:02:03'
+    assert event['finish_time_source'] == 'latest_event'
+    assert event['events'][0]['result'] == 'Success'
+    conn.compute.get_server_action.assert_called_once_with(
+        action.request_id, server.id, ignore_missing=True,
+    )
+
+
+def test_server_events_details_are_capped_at_ten_actions(monkeypatch):
+    server = SimpleNamespace(name='vm-name', id='vm-uuid')
+    actions = [
+        SimpleNamespace(
+            action='reboot', request_id=f'req-{index}', start_time='start',
+            user_id='user', project_id='project', message=None,
+        )
+        for index in range(12)
+    ]
+    conn = Mock()
+    conn.compute.servers.return_value = [server]
+    conn.compute.server_actions.return_value = actions
+    conn.compute.get_server_action.side_effect = actions
+    monkeypatch.setattr(connection, 'get_openstack_connection', lambda: conn)
+
+    result = compute.get_server_events(
+        instance_name=server.name,
+        limit=50,
+        include_event_details=True,
+    )
+
+    assert result['requested_limit'] == 50
+    assert result['effective_limit'] == 10
+    assert result['detail_limit_applied'] is True
+    assert result['count'] == 10
+    assert conn.compute.get_server_action.call_count == 10

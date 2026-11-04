@@ -922,13 +922,22 @@ def get_flavor_list() -> List[Dict[str, Any]]:
         raise RuntimeError("OpenStack resource query failed") from None
 
 
-def get_server_events(instance_name: str, limit: int = 50) -> Dict[str, Any]:
+MAX_SERVER_EVENT_DETAILS = 10
+
+
+def get_server_events(
+    instance_name: str,
+    limit: int = 50,
+    include_event_details: bool = False,
+) -> Dict[str, Any]:
     """
     Get server action/event history.
     
     Args:
         instance_name: Name or ID of the server
         limit: Maximum number of events to return
+        include_event_details: Fetch each action's event details. This adds one
+            Nova API request per returned action.
         
     Returns:
         Dictionary containing server events
@@ -953,9 +962,60 @@ def get_server_events(instance_name: str, limit: int = 50) -> Dict[str, Any]:
             }
         
         events = []
+        effective_limit = (
+            min(limit, MAX_SERVER_EVENT_DETAILS)
+            if include_event_details else limit
+        )
         try:
             # Get server actions (events)
             for action in conn.compute.server_actions(server.id):
+                detail_available = False
+                if include_event_details:
+                    try:
+                        detail = conn.compute.get_server_action(
+                            action.request_id,
+                            server.id,
+                            ignore_missing=True,
+                        )
+                        if detail is not None:
+                            action = detail
+                            detail_available = True
+                    except Exception as error:
+                        logger.warning(
+                            "Could not get server action details: %s",
+                            type(error).__name__,
+                        )
+
+                action_events = []
+                finish_times = []
+                for event in getattr(action, 'events', None) or []:
+                    finish_time = getattr(event, 'finish_time', None)
+                    if finish_time:
+                        finish_times.append(str(finish_time))
+                    action_events.append({
+                        'event': getattr(event, 'event', 'unknown'),
+                        'start_time': str(
+                            getattr(event, 'start_time', 'unknown')
+                        ),
+                        'finish_time': (
+                            str(finish_time) if finish_time else None
+                        ),
+                        'result': getattr(event, 'result', 'unknown'),
+                        'traceback': getattr(event, 'traceback', None)
+                    })
+
+                finish_time = max(finish_times) if finish_times else None
+                if finish_time:
+                    finish_time_source = 'latest_event'
+                elif include_event_details and detail_available:
+                    finish_time_source = 'event_details_contain_no_finish_time'
+                elif include_event_details:
+                    finish_time_source = 'event_details_unavailable'
+                else:
+                    finish_time_source = (
+                        'action_list_does_not_include_finish_time'
+                    )
+
                 event_data = {
                     'action': getattr(action, 'action', 'unknown'),
                     'instance_uuid': getattr(action, 'instance_uuid', server.id),
@@ -963,33 +1023,16 @@ def get_server_events(instance_name: str, limit: int = 50) -> Dict[str, Any]:
                     'user_id': getattr(action, 'user_id', 'unknown'),
                     'project_id': getattr(action, 'project_id', 'unknown'),
                     'start_time': str(getattr(action, 'start_time', 'unknown')),
-                    'finish_time': str(getattr(action, 'finish_time', None)) if getattr(action, 'finish_time', None) else None,
+                    'finish_time': finish_time,
+                    'finish_time_source': finish_time_source,
                     'message': getattr(action, 'message', ''),
-                    'details': getattr(action, 'details', {})
+                    'details': getattr(action, 'details', {}),
+                    'events': action_events,
                 }
-                
-                # Add events for this action if available
-                if hasattr(action, 'events'):
-                    events_list = getattr(action, 'events', None)
-                    if events_list:  # Check if events is not None and not empty
-                        action_events = []
-                        for event in events_list:
-                            action_events.append({
-                                'event': getattr(event, 'event', 'unknown'),
-                                'start_time': str(getattr(event, 'start_time', 'unknown')),
-                                'finish_time': str(getattr(event, 'finish_time', None)) if getattr(event, 'finish_time', None) else None,
-                                'result': getattr(event, 'result', 'unknown'),
-                                'traceback': getattr(event, 'traceback', None)
-                            })
-                        event_data['events'] = action_events
-                    else:
-                        event_data['events'] = []  # Empty events list if None
-                else:
-                    event_data['events'] = []  # No events attribute
-                
+
                 events.append(event_data)
                 
-                if len(events) >= limit:
+                if len(events) >= effective_limit:
                     break
                     
         except Exception as e:
@@ -1010,7 +1053,11 @@ def get_server_events(instance_name: str, limit: int = 50) -> Dict[str, Any]:
             'server_name': getattr(server, 'name', 'unnamed'),
             'server_id': server.id,
             'events': events,
-            'count': len(events)
+            'count': len(events),
+            'event_details_requested': include_event_details,
+            'requested_limit': limit,
+            'effective_limit': effective_limit,
+            'detail_limit_applied': effective_limit != limit,
         }
         
     except Exception as e:
