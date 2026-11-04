@@ -7,6 +7,10 @@ from ..mcp_main import mcp
 
 @mcp.tool()
 async def get_heat_stack_details(stack_name: str, section: str = 'resources') -> str:
-    """Query a Heat stack by name or ID. section: resources, events, template, outputs.
+    """Query resources, events, template, or outputs for a Heat stack.
+
+    Args:
+        stack_name: Stack name or ID.
+        section: Detail section to return: resources, events, template, or outputs.
     """
     return json.dumps(_query(stack_name=stack_name, section=section), indent=2)

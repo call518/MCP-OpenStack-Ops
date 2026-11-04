@@ -29,10 +29,18 @@ async def set_instance(
     networks: Optional[str] = None,
     security_groups: Optional[str] = None,
     key_name: Optional[str] = None,
-    availability_zone: Optional[str] = None
+    availability_zone: Optional[str] = None,
+    force: bool = False,
+    reboot_type: str = "SOFT",
+    snapshot_name: Optional[str] = None,
+    metadata: str = "{}",
+    console_type: str = "novnc",
+    rescue_image_id: Optional[str] = None,
+    new_name: Optional[str] = None,
+    preserve_ephemeral: bool = False,
 ) -> str:
     """
-    Manages OpenStack instances with operations like start, stop, restart, pause, unpause, and create.
+    Manage OpenStack instance lifecycle operations.
     Supports both direct target specification and automatic filtering-based target identification.
     
     Functions:
@@ -42,6 +50,8 @@ async def set_instance(
     - Restart/reboot instances (soft reboot)
     - Pause active instances (suspend to memory)
     - Unpause/resume paused instances
+    - Suspend/resume, delete, resize, snapshot, console, shelve/unshelve,
+      lock/unlock, rescue/unrescue, and rebuild instances
     - Bulk operations: Apply action to multiple instances at once
     - Filter-based targeting: Automatically find targets using filtering conditions
     
@@ -59,7 +69,10 @@ async def set_instance(
                        - Multiple: "instance1,instance2,instance3" or "instance1, instance2, instance3"
                        - List format: '["instance1", "instance2", "instance3"]'
                        - Leave empty to use filtering parameters
-        action: Management action (create, start, stop, restart, reboot, pause, unpause, resume)
+        action: Management action (create, start, stop, restart, reboot, pause,
+                unpause, suspend, resume, delete, resize, confirm_resize,
+                revert_resize, snapshot, console, shelve, unshelve, lock,
+                unlock, rescue, unrescue, rebuild)
         
         # Filtering parameters (alternative to instance_names)
         name_contains: Filter instances whose names contain this string (e.g., "ttt", "dev", "test")
@@ -74,6 +87,14 @@ async def set_instance(
         security_groups: Security group name(s) for create action (e.g., 'default', 'web-sg')
         key_name: SSH keypair name for create action (optional)
         availability_zone: Availability zone for create action (optional)
+        force: Force deletion when action is delete
+        reboot_type: Reboot type, SOFT or HARD, for reboot/restart
+        snapshot_name: Image name for snapshot action
+        metadata: JSON object for create, snapshot, or rebuild metadata
+        console_type: Console protocol for console action (default: novnc)
+        rescue_image_id: Optional image ID for rescue action
+        new_name: Optional server name for rebuild action
+        preserve_ephemeral: Preserve ephemeral storage during rebuild
         
     Returns:
         Clear success message with instance details OR clear error message if operation fails.
@@ -92,7 +113,7 @@ async def set_instance(
     """
     try:
         if not action or not action.strip():
-            return "Error: Action is required (create, start, stop, restart, pause, unpause)"
+            return "Error: Action is required; see the tool description for supported actions"
             
         action = action.strip().lower()
         
@@ -170,7 +191,6 @@ async def set_instance(
             # Handle JSON list format: ["name1", "name2"]
             if names_str.startswith('[') and names_str.endswith(']'):
                 try:
-                    import json
                     name_list = json.loads(names_str)
                     if not isinstance(name_list, list):
                         return "Error: Invalid JSON list format for instance names"
@@ -199,6 +219,26 @@ async def set_instance(
             kwargs['key_name'] = key_name
         if availability_zone:
             kwargs['availability_zone'] = availability_zone
+        kwargs['force'] = force
+        if action in {'reboot', 'restart'}:
+            kwargs['type'] = reboot_type
+        if snapshot_name:
+            kwargs['snapshot_name'] = snapshot_name
+        if metadata.strip():
+            try:
+                parsed_metadata = json.loads(metadata)
+            except json.JSONDecodeError:
+                return "Error: metadata must be a valid JSON object"
+            if not isinstance(parsed_metadata, dict):
+                return "Error: metadata must be a JSON object"
+            kwargs['metadata'] = parsed_metadata
+        if action == 'console':
+            kwargs['type'] = console_type
+        if rescue_image_id:
+            kwargs['rescue_image_id'] = rescue_image_id
+        if new_name:
+            kwargs['new_name'] = new_name
+        kwargs['preserve_ephemeral'] = preserve_ephemeral
             
         # Handle single instance (backward compatibility)
         if len(name_list) == 1:

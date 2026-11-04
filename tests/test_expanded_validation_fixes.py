@@ -10,6 +10,93 @@ from mcp_openstack_ops import connection
 from mcp_openstack_ops.services import compute, monitoring, storage
 
 
+def _tool_handler(module, name):
+    tool = getattr(module, name)
+    return getattr(tool, 'fn', tool)
+
+
+@pytest.mark.parametrize(
+    'tool,actions',
+    [
+        ('set_instance', {'delete', 'resize', 'snapshot', 'rebuild'}),
+        ('set_flavor', {'list', 'set_extra_specs'}),
+        ('set_project', {'update', 'show', 'list'}),
+        ('set_keypair', {'import', 'show'}),
+        ('set_network_ports', {'show'}),
+        ('set_subnets', {'show'}),
+    ],
+)
+def test_tool_descriptions_expose_supported_actions(tool, actions):
+    module = importlib.import_module(f'mcp_openstack_ops.tools.{tool}')
+    description = (_tool_handler(module, tool).__doc__ or '').lower()
+    assert all(action in description for action in actions)
+
+
+@pytest.mark.asyncio
+async def test_instance_tool_forwards_advanced_action_parameters(monkeypatch):
+    module = importlib.import_module('mcp_openstack_ops.tools.set_instance')
+    service = Mock(return_value={'success': True})
+    monkeypatch.setattr(module, '_set_instance', service)
+    monkeypatch.setattr(module, '_get_instance_by_name', Mock(return_value=None))
+    monkeypatch.setattr('time.sleep', lambda _: None)
+
+    await _tool_handler(module, 'set_instance')(
+        instance_names='vm', action='snapshot', force=True,
+        snapshot_name='backup', metadata='{"purpose": "test"}',
+        preserve_ephemeral=True,
+    )
+
+    assert service.call_args.args == ('vm', 'snapshot')
+    assert service.call_args.kwargs['force'] is True
+    assert service.call_args.kwargs['snapshot_name'] == 'backup'
+    assert service.call_args.kwargs['metadata'] == {'purpose': 'test'}
+    assert service.call_args.kwargs['preserve_ephemeral'] is True
+
+
+@pytest.mark.asyncio
+async def test_flavor_set_alias_uses_backend_action_and_parameter(monkeypatch):
+    module = importlib.import_module('mcp_openstack_ops.tools.set_flavor')
+    service = Mock(return_value={'success': True})
+    monkeypatch.setattr(module, '_set_flavor', service)
+
+    await _tool_handler(module, 'set_flavor')(
+        flavor_name='small', action='set', properties='{"hw:cpu_policy": "shared"}',
+    )
+
+    assert service.call_args.kwargs['action'] == 'set_extra_specs'
+    assert service.call_args.kwargs['extra_specs'] == {'hw:cpu_policy': 'shared'}
+
+
+@pytest.mark.asyncio
+async def test_project_set_alias_forwards_backend_parameter_names(monkeypatch):
+    module = importlib.import_module('mcp_openstack_ops.tools.set_project')
+    service = Mock(return_value={'success': True})
+    monkeypatch.setattr(module, '_set_project', service)
+
+    await _tool_handler(module, 'set_project')(
+        project_name='project', action='set', enable=True, domain='default',
+    )
+
+    assert service.call_args.kwargs['action'] == 'update'
+    assert service.call_args.kwargs['enabled'] is True
+    assert service.call_args.kwargs['domain_id'] == 'default'
+
+
+@pytest.mark.asyncio
+async def test_keypair_import_alias_calls_create(monkeypatch):
+    module = importlib.import_module('mcp_openstack_ops.tools.set_keypair')
+    service = Mock(return_value={'success': True})
+    monkeypatch.setattr(module, '_set_keypair', service)
+    monkeypatch.setattr(module, '_get_resource_status_by_name', Mock(return_value='Unknown'))
+    monkeypatch.setattr('time.sleep', lambda _: None)
+
+    await _tool_handler(module, 'set_keypair')(
+        action='import', keypair_names='key', public_key='ssh-ed25519 placeholder',
+    )
+
+    assert service.call_args.args[:2] == ('key', 'create')
+
+
 @pytest.fixture
 def volume_connection(monkeypatch):
     server = SimpleNamespace(id='server-id', name='vm', project_id='project')

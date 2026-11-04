@@ -22,11 +22,12 @@ async def set_flavor(
     properties: Optional[str] = None
 ) -> str:
     """
-    Manage OpenStack flavors (create, delete, set properties, list)
+    Manage OpenStack flavors (create, delete, list, set extra specs).
     
     Args:
         flavor_name: Name of the flavor
-        action: Action to perform (create, delete, show, list, set)
+        action: Action to perform (create, delete, list, set_extra_specs).
+                The set alias is accepted for backward compatibility.
         vcpus: Number of virtual CPUs (for create)
         ram: Amount of RAM in MB (for create)
         disk: Disk size in GB (for create)
@@ -34,7 +35,7 @@ async def set_flavor(
         swap: Swap size in MB (for create)
         rxtx_factor: RX/TX factor (for create)
         is_public: Whether flavor is public (for create)
-        properties: JSON string of extra properties (for create/set)
+        properties: JSON string encoding extra specs (for create/set_extra_specs)
     
     Returns:
         JSON string with flavor operation result
@@ -42,6 +43,10 @@ async def set_flavor(
     try:
         logger.info(f"Managing flavor: {flavor_name}, action: {action}")
         
+        action = action.strip().lower()
+        if action == 'set':
+            action = 'set_extra_specs'
+
         flavor_params = {}
         
         if vcpus is not None:
@@ -61,7 +66,7 @@ async def set_flavor(
             
         if properties:
             import json as json_module
-            flavor_params['properties'] = json_module.loads(properties)
+            flavor_params['extra_specs'] = json_module.loads(properties)
         
         flavor_result = _set_flavor(flavor_name=flavor_name, action=action, **flavor_params)
         

@@ -23,7 +23,7 @@ async def set_subnets(
     Manage OpenStack network subnets for IP address allocation
     
     Args:
-        action: Action to perform - list, create, delete
+        action: Action to perform - list, show, create, delete
         subnet_name: Name or ID of the subnet
         network_id: Network ID for subnet creation (required for create)
         cidr: CIDR notation for subnet (required for create, e.g., '192.168.1.0/24')

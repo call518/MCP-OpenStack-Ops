@@ -172,7 +172,10 @@ Service availability, permissions, and asynchronous completion affect results.
 See [API prerequisites and result semantics](#api-prerequisites-and-result-semantics)
 and the [multi-user setup guide](docs/multi-user-guide.md).
 
-**Validation snapshot (2026-11-04; working tree based on `a57b165`):**
+**Validation evidence:**
+- **Live snapshot (2026-11-04; working tree based on `a57b165`):** This live
+  snapshot predates the current working-tree tool-schema corrections. Its live
+  classifications remain historical evidence and were not rerun for this change.
 - **Live tool checks:** 105/105 registered tools exercised. At least one live
   path passed for 76 tools; 28 tools were unavailable because the test cloud
   lacks Octavia, Aodh, Neutron QoS, or floating-IP port-forwarding APIs; one
@@ -192,7 +195,10 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
   returned 404 without authentication. A real Nova action list explicitly
   reported that the list has no finish time; optional event-detail lookup
   returned an event result and derived its latest finish time.
-- **Local unit tests:** 254/254 (100%); no failures or skipped tests.
+- **Local unit tests (current working tree, 2026-11-04):** 263/263 (100%); no
+  failures or skipped tests. These tests include MCP action-description and
+  advanced-parameter forwarding regressions; they do not replace live service
+  validation.
 
 **Detailed Mapping by Category**
 
@@ -203,19 +209,19 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
 | `openstack server list` | `get_instance` | ✅ | Separate reader projects each returned exactly ten owned VMs; bounded lab validation only |
 | `openstack server show` | `get_instance` | ✅ | Own fixture queries completed; foreign private ID returned no details; no 16-owned-ID batch claim |
 | `openstack server create` | `set_instance` (action="create") | ✅ | **ENHANCED** - Bulk creation support |
-| `openstack server start/stop/reboot` | `set_instance` | ✅ | Bulk stop/start final states verified for two test VMs per project; reboot not retested in this round |
-| `openstack server delete` | `set_instance` (action="delete") | ✅ | **ENHANCED** - Bulk deletion with name_contains filtering |
+| `openstack server start/stop/reboot` | `set_instance` | ✅ | Tool schema exposes all actions and `reboot_type`; bulk stop/start final states verified for two test VMs per project, but reboot was not retested in this round |
+| `openstack server delete` | `set_instance` (action="delete") | ✅ | Tool schema exposes delete and optional force deletion; bulk deletion with `name_contains` filtering |
 | `openstack server backup create` | `set_server_backup` | ✅ | Nova backup action with rotation; asynchronous, no custom metadata |
-| `openstack server image create` | `set_instance` (action="snapshot") | ✅ | Image/snapshot creation |
-| `openstack server shelve/unshelve` | `set_instance` | ✅ | Instance shelving |
+| `openstack server image create` | `set_instance` (action="snapshot") | ✅ | Accepts optional `snapshot_name` and JSON `metadata`; parameter forwarding is locally tested, not live-retested in this change |
+| `openstack server shelve/unshelve` | `set_instance` | ✅ | Actions are exposed in the tool schema; instance shelving was not live-retested in this change |
 | `openstack server lock/unlock` | `set_instance` | ✅ | Instance locking |
 | `openstack server pause/unpause` | `set_instance` | ✅ | Instance pausing |
 | `openstack server suspend/resume` | `set_instance` | ✅ | Instance suspension |
-| `openstack server resize` | `set_instance` (action="resize") | ✅ | Instance resizing |
+| `openstack server resize` | `set_instance` (action="resize") | ✅ | Uses the existing `flavor` parameter as the target flavor; action exposure is locally tested |
 | `openstack server resize confirm` | `set_instance` (action="confirm_resize") | ✅ | Resize confirmation |
 | `openstack server resize revert` | `set_instance` (action="revert_resize") | ✅ | Resize revert |
-| `openstack server rebuild` | `set_instance` (action="rebuild") | ✅ | Instance rebuilding |
-| `openstack server rescue/unrescue` | `set_instance` | ✅ | Recovery mode |
+| `openstack server rebuild` | `set_instance` (action="rebuild") | ✅ | Uses `image` and supports optional `new_name`, JSON `metadata`, and `preserve_ephemeral`; not live-retested in this change |
+| `openstack server rescue/unrescue` | `set_instance` | ✅ | Tool schema exposes both actions and optional `rescue_image_id`; not live-retested in this change |
 | `openstack server migrate` | `set_server_migration` (action="migrate") | ✅ | Live migration |
 | `openstack server evacuate` | `set_server_migration` (action="evacuate") | ✅ | Server evacuation |
 | `openstack server migration list` | `set_server_migration` (action="list") | ✅ | Migration listing |

@@ -44,7 +44,8 @@ async def set_keypair(
     2. Filter-based: Use name_contains to auto-identify targets
     
     Args:
-        action: Action to perform - create, delete, import
+        action: Action to perform - create, delete, import, show. Import is an
+                alias for create with public_key supplied.
         keypair_names: Name(s) of keypairs to manage. Support formats:
                       - Single: "keypair1"
                       - Multiple: "keypair1,keypair2,keypair3"
@@ -70,9 +71,11 @@ async def set_keypair(
     """
     try:
         if not action or not action.strip():
-            return "Error: Action is required (create, delete, import)"
+            return "Error: Action is required (create, delete, import, show)"
             
         action = action.strip().lower()
+        if action == 'import':
+            action = 'create'
         
         # Determine targeting method
         has_direct_targets = keypair_names and keypair_names.strip()

@@ -19,22 +19,26 @@ async def set_project(
     tags: str = ""
 ) -> str:
     """
-    Manage OpenStack projects (create, delete, set, cleanup).
+    Manage OpenStack projects (create, delete, update, show, list).
     
     Args:
         project_name: Name of the project (required)
-        action: Action to perform (create, delete, set, cleanup)
-        description: Project description (optional, for create/set)
-        enable: Enable project (optional, for set action)
-        disable: Disable project (optional, for set action)
+        action: Action to perform (create, delete, update, show, list).
+                The set alias is accepted for backward compatibility.
+        description: Project description (optional, for create/update)
+        enable: Enable project (optional, for update action)
+        disable: Disable project (optional, for update action)
         domain: Domain name or ID (optional, for create)
-        parent: Parent project name or ID (optional, for create)
-        tags: Comma-separated list of tags (optional, for create/set)
+        parent: Reserved compatibility parameter; parent changes are not implemented
+        tags: Reserved compatibility parameter; project tags are not implemented
     
     Returns:
         JSON string containing the result of the project management operation
     """
     try:
+        action = action.strip().lower()
+        if action == 'set':
+            action = 'update'
         logger.info(f"Managing project - Action: {action}, Project: {project_name}")
         
         # Build project parameters
@@ -42,16 +46,12 @@ async def set_project(
         if description:
             project_params['description'] = description
         if enable is not None:
-            project_params['enable'] = enable
-        if disable is not None:
-            project_params['disable'] = disable
+            project_params['enabled'] = enable
+        if disable:
+            project_params['enabled'] = False
         if domain:
-            project_params['domain'] = domain
-        if parent:
-            project_params['parent'] = parent
-        if tags:
-            project_params['tags'] = [tag.strip() for tag in tags.split(',')]
-        
+            project_params['domain_id'] = domain
+
         project_result = _set_project(project_name=project_name, action=action, **project_params)
         
         # Use centralized result handling

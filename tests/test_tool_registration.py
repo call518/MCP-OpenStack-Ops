@@ -22,6 +22,13 @@ from mcp_openstack_ops.mcp_main import mcp
 
 async def verify():
     tools = {tool.name: tool for tool in await mcp.list_tools()}
+    read_tools = [tool for tool in tools.values()
+                  if tool.name.startswith(('get_', 'search_'))]
+    assert len(read_tools) == 50
+    for tool in read_tools:
+        assert tool.description.strip(), tool.name
+        for parameter, schema in tool.parameters.get('properties', {}).items():
+            assert schema.get('description', '').strip(), f'{tool.name}.{parameter}'
     reads = {
         'get_volume_transfers', 'get_volume_backups', 'get_volume_groups',
         'get_volume_qos', 'get_domains', 'get_identity_groups',
@@ -40,6 +47,17 @@ async def verify():
     if enabled:
         assert 'metric' in tools['set_alarms'].parameters['properties']
         assert 'volume_types' in tools['set_volume_groups'].parameters['properties']
+        expected_actions = {
+            'set_instance': {'delete', 'resize', 'snapshot', 'rebuild'},
+            'set_flavor': {'set_extra_specs'},
+            'set_project': {'update', 'show', 'list'},
+            'set_keypair': {'import', 'show'},
+            'set_network_ports': {'show'},
+            'set_subnets': {'show'},
+        }
+        for name, actions in expected_actions.items():
+            description = tools[name].parameters['properties']['action']['description']
+            assert all(action in description for action in actions), name
     os.environ['ALLOW_MODIFY_OPERATIONS'] = 'false'
     cases = [
         ('set_alarms', {'action': 'create', 'alarm_name': 'a'}),

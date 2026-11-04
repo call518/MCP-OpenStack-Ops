@@ -20,7 +20,7 @@ async def set_network_ports(
     Manage OpenStack network ports for VM and network connectivity
     
     Args:
-        action: Action to perform - list, create, delete
+        action: Action to perform - list, show, create, delete
         port_name: Name or ID of the port
         network_id: Network ID for port creation (required for create)
         description: Description for the port
