@@ -1,6 +1,7 @@
 """Request-local Application Credential authentication for remote clients."""
 
 import asyncio
+import hmac
 import json
 import logging
 import os
@@ -242,8 +243,9 @@ class UserConnectionMiddleware:
     request's identity. No server-side credential or authentication cache.
     """
 
-    def __init__(self, app: ASGIApp) -> None:
+    def __init__(self, app: ASGIApp, bearer_secret: str | None = None) -> None:
         self.app = app
+        self.bearer_secret = bearer_secret
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -270,6 +272,21 @@ class UserConnectionMiddleware:
             )
             return
         headers = Headers(scope=scope)
+        if self.bearer_secret:
+            authorization = headers.getlist("authorization")
+            parts = authorization[0].split() if len(authorization) == 1 else []
+            valid_bearer = (
+                len(parts) == 2
+                and parts[0].lower() == "bearer"
+                and hmac.compare_digest(parts[1], self.bearer_secret)
+            )
+            if not valid_bearer:
+                await JSONResponse(
+                    {"error": "Authentication failed"},
+                    status_code=401,
+                    headers={"WWW-Authenticate": "Bearer"},
+                )(scope, receive, send)
+                return
         ids = headers.getlist("x-openstack-application-credential-id")
         secrets = headers.getlist("x-openstack-application-credential-secret")
         if (
@@ -315,6 +332,8 @@ class UserConnectionMiddleware:
                 {"error": "OpenStack authentication unavailable"}, status_code=503
             )(scope, receive, send)
             return
+        if self.bearer_secret:
+            identity.sensitive += (self.bearer_secret,)
         identity.request_id = request_id
         token = _identity.set(identity)
         logger.info(

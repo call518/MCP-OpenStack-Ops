@@ -500,8 +500,6 @@ def main(argv: Optional[List[str]] = None) -> None:
     if multi_user:
         if transport_type != "streamable-http":
             parser.error("--multi-user requires streamable-http")
-        if auth_enable or secret_key:
-            parser.error("Multi-user authentication replaces shared Bearer authentication")
         if os.getenv("OS_AUTH_PROTOCOL", "http").lower() != "https":
             parser.error("Multi-user mode requires OS_AUTH_PROTOCOL=https")
         if not os.getenv("OS_AUTH_HOST"):
@@ -517,14 +515,14 @@ def main(argv: Optional[List[str]] = None) -> None:
                 logger.error("ERROR: Authentication is enabled but no secret key provided.")
                 logger.error("Please set REMOTE_SECRET_KEY environment variable or use --secret-key argument.")
                 return
-            logger.info("Authentication enabled for streamable-http transport")
+            logger.info("Bearer authentication enabled for streamable-http transport")
         elif not multi_user:
             logger.warning("WARNING: streamable-http mode without authentication enabled!")
             logger.warning("This server will accept requests without Bearer token verification.")
             logger.warning("Set REMOTE_AUTH_ENABLE=true and REMOTE_SECRET_KEY to enable authentication.")
 
     # Configure authentication provider before server startup.
-    if auth_enable:
+    if auth_enable and not multi_user:
         mcp.auth = _build_static_token_auth(secret_key)
     else:
         mcp.auth = None
@@ -536,7 +534,10 @@ def main(argv: Optional[List[str]] = None) -> None:
             mcp.run(
                 transport="streamable-http", host=host, port=port,
                 stateless_http=True, json_response=True,
-                middleware=[ASGIMiddleware(user_connection.UserConnectionMiddleware)],
+                middleware=[ASGIMiddleware(
+                    user_connection.UserConnectionMiddleware,
+                    bearer_secret=secret_key if auth_enable else None,
+                )],
             )
         else:
             mcp.run(transport="streamable-http", host=host, port=port)

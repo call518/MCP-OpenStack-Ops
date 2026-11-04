@@ -10,8 +10,15 @@ Clients send their own Keystone Application Credential ID and secret in two
 dedicated HTTP headers on **every request**. The server authenticates against
 the operator-configured Keystone, then executes the request with that user's
 project-scoped connection. Authentication failure never falls back to the server's
-environment account. `Authorization` is not forwarded to OpenStack; this is custom
-header authentication, not an OAuth server or Keystone token passthrough.
+environment account. This is custom header authentication, not an OAuth server or
+Keystone token passthrough.
+
+Shared Bearer authentication is optional and independent. With
+`REMOTE_AUTH_ENABLE=true`, the server requires `Authorization: Bearer <token>`
+before it attempts Keystone authentication. Every request must then pass both the
+shared Bearer gate and the caller's Application Credential authentication.
+`Authorization` is never forwarded to OpenStack. With Bearer authentication
+disabled, a configured `REMOTE_SECRET_KEY` is ignored.
 
 Application Credentials avoid LDAP passwords
 and already specify a project and delegated roles. Raw Keystone tokens, browser
@@ -31,6 +38,38 @@ the next HTTP request is rejected. An already authenticated, in-flight operation
 can finish; it is not cancelled or rolled back. Measure the actual interval in
 the target cloud before documenting a supported bound. Request validation is not
 the same as cancelling already submitted asynchronous OpenStack operations.
+
+## Create a client Application Credential
+
+Each client user creates an Application Credential while authenticated to the
+OpenStack project that the client should manage. For example, after loading that
+project's OpenRC file:
+
+```bash
+source /path/to/project-openrc.sh
+openstack application credential create mcp-openwebui \
+  --description "MCP OpenWebUI access"
+```
+
+The create response contains `id` and `secret`. Configure them as
+`X-OpenStack-Application-Credential-ID` and
+`X-OpenStack-Application-Credential-Secret`, respectively. The secret is shown
+only in the create response, but it is reusable until the credential expires or
+is deleted. If it is lost, delete the credential and create another one:
+
+```bash
+openstack application credential delete mcp-openwebui
+```
+
+`openstack application credential list` and `show` can recover the ID, but never
+the secret. Keep the create output private. Do not paste it into chat, commit it,
+or store it in a shared OpenWebUI/MCPO configuration. Prefer a dedicated,
+least-privileged OpenStack user, review the delegated roles in the create output,
+and use `--role` and `--expiration` when the cloud's policy and operational
+requirements are known. Do not create an administrator-scoped credential unless
+administrator behavior is explicitly required.
+
+See the official [OpenStack Application Credential CLI documentation](https://docs.openstack.org/python-openstackclient/latest/cli/command-objects/identity/v3/index.html#application-credential).
 
 ## Server setup
 
@@ -56,24 +95,40 @@ export OS_AUTH_PORT=5000
 export OS_AUTH_PROTOCOL=https
 export OS_REGION_NAME=RegionOne
 export ALLOW_MODIFY_OPERATIONS=false
+export MCP_MULTI_USER=true
+export REMOTE_AUTH_ENABLE=false
+export REMOTE_SECRET_KEY=
 # Optional for a private CA:
 # export OS_CACERT=/path/to/cloud-ca.pem
 uv run --locked python -m mcp_openstack_ops \
-  --type streamable-http --multi-user --host 127.0.0.1 --port 8080
+  --type streamable-http --host 127.0.0.1 --port 8080
 ```
 
 Alternatively set `MCP_MULTI_USER=true` instead of passing `--multi-user`.
 These are process environment variables; the new mode does not load a server
 credential `.env` or `clouds.yaml`. `OS_USERNAME`, `OS_PASSWORD`, and
-`OS_PROJECT_NAME` are not used for user authentication. Unset `REMOTE_AUTH_ENABLE`
-and `REMOTE_SECRET_KEY`: the shared Bearer mode cannot be combined with this mode.
-DEBUG logging is rejected to avoid authentication wire dumps.
+`OS_PROJECT_NAME` are not used for user authentication. DEBUG logging is rejected
+to avoid authentication wire dumps.
+
+To require shared Bearer authentication before per-user authentication, configure:
+
+```bash
+export MCP_MULTI_USER=true
+export REMOTE_AUTH_ENABLE=true
+export REMOTE_SECRET_KEY='<strong-random-secret>'
+```
+
+The two checks use AND semantics, never fallback or OR semantics. A missing or
+invalid Bearer token returns 401 without contacting Keystone. A valid Bearer token
+is followed by the normal Application Credential check. Bearer-only and unauthenticated
+single-account HTTP modes remain available when `MCP_MULTI_USER=false`.
 
 Unsupported OAuth metadata routes (`/.well-known/oauth-protected-resource`,
 `/.well-known/oauth-authorization-server`, `/.well-known/openid-configuration`,
 including their path suffixes) and `/register` return 404 without Keystone
 authentication. This mode does not provide OAuth discovery or registration;
-`/mcp` still requires both application-credential headers.
+`/mcp` still requires both application-credential headers and, when enabled, the
+shared Bearer header.
 
 HTTP 400 responses from the MCP transport produce an INFO diagnostic with a
 server-generated `request_id` and a fixed `reason` classification:
@@ -115,6 +170,8 @@ set; there is no implicit `verify=False` fallback.
 | Claude Code IDE integration | Not separately tested |
 | Claude Desktop individual connector | Conditional on request-header availability and an independently owned credential configuration; unverified |
 | Claude Desktop organization-shared fixed headers | Not suitable for per-user identities; do not share one person's credential |
+| OpenWebUI/MCPO, independent instance per user | Compatible when its fixed upstream headers contain only that user's Application Credential; unverified |
+| OpenWebUI/MCPO, one shared connection for multiple users | Not suitable: its fixed upstream headers would give every UI user the same OpenStack identity |
 | Clients requiring OAuth | Not supported by this custom authentication mode |
 
 Claude Code example (user configuration; placeholders only):
@@ -126,6 +183,7 @@ Claude Code example (user configuration; placeholders only):
       "type": "http",
       "url": "https://mcp.example.com/mcp",
       "headers": {
+        "Authorization": "Bearer <shared-mcp-token>",
         "X-OpenStack-Application-Credential-ID": "<your-application-credential-id>",
         "X-OpenStack-Application-Credential-Secret": "<your-application-credential-secret>"
       }
@@ -133,6 +191,56 @@ Claude Code example (user configuration; placeholders only):
   }
 }
 ```
+
+Omit `Authorization` when `REMOTE_AUTH_ENABLE=false`. When it is enabled, every
+client receives the shared MCP token separately from its own Application
+Credential.
+
+The Docker Compose Quick Start uses `mcp-config.json.http` for unauthenticated
+single-account access. For an independent multi-user OpenWebUI/MCPO instance,
+the repository provides this separate template:
+
+```json
+{
+  "mcpServers": {
+    "mcp-openstack-ops": {
+      "type": "streamable-http",
+      "url": "http://mcp-server:8000/mcp",
+      "headers": {
+        "Authorization": "Bearer <REMOTE_SECRET_KEY>",
+        "X-OpenStack-Application-Credential-ID": "<APPLICATION_CREDENTIAL_ID>",
+        "X-OpenStack-Application-Credential-Secret": "<APPLICATION_CREDENTIAL_SECRET>"
+      }
+    }
+  }
+}
+```
+
+This is the content of `mcp-config.json.multi-user`. It can technically be
+edited and selected directly, but replacing its placeholders would put reusable
+secrets in a version-controlled file and expose them in Git diffs or accidental
+commits. The recommended workflow preserves the tracked template:
+
+```bash
+cp mcp-config.json.multi-user mcp-config.json.multi-user.local
+chmod 600 mcp-config.json.multi-user.local
+```
+
+Put that user's Application Credential ID and secret in the ignored `.local`
+copy. Keep or remove its `Authorization` entry according to
+`REMOTE_AUTH_ENABLE`, then set these values in the private `.env` file:
+
+```dotenv
+MCP_MULTI_USER=true
+MCPO_CONFIG_FILE=mcp-config.json.multi-user.local
+```
+
+Recreate the affected services with `docker compose up -d --force-recreate
+mcp-server mcpo-proxy`. Do not use this pattern for a shared OpenWebUI
+connection: all UI users would inherit the same OpenStack identity. The local
+file contains reusable secrets; keep it private and never commit it. The
+Quick Start's plaintext local MCP hop is for isolated evaluation only; use TLS
+between the client/proxy and MCP server in production.
 
 Keep real values in private user configuration, never a committed `.mcp.json` or
 an issue comment. Header values must be sent on initialize, discovery, and tool
@@ -170,6 +278,8 @@ versions, service versions, and results without posting secrets or resource data
    verify each entry sees only its intended project.
 5. Omit, invalidate, or duplicate either credential header. No tool must execute,
    even if the server has valid legacy credentials configured in its environment.
+   When shared Bearer authentication is enabled, also omit or invalidate its header
+   and verify that Keystone authentication is not attempted.
 6. Confirm write tools are absent by default, including for administrators. Only
    in a disposable environment, explicitly enable writes and verify a credential
    delegated only `reader` cannot modify resources under the cloud's actual policy.
@@ -189,6 +299,7 @@ uv run --locked --extra dev python -m pytest -q tests
 ```
 
 Automated tests cover authentication rejection/revalidation, concurrent contexts
-including synchronous tools, cleanup, default write gating, project checks, and
-legacy cache behavior. They do not establish actual Keystone revocation timing,
-service policy enforcement, or Claude client compatibility.
+including synchronous tools, Bearer-before-Keystone ordering, cleanup, default
+write gating, project checks, and legacy cache behavior. They do not establish
+actual Keystone revocation timing, service policy enforcement, or Claude client
+compatibility.

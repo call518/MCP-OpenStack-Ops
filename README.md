@@ -74,8 +74,8 @@ dependencies = [
 
 **Step 3: Rebuild Docker Image**
 ```bash
-docker-compose build --no-cache mcp-server
-docker-compose up -d
+docker compose build --no-cache mcp-server
+docker compose up -d
 ```
 
 **OpenStackSDK Version Reference:**
@@ -195,7 +195,7 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
   returned 404 without authentication. A real Nova action list explicitly
   reported that the list has no finish time; optional event-detail lookup
   returned an event result and derived its latest finish time.
-- **Local unit tests (current working tree, 2026-11-04):** 263/263 (100%); no
+- **Local unit tests (current working tree, 2026-11-04):** 269/269 (100%); no
   failures or skipped tests. These tests include MCP action-description and
   advanced-parameter forwarding regressions; they do not replace live service
   validation.
@@ -498,149 +498,137 @@ The feature table marks implemented API paths, not verification against every Op
 
 ## Quick Start
 
-> 💡 **Need an OpenStack Cluster for Testing?**  
-> Check out this comprehensive guide: [Tutorial: Install OpenStack Multinode Cluster /w Kolla-Ansible (Epoxy/Dalmatian)](https://medium.com/@call518/tutorial-install-openstack-multinode-cluster-w-kolla-ansible-flamingo-epoxy-dalmatian-19c000cc1645)  
-> Perfect for setting up a test environment to explore MCP-OpenStack-Ops capabilities.
+This starts the complete local evaluation stack:
 
-![Flow Diagram of Quickstart/Tutorial](img/MCP-Workflow-of-Quickstart-Tutorial.png)
+```text
+Browser → OpenWebUI → MCPO (OpenAPI) → MCP-OpenStack-Ops → OpenStack
+```
 
-### 1. Environment Setup
+Prerequisites are Git, Docker with the Compose plugin, a reachable OpenStack
+environment, and a model provider supported by OpenWebUI. The model should
+support reliable native tool calling.
+
+| Quick Start default | Value |
+| --- | --- |
+| OpenStack identity | One account from `.env` |
+| Available tools | Read-only; modification tools are hidden |
+| HTTP authentication | Disabled |
+| Published network | Localhost only |
+| MCPO configuration | `mcp-config.json.http` |
+
+### 1. Clone and configure
 
 ```bash
-# Clone and navigate to project
+git clone https://github.com/call518/MCP-OpenStack-Ops.git
 cd MCP-OpenStack-Ops
-
-# Install dependencies
-uv sync
-
-# Configure environment
 cp .env.example .env
-# Edit .env with your OpenStack credentials
+cp mcp-config.json.http mcp-config.json.http.local
+chmod 600 mcp-config.json.http.local
+openssl rand -hex 32
+vi .env
 ```
 
-**Environment Configuration**
+In `.env`:
 
-Configure your `.env` file with OpenStack credentials:
+1. Replace `WEBUI_SECRET_KEY` with the generated value.
+2. Set the `OS_*` authentication, domain, region, protocol, and service-port
+   values for the target OpenStack environment.
+3. Keep these local Quick Start defaults:
 
-```bash
-# OpenStack Authentication (required)
-OS_AUTH_HOST=your-openstack-host
-OS_AUTH_PORT=5000
-OS_AUTH_PROTOCOL=http  # Use 'https' for production with SSL/TLS
-# OS_CACERT=/etc/ssl/certs/openstack-ca.pem  # Required for HTTPS (optional for HTTP)
-OS_IDENTITY_API_VERSION=3
-OS_USERNAME=your-username
-OS_PASSWORD=your-password
-OS_PROJECT_NAME=your-project
-OS_PROJECT_DOMAIN_NAME=default
-OS_USER_DOMAIN_NAME=default
-OS_REGION_NAME=RegionOne
-
-# OpenStack Service Ports (customizable)
-OS_COMPUTE_PORT=8774
-OS_NETWORK_PORT=9696
-OS_VOLUME_PORT=8776
-OS_IMAGE_PORT=9292
-OS_PLACEMENT_PORT=8780
-OS_HEAT_STACK_PORT=8004
-OS_HEAT_STACK_CFN_PORT=8000
-
-# MCP Server Configuration (optional)
-MCP_LOG_LEVEL=INFO
+```dotenv
 ALLOW_MODIFY_OPERATIONS=false
-FASTMCP_TYPE=stdio
-FASTMCP_HOST=127.0.0.1
-FASTMCP_PORT=8080
+MCP_MULTI_USER=false
+REMOTE_AUTH_ENABLE=false
+REMOTE_SECRET_KEY=
+DOCKER_BIND_ADDRESS=127.0.0.1
+MCPO_CONFIG_FILE=mcp-config.json.http.local
 ```
 
-**HTTPS Configuration for Production Environments**
+The local MCPO copy contains no credentials in this mode and connects to the MCP
+container through the private Compose network. It is ignored by Git, so later
+authentication changes do not modify the tracked reference template.
 
-For secure OpenStack deployments with SSL/TLS:
+### 2. Start the stack
 
 ```bash
-# Enable HTTPS protocol
-OS_AUTH_PROTOCOL=https
-OS_AUTH_HOST=your-secure-openstack-host
-OS_AUTH_PORT=13000  # Your HTTPS Keystone port
-
-# SSL Certificate Configuration
-# Option 1: Use custom CA certificate (recommended for production)
-OS_CACERT=/etc/ssl/certs/openstack-ca.pem
-
-# Option 2: Skip CA certificate (SSL verification disabled - insecure)
-# Just omit OS_CACERT - the server will warn you about insecure connection
-
-# Docker: Mount CA certificate into container
-# Add to docker-compose.yml volumes:
-#   - /path/to/your/ca-cert.pem:/etc/ssl/certs/openstack-ca.pem:ro
+docker compose up -d
+docker compose ps
 ```
 
-**Protocol Configuration Notes:**
-- `OS_AUTH_PROTOCOL=http`: Use for local development or HTTP-only OpenStack deployments
-- `OS_AUTH_PROTOCOL=https`: Use for production environments with SSL/TLS enabled
-- When `https` is set without `OS_CACERT`, SSL verification is disabled (insecure but functional)
-- For secure production deployments, always provide `OS_CACERT` with your CA certificate path
+Wait until `mcp-server` is healthy and `mcpo-proxy` and `open-webui` are running.
 
-### 2. Run Server
+| Service | Local URL | Purpose |
+| --- | --- | --- |
+| OpenWebUI | `http://localhost:3000` | Chat interface |
+| MCP server | `http://localhost:8000/mcp` | Direct MCP endpoint |
+| MCPO docs | `http://localhost:8080/mcp-openstack-ops/docs` | Generated OpenAPI schema and test UI |
+
+If `mcp-server` is unhealthy, inspect its log before continuing:
 
 ```bash
-# Start all services
-docker-compose up -d
-
-# Check logs
-docker-compose logs mcp-server
-docker-compose logs mcpo-proxy
+docker compose logs mcp-server
 ```
 
-**Container Architecture**:
-- **mcp-server**: OpenStack MCP server with tools
-- **mcpo-proxy**: OpenAPI (REST-API)
-- **open-webui**: Web interface for testing and interaction
+### 3. Configure OpenWebUI
 
-> 📌 **Note**: Web-UI configuration instructions are based on OpenWebUI **v0.6.22**. Menu locations and settings may differ in newer versions.
+1. Open `http://localhost:3000` and create the first administrator account.
+2. Add the model provider and select a tool-capable model.
+3. Open **Settings → Admin → Integrations → External Tool Servers** and
+   add this connection:
 
-**Service URLs - Docker Internal**:
-- MCP Server: `localhost:8080` (HTTP transport)
-- MCPO Proxy: `localhost:8000` (OpenStack API proxy)
-- Open WebUI: `localhost:3000` (Web interface)
+- Type: `OpenAPI`
+- URL: `http://mcpo-proxy:8000/mcp-openstack-ops`
+- Schema path: `openapi.json`
+- Authentication: `None`
 
-**Service URLs - Docker External**:
-- MCP Server: `host.docker.internal:18005` (HTTP transport)
-- MCPO Proxy: `host.docker.internal:8005` (OpenStack API proxy)
-- Open WebUI: `host.docker.internal:3005` (Web interface)
+The URL deliberately uses the Compose service name `mcpo-proxy`; it is resolved
+by the OpenWebUI container. Save the connection, then open a chat and enable
+`mcp-openstack-ops` under **+ → Integrations → Tools**.
 
-#### For Claude Desktop Integration
-Add to your Claude Desktop configuration:
-```json
-{
-  "mcpServers": {
-    "mcp-openstack-ops": {
-      "command": "uvx",
-      "args": ["--python", "3.12", "mcp-openstack-ops"],
-      "env": {
-        "OS_AUTH_HOST": "your-openstack-host",
-        "OS_AUTH_PORT": "5000",
-        "OS_PROJECT_NAME": "your-project",
-        "OS_USERNAME": "your-username",
-        "OS_PASSWORD": "your-password",
-        "OS_USER_DOMAIN_NAME": "Default",
-        "OS_PROJECT_DOMAIN_NAME": "Default",
-        "OS_REGION_NAME": "RegionOne",
-        "OS_IDENTITY_API_VERSION": "3",
-        "OS_INTERFACE": "internal",
-        "OS_COMPUTE_PORT": "8774",
-        "OS_NETWORK_PORT": "9696",
-        "OS_VOLUME_PORT": "8776",
-        "OS_IMAGE_PORT": "9292",
-        "OS_PLACEMENT_PORT": "8780",
-        "OS_HEAT_STACK_PORT": "8004",
-        "OS_HEAT_STACK_CFN_PORT": "18888",
-        "ALLOW_MODIFY_OPERATIONS": "false",
-        "MCP_LOG_LEVEL": "INFO"
-      }
-    }
-  }
-}
+### 4. Verify
+
+Ask the model:
+
+```text
+Use mcp-openstack-ops to list the instances in my OpenStack project.
+```
+
+A successful response confirms the OpenWebUI → MCPO → MCP server →
+OpenStack path. The MCPO documentation URL above should also list the generated
+tool endpoints. For connection failures, inspect all three services:
+
+```bash
+docker compose logs mcp-server mcpo-proxy open-webui
+```
+
+### 5. Enable modifications only when needed
+
+Create, update, and delete tools are intentionally absent by default. To enable
+them, set `ALLOW_MODIFY_OPERATIONS=true` in `.env` and recreate the MCP path:
+
+```bash
+docker compose up -d --force-recreate mcp-server mcpo-proxy
+```
+
+OpenStack policy still controls what the configured account may change. For
+Bearer authentication, non-local exposure, and custom configuration files, see
+[Server Configuration](#server-configuration). For request-scoped user accounts,
+see the [multi-user guide](docs/multi-user-guide.md).
+
+Stop the stack without deleting the OpenWebUI data volume with:
+
+```bash
+docker compose down
+```
+
+## Claude Desktop Integration
+
+Use `mcp-config.json.stdio` as a reference. Copy it to the ignored local file,
+update the local copy, and merge it into Claude Desktop's private configuration:
+
+```bash
+cp mcp-config.json.stdio mcp-config.json.stdio.local
+chmod 600 mcp-config.json.stdio.local
 ```
 
 ---
@@ -649,7 +637,7 @@ Add to your Claude Desktop configuration:
 
 Install Claude Code and start the MCP server in `streamable-http` mode first.
 Register the MCP server's `/mcp` URL, not the MCPO/OpenAPI proxy URL. The example
-below uses the Docker host port `18005`; replace the host/port for your deployment
+below uses the Docker host port `8000`; replace the host/port for your deployment
 and use HTTPS for remote connections. Registration does not start the server.
 
 For the existing single-account mode with `REMOTE_AUTH_ENABLE=true`, enter the
@@ -660,7 +648,7 @@ read -rsp 'MCP Bearer token: ' OPENSTACK_MCP_TOKEN
 echo
 export OPENSTACK_MCP_TOKEN
 
-claude mcp add-json --scope user openstack-ops '{"type":"http","url":"http://127.0.0.1:18005/mcp","headers":{"Authorization":"Bearer ${OPENSTACK_MCP_TOKEN}"}}'
+claude mcp add-json --scope user openstack-ops '{"type":"http","url":"http://127.0.0.1:8000/mcp","headers":{"Authorization":"Bearer ${OPENSTACK_MCP_TOKEN}"}}'
 claude mcp list
 claude
 ```
@@ -670,7 +658,7 @@ Keep `OPENSTACK_MCP_TOKEN` exported in the terminal that launches Claude Code.
 authentication is disabled, use this registration command instead:
 
 ```bash
-claude mcp add --transport http --scope user openstack-ops http://127.0.0.1:18005/mcp
+claude mcp add --transport http --scope user openstack-ops http://127.0.0.1:8000/mcp
 ```
 
 In Claude Code, check `/mcp` and ask, for example:
@@ -740,9 +728,38 @@ Options:
 | `FASTMCP_HOST` | HTTP host address | `127.0.0.1` | For HTTP mode only |
 | `FASTMCP_PORT` | HTTP port number | `8080` | For HTTP mode only |
 | **Authentication (Optional)** |
-| `MCP_MULTI_USER` | Enable request-scoped per-user Application Credential authentication | `false` | Streamable HTTP only; requires HTTPS OpenStack endpoints and is mutually exclusive with shared Bearer authentication |
+| `MCP_MULTI_USER` | Enable request-scoped per-user Application Credential authentication | `false` | Streamable HTTP only; requires HTTPS OpenStack endpoints and can be combined with shared Bearer authentication |
 | `REMOTE_AUTH_ENABLE` | Enable Bearer token authentication for streamable-http mode | `false` | Production security |
-| `REMOTE_SECRET_KEY` | Shared secret for Bearer token authentication | Required when auth enabled | Must be empty or unset when `MCP_MULTI_USER=true` |
+| `REMOTE_SECRET_KEY` | Shared secret for Bearer token authentication | Required when auth enabled | Checked before per-user authentication when both modes are enabled |
+| **Docker Compose** |
+| `DOCKER_BIND_ADDRESS` | Published-port bind address | `127.0.0.1` | Keep local when HTTP authentication is disabled |
+| `DOCKER_EXTERNAL_PORT_OPENWEBUI` | OpenWebUI host port | `3000` | Browser access |
+| `DOCKER_EXTERNAL_PORT_MCP_SERVER` | MCP server host port | `8000` | Direct MCP clients |
+| `DOCKER_EXTERNAL_PORT_MCPO_PROXY` | MCPO host port | `8080` | OpenAPI proxy and docs |
+| `MCPO_CONFIG_FILE` | MCPO configuration mounted by Compose | `mcp-config.json.http` | Set to a private `.local` copy when it contains credentials |
+
+### HTTPS and local configuration files
+
+For HTTPS OpenStack endpoints, set `OS_AUTH_PROTOCOL=https` and mount the CA
+file into `mcp-server` when `OS_CACERT` is a container path. Without
+`OS_CACERT`, single-account HTTPS disables certificate verification.
+
+The tracked `mcp-config.json.*` files are reference templates. Before adding
+credentials, copy only the template you need; all matching `.local` files are
+ignored by Git:
+
+```bash
+cp mcp-config.json.http mcp-config.json.http.local
+cp mcp-config.json.multi-user mcp-config.json.multi-user.local
+cp mcp-config.json.multi-project mcp-config.json.multi-project.local
+cp mcp-config.json.stdio mcp-config.json.stdio.local
+chmod 600 mcp-config.json.*.local
+```
+
+For MCPO, select the copy in `.env`, for example
+`MCPO_CONFIG_FILE=mcp-config.json.multi-user.local`. Point non-Compose clients
+to their local copy separately. Never put real credentials in a tracked
+template.
 
 ---
 
@@ -890,7 +907,7 @@ python -m mcp_openstack_ops --type streamable-http --port 8002
 
 This allows Claude to access each project independently with complete isolation between environments.
 
-**📁 Ready-to-use Configuration File:**
+**📁 Reference Configuration File:**
 
 A complete multi-project configuration example is available at `mcp-config.json.multi-project`:
 - **Production**: Read-only operations for safety (`ALLOW_MODIFY_OPERATIONS=false`)
@@ -898,9 +915,11 @@ A complete multi-project configuration example is available at `mcp-config.json.
 - **Testing**: Debug logging enabled (`MCP_LOG_LEVEL=DEBUG`)
 
 ```bash
-# Copy and customize the multi-project configuration
-cp mcp-config.json.multi-project ~/.config/claude-desktop/mcp_servers.json
-# Edit with your OpenStack credentials
+# Preserve the tracked template and customize only the ignored local copy
+cp mcp-config.json.multi-project mcp-config.json.multi-project.local
+chmod 600 mcp-config.json.multi-project.local
+# Point the client to this file, or merge its contents into the client's
+# existing private configuration. Do not overwrite an existing client config.
 ```
 
 ---
@@ -1118,9 +1137,10 @@ uv run python -m mcp_openstack_ops --type streamable-http --auth-enable --secret
 1. **stdio mode** (Default): Local-only access, no authentication needed
 2. **streamable-http + REMOTE_AUTH_ENABLE=false/undefined**: Remote access without authentication ⚠️ **NOT RECOMMENDED for production**
 3. **streamable-http + REMOTE_AUTH_ENABLE=true**: Remote access with Bearer token authentication ✅ **RECOMMENDED for production**
-4. **streamable-http + MCP_MULTI_USER=true**: Each request authenticates with the caller's project-scoped Keystone Application Credential. This replaces shared Bearer authentication and requires HTTPS OpenStack endpoints. See the [multi-user guide](docs/multi-user-guide.md).
+4. **streamable-http + MCP_MULTI_USER=true**: Each request authenticates with the caller's project-scoped Keystone Application Credential and requires HTTPS OpenStack endpoints.
+5. **streamable-http + MCP_MULTI_USER=true + REMOTE_AUTH_ENABLE=true**: Each request must pass shared Bearer authentication first and per-user Application Credential authentication second. See the [multi-user guide](docs/multi-user-guide.md).
 
-> **🔒 Default Policy**: `REMOTE_AUTH_ENABLE` and `MCP_MULTI_USER` both default to `false`. Set only one authentication mode for Streamable HTTP; multi-user mode rejects a non-empty `REMOTE_SECRET_KEY` even when shared Bearer authentication is disabled.
+> **🔒 Default Policy**: `REMOTE_AUTH_ENABLE` and `MCP_MULTI_USER` both default to `false`. A configured `REMOTE_SECRET_KEY` is used only when `REMOTE_AUTH_ENABLE=true`; enabling both modes requires both forms of authentication.
 
 #### Client Configuration
 
@@ -1201,7 +1221,7 @@ When authentication fails, the server returns:
 **Comprehensive Project Scoping Documentation:**
 - ✅ **Multi-Project Management Guide**: Complete setup instructions for managing multiple OpenStack projects
 - ✅ **Security & Isolation Details**: Detailed explanation of tenant isolation features
-- ✅ **Ready-to-Use Configuration**: Pre-configured `mcp-config.json.multi-project` for quick setup
+- ✅ **Reference Configuration**: Copy `mcp-config.json.multi-project` to an ignored `.local` file before adding credentials
 - ✅ **Updated Environment Variables**: Enhanced `.env.example` with project scoping guidance
 
 ---
@@ -1377,8 +1397,8 @@ Add your tool description to `src/mcp_openstack_ops/prompt_template.md` for bett
 ./scripts/run-mcp-inspector-local.sh
 
 # Or with Docker
-docker-compose up -d
-docker-compose logs -f mcp-server
+docker compose up -d
+docker compose logs -f mcp-server
 
 # Test with natural language:
 # "Show me your custom analysis"

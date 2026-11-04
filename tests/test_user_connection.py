@@ -94,6 +94,63 @@ async def test_missing_empty_or_duplicate_credentials_never_reach_tools(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("authorization", [
+    None,
+    "Basic shared-secret",
+    "Bearer wrong-secret",
+])
+async def test_bearer_rejection_happens_before_keystone_authentication(
+    monkeypatch, authorization
+):
+    auth = Mock()
+    monkeypatch.setattr(users, "authenticate", auth)
+    app = Mock()
+    request_headers = headers()
+    if authorization:
+        request_headers["Authorization"] = authorization
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(
+            app=users.UserConnectionMiddleware(app, bearer_secret="shared-secret")
+        ),
+        base_url="https://mcp.example",
+    ) as client:
+        reply = await client.post("/mcp", headers=request_headers)
+    assert reply.status_code == 401
+    assert reply.headers["www-authenticate"] == "Bearer"
+    auth.assert_not_called()
+    app.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_valid_bearer_then_authenticates_application_credential(monkeypatch):
+    item = identity()
+    auth = Mock(return_value=item)
+    monkeypatch.setattr(users, "authenticate", auth)
+
+    async def run_sync(function, *args):
+        return function(*args)
+
+    monkeypatch.setattr(users.anyio.to_thread, "run_sync", run_sync)
+
+    async def app(scope, receive, send):
+        await httpx_response("ok", scope, receive, send)
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(
+            app=users.UserConnectionMiddleware(app, bearer_secret="shared-secret")
+        ),
+        base_url="https://mcp.example",
+    ) as client:
+        reply = await client.post("/mcp", headers={
+            **headers(), "Authorization": "Bearer shared-secret",
+        })
+    assert reply.status_code == 200
+    auth.assert_called_once_with("alice", "secret")
+    assert "shared-secret" in item.sensitive
+    item.connection.close.assert_called_once()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("error,code", [
     (exceptions.Unauthorized("secret"), 401),
     (exceptions.NotFound("secret"), 401),
@@ -292,10 +349,7 @@ def test_catalog_or_redirect_cannot_send_token_over_http(monkeypatch):
     send.assert_not_called()
 
 
-@pytest.mark.parametrize("args", [
-    ["--multi-user"],
-    ["--multi-user", "--type", "streamable-http", "--auth-enable"],
-])
+@pytest.mark.parametrize("args", [["--multi-user"]])
 def test_invalid_startup_modes(monkeypatch, args):
     from mcp_openstack_ops.mcp_main import main
     monkeypatch.setenv("OS_AUTH_PROTOCOL", "https")
@@ -309,7 +363,7 @@ def test_multi_user_starts_stateless_and_keeps_writes_off(monkeypatch):
     from mcp_openstack_ops import mcp_main
     monkeypatch.setenv("OS_AUTH_PROTOCOL", "https")
     monkeypatch.setenv("OS_AUTH_HOST", "cloud.example")
-    monkeypatch.delenv("REMOTE_SECRET_KEY", raising=False)
+    monkeypatch.setenv("REMOTE_SECRET_KEY", "ignored-when-disabled")
     monkeypatch.delenv("REMOTE_AUTH_ENABLE", raising=False)
     monkeypatch.delenv("ALLOW_MODIFY_OPERATIONS", raising=False)
     run = Mock()
@@ -317,7 +371,46 @@ def test_multi_user_starts_stateless_and_keeps_writes_off(monkeypatch):
     mcp_main.main(["--multi-user", "--type", "streamable-http"])
     assert run.call_args.kwargs["stateless_http"] is True
     assert run.call_args.kwargs["json_response"] is True
+    middleware = run.call_args.kwargs["middleware"][0]
+    assert middleware.kwargs["bearer_secret"] is None
     assert not mcp_main._is_modify_operation_allowed()
+
+
+def test_multi_user_and_bearer_start_as_layered_authentication(monkeypatch):
+    from mcp_openstack_ops import mcp_main
+    monkeypatch.setenv("OS_AUTH_PROTOCOL", "https")
+    monkeypatch.setenv("OS_AUTH_HOST", "cloud.example")
+    run = Mock()
+    monkeypatch.setattr(mcp_main.mcp, "run", run)
+
+    mcp_main.main([
+        "--multi-user", "--type", "streamable-http",
+        "--auth-enable", "--secret-key", "shared-secret",
+    ])
+
+    assert mcp_main.mcp.auth is None
+    middleware = run.call_args.kwargs["middleware"][0]
+    assert middleware.kwargs["bearer_secret"] == "shared-secret"
+
+
+@pytest.mark.parametrize("bearer_enabled", [False, True])
+def test_single_account_http_keeps_optional_bearer_authentication(
+    monkeypatch, bearer_enabled
+):
+    from mcp_openstack_ops import mcp_main
+    monkeypatch.delenv("MCP_MULTI_USER", raising=False)
+    monkeypatch.delenv("REMOTE_AUTH_ENABLE", raising=False)
+    monkeypatch.delenv("REMOTE_SECRET_KEY", raising=False)
+    run = Mock()
+    monkeypatch.setattr(mcp_main.mcp, "run", run)
+    args = ["--type", "streamable-http"]
+    if bearer_enabled:
+        args += ["--auth-enable", "--secret-key", "shared-secret"]
+
+    mcp_main.main(args)
+
+    assert (mcp_main.mcp.auth is not None) is bearer_enabled
+    assert "middleware" not in run.call_args.kwargs
 
 
 @pytest.mark.asyncio
