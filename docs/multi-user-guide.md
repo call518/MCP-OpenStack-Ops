@@ -186,6 +186,8 @@ production. Redirects remain disabled in both modes.
 | Claude Code IDE integration | Not separately tested |
 | Claude Desktop individual connector | Conditional on request-header availability and an independently owned credential configuration; unverified |
 | Claude Desktop organization-shared fixed headers | Not suitable for per-user identities; do not share one person's credential |
+| OpenWebUI native MCP, private or owner-restricted connection | Compatible when its custom headers contain only that user's Application Credential; unverified |
+| OpenWebUI native MCP, one shared connection for multiple users | Not suitable: its fixed custom headers would give every UI user the same OpenStack identity |
 | OpenWebUI/MCPO, independent instance per user | Compatible when its fixed upstream headers contain only that user's Application Credential; unverified |
 | OpenWebUI/MCPO, one shared connection for multiple users | Not suitable: its fixed upstream headers would give every UI user the same OpenStack identity |
 | Clients requiring OAuth | Not supported by this custom authentication mode |
@@ -212,6 +214,44 @@ The placeholder `Authorization` header may remain when
 `REMOTE_AUTH_ENABLE=false`; the server ignores it. When authentication is
 enabled, replace the placeholder so every client receives the shared MCP token
 separately from its own Application Credential.
+
+### OpenWebUI native MCP
+
+OpenWebUI 0.6.31 or newer can connect directly to the server's Streamable HTTP
+endpoint without MCPO. In **Settings → Admin → Tools → Integrations**, add an
+external tool-server connection with these values:
+
+| Field | Value |
+| --- | --- |
+| Type | `MCP (Streamable HTTP)` |
+| URL | `http://mcp-server:8000/mcp` for the local Compose network, or the production HTTPS URL |
+| Authentication | `None` when `REMOTE_AUTH_ENABLE=false`; otherwise `Bearer` with `REMOTE_SECRET_KEY` |
+
+Expand **Advanced** and enter this JSON object in **Headers**:
+
+```json
+{
+  "X-OpenStack-Application-Credential-ID": "<APPLICATION_CREDENTIAL_ID>",
+  "X-OpenStack-Application-Credential-Secret": "<APPLICATION_CREDENTIAL_SECRET>"
+}
+```
+
+OpenWebUI merges these custom headers into every outbound MCP request. Bearer
+authentication, when selected, supplies `Authorization` separately; do not add
+it to the JSON above. Save the connection, verify it, then enable it from the
+chat's **Integrations** menu.
+
+MCP connections are administrator-managed in OpenWebUI. Each connection stores
+one fixed Application Credential, so expose it only to that credential's owner
+through OpenWebUI Access Control or use an independent OpenWebUI instance. Do not
+make it available to multiple users. Header templates such as `{{USER_ID}}` can
+identify the caller but cannot look up or substitute that user's OpenStack
+Application Credential. This direct OpenWebUI path is documented from supported
+configuration behavior but has not been live-validated in this repository.
+
+See the official [OpenWebUI MCP custom-header documentation](https://docs.openwebui.com/features/extensibility/mcp/#custom-headers).
+
+### OpenWebUI through MCPO
 
 The Docker Compose Quick Start uses an ignored `mcp-config.json.http.local` copy
 of `mcp-config.json.http` for unauthenticated single-account access. For an
@@ -278,6 +318,7 @@ Sources checked while designing this branch:
 - [Claude Code HTTP configuration](https://code.claude.com/docs/en/mcp)
 - [Claude connector request-header limitations](https://claude.com/docs/connectors/custom/add-unlisted#authenticate-with-request-headers)
 - [Keystone Application Credentials](https://docs.openstack.org/keystone/latest/user/application_credentials.html)
+- [OpenWebUI native MCP custom headers](https://docs.openwebui.com/features/extensibility/mcp/#custom-headers)
 
 ## Deployment validation checklist
 
