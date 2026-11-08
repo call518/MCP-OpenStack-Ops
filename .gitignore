@@ -11,6 +11,8 @@ wheels/
 
 # Environment files
 .env
+.env.*
+!.env.example
 mcp-config.json.*.local
 
 **/__pycache__/
