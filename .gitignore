@@ -24,3 +24,6 @@ mcp-config.json.*.local
 
 # Windows download metadata
 *:Zone.Identifier
+
+# Live check results (scripts/live_tool_check.py)
+live-tool-check*.json
