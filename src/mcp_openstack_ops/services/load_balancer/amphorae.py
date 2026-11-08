@@ -35,11 +35,11 @@ def get_load_balancer_amphorae(lb_name_or_id: str = "", **kwargs) -> Dict[str, A
         
         if loadbalancer_id:
             # Find specific load balancer
-            lb = conn.load_balancer.find_load_balancer(lb_name_or_id)
+            lb = conn.load_balancer.find_load_balancer(loadbalancer_id)
             if not lb:
                 return {
                     'success': False,
-                    'message': f'Load balancer not found: {lb_name_or_id}'
+                    'message': f'Load balancer not found: {loadbalancer_id}'
                 }
             amphorae = list(conn.load_balancer.amphorae(loadbalancer_id=lb.id))
         else:
@@ -240,7 +240,7 @@ def _set_load_balancer_amphora(action: str, **kwargs):
                 "amphora": {
                     "id": amphora.id,
                     "compute_id": getattr(amphora, 'compute_id', None),
-                    "load_balancer_id": getattr(amphora, 'load_balancer_id', None),
+                    "load_balancer_id": getattr(amphora, 'loadbalancer_id', None),
                     "status": getattr(amphora, 'status', None),
                     "role": getattr(amphora, 'role', None),
                     "lb_network_ip": getattr(amphora, 'lb_network_ip', None),
@@ -263,7 +263,7 @@ def _set_load_balancer_amphora(action: str, **kwargs):
             }
         
     except Exception as e:
-        logger.error(f"Error managing amphora {amphora_id}: {e}")
+        logger.error(f"Error managing amphora {kwargs.get('amphora_id')}: {e}")
         return {
             "success": False,
             "error": str(e),

@@ -136,9 +136,8 @@ def test_heat_details_reject_foreign_owner(conn):
 
 def test_heat_list_requires_a_project_scope(conn):
     conn.current_project_id = None
-    result = orchestration.get_heat_stacks()
-    assert result[0]['status'] == 'ERROR'
-    assert 'project-scoped' in result[0]['error']
+    with pytest.raises(ValueError, match='project-scoped'):
+        orchestration.get_heat_stacks()
 
 
 @pytest.mark.parametrize('name', ['all', 'host-a'])

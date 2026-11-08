@@ -51,7 +51,7 @@ def get_load_balancer_l7_policies(listener_name_or_id: str = "") -> Dict[str, An
                 'position': policy.position,
                 'redirect_pool_id': getattr(policy, 'redirect_pool_id', None),
                 'redirect_url': getattr(policy, 'redirect_url', None),
-                'admin_state_up': policy.admin_state_up,
+                'admin_state_up': policy.is_admin_state_up,
                 'provisioning_status': policy.provisioning_status,
                 'operating_status': policy.operating_status
             }
@@ -193,13 +193,13 @@ def get_load_balancer_l7_rules(policy_name_or_id: str) -> Dict[str, Any]:
         for rule in rules:
             rule_info = {
                 'id': rule.id,
-                'l7policy_id': rule.l7policy_id,
+                'l7policy_id': getattr(rule, 'l7_policy_id', None) or policy.id,
                 'type': rule.type,
                 'compare_type': rule.compare_type,
                 'key': getattr(rule, 'key', None),
-                'value': rule.value,
+                'value': rule.rule_value,
                 'invert': getattr(rule, 'invert', False),
-                'admin_state_up': rule.admin_state_up,
+                'admin_state_up': rule.is_admin_state_up,
                 'provisioning_status': rule.provisioning_status,
                 'operating_status': rule.operating_status
             }
@@ -258,10 +258,9 @@ def set_load_balancer_l7_rule(action: str, **kwargs) -> Dict[str, Any]:
                 }
             
             rule_params = {
-                'l7policy_id': policy.id,
                 'type': rule_type,
                 'compare_type': compare_type,
-                'value': value,
+                'rule_value': value,
                 'key': kwargs.get('key'),
                 'invert': kwargs.get('invert', False),
                 'admin_state_up': kwargs.get('admin_state_up', True)
@@ -270,7 +269,7 @@ def set_load_balancer_l7_rule(action: str, **kwargs) -> Dict[str, Any]:
             # Remove None values
             rule_params = {k: v for k, v in rule_params.items() if v is not None}
             
-            rule = conn.load_balancer.create_l7_rule(**rule_params)
+            rule = conn.load_balancer.create_l7_rule(policy.id, **rule_params)
             
             return {
                 'success': True,
@@ -279,7 +278,7 @@ def set_load_balancer_l7_rule(action: str, **kwargs) -> Dict[str, Any]:
                     'id': rule.id,
                     'type': rule.type,
                     'compare_type': rule.compare_type,
-                    'value': rule.value
+                    'value': rule.rule_value
                 }
             }
         

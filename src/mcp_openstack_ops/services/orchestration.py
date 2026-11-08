@@ -74,7 +74,7 @@ def get_heat_stacks() -> List[Dict[str, Any]]:
                         'description': getattr(stack, 'description', ''),
                         'tags': getattr(stack, 'tags', []),
                         'timeout_mins': getattr(stack, 'timeout_mins', None),
-                        'owner': getattr(stack, 'stack_owner', 'unknown'),
+                        'owner': getattr(stack, 'owner_id', None) or 'unknown',
                         'project_id': current_project_id
                     })
             
@@ -98,16 +98,8 @@ def get_heat_stacks() -> List[Dict[str, Any]]:
         
     except Exception as e:
         logger.error(f"Failed to get stacks: {e}")
-        return [
-            {
-                'id': 'error-stack', 
-                'name': 'Error retrieving stacks', 
-                'status': 'ERROR',
-                'stack_status': 'ERROR', 
-                'description': 'Failed to retrieve Heat stacks', 
-                'error': str(e)
-            }
-        ]
+        # Do not return a placeholder stack that is counted as a real one.
+        raise
 
 
 def set_heat_stack(stack_name: str, action: str, **kwargs) -> Dict[str, Any]:
@@ -197,7 +189,7 @@ def set_heat_stack(stack_name: str, action: str, **kwargs) -> Dict[str, Any]:
                 'stack': {
                     'id': updated_stack.id,
                     'name': updated_stack.name,
-                    'status': updated_stack.stack_status
+                    'status': updated_stack.status
                 }
             }
         else:

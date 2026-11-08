@@ -1,5 +1,6 @@
 """Regression tests for real API operations and honest monitoring output."""
 
+import inspect
 from types import SimpleNamespace
 from unittest.mock import Mock, create_autospec
 
@@ -182,7 +183,8 @@ def test_bad_pool_range_does_not_fabricate_capacity(conn):
         network_id='net', allocation_pools=[{'start': '192.0.2.19',
             'end': '192.0.2.10'}],
     )]
-    assert 'error' in network.get_floating_ip_pools()[0]
+    with pytest.raises(Exception):
+        network.get_floating_ip_pools()
 
 
 def test_monitoring_separates_capacity_quota_and_allocations(conn):
@@ -381,7 +383,10 @@ def test_backup_actions_reach_sdk(conn):
         volume_id='volume-a')['success']
     assert storage.set_volume_backups('restore', 'backup',
         volume_name='restored')['success']
-    api.restore_backup.assert_called_once_with(backup, volume_id=None, name='restored')
+    # openstacksdk 4.14 renamed restore_backup(volume_id=) to volume=.
+    target = ('volume' if 'volume' in inspect.signature(StorageProxy.restore_backup).parameters
+              else 'volume_id')
+    api.restore_backup.assert_called_once_with(backup, **{target: None}, name='restored')
     assert storage.set_volume_backups('delete', 'backup')['success']
     api.delete_backup.assert_called_once_with(backup, ignore_missing=False)
 

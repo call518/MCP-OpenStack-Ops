@@ -169,7 +169,7 @@ def get_project_info() -> Dict[str, Any]:
                     'subnets': getattr(network_quotas, 'subnets', -1),
                     'ports': getattr(network_quotas, 'ports', -1),
                     'routers': getattr(network_quotas, 'routers', -1),
-                    'floatingips': getattr(network_quotas, 'floatingips', -1)
+                    'floatingips': getattr(network_quotas, 'floating_ips', -1)
                 },
                 'volume': {
                     'volumes': getattr(volume_quotas, 'volumes', -1),
@@ -266,10 +266,8 @@ def get_role_assignments() -> List[Dict[str, Any]]:
         return assignments
     except Exception as e:
         logger.error(f"Failed to get role assignments: {e}")
-        return [
-            {'user_id': 'user-1', 'project_id': 'project-1', 'role_id': 'role-1', 
-             'role_name': 'member', 'error': str(e)}
-        ]
+        # Do not fabricate a placeholder assignment: callers report the error.
+        raise
 
 
 def get_keypair_list() -> List[Dict[str, Any]]:

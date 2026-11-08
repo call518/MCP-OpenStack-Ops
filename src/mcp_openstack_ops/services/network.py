@@ -345,13 +345,8 @@ def get_security_groups() -> List[Dict[str, Any]]:
         return security_groups
     except Exception as e:
         logger.error(f"Failed to get security groups: {e}")
-        return [
-            {
-                'id': 'default-sg', 'name': 'default', 'description': 'Default security group',
-                'rules': [{'direction': 'ingress', 'protocol': 'tcp', 'port_range_min': 22, 'port_range_max': 22}],
-                'error': str(e)
-            }
-        ]
+        # Do not fabricate a placeholder security group: callers report the error.
+        raise
 
 
 def get_floating_ips() -> List[Dict[str, Any]]:
@@ -391,12 +386,8 @@ def get_floating_ips() -> List[Dict[str, Any]]:
         return floating_ips
     except Exception as e:
         logger.error(f"Failed to get floating IPs: {e}")
-        return [
-            {
-                'id': 'fip-1', 'floating_ip_address': '192.168.1.100',
-                'fixed_ip_address': None, 'status': 'DOWN', 'error': str(e)
-            }
-        ]
+        # Do not fabricate a placeholder address: callers report the error.
+        raise
 
 
 def set_floating_ip(action: str, **kwargs) -> Dict[str, Any]:
@@ -461,7 +452,12 @@ def set_floating_ip(action: str, **kwargs) -> Dict[str, Any]:
             
             if subnet_id:
                 create_params['subnet_id'] = subnet_id
-            
+            # Forward the optional attributes `openstack floating ip create`
+            # accepts; dropping them reported success without applying them.
+            for key in ('description', 'port_id', 'floating_ip_address'):
+                if kwargs.get(key):
+                    create_params[key] = kwargs[key]
+
             fip = conn.network.create_ip(**create_params)
             
             return {
@@ -471,7 +467,9 @@ def set_floating_ip(action: str, **kwargs) -> Dict[str, Any]:
                     'id': fip.id,
                     'floating_ip_address': getattr(fip, 'floating_ip_address', 'unknown'),
                     'status': getattr(fip, 'status', 'unknown'),
-                    'floating_network_id': getattr(fip, 'floating_network_id', 'unknown')
+                    'floating_network_id': getattr(fip, 'floating_network_id', 'unknown'),
+                    'port_id': getattr(fip, 'port_id', None),
+                    'description': getattr(fip, 'description', '')
                 }
             }
             
@@ -804,11 +802,8 @@ def get_floating_ip_pools() -> List[Dict[str, Any]]:
         return pools
     except Exception as e:
         logger.error(f"Failed to get floating IP pools: {e}")
-        return [{
-            'id': 'pool-error',
-            'name': 'Error retrieving pools',
-            'error': str(e)
-        }]
+        # Do not return a placeholder pool that is counted as a real one.
+        raise
 
 
 def set_floating_ip_port_forwarding(action: str, **kwargs) -> Dict[str, Any]:

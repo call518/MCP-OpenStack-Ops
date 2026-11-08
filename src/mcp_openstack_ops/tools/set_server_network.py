@@ -21,10 +21,12 @@ async def set_server_network(
     Manage server network operations (add/remove networks and ports).
     
     Functions:
-    - Add network to server with optional fixed IP
-    - Remove network from server (removes all ports on that network)
-    - Add specific port to server
-    - Remove specific port from server
+    - Add network to server with optional fixed IP (Nova creates the port
+      and deletes it again when the network is removed)
+    - Remove network from server (detaches all interfaces on that network)
+    - Add an existing port (by name or ID) to server
+    - Remove specific port from server (detach only; a port you created
+      yourself is kept)
     
     Use when user requests:
     - "Add network X to server Y"
@@ -36,7 +38,7 @@ async def set_server_network(
         instance_name: Name or ID of the server
         action: Action to perform (add_network, remove_network, add_port, remove_port)
         network: Network name or ID (for network operations)
-        port: Port ID (for port operations)
+        port: Port name or ID (for port operations)
         fixed_ip: Optional fixed IP address when adding network
         
     Returns:

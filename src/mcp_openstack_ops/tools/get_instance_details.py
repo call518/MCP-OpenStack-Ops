@@ -78,6 +78,13 @@ async def get_instance_details(
                 include_all=include_all
             ))
         
+        # A failed lookup must not be reported as "0 instances found".
+        if isinstance(details_result, dict) and details_result.get('success') is False:
+            error_msg = ("Error: Failed to fetch instance details - "
+                         f"{details_result.get('error') or details_result.get('message', 'unknown error')}")
+            logger.error(error_msg)
+            return error_msg
+
         # Handle both old return format (list) and new return format (dict)
         if isinstance(details_result, dict):
             instances = details_result.get('instances', [])
