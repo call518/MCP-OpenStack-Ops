@@ -501,9 +501,11 @@ The feature table marks implemented API paths, not verification against every Op
 
 ## Quick Start
 
-This starts the complete local evaluation stack:
+This starts the complete local evaluation stack. OpenWebUI can use either
+integration path:
 
 ```text
+Browser → OpenWebUI → MCP-OpenStack-Ops → OpenStack
 Browser → OpenWebUI → MCPO (OpenAPI) → MCP-OpenStack-Ops → OpenStack
 ```
 
@@ -603,7 +605,33 @@ For the shortest first run, choose one provider:
 Confirm that the selected model appears in a new chat before configuring the
 MCP integration.
 
-#### 3.1 Add the MCPO OpenAPI connection
+#### 3.1 Add an external tool-server connection
+
+Choose one of the following connections. The direct MCP option has fewer
+components; use MCPO when OpenAPI compatibility is required.
+
+**Option A: Direct MCP connection**
+
+Open **Settings → Admin → Tools → Integrations**, find **External Tool
+Servers**, and add this connection:
+
+| Field | Value |
+| --- | --- |
+| Type | `MCP (Streamable HTTP)` |
+| Name | `MCP OpenStack Ops Direct` |
+| ID | `mcp-openstack-ops-direct` or the generated value |
+| URL | `http://mcp-server:8000/mcp` |
+| Authentication | `None` |
+| Function name filter list | Empty |
+| Enabled | On |
+
+Use `Bearer` authentication with the `REMOTE_SECRET_KEY` value instead when
+`REMOTE_AUTH_ENABLE=true`. Save the connection and confirm that the connection
+check succeeds. See the
+[OpenWebUI native MCP guide](https://docs.openwebui.com/features/extensibility/mcp/)
+for supported transports and current compatibility notes.
+
+**Option B: MCPO OpenAPI connection**
 
 Open **Settings → Admin → Tools → Integrations**, find **External Tool
 Servers**, and add this connection:
@@ -639,7 +667,7 @@ near the top of the settings menu. In the **Chat** section, set:
 | Deferral Threshold (characters) | `0` |
 | Always Loaded Tools | Empty |
 
-Save the settings. Tool Search keeps the complete MCPO inventory available but
+Save the settings. Tool Search keeps the complete tool inventory available but
 sends only `search_tools`, `call_tool`, and any explicitly always-loaded tools
 to the model until a matching tool is needed. See the
 [OpenWebUI tools documentation](https://docs.openwebui.com/features/extensibility/plugin/tools/).
@@ -684,9 +712,11 @@ Ask the model:
 Use mcp-openstack-ops to list the instances in my OpenStack project.
 ```
 
-A successful response confirms the OpenWebUI → MCPO → MCP server →
-OpenStack path. The MCPO documentation URL above should also list the generated
-tool endpoints. For connection failures, inspect all three services:
+A successful response confirms either the OpenWebUI → MCP server → OpenStack
+path or the OpenWebUI → MCPO → MCP server → OpenStack path, depending on the
+connection selected in the chat. For the MCPO option, the documentation URL
+above should also list the generated tool endpoints. For connection failures,
+inspect the services used by the selected path:
 
 ```bash
 docker compose logs mcp-server mcpo-proxy open-webui
@@ -696,7 +726,7 @@ Common OpenWebUI 0.13 errors:
 
 | Error | Cause | Fix |
 | --- | --- | --- |
-| `Cannot connect to host localhost` | An administrator connection used a browser/host URL from inside the OpenWebUI container | Use `http://mcpo-proxy:8000/mcp-openstack-ops` |
+| `Cannot connect to host localhost` | An administrator connection used a browser/host URL from inside the OpenWebUI container | Use `http://mcp-server:8000/mcp` for direct MCP or `http://mcpo-proxy:8000/mcp-openstack-ops` for MCPO |
 | `tools: array too long` | External and built-in tool definitions exceeded the model provider's request limit | Enable Tool Search with threshold `0` |
 | `Function tools with reasoning_effort are not supported ... /v1/chat/completions` | Chat Completions received function tools and a non-`none` reasoning effort | Use Responses, or set reasoning effort to `none` if reasoning is not needed |
 | `Unsupported parameter: reasoning_effort ... moved to reasoning.effort` | OpenWebUI 0.13.0 sent a custom Reasoning Effort through a Responses connection | Set Reasoning Effort to Default; use custom `reasoning={"effort":"medium"}` only when an explicit value is required |
