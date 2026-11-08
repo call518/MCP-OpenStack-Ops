@@ -39,15 +39,16 @@ cross-project queries are outside this phase.
 - ✅ **Load Balancer Management**: Octavia tools cover listeners, pools, members, health monitors, flavors, quotas, and amphora operations with the same safety gates.
 - ✅ **Connection & Deployment Flexibility**: Connection caching, configurable service endpoints, Docker packaging, and both `stdio`/`streamable-http` transports support proxy/bastion and multi-project setups.
 
-> ⚠️ **Compatibility Notice**: This MCP server is developed and optimized for **OpenStack Epoxy (2025.1)** as the primary target environment. However, it is compatible with most modern OpenStack releases (Dalmatian, Caracal, Bobcat, etc.) as the majority of APIs remain consistent across versions. Only a few specific API endpoints may require adaptation for full compatibility with older releases.
+> ⚠️ **Compatibility Notice**: This MCP server was developed for **OpenStack Epoxy (2025.1)** and has been live-validated against **OpenStack 2026.1** for Keystone, Nova, Neutron, Glance, Placement and Heat (see [validation evidence](#-openstack-cli-vs-mcp-tools-mapping)). Cinder, Octavia, Aodh, Neutron QoS and floating-IP port forwarding were not deployed in the 2026.1 test cloud, so those paths are not live-validated on 2026.1. Most APIs are consistent across modern releases (Dalmatian, Caracal, Bobcat, etc.); a few endpoints may need adaptation for older releases.
 > 
 > 🚧 **Coming Soon**: Dynamic multi-version OpenStack API compatibility is actively under development and will be available in upcoming releases, providing seamless support for all major OpenStack deployments automatically.
 
 ### 🔧 OpenStackSDK Version Customization for Older Releases
 
 **Officially Supported Releases:**
-- ✅ OpenStack **Epoxy (2025.1)** - Fully tested
-- ✅ OpenStack **Dalmatian (2024.2)** - Fully tested
+- ✅ OpenStack **2026.1** - Live-validated for Keystone, Nova (up to compute microversion 2.103), Neutron, Glance, Placement and Heat with openstacksdk 4.9.0 and 4.22.0; Cinder, Octavia, Aodh, Neutron QoS and port forwarding not live-validated
+- ✅ OpenStack **Epoxy (2025.1)** - Tested (2026-11-04 snapshot, before the 2026.1 compatibility changes)
+- ✅ OpenStack **Dalmatian (2024.2)** - Tested
 
 **For older OpenStack releases** (Wallaby, Caracal, Bobcat, etc.), you may need to customize the OpenStackSDK version to match your environment. The SDK version must be changed in **BOTH files**:
 
@@ -81,7 +82,8 @@ docker compose up -d
 **OpenStackSDK Version Reference:**
 | OpenStack Release | Recommended SDK Version | Notes |
 |-------------------|------------------------|-------|
-| Epoxy (2025.1) | `>=3.3.0` | Current default |
+| 2026.1 | `>=4.1.0,<=4.22.0` | Current default range; live-validated with the locked 4.9.0 and with 4.22.0 |
+| Epoxy (2025.1) | `>=3.3.0` | |
 | Dalmatian (2024.2) | `>=3.2.0` | Fully compatible |
 | Caracal (2024.1) | `>=3.1.0` | May require testing |
 | Bobcat (2023.2) | `>=3.0.0` | May require testing |
@@ -173,17 +175,54 @@ See [API prerequisites and result semantics](#api-prerequisites-and-result-seman
 and the [multi-user setup guide](docs/multi-user-guide.md).
 
 **Validation evidence:**
-- **Live snapshot (2026-11-04; working tree based on `a57b165`):** This live
-  snapshot predates the current working-tree changes. Its live
-  classifications remain historical evidence and were not rerun for this change.
-- **Live tool checks:** 105/105 registered tools exercised. At least one live
+- **OpenStack 2026.1 live snapshot (2026-11-08):** run on this change's MCP
+  source (identical except for `prompt_template.md` wording) against a
+  disposable single-node Kolla-Ansible 22.2.0 cloud (images
+  `2026.1-ubuntu-noble`, compute microversion up to 2.103, placement 1.39,
+  identity 3.14, image 2.17) with Keystone, Nova, Neutron (Open vSwitch),
+  Glance, Placement and Heat. Cinder, Octavia, Aodh, Neutron QoS and floating-IP
+  port forwarding were not deployed. Tools were called through a real MCP client
+  with `scripts/live_tool_check.py`, as an administrator, with modification
+  tools enabled; asynchronous operations were polled to their final state
+  (300 s per state) with openstacksdk. Runs were sequential.
+- **Live tool checks (2026.1):** 105/105 registered tools exercised, with the
+  same classification in every run:
+  - In process: openstacksdk 4.9.0 238/238 calls and 54/54 final-state checks
+    met their expectation; openstacksdk 4.22.0 238/238 and 54/54.
+  - Streamable HTTP: read-only 72/72 calls; with modification tools (server on
+    openstacksdk 4.22.0) 238/238 calls and 54/54 final-state checks.
+  - Unique-tool classification:
+    - **57 passed:** at least one live success and every call met its
+      expectation.
+    - **5 passed with an unavailable service section** (`get_quota`,
+      `set_quota`, `get_resource_monitoring`, `get_usage_statistics`,
+      `set_metrics`): compute and network data returned live; block-storage
+      sections reported Cinder as unavailable.
+    - **40 service absent:** Octavia (24), Cinder (13), Aodh (1) and Neutron
+      QoS (2) tools. They returned explicit errors, which is all this cloud can
+      verify; they are **not** live-validated on 2026.1.
+    - **3 error paths only:** `set_server_dump` (documented unsupported),
+      `get_image_members` (public image refused; member listing itself was
+      exercised through `set_image_members`) and
+      `set_floating_ip_port_forwarding` (extension absent).
+    - 0 partial, 0 failed.
+  - Migration and evacuation need a second compute host: only the per-server
+    migration listing and Nova's refusal on a single host were verified.
+- **Baseline before the 2026.1 changes:** upstream `main` source (`d954eba`) on the same cloud
+  with an earlier harness revision (call counts are not directly comparable):
+  176/228 calls and 43/47 final-state checks; failures included force delete, compute service show, rebuild, noVNC
+  console, port attach by name, leaked interface ports and Heat update.
+- **2025.1 live snapshot (2026-11-04; working tree based on `a57b165`):**
+  historical evidence for an older revision; not rerun for the 2026.1 changes.
+  Its classifications below remain the only live evidence for the Cinder paths.
+- **Live tool checks (2025.1 snapshot):** 105/105 registered tools exercised. At least one live
   path passed for 76 tools; 28 tools were unavailable because the test cloud
   lacks Octavia, Aodh, Neutron QoS, or floating-IP port-forwarding APIs; one
   tool (`set_server_dump`) reached its documented platform limitation. The
   `set_snapshot` status fix was retested separately after the full run: an
   actual snapshot reached `available`, and its isolated test project was
   removed. These are unique-tool classifications, not individual call counts.
-- **Claude Code prompt checks:** 118/118 documented examples were issued to the
+- **Claude Code prompt checks (2025.1 snapshot):** 118/118 documented examples were issued to the
   real MCP servers. 99 completed their tool workflows, including two
   successful retries after an initial bad placeholder; two of those 99 used
   disclosed test substitutions and are not exact request matches. Five
@@ -191,17 +230,19 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
   seven direct requests could not run because their cloud service or extension
   is absent; seven read-like requests were limited by the non-interactive
   Claude permission policy.
-- **Follow-up targeted checks:** `/mcp/.well-known/openid-configuration`
+- **Follow-up targeted checks (2025.1 snapshot):** `/mcp/.well-known/openid-configuration`
   returned 404 without authentication. A real Nova action list explicitly
   reported that the list has no finish time; optional event-detail lookup
   returned an event result and derived its latest finish time. The new
   HTTP-only multi-user test override is **Live unverified**; only its fail-closed
   default, explicit opt-in, endpoint generation, and startup warning were tested
   locally.
-- **Local unit tests (current working tree, 2026-11-05):** 274/274 (100%); no
-  failures or skipped tests. These tests include MCP action-description and
-  advanced-parameter forwarding regressions plus the insecure-HTTP opt-in
-  regressions; they do not replace live service validation.
+- **Local unit tests (2026-11-08; this change, CI command
+  `python -m pytest -q tests`):** 411/411 (100%) with openstacksdk 4.1.0, 4.9.0
+  and 4.22.0, the declared range; no failures or skipped tests. They include
+  openstacksdk compatibility checks (every proxy method and keyword used must
+  exist in the installed SDK) and regression tests built on real SDK resource
+  objects; they do not replace live service validation.
 
 **Detailed Mapping by Category**
 
@@ -211,50 +252,54 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
 |---------------------|---------|------|------|
 | `openstack server list` | `get_instance` | ✅ | Separate reader projects each returned exactly ten owned VMs; bounded lab validation only |
 | `openstack server show` | `get_instance` | ✅ | Own fixture queries completed; foreign private ID returned no details; no 16-owned-ID batch claim |
-| `openstack server create` | `set_instance` (action="create") | ✅ | **ENHANCED** - Bulk creation support |
-| `openstack server start/stop/reboot` | `set_instance` | ✅ | Tool schema exposes all actions and `reboot_type`; bulk stop/start final states verified for two test VMs per project, but reboot was not retested in this round |
-| `openstack server delete` | `set_instance` (action="delete") | ✅ | Tool schema exposes delete and optional force deletion; bulk deletion with `name_contains` filtering |
-| `openstack server backup create` | `set_server_backup` | ✅ | Nova backup action with rotation; asynchronous, no custom metadata |
-| `openstack server image create` | `set_instance` (action="snapshot") | ✅ | Accepts optional `snapshot_name` and JSON `metadata`; parameter forwarding is locally tested, not live-retested in this change |
-| `openstack server shelve/unshelve` | `set_instance` | ✅ | Actions are exposed in the tool schema; instance shelving was not live-retested in this change |
-| `openstack server lock/unlock` | `set_instance` | ✅ | Instance locking |
-| `openstack server pause/unpause` | `set_instance` | ✅ | Instance pausing |
-| `openstack server suspend/resume` | `set_instance` | ✅ | Instance suspension |
-| `openstack server resize` | `set_instance` (action="resize") | ✅ | Uses the existing `flavor` parameter as the target flavor; action exposure is locally tested |
-| `openstack server resize confirm` | `set_instance` (action="confirm_resize") | ✅ | Resize confirmation |
-| `openstack server resize revert` | `set_instance` (action="revert_resize") | ✅ | Resize revert |
-| `openstack server rebuild` | `set_instance` (action="rebuild") | ✅ | Uses `image` and supports optional `new_name`, JSON `metadata`, and `preserve_ephemeral`; not live-retested in this change |
-| `openstack server rescue/unrescue` | `set_instance` | ✅ | Tool schema exposes both actions and optional `rescue_image_id`; not live-retested in this change |
-| `openstack server migrate` | `set_server_migration` (action="migrate") | ✅ | Live migration |
-| `openstack server evacuate` | `set_server_migration` (action="evacuate") | ✅ | Server evacuation |
-| `openstack server migration list` | `set_server_migration` (action="list") | ✅ | Migration listing |
-| `openstack server migration show` | `set_server_migration` (action="show") | ✅ | Migration details |
-| `openstack server migration abort` | `set_server_migration` (action="abort") | ✅ | Migration abort |
-| `openstack server migration confirm` | `set_server_migration` (action="confirm") | ✅ | Migration confirmation |
-| `openstack server migration force complete` | `set_server_migration` (action="force_complete") | ✅ | Force migration completion |
-| `openstack server add network` | `set_server_network` (action="add_network") | ✅ | Network attachment |
-| `openstack server remove network` | `set_server_network` (action="remove_network") | ✅ | Network detachment |
-| `openstack server add port` | `set_server_network` (action="add_port") | ✅ | Port attachment |
-| `openstack server remove port` | `set_server_network` (action="remove_port") | ✅ | Port detachment |
-| `openstack server add floating ip` | `set_server_floating_ip` (action="add") | ✅ | Floating IP association |
-| `openstack server remove floating ip` | `set_server_floating_ip` (action="remove") | ✅ | Floating IP disassociation |
-| `openstack server add fixed ip` | `set_server_fixed_ip` (action="add") | ✅ | Fixed IP addition |
-| `openstack server remove fixed ip` | `set_server_fixed_ip` (action="remove") | ✅ | Fixed IP removal |
-| `openstack server add security group` | `set_server_security_group` (action="add") | ✅ | Security group addition |
-| `openstack server remove security group` | `set_server_security_group` (action="remove") | ✅ | Security group removal |
-| `openstack server add volume` | `set_server_volume` (action="attach") | ✅ | Member attach reached in-use via set_server_volume; guest I/O not tested |
-| `openstack server remove volume` | `set_server_volume` (action="detach") | ✅ | Member detach reached available via set_server_volume |
-| `openstack server set` | `set_server_properties` (action="set") | ✅ | Server property setting |
-| `openstack server unset` | `set_server_properties` (action="unset") | ✅ | Server property unsetting |
-| `openstack server dump create` | `set_server_dump` | ❌ Unsupported | Returns an explicit unsupported result; no dump is created |
+| `openstack server show` (details) | `get_instance_details` | ✅ | Detailed instance data with pagination; reports `locked` from the SDK `is_locked` field. 2026.1: named, all-instances and lock-state queries returned |
+| `openstack server show` (by name) | `get_instance_by_name` | ✅ | 2026.1: found by name; a missing name returns an explicit error |
+| `openstack server list --status` | `get_instances_by_status` | ✅ | Status is validated against Nova server statuses (case-insensitive). 2026.1: ACTIVE listed; an invalid status returns an explicit error (previously an exception) |
+| `openstack server list --name` (search) | `search_instances` | ✅ | Searches name and other fields with pagination. 2026.1: match and no-match queries returned |
+| `openstack server create` | `set_instance` (action="create") | ✅ | **ENHANCED** - Bulk creation support. 2026.1: bulk create of two servers reached ACTIVE |
+| `openstack server start/stop/reboot` | `set_instance` | ✅ | 2026.1: stop, start and soft reboot reached their final states |
+| `openstack server delete` | `set_instance` (action="delete") | ✅ | 2026.1: normal and `force=true` deletion reached deletion (force previously called a non-existent SDK method); bulk deletion with `name_contains` filtering |
+| `openstack server backup create` | `set_server_backup` | ✅ | Nova backup action with rotation; asynchronous, no custom metadata. 2026.1: the backup image reached `active` |
+| `openstack server image create` | `set_instance` (action="snapshot") | ✅ | Accepts optional `snapshot_name` and JSON `metadata`. 2026.1: the snapshot image reached `active` |
+| `openstack server shelve/unshelve` | `set_instance` | ✅ | 2026.1: shelve reached SHELVED_OFFLOADED and unshelve ACTIVE |
+| `openstack server lock/unlock` | `set_instance` | ✅ | 2026.1: lock/unlock verified; `get_instance_details` reports `locked` from the SDK `is_locked` field (previously always false) |
+| `openstack server pause/unpause` | `set_instance` | ✅ | 2026.1: PAUSED and back to ACTIVE |
+| `openstack server suspend/resume` | `set_instance` | ✅ | 2026.1: SUSPENDED and back to ACTIVE |
+| `openstack server resize` | `set_instance` (action="resize") | ✅ | Uses the existing `flavor` parameter as the target flavor. 2026.1: reached VERIFY_RESIZE |
+| `openstack server resize confirm` | `set_instance` (action="confirm_resize") | ✅ | 2026.1: confirmed; server ACTIVE on the new flavor |
+| `openstack server resize revert` | `set_instance` (action="revert_resize") | ✅ | 2026.1: reverted to ACTIVE |
+| `openstack server rebuild` | `set_instance` (action="rebuild") | ✅ | Uses `image` and supports optional `new_name`, JSON `metadata`, and `preserve_ephemeral`; metadata is sent only when given (rebuild replaces server metadata). 2026.1: rebuilt to ACTIVE (previously failed: image not passed positionally) |
+| `openstack server rescue/unrescue` | `set_instance` | ✅ | Optional `rescue_image_id`. 2026.1: RESCUE and back to ACTIVE |
+| `openstack server migrate` | `set_server_migration` (action="migrate") | ⚠️ Live unverified | Cold migration request. 2026.1 lab has a single compute host: only the expected refusal was observed |
+| `openstack server evacuate` | `set_server_migration` (action="evacuate") | ⚠️ Live unverified | `on_shared_storage` is sent only when explicitly true (Nova rejects it at microversion 2.14+). 2026.1: with the source host up, Nova refused for that reason and not for a schema error; an actual evacuation needs a failed second compute host |
+| `openstack server migration list` | `set_server_migration` (action="list") | ✅ | 2026.1: per-server listing returned (previously always empty for a named server); listing failures are reported. All-migrations listing reads the SDK `server_id` |
+| `openstack server migration show` | `set_server_migration` (action="show") | ⚠️ Live unverified | 2026.1: only the not-found error path was exercised (no migration on a single host) |
+| `openstack server migration abort` | `set_server_migration` (action="abort") | ⚠️ Live unverified | Requires an in-progress live migration; not exercised |
+| `openstack server migration confirm` | `set_server_migration` (action="confirm") | ⚠️ Live unverified | Requires a migration awaiting confirmation; not exercised |
+| `openstack server migration force complete` | `set_server_migration` (action="force_complete") | ⚠️ Live unverified | Requires an in-progress live migration; not exercised |
+| `openstack server add network` | `set_server_network` (action="add_network") | ✅ | Nova creates the interface port, so detaching removes it. 2026.1: attached, then detached; the network could then be deleted |
+| `openstack server remove network` | `set_server_network` (action="remove_network") | ✅ | 2026.1: detached; no leftover port |
+| `openstack server add port` | `set_server_network` (action="add_port") | ✅ | Accepts a port name or ID. 2026.1: an existing port attached by name (previously not found) |
+| `openstack server remove port` | `set_server_network` (action="remove_port") | ✅ | Detaches only; a user-created port is not deleted. 2026.1: detached by name |
+| `openstack server add floating ip` | `set_server_floating_ip` (action="add") | ✅ | 2026.1: associated (port set on the floating IP) |
+| `openstack server remove floating ip` | `set_server_floating_ip` (action="remove") | ✅ | 2026.1: disassociated |
+| `openstack server add fixed ip` | `set_server_fixed_ip` (action="add") | ✅ | Nova creates the interface port. 2026.1: second fixed IP added on a test network |
+| `openstack server remove fixed ip` | `set_server_fixed_ip` (action="remove") | ✅ | Detaches the whole interface that holds the IP (this can be the primary NIC). 2026.1: removed; no leftover port |
+| `openstack server add security group` | `set_server_security_group` (action="add") | ✅ | 2026.1: added; unknown group returns an error |
+| `openstack server remove security group` | `set_server_security_group` (action="remove") | ✅ | 2026.1: removed |
+| `openstack server add volume` | `set_server_volume` (action="attach") | ⚠️ Live unverified | Cinder not deployed in the 2026.1 lab. 2025.1 snapshot: member attach reached in-use; the multiattach precheck now reads the SDK `is_multiattach` field |
+| `openstack server remove volume` | `set_server_volume` (action="detach") | ⚠️ Live unverified | Cinder not deployed in the 2026.1 lab. 2025.1 snapshot: member detach reached available |
+| `openstack server set` | `set_server_properties` (action="set") | ✅ | 2026.1: metadata set and read back |
+| `openstack server unset` | `set_server_properties` (action="unset") | ✅ | 2026.1: metadata key removed |
+| `openstack server dump create` | `set_server_dump` | ❌ Unsupported | Returns an explicit unsupported result; no dump is created (2026.1: confirmed) |
 | `openstack server event list` | `get_server_events` | ✅ | Pass the server name or UUID via `instance_name`, not `server_id`. The action list has no completion time; set `include_event_details=true` to fetch per-action event results and derive the latest finish time. Detailed lookup is capped at 10 actions. Event visibility follows Nova policy |
-| `openstack server group list` | `get_server_groups` | ✅ | Server group listing |
-| `openstack server group create/delete` | `set_server_group` | ✅ | Server group management |
+| `openstack server group list` | `get_server_groups` | ✅ | Reads `member_ids` and `policy` (compute microversion 2.64+ returns `policy` instead of `policies`). 2026.1: listed |
+| `openstack server group create/delete` | `set_server_group` | ✅ | 2026.1: created, shown and deleted (create/show previously reported no members and failed on 2.64+ policy) |
 | `openstack flavor list` | `set_flavor` (action="list") | ✅ | Requires modification tools to be enabled for registration |
-| `openstack flavor create/delete` | `set_flavor` | ✅ | Flavor management |
+| `openstack flavor create/delete` | `set_flavor` | ✅ | Flavor management; `properties` is a JSON string. 2026.1: create, extra spec set and read back, delete |
 | `openstack keypair list` | `get_keypair_list` | ✅ | Empty scoped read completed; member keypair creation/deletion read-back tested separately |
 | `openstack keypair create/delete` | `set_keypair` | ✅ | Explicit member MCP create/delete read-back passed; no successful Claude write workflow claimed |
-| `openstack hypervisor list` | `get_hypervisor_details` | ✅ | Administrator lookup verified; missing per-host capacity and incomplete totals are null, not zero. Global enhanced statistics remain separate |
+| `openstack hypervisor list` | `get_hypervisor_details` | ✅ | Missing per-host capacity and incomplete totals are null, not zero (Nova 2.88+ omits them). `/os-hypervisors/statistics` absence is explained in `enhanced_stats_note`. 2026.1: listed |
 | `openstack availability zone list` | `get_availability_zones` | ✅ | Compute/Cinder availability reads the SDK state mapping; missing availability is null. Actual available zones verified |
 
 ### 2. 🌐 **Network (Neutron)**
@@ -262,94 +307,96 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
 | `openstack network list` | `get_network_details` | ✅ | Two owned private networks plus one policy-visible shared external network per reader; no other test project private networks |
-| `openstack network show` | `get_network_details` (network_name) | ⚠️ Live unverified | Foreign-ID negative checked; dual-project positive named reader lookup not independently asserted |
+| `openstack network show` | `get_network_details` (network_name) | ✅ | 2026.1: named lookup returned the network; a missing name returns an explicit error (previously an empty success) |
 | `openstack network create` | `set_networks` (action="create") | ✅ | Default mtu=0 omits the wire field: backend MTU 1450 verified; explicit 1400 retained in both member projects |
 | `openstack network delete` | `set_networks` (action="delete") | ✅ | Both default/explicit-MTU test networks removed through actual TCP MCP, API absence confirmed |
 | `openstack network set` | `set_networks` (action="update") | ✅ | **ENHANCED** - Bulk updates |
 | `openstack subnet list` | `get_network_details` (includes subnets) | ✅ | Owned and shared external network subnets returned; three visible subnets per test reader |
 | `openstack subnet create/delete` | `set_subnets` | ✅ | Member TCP MCP subnet create read back; deletion allowed parent network removal in both projects |
-| `openstack router list` | `get_routers` | ⚠️ Live unverified | Only part of composite error requests in this round; no independent reader result attribution |
+| `openstack router list` | `get_routers` | ✅ | 2026.1: listed, including a router created by `set_routers` |
 | `openstack router create/delete` | `set_routers` | ✅ | Project-owned routers; attached interfaces are not removed automatically |
 | `openstack floating ip list` | `get_floating_ips` | ✅ | Floating IP listing |
-| `openstack floating ip create` | `set_floating_ip` (action="create") | ✅ | Floating IP creation |
-| `openstack floating ip delete` | `set_floating_ip` (action="delete") | ✅ | Floating IP deletion |
-| `openstack floating ip set` | `set_floating_ip` (action="set") | ✅ | Floating IP property setting |
-| `openstack floating ip show` | `set_floating_ip` (action="show") | ✅ | Floating IP details |
-| `openstack floating ip unset` | `set_floating_ip` (action="unset") | ✅ | Floating IP property clearing |
-| `openstack floating ip pool list` | `get_floating_ip_pools` | ⚠️ Live unverified | Composite result not independently attributed; available global pool capacity remains unknown |
-| `openstack floating ip port forwarding create` | `set_floating_ip_port_forwarding` (action="create") | ⚠️ Live unverified | Implemented; test platform port-forwarding endpoint returns HTTP 404 |
-| `openstack floating ip port forwarding delete` | `set_floating_ip_port_forwarding` (action="delete") | ⚠️ Live unverified | Implemented; test platform port-forwarding endpoint returns HTTP 404 |
-| `openstack floating ip port forwarding list` | `set_floating_ip_port_forwarding` (action="list") | ⚠️ Live unverified | Implemented; test platform port-forwarding endpoint returns HTTP 404 |
-| `openstack floating ip port forwarding set` | `set_floating_ip_port_forwarding` (action="set") | ⚠️ Live unverified | Implemented; test platform port-forwarding endpoint returns HTTP 404 |
-| `openstack floating ip port forwarding show` | `set_floating_ip_port_forwarding` (action="show") | ⚠️ Live unverified | Implemented; test platform port-forwarding endpoint returns HTTP 404 |
+| `openstack floating ip create` | `set_floating_ip` (action="create") | ✅ | `description`, `port_id` and `floating_ip_address` are forwarded (previously dropped). 2026.1: created with its description |
+| `openstack floating ip delete` | `set_floating_ip` (action="delete") | ✅ | 2026.1: released |
+| `openstack floating ip set` | `set_floating_ip` (action="set") | ✅ | 2026.1: description updated |
+| `openstack floating ip show` | `set_floating_ip` (action="show") | ✅ | 2026.1: shown by address |
+| `openstack floating ip unset` | `set_floating_ip` (action="unset") | ❌ Limitation | The tool exposes no parameter selecting what to unset, so this action always returns an error. Use `set` or `disassociate` |
+| `openstack floating ip pool list` | `get_floating_ip_pools` | ✅ | 2026.1: external network pool listed; available global pool capacity remains unknown (null) |
+| `openstack floating ip port forwarding create` | `set_floating_ip_port_forwarding` (action="create") | ⚠️ Live unverified | Implemented; the port-forwarding extension was unavailable in both the 2025.1 and 2026.1 test clouds. 2026.1: only argument validation and error paths exercised |
+| `openstack floating ip port forwarding delete` | `set_floating_ip_port_forwarding` (action="delete") | ⚠️ Live unverified | Implemented; the port-forwarding extension was unavailable in both the 2025.1 and 2026.1 test clouds. 2026.1: only argument validation and error paths exercised |
+| `openstack floating ip port forwarding list` | `set_floating_ip_port_forwarding` (action="list") | ⚠️ Live unverified | Implemented; the port-forwarding extension was unavailable in both the 2025.1 and 2026.1 test clouds. 2026.1: only argument validation and error paths exercised |
+| `openstack floating ip port forwarding set` | `set_floating_ip_port_forwarding` (action="set") | ⚠️ Live unverified | Implemented; the port-forwarding extension was unavailable in both the 2025.1 and 2026.1 test clouds. 2026.1: only argument validation and error paths exercised |
+| `openstack floating ip port forwarding show` | `set_floating_ip_port_forwarding` (action="show") | ⚠️ Live unverified | Implemented; the port-forwarding extension was unavailable in both the 2025.1 and 2026.1 test clouds. 2026.1: only argument validation and error paths exercised |
 | `openstack security group list` | `get_security_groups` | ✅ | Scoped reader list completed; default and test groups visible |
 | `openstack security group create/delete` | `set_security_groups` | ✅ | Project-owned security groups |
-| `openstack port list` | `set_network_ports` (action="list") | ⚠️ Live unverified | Implemented list action requires modification-tool registration; not exercised in this round |
+| `openstack port list` | `set_network_ports` (action="list") | ✅ | Requires modification-tool registration. 2026.1: listed; create/show/delete also verified |
 | `openstack port create/delete` | `set_network_ports` | ✅ | Port management |
-| `openstack network qos policy list` | `get_network_qos_policies` | ⚠️ Live unverified | Implemented; test platform QoS endpoint returns HTTP 404 |
-| `openstack network qos policy create` | `set_network_qos_policies` | ⚠️ Live unverified | Implemented; test platform QoS endpoint returns HTTP 404. Policy containers only; no bandwidth rules |
-| `openstack network agent list` | `get_service_status` (includes agents) | ⚠️ Live unverified | Reader service-policy restrictions; partial data is not proof of global health |
+| `openstack network qos policy list` | `get_network_qos_policies` | ⚠️ Live unverified | Implemented; Neutron QoS unavailable in both test clouds (explicit error on 2026.1) |
+| `openstack network qos policy create` | `set_network_qos_policies` | ⚠️ Live unverified | Implemented; Neutron QoS unavailable in both test clouds. Policy containers only; no bandwidth rules |
+| `openstack network agent list` | `get_service_status` (includes agents) | ✅ | 2026.1: verified as administrator only; reader roles may be denied by cloud policy, and partial data is not proof of global health |
 | `openstack network agent set` | `set_network_agents` | ✅ | Enable/disable cloud-wide agents; usually admin-only |
 
 ### 3. 💾 **Storage (Cinder)**
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
-| `openstack volume list` | `get_volume_list` | ✅ | Exactly ten owned volumes per reader; no other test project volume IDs returned |
-| `openstack volume show` | `get_volume_list` | ✅ | Listing-based client filtering; no dedicated get_volume_list filter argument |
-| `openstack volume create/delete` | `set_volume` | ✅ | Volume creation/deletion |
-| `openstack volume set --size` | `set_volume` (action="extend") | ✅ | Positive new_size takes precedence over size; size remains a fallback. A test volume reached the requested size and available state; API acceptance alone is not completion |
+| `openstack volume list` | `get_volume_list` | ⚠️ Live unverified | Cinder not deployed in the 2026.1 lab (explicit "Block Storage (Cinder) service is not available" error verified); 2025.1 snapshot: Exactly ten owned volumes per reader; no other test project volume IDs returned `multiattach`/`source_volid` now read the SDK `is_multiattach`/`source_volume_id` fields. |
+| `openstack volume show` | `get_volume_list` | ⚠️ Live unverified | Cinder not deployed in the 2026.1 lab (explicit "Block Storage (Cinder) service is not available" error verified); 2025.1 snapshot: Listing-based client filtering; no dedicated get_volume_list filter argument |
+| `openstack volume create/delete` | `set_volume` | ⚠️ Live unverified | Cinder not deployed in the 2026.1 lab (explicit "Block Storage (Cinder) service is not available" error verified); 2025.1 snapshot: Volume creation/deletion |
+| `openstack volume set --size` | `set_volume` (action="extend") | ⚠️ Live unverified | Cinder not deployed in the 2026.1 lab (explicit "Block Storage (Cinder) service is not available" error verified); 2025.1 snapshot: Positive new_size takes precedence over size; size remains a fallback. A test volume reached the requested size and available state; API acceptance alone is not completion |
 | `openstack volume set` (other properties) | — | ❌ Not implemented | set_volume has no modify/update action; do not send this unsupported action |
-| `openstack volume type list` | `get_volume_types` | ✅ | Volume type listing |
-| `openstack volume type create/delete` | `set_volume_types` | ✅ | Volume type management; usually admin-only |
-| `openstack volume snapshot list` | `get_volume_snapshots` | ✅ | Two owned base snapshots per reader; API final states checked |
-| `openstack volume snapshot create/delete` | `set_snapshot` | ✅ | Explicit member MCP snapshots reached available and were deleted. Post-action status resolves snapshots instead of reporting an unknown resource type; no restore/I/O claim |
-| `openstack backup list` | `get_volume_backups` | ✅ | Three owned available backups per reader; base backup creation used real Cinder APIs |
-| `openstack backup create/delete` | `set_volume_backups` | ✅ | Volume backup management |
-| `openstack volume transfer request list` | `get_volume_transfers` | ✅ | Request listing only; authorization keys are excluded |
-| `openstack server volume list` | `get_server_volumes` | ✅ | Server volume listing |
-| `openstack server add/remove volume` | `set_server_volume` / `set_volume` (action="attach"/"detach") | ✅ | Both paths reached in-use then available in both member projects; foreign endpoints rejected; guest I/O not tested |
-| `openstack volume group list` | `get_volume_groups` | ✅ | Requires Cinder generic groups (API >= 3.13) |
-| `openstack volume group create` | `set_volume_groups` | ✅ | Create/list/show/delete; create requires group_type and volume_types |
-| `openstack volume qos list` | `get_volume_qos` | ✅ | Cinder QoS specifications; subject to cloud policy |
-| `openstack volume qos create` | `set_volume_qos` | ✅ | Create/list/show/set/delete specifications; no automatic type association |
+| `openstack volume type list` | `get_volume_types` | ⚠️ Live unverified | Cinder not deployed in the 2026.1 lab (explicit "Block Storage (Cinder) service is not available" error verified); 2025.1 snapshot: Volume type listing |
+| `openstack volume type create/delete` | `set_volume_types` | ⚠️ Live unverified | Cinder not deployed in the 2026.1 lab (explicit "Block Storage (Cinder) service is not available" error verified); 2025.1 snapshot: Volume type management; usually admin-only |
+| `openstack volume snapshot list` | `get_volume_snapshots` | ⚠️ Live unverified | Cinder not deployed in the 2026.1 lab (explicit "Block Storage (Cinder) service is not available" error verified); 2025.1 snapshot: Two owned base snapshots per reader; API final states checked |
+| `openstack volume snapshot create/delete` | `set_snapshot` | ⚠️ Live unverified | Cinder not deployed in the 2026.1 lab (explicit "Block Storage (Cinder) service is not available" error verified); 2025.1 snapshot: Explicit member MCP snapshots reached available and were deleted. Post-action status resolves snapshots instead of reporting an unknown resource type; no restore/I/O claim |
+| `openstack backup list` | `get_volume_backups` | ⚠️ Live unverified | Cinder not deployed in the 2026.1 lab (explicit "Block Storage (Cinder) service is not available" error verified); 2025.1 snapshot: Three owned available backups per reader; base backup creation used real Cinder APIs |
+| `openstack backup create/delete` | `set_volume_backups` | ⚠️ Live unverified | Cinder not deployed in the 2026.1 lab (explicit "Block Storage (Cinder) service is not available" error verified); 2025.1 snapshot: Volume backup management Restore adapts to the openstacksdk 4.14 `restore_backup(volume=)` rename. |
+| `openstack volume transfer request list` | `get_volume_transfers` | ⚠️ Live unverified | Cinder not deployed in the 2026.1 lab (explicit "Block Storage (Cinder) service is not available" error verified); 2025.1 snapshot: Request listing only; authorization keys are excluded |
+| `openstack server volume list` | `get_server_volumes` | ✅ | 2026.1: listed attachments through Nova; a missing server returns an explicit error (previously an empty success) |
+| `openstack server add/remove volume` | `set_server_volume` / `set_volume` (action="attach"/"detach") | ⚠️ Live unverified | Cinder not deployed in the 2026.1 lab (explicit "Block Storage (Cinder) service is not available" error verified); 2025.1 snapshot: Both paths reached in-use then available in both member projects; foreign endpoints rejected; guest I/O not tested |
+| `openstack volume group list` | `get_volume_groups` | ⚠️ Live unverified | Cinder not deployed in the 2026.1 lab (explicit "Block Storage (Cinder) service is not available" error verified); 2025.1 snapshot: Requires Cinder generic groups (API >= 3.13) |
+| `openstack volume group create` | `set_volume_groups` | ⚠️ Live unverified | Cinder not deployed in the 2026.1 lab (explicit "Block Storage (Cinder) service is not available" error verified); 2025.1 snapshot: Create/list/show/delete; create requires group_type and volume_types |
+| `openstack volume qos list` | `get_volume_qos` | ⚠️ Live unverified | Cinder not deployed in the 2026.1 lab (explicit "Block Storage (Cinder) service is not available" error verified); 2025.1 snapshot: Cinder QoS specifications; subject to cloud policy |
+| `openstack volume qos create` | `set_volume_qos` | ⚠️ Live unverified | Cinder not deployed in the 2026.1 lab (explicit "Block Storage (Cinder) service is not available" error verified); 2025.1 snapshot: Create/list/show/set/delete specifications; no automatic type association |
 
 ### 4. 🖼️ **Image (Glance)**
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
-| `openstack image list` | `get_image_detail_list` | ✅ | Image listing |
+| `openstack image list` | `get_image_detail_list` | ✅ | Image listing. 2026.1: listed. |
 | `openstack image show` | `get_image_detail_list` (filtering) | ✅ | Specific image query |
-| `openstack image create` | `set_image` (action="create") | ✅ | Enhanced image creation with min_disk, min_ram, properties |
-| `openstack image delete` | `set_image` (action="delete") | ✅ | Image deletion |
-| `openstack image set` | `set_image` (action="update") | ✅ | Image property modification |
-| `openstack image save` | `set_image` (action="save") | ✅ | Image download |
-| `openstack image add project` | `set_image_members` (action="add") | ✅ | Add a project to an image with shared visibility |
-| `openstack image member list` | `get_image_members` | ✅ | Image member listing |
-| `openstack image member create` | `set_image_members` | ✅ | Image member management |
-| `openstack image set --property` | `set_image_metadata` | ✅ | Image metadata |
-| `openstack image set --public/private` | `set_image_visibility` | ✅ | Image visibility setting |
+| `openstack image create` | `set_image` (action="create") | ✅ | Enhanced image creation with min_disk, min_ram, properties. 2026.1: created (metadata record). |
+| `openstack image delete` | `set_image` (action="delete") | ✅ | Image deletion. 2026.1: deleted. |
+| `openstack image set` | `set_image` (action="update") | ✅ | Image property modification. 2026.1: `min_ram` updated. |
+| `openstack image save` | — | ❌ Not implemented | `set_image` supports create, delete, update and list only; there is no download action |
+| `openstack image add project` | `set_image_members` (action="add") | ✅ | Add a project to an image with shared visibility. 2026.1: member added and removed |
+| `openstack image member list` | `get_image_members` | ⚠️ Live unverified | Requires a shared image. 2026.1: only the public-image refusal (explicit 403) was exercised with this tool; member listing succeeded through `set_image_members` (action="list") |
+| `openstack image member create` | `set_image_members` | ✅ | 2026.1: add, list and remove through `set_image_members` |
+| `openstack image set --property` | `set_image_metadata` | ✅ | Image metadata. 2026.1: property set and shown. |
+| `openstack image set --public/private` | `set_image_visibility` | ✅ | Image visibility setting. 2026.1: set to `shared` and shown. |
 
 ### 5. 👥 **Identity (Keystone)**
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
-| `openstack user list` | `get_user_list` | ⚠️ Live unverified | Reader denied by Keystone; explicit MCP failure observed; successful listing not validated in this round |
-| `openstack user show` | `get_user_list` | ⚠️ Live unverified | Depends on policy-limited user listing; not independently validated for the new readers |
-| `openstack user create/delete` | `set_users` | ✅ | Password from a server environment variable; no role grants |
+| `openstack user list` | `get_user_list` | ✅ | 2026.1: listed as administrator; reader roles may be denied by Keystone policy |
+| `openstack user show` | `get_user_list` | ✅ | Listing-based lookup. 2026.1: verified as administrator |
+| `openstack user create/delete` | `set_users` | ✅ | Password from a server environment variable; no role grants. 2026.1: created and deleted as administrator; an unset `password_env` is refused. |
 | `openstack project list` | `get_project_details` | ✅ | Project listing |
 | `openstack project show` | `get_project_details` (name param) | ✅ | Specific project query |
-| `openstack project create/delete` | `set_project` | ✅ | Project management |
+| `openstack project create/delete` | `set_project` | ✅ | Project management. 2026.1: create, show, update, list and delete. |
 | `openstack role list` | `get_role_assignments` | ✅ | Role listing |
-| `openstack role assignment list` | `get_role_assignments` | ⚠️ Live unverified | Reader Keystone policy denial; not a successful data lookup |
-| `openstack role create/delete` | `set_roles` | ✅ | Role management |
+| `openstack role assignment list` | `get_role_assignments` | ✅ | 2026.1: listed as administrator; reader roles may be denied by Keystone policy |
+| `openstack role create` | `set_roles` (action="create") | ✅ | 2026.1: created; `set_roles` also lists roles |
+| `openstack role delete` | — | ❌ Not implemented | `set_roles` supports list and create only |
 | `openstack domain list` | `get_domains` | ✅ | Subject to Keystone policy |
-| `openstack domain create/delete` | `set_domains` | ✅ | Disable explicitly with update before delete |
+| `openstack domain create/delete` | `set_domains` | ✅ | Disable explicitly with update before delete. 2026.1: create, show, disable, delete. |
 | `openstack group list` | `get_identity_groups` | ✅ | Subject to Keystone policy |
-| `openstack group create/delete` | `set_identity_groups` | ✅ | Group management |
-| `openstack service list` | `get_service_status` | ⚠️ Live unverified | Reader service-policy restrictions; partial data is not proof of global health |
-| `openstack service create/delete` | `set_services` | ✅ | Service management |
-| `openstack endpoint list` | `get_service_status` (includes endpoints) | ⚠️ Live unverified | Reader service-policy restrictions; partial data is not proof of global health |
+| `openstack group create/delete` | `set_identity_groups` | ✅ | Group management. 2026.1: create, show, update, delete. |
+| `openstack service list` | `get_service_status` | ✅ | 2026.1: verified as administrator only; reader roles may be denied by cloud policy, and partial data is not proof of global health |
+| `openstack service list` (admin view) | `set_services` (action="list") | ✅ | Reads the SDK `is_enabled` field (previously every service showed enabled). 2026.1: listed |
+| `openstack service create/delete` | — | ❌ Not implemented | `set_services` supports list only |
+| `openstack endpoint list` | `get_service_status` (includes endpoints) | ✅ | 2026.1: verified as administrator only; reader roles may be denied by cloud policy, and partial data is not proof of global health |
 
 ### 6. 🔥 **Orchestration (Heat)**
 
@@ -357,9 +404,9 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
 |---------------------|---------|------|------|
 | `openstack stack list` | `get_heat_stacks` | ✅ | The stack's project ID or Heat self link must match the current project; unknown and foreign owners are excluded. Own and foreign test stacks were checked |
 | `openstack stack show` | `get_heat_stacks` | ✅ Partial | Select the target from the returned list; no name/filter parameter. Resource/event/template/output queries use get_heat_stack_details |
-| `openstack stack create` | `set_heat_stack` (action="create") | ✅ | Stack creation |
-| `openstack stack delete` | `set_heat_stack` (action="delete") | ✅ | Foreign-project deletion rejected; owned stack deletion completed after the ownership change |
-| `openstack stack update` | `set_heat_stack` (action="update") | ⚠️ Live unverified | Requires matching stack ownership; owned update after the ownership change has not been live retested |
+| `openstack stack create` | `set_heat_stack` (action="create") | ✅ | Stack creation. 2026.1: reached CREATE_COMPLETE. |
+| `openstack stack delete` | `set_heat_stack` (action="delete") | ✅ | Foreign-project deletion rejected; owned stack deletion completed after the ownership change. 2026.1: deleted. |
+| `openstack stack update` | `set_heat_stack` (action="update") | ✅ | Requires matching stack ownership. 2026.1: an owned stack reached UPDATE_COMPLETE (previously reported failure after Heat accepted the update) |
 | `openstack stack suspend/resume` | — | ❌ Not implemented | set_heat_stack supports create, delete and update only |
 | `openstack stack resource list` | `get_heat_stack_details` (section="resources") | ✅ | Actual Heat resources |
 | `openstack stack event list` | `get_heat_stack_details` (section="events") | ✅ | Owned stack events retrieved after the ownership change |
@@ -370,81 +417,81 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
-| `openstack loadbalancer list` | `get_load_balancer_list` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer listing with pagination |
-| `openstack loadbalancer show` | `get_load_balancer_details` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer detailed information |
-| `openstack loadbalancer create` | `set_load_balancer` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer creation |
-| `openstack loadbalancer delete` | `set_load_balancer` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer deletion |
-| `openstack loadbalancer set` | `set_load_balancer` (action="update") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer property update |
-| `openstack loadbalancer stats show` | `set_load_balancer` (action="stats") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer statistics |
-| `openstack loadbalancer status show` | `set_load_balancer` (action="status") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer status tree |
-| `openstack loadbalancer failover` | `set_load_balancer` (action="failover") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer failover |
-| `openstack loadbalancer unset` | `set_load_balancer` (action="unset") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer property unset |
+| `openstack loadbalancer list` | `get_load_balancer_list` | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Load balancer listing with pagination |
+| `openstack loadbalancer show` | `get_load_balancer_details` | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Load balancer detailed information |
+| `openstack loadbalancer create` | `set_load_balancer` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Load balancer creation |
+| `openstack loadbalancer delete` | `set_load_balancer` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Load balancer deletion |
+| `openstack loadbalancer set` | `set_load_balancer` (action="update") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Load balancer property update |
+| `openstack loadbalancer stats show` | `set_load_balancer` (action="stats") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Load balancer statistics |
+| `openstack loadbalancer status show` | `set_load_balancer` (action="status") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Load balancer status tree |
+| `openstack loadbalancer failover` | `set_load_balancer` (action="failover") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Load balancer failover |
+| `openstack loadbalancer unset` | `set_load_balancer` (action="unset") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Load balancer property unset |
 | **Listener Management** | | | |
-| `openstack loadbalancer listener list` | `get_load_balancer_listeners` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Listener listing for load balancer |
-| `openstack loadbalancer listener create` | `set_load_balancer_listener` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Listener creation (HTTP/HTTPS/TCP/UDP) |
-| `openstack loadbalancer listener delete` | `set_load_balancer_listener` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Listener deletion |
-| `openstack loadbalancer listener show` | `get_load_balancer_listeners` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Listener detailed information |
-| `openstack loadbalancer listener set` | `set_load_balancer_listener` (action="update") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Listener property update |
-| `openstack loadbalancer listener stats show` | `set_load_balancer_listener` (action="stats") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Listener statistics |
-| `openstack loadbalancer listener unset` | `set_load_balancer_listener` (action="unset") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Listener property unset |
+| `openstack loadbalancer listener list` | `get_load_balancer_listeners` | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Listener listing for load balancer |
+| `openstack loadbalancer listener create` | `set_load_balancer_listener` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Listener creation (HTTP/HTTPS/TCP/UDP) |
+| `openstack loadbalancer listener delete` | `set_load_balancer_listener` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Listener deletion |
+| `openstack loadbalancer listener show` | `get_load_balancer_listeners` | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Listener detailed information |
+| `openstack loadbalancer listener set` | `set_load_balancer_listener` (action="update") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Listener property update |
+| `openstack loadbalancer listener stats show` | `set_load_balancer_listener` (action="stats") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Listener statistics |
+| `openstack loadbalancer listener unset` | `set_load_balancer_listener` (action="unset") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Listener property unset |
 | **Pool Management** | | | |
-| `openstack loadbalancer pool list` | `get_load_balancer_pools` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool listing (all or by listener) |
-| `openstack loadbalancer pool create` | `set_load_balancer_pool` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool creation with algorithms |
-| `openstack loadbalancer pool delete` | `set_load_balancer_pool` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool deletion |
-| `openstack loadbalancer pool set` | `set_load_balancer_pool` (action="set") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool property update |
-| `openstack loadbalancer pool show` | `get_load_balancer_pools` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool detailed information |
+| `openstack loadbalancer pool list` | `get_load_balancer_pools` | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Pool listing (all or by listener) |
+| `openstack loadbalancer pool create` | `set_load_balancer_pool` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Pool creation with algorithms |
+| `openstack loadbalancer pool delete` | `set_load_balancer_pool` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Pool deletion |
+| `openstack loadbalancer pool set` | `set_load_balancer_pool` (action="set") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Pool property update |
+| `openstack loadbalancer pool show` | `get_load_balancer_pools` | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Pool detailed information |
 | `openstack loadbalancer pool stats show` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | `openstack loadbalancer pool unset` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | **Member Management** | | | |
-| `openstack loadbalancer member list` | `get_load_balancer_pool_members` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool member listing |
-| `openstack loadbalancer member create` | `set_load_balancer_pool_member` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool member creation |
-| `openstack loadbalancer member delete` | `set_load_balancer_pool_member` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool member deletion |
-| `openstack loadbalancer member set` | `set_load_balancer_pool_member` (action="set") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool member property update |
-| `openstack loadbalancer member show` | `get_load_balancer_pool_members` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool member detailed information |
+| `openstack loadbalancer member list` | `get_load_balancer_pool_members` | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Pool member listing |
+| `openstack loadbalancer member create` | `set_load_balancer_pool_member` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Pool member creation |
+| `openstack loadbalancer member delete` | `set_load_balancer_pool_member` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Pool member deletion |
+| `openstack loadbalancer member set` | `set_load_balancer_pool_member` (action="set") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Pool member property update |
+| `openstack loadbalancer member show` | `get_load_balancer_pool_members` | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Pool member detailed information |
 | `openstack loadbalancer member unset` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | **Health Monitor Management** | | | |
-| `openstack loadbalancer healthmonitor list` | `get_load_balancer_health_monitors` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Health monitor listing |
-| `openstack loadbalancer healthmonitor create` | `set_load_balancer_health_monitor` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Health monitor creation |
-| `openstack loadbalancer healthmonitor delete` | `set_load_balancer_health_monitor` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Health monitor deletion |
-| `openstack loadbalancer healthmonitor set` | `set_load_balancer_health_monitor` (action="set") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Health monitor update |
-| `openstack loadbalancer healthmonitor show` | `get_load_balancer_health_monitors` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Health monitor detailed information |
+| `openstack loadbalancer healthmonitor list` | `get_load_balancer_health_monitors` | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Health monitor listing |
+| `openstack loadbalancer healthmonitor create` | `set_load_balancer_health_monitor` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Health monitor creation |
+| `openstack loadbalancer healthmonitor delete` | `set_load_balancer_health_monitor` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Health monitor deletion |
+| `openstack loadbalancer healthmonitor set` | `set_load_balancer_health_monitor` (action="set") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Health monitor update |
+| `openstack loadbalancer healthmonitor show` | `get_load_balancer_health_monitors` | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Health monitor detailed information |
 | `openstack loadbalancer healthmonitor unset` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | **L7 Policy Management** | | | |
-| `openstack loadbalancer l7policy list` | `get_load_balancer_l7_policies` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. L7 policy listing |
-| `openstack loadbalancer l7policy create` | `set_load_balancer_l7_policy` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. This management tool supports create/delete only |
-| `openstack loadbalancer l7policy delete` | `set_load_balancer_l7_policy` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. L7 policy deletion |
+| `openstack loadbalancer l7policy list` | `get_load_balancer_l7_policies` | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. L7 policy listing |
+| `openstack loadbalancer l7policy create` | `set_load_balancer_l7_policy` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. This management tool supports create/delete only |
+| `openstack loadbalancer l7policy delete` | `set_load_balancer_l7_policy` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. L7 policy deletion |
 | `openstack loadbalancer l7policy set` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
-| `openstack loadbalancer l7policy show` | `get_load_balancer_l7_policies` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. L7 policy details |
+| `openstack loadbalancer l7policy show` | `get_load_balancer_l7_policies` | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. L7 policy details |
 | `openstack loadbalancer l7policy unset` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | **L7 Rule Management** 🆕 | | | |
-| `openstack loadbalancer l7rule list` | `get_load_balancer_l7_rules` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. L7 rule listing |
-| `openstack loadbalancer l7rule create` | `set_load_balancer_l7_rule` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. L7 rule creation |
-| `openstack loadbalancer l7rule delete` | `set_load_balancer_l7_rule` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. L7 rule deletion |
+| `openstack loadbalancer l7rule list` | `get_load_balancer_l7_rules` | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. L7 rule listing |
+| `openstack loadbalancer l7rule create` | `set_load_balancer_l7_rule` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. L7 rule creation |
+| `openstack loadbalancer l7rule delete` | `set_load_balancer_l7_rule` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. L7 rule deletion |
 | `openstack loadbalancer l7rule set` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
-| `openstack loadbalancer l7rule show` | `get_load_balancer_l7_rules` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. L7 rule details |
+| `openstack loadbalancer l7rule show` | `get_load_balancer_l7_rules` | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. L7 rule details |
 | `openstack loadbalancer l7rule unset` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | **Amphora Management** 🆕 | | | |
-| `openstack loadbalancer amphora list` | `get_load_balancer_amphorae` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Amphora listing |
-| `openstack loadbalancer amphora show` | `set_load_balancer_amphora` (action="show") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Amphora details |
-| `openstack loadbalancer amphora configure` | `set_load_balancer_amphora` (action="configure") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Amphora configuration |
-| `openstack loadbalancer amphora failover` | `set_load_balancer_amphora` (action="failover") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Amphora failover |
+| `openstack loadbalancer amphora list` | `get_load_balancer_amphorae` | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Amphora listing |
+| `openstack loadbalancer amphora show` | `set_load_balancer_amphora` (action="show") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Amphora details |
+| `openstack loadbalancer amphora configure` | `set_load_balancer_amphora` (action="configure") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Amphora configuration |
+| `openstack loadbalancer amphora failover` | `set_load_balancer_amphora` (action="failover") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Amphora failover |
 | `openstack loadbalancer amphora delete` | N/A | ❌ | Not supported by OpenStack SDK |
 | `openstack loadbalancer amphora stats show` | N/A | ❌ | Not supported by OpenStack SDK |
 | **Provider Management** | | | |
-| `openstack loadbalancer provider list` | `get_load_balancer_providers` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Provider listing |
+| `openstack loadbalancer provider list` | `get_load_balancer_providers` | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Provider listing |
 | `openstack loadbalancer provider capability list` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | **Availability Zone Management** 🆕 | | | |
-| `openstack loadbalancer availabilityzone list` | `get_load_balancer_availability_zones` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Availability zone listing |
-| `openstack loadbalancer availabilityzone show` | `get_load_balancer_availability_zones` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Availability zone details |
-| `openstack loadbalancer availabilityzone create` | `set_load_balancer_availability_zone` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Availability zone creation |
-| `openstack loadbalancer availabilityzone delete` | `set_load_balancer_availability_zone` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Availability zone deletion |
+| `openstack loadbalancer availabilityzone list` | `get_load_balancer_availability_zones` | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Availability zone listing |
+| `openstack loadbalancer availabilityzone show` | `get_load_balancer_availability_zones` | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Availability zone details |
+| `openstack loadbalancer availabilityzone create` | `set_load_balancer_availability_zone` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Availability zone creation |
+| `openstack loadbalancer availabilityzone delete` | `set_load_balancer_availability_zone` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Availability zone deletion |
 | `openstack loadbalancer availabilityzone set` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | `openstack loadbalancer availabilityzone unset` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | **Flavor Management** 🆕 | | | |
-| `openstack loadbalancer flavor list` | `get_load_balancer_flavors` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Flavor listing |
-| `openstack loadbalancer flavor show` | `get_load_balancer_flavors` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Flavor details |
-| `openstack loadbalancer flavor create` | `set_load_balancer_flavor` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Flavor creation |
-| `openstack loadbalancer flavor delete` | `set_load_balancer_flavor` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Flavor deletion |
+| `openstack loadbalancer flavor list` | `get_load_balancer_flavors` | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Flavor listing |
+| `openstack loadbalancer flavor show` | `get_load_balancer_flavors` | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Flavor details |
+| `openstack loadbalancer flavor create` | `set_load_balancer_flavor` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Flavor creation |
+| `openstack loadbalancer flavor delete` | `set_load_balancer_flavor` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Flavor deletion |
 | `openstack loadbalancer flavor set` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | `openstack loadbalancer flavor unset` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | **Flavor Profile Management** | | | |
@@ -455,34 +502,34 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
 | `openstack loadbalancer flavorprofile unset` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | `openstack loadbalancer flavorprofile delete` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | **Quota Management** 🆕 | | | |
-| `openstack loadbalancer quota list` | `get_load_balancer_quotas` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Quota listing |
-| `openstack loadbalancer quota show` | `get_load_balancer_quotas` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Quota details |
-| `openstack loadbalancer quota set` | `set_load_balancer_quota` (action="set") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Quota setting |
-| `openstack loadbalancer quota reset` | `set_load_balancer_quota` (action="reset") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Quota reset |
+| `openstack loadbalancer quota list` | `get_load_balancer_quotas` | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Quota listing |
+| `openstack loadbalancer quota show` | `get_load_balancer_quotas` | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Quota details |
+| `openstack loadbalancer quota set` | `set_load_balancer_quota` (action="set") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Quota setting |
+| `openstack loadbalancer quota reset` | `set_load_balancer_quota` (action="reset") | ⚠️ Live unverified | Implemented; Octavia unavailable in the 2025.1 and 2026.1 test clouds (2026.1: explicit error verified); openstacksdk attribute and call fixes are unit-tested only. Quota reset |
 
 ### 8. 📊 **Monitoring & Logging**
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
-| Resource monitoring | `get_resource_monitoring` | ⚠️ Live unverified | Reader physical-capacity policy restrictions; allocations are separate from capacity; no live utilization |
-| Service status | `get_service_status` | ⚠️ Live unverified | Reader service-policy restrictions; partial data is not proof of global health |
-| Cluster overview | `get_service_status` + `get_resource_monitoring` | ⚠️ Live unverified | Reader physical-capacity policy restrictions; allocations are separate from capacity; no live utilization |
-| Service log metadata | `set_service_logs` | Partial | Service listing only; log retrieval is unavailable without a logging backend |
-| Resource metadata | `set_metrics` | Partial | list/summary only; telemetry sample retrieval is unavailable |
-| Alarm management | `set_alarms` | ⚠️ Live unverified | Implemented; Aodh/Gnocchi unavailable in the test platform. Requires services and collected metrics |
-| Compute agents | `set_compute_agents` | ✅ | Compute agent management |
-| Usage statistics | `get_usage_statistics` | ✅ | Period compute allocation-hours plus separately labeled current snapshots |
+| Resource monitoring | `get_resource_monitoring` | ✅ | Allocations are separate from capacity; no live utilization. 2026.1 (administrator): compute/network data returned, storage section reported unavailable without Cinder; Nova 2.88+ hypervisor capacity is null, not zero |
+| Service status | `get_service_status` | ✅ | 2026.1: verified as administrator only; reader roles may be denied by cloud policy, and partial data is not proof of global health |
+| Cluster overview | `get_service_status` + `get_resource_monitoring` | ✅ | Allocations are separate from capacity; no live utilization. 2026.1: verified as administrator only; reader roles may be denied by cloud policy, and partial data is not proof of global health |
+| Service log metadata | `set_service_logs` | Partial | Service listing only; log retrieval is unavailable without a logging backend. Network agents are listed from the SDK `is_admin_state_up` field (previously silently omitted). 2026.1: listed |
+| Resource metadata | `set_metrics` | Partial | list/summary only; telemetry sample retrieval is unavailable. 2026.1: list returned live data; summary reports the storage part as unavailable without Cinder |
+| Alarm management | `set_alarms` | ⚠️ Live unverified | Implemented; Aodh/Gnocchi unavailable in the 2025.1 and 2026.1 test clouds (explicit error). Requires services and collected metrics |
+| Compute agents | `set_compute_agents` | ✅ | list/show of Nova services and hypervisors. 2026.1: list (with hypervisors), show by service ID and by host (previously failed on non-existent SDK names) |
+| Usage statistics | `get_usage_statistics` | ✅ | Period compute allocation-hours plus separately labeled current snapshots. 2026.1: compute/network data returned; the storage snapshot is reported as unavailable without Cinder |
 
 ### 9. 📏 **Usage & Quota**
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
-| `openstack quota show` | `get_quota` | ✅ | Quota query |
-| `openstack quota set` | `set_quota` (action="set") | ✅ | Routes supplied fields to Nova/Neutron/Cinder; partial failures are reported |
-| `openstack quota delete` | `set_quota` (action="delete") | ✅ | Resets all three service quotas to defaults; requires modification tools |
-| `openstack usage show` | `get_usage_statistics` | ✅ | Current-project Nova simple tenant usage; not monetary charges |
+| `openstack quota show` | `get_quota` | ✅ | 2026.1: compute and network quotas returned (network floating IP quota now read from the SDK `floating_ips` field; previously always -1); the Cinder section is reported unavailable without Cinder |
+| `openstack quota set` | `set_quota` (action="set") | ✅ | Routes supplied fields to Nova/Neutron/Cinder; partial failures are reported. 2026.1: compute quota set and read back; the Cinder part reported unavailable |
+| `openstack quota delete` | `set_quota` (action="delete") | ✅ | Resets the service quotas to defaults; requires modification tools. 2026.1: compute/network reset; the Cinder part reported unavailable |
+| `openstack usage show` | `get_usage_statistics` | ✅ | Current-project Nova simple tenant usage; not monetary charges. 2026.1: returned; an invalid date returns an explicit error |
 | `openstack limits show` | `get_quota` (includes limits) | ✅ | Limits query |
-| Resource allocations | `get_resource_monitoring` | ⚠️ Live unverified | Reader physical-capacity policy restrictions; allocations are separate from capacity; no live utilization |
+| Resource allocations | `get_resource_monitoring` | ✅ | Allocations are separate from capacity; no live utilization. 2026.1 (administrator): returned; storage section unavailable without Cinder |
 
 ---
 
@@ -902,6 +949,12 @@ MCP server may authenticate successfully and then fail on the first service tool
 `OS_INTERFACE` does not change these explicit endpoint URLs. The current
 single-host configuration uses the internal interface convention.
 
+Every service URL is built even when the service is not deployed. If a firewall
+silently drops traffic to such a port (for example `OS_VOLUME_PORT` on a cloud
+without Cinder), calls to that service wait for the connection timeout instead
+of failing immediately. Allow the port to be refused, or point it at a
+reachable gateway, so missing services fail fast with an explicit error.
+
 ### HTTPS and private CA setup
 
 For HTTPS OpenStack endpoints signed by a public CA, use the system CA bundle
@@ -1305,6 +1358,31 @@ MCP_LOG_LEVEL=DEBUG uv run python -m mcp_openstack_ops
 # Validate OpenStack connection
 uv run python -c "from src.mcp_openstack_ops.functions import get_openstack_connection; print(get_openstack_connection())"
 ```
+
+### Live tool checks
+
+`scripts/live_tool_check.py` calls every registered tool through a real MCP
+client (in process, or over Streamable HTTP with `--url`), including negative
+paths, polls asynchronous operations to their final state with openstacksdk,
+and removes what it created. It creates and deletes projects, domains, users,
+roles, flavors, networks, images and servers named with `--prefix`, so run it
+only as an administrator against a disposable test cloud.
+
+```bash
+# OS_* variables for the test cloud, plus OS_AUTH_HOST/OS_AUTH_PORT for the server
+. admin-openrc.sh
+ALLOW_MODIFY_OPERATIONS=true uv run python scripts/live_tool_check.py \
+  --i-understand-this-is-destructive \
+  --image cirros --flavor m1.tiny --resize-flavor m1.small \
+  --network demo-net --external-network public1 --existing-server demo1 \
+  --output live-tool-check.json
+```
+
+The summary reports call and final-state check counts and a unique-tool
+classification (`passed`, `passed_partial_service`, `service_absent`,
+`error_paths_only`, `partial`, `failed`). Tools whose service is not deployed
+pass only with an explicit error and are not live-validated. Keep result files
+out of the repository.
 
 ---
 
