@@ -15,65 +15,171 @@
 
 ---
 
-## Architecture & Internal (DeepWiki)
+## What is MCP-OpenStack-Ops?
 
-[![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-blue)](https://deepwiki.com/call518/MCP-OpenStack-Ops)
+MCP-OpenStack-Ops lets an AI assistant such as Claude or a model in OpenWebUI
+inspect and operate an OpenStack project in plain language. It is an
+[MCP](https://modelcontextprotocol.io/) server that turns requests like "which
+instances are stopped?" into OpenStack API calls and returns the results.
 
----
+- **Read-only by default**: tools that create, change or delete resources are
+  not even registered unless you enable them.
+- **One project at a time**: each server works inside one OpenStack project and
+  checks resource ownership.
+- **Broad coverage**: 110 tools (55 read-only, 55 management) for Nova,
+  Neutron, Cinder, Glance, Keystone, Heat, Octavia, and Gnocchi/Aodh telemetry.
+
+For an AI-generated walkthrough of the code, see
+[![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-blue)](https://deepwiki.com/call518/MCP-OpenStack-Ops).
+
+## What can you do with it?
+
+Ask questions and give instructions in natural language, for example:
+
+```text
+Show me the overall cluster status
+Find instances in SHUTOFF state
+Show all networks and their subnets
+List all volumes and their status
+Show the vCPUs and memory allocated to my project and the remaining quota
+Show CPU usage of web-01 over the last hour
+Stop all instances with name containing 'test'
+```
+
+The last request changes resources, so it works only after you enable
+modification tools. Telemetry requests need Ceilometer and Gnocchi in the
+cloud. More examples are in the [usage guide](docs/usage-guide.md).
+
+**Example: cluster status in Claude Desktop**
+
+![Example Cluster Status](img/screenshot-claude-desktop.png)
+
+**The same project in the OpenStack Dashboard (Epoxy 2025.1)**
+
+![OpenStack Dashboard (Epoxy 2025.1)](img/screenshot-openstack-dashboard.png)
+
+## Quick Start
+
+You need an OpenStack account (Keystone host, project, user name, password)
+whose APIs are reachable from the computer that runs the server. Pick one of
+the two paths below; both start read-only.
+
+<a id="claude-desktop-integration"></a>
+
+### Option A: Claude Desktop with the extension bundle (fastest)
+
+1. Download `mcp-openstack-ops-<version>.mcpb` from the latest
+   [GitHub Release](https://github.com/call518/MCP-OpenStack-Ops/releases).
+2. In Claude Desktop, open **Settings > Extensions > Advanced settings >
+   Install Extension…** and select the file.
+3. Fill in the settings form: Keystone host, project, user name and password
+   are required; ports, domains and region are prefilled. Leave **Allow modify
+   operations** off.
+4. Ask Claude: `List the instances in my OpenStack project.`
+
+Other Claude Desktop setups (`uvx`, a source checkout, the Docker server
+through `mcp-remote`, a remote connector) are in the
+[Claude Desktop guide](docs/claude-desktop-guide.md).
+
+### Option B: OpenWebUI with Docker Compose
+
+Requirements: Git, Docker with the Compose plugin, and a model provider for
+OpenWebUI whose model supports tool calling.
+
+**1. Configure**
+
+```bash
+git clone https://github.com/call518/MCP-OpenStack-Ops.git
+cd MCP-OpenStack-Ops
+cp .env.example .env
+cp mcp-config.json.http mcp-config.json.http.local
+chmod 600 mcp-config.json.http.local
+openssl rand -hex 32   # use the output as WEBUI_SECRET_KEY
+vi .env                # set WEBUI_SECRET_KEY and the OS_* values for your cloud
+```
+
+**2. Start**
+
+```bash
+docker compose up -d
+docker compose ps      # wait until mcp-server is healthy
+```
+
+This starts OpenWebUI (`http://localhost:3000`), the MCP server
+(`http://localhost:8000/mcp`) and MCPO (`http://localhost:8080`).
+
+**3. Connect OpenWebUI to the MCP server**
+
+1. Open `http://localhost:3000`, create the administrator account, and add a
+   model provider under **Settings → Admin → Connections**.
+2. Under **Settings → Admin → Tools → Integrations → External Tool Servers**,
+   add a connection of type `MCP (Streamable HTTP)` with URL
+   `http://mcp-server:8000/mcp` and authentication `None`.
+3. Under **Settings → Admin → System → Interface → Chat**, turn on **Tool
+   Search** and **Defer Built-in Tools**, and set **Deferral Threshold** to `0`
+   so that the full tool list fits the model's limits.
+4. In a new chat, enable the connection under **Integrations → Tools** and ask:
+   `Use mcp-openstack-ops to list the instances in my OpenStack project.`
+
+> **MCPO is optional.** MCPO is a proxy that exposes the MCP tools as an
+> OpenAPI (REST) server; OpenWebUI does not need it to use this server. The
+> Compose file starts it so that you can choose either connection. To run
+> without it, start only `docker compose up -d mcp-server open-webui`.
+
+The [OpenWebUI guide](docs/openwebui-guide.md) explains the direct and MCPO
+connections, every OpenWebUI setting, OpenAI reasoning models, and
+troubleshooting.
+
+### Other ways to install
+
+| Setup | Guide |
+| --- | --- |
+| Claude Desktop with `uvx`, a source checkout, `mcp-remote`, or a remote connector | [Claude Desktop guide](docs/claude-desktop-guide.md) |
+| Claude Code | [Claude Code guide](docs/claude-code-guide.md) |
+| OpenWebUI through MCPO (OpenAPI) | [OpenWebUI guide](docs/openwebui-guide.md) |
+| Each user signs in with their own OpenStack Application Credential (experimental) | [Multi-user guide](docs/multi-user-guide.md) |
+| Several projects, HTTPS and private CAs, custom endpoints and ports | [Configuration guide](docs/configuration.md) |
+
+To let the assistant create, change or delete resources, set
+`ALLOW_MODIFY_OPERATIONS=true` (or turn on **Allow modify operations** in the
+Claude Desktop form) and restart the server. OpenStack policy still decides
+what the account may do.
 
 ## Features
 
-Experimental per-user remote connections are available for testing with the
-opt-in `--multi-user` mode. See the [multi-user setup and usage guide](docs/multi-user-guide.md)
-for authentication, client limitations, and the test checklist. Administrator
-cross-project queries are outside this phase.
-
 - ✅ **Project-Scoped Operations**: Every tool enforces the configured `OS_PROJECT_NAME`, validating resource ownership so actions stay inside a single tenant.
 - ✅ **Safety-Gated Writes**: Modify (`set_*`) tooling only registers when `ALLOW_MODIFY_OPERATIONS=true`, keeping default deployments read-only and auditable.
-- ✅ **90+ Purpose-Built Tools**: Broad coverage across compute, networking, storage, images, identity, Heat, and Octavia load balancing tasks. Project resources are scoped to the active project; cloud-wide administrative APIs remain subject to OpenStack policy.
+- ✅ **Broad Tool Coverage**: 110 tools across compute, networking, storage, images, identity, Heat, Octavia load balancing and telemetry. Project resources are scoped to the active project; cloud-wide administrative APIs remain subject to OpenStack policy.
 - ✅ **Bulk & Filtered Actions**: Instance, volume, network, image, snapshot, and keypair managers accept comma-delimited targets or filter criteria to orchestrate bulk changes intentionally.
-- ✅ **Post-Action Feedback & Async Guidance**: Mutating tools reuse a shared result handler that adds emoji status checks, asynchronous timing notes, and follow-up verification commands.
+- ✅ **Post-Action Feedback & Async Guidance**: Management tools report per-resource results, the status read back after the action, and timing notes for asynchronous operations.
 - ✅ **Monitoring & Usage Insights**: `get_service_status`, `get_resource_monitoring`, `get_usage_statistics`, and quota tools report service probes, project allocations, separate quota limits, and API-backed compute allocation-hours. These tools do not collect live utilization or trends; read-only `get_gnocchi_*` tools return telemetry time series when Ceilometer and Gnocchi are deployed.
 - ✅ **Unified Instance Queries**: The `get_instance` tool consolidates name, ID, status, and free-form search paths with pagination plus summary/detailed modes.
 - ✅ **Server Insight & Audit Trail**: Dedicated tools expose server events, hypervisor details, availability zones, quotas, and resource ownership to speed diagnostics.
 - ✅ **Load Balancer Management**: Octavia tools cover listeners, pools, members, health monitors, flavors, quotas, and amphora operations with the same safety gates.
-- ✅ **Connection & Deployment Flexibility**: Connection caching, configurable service endpoints, Docker packaging, and both `stdio`/`streamable-http` transports support proxy/bastion and multi-project setups.
+- ✅ **Connection & Deployment Flexibility**: Connection caching, configurable service endpoints, Docker packaging, a Claude Desktop extension, and both `stdio`/`streamable-http` transports support proxy/bastion and multi-project setups.
+
+## Safety and security
+
+- **Read-only by default.** Management tools are registered only with
+  `ALLOW_MODIFY_OPERATIONS=true`.
+- **One project per server.** Resources are filtered by the current project
+  and checked for ownership; run one server per project to manage several.
+- **Protect HTTP access.** Over `streamable-http`, enable Bearer token
+  authentication (`REMOTE_AUTH_ENABLE=true`) and HTTPS before exposing the
+  server beyond localhost.
+
+Details: [security guide](docs/security.md) and
+[multi-user guide](docs/multi-user-guide.md).
+
+## Compatibility
 
 > ⚠️ **Compatibility Notice**: This MCP server is developed and optimized for **OpenStack Epoxy (2025.1)** as the primary target environment. However, it is compatible with most modern OpenStack releases (Dalmatian, Caracal, Bobcat, etc.) as the majority of APIs remain consistent across versions. Only a few specific API endpoints may require adaptation for full compatibility with older releases.
-> 
+>
 > 🚧 **Coming Soon**: Dynamic multi-version OpenStack API compatibility is actively under development and will be available in upcoming releases, providing seamless support for all major OpenStack deployments automatically.
-
-### 🔧 OpenStackSDK Version Customization for Older Releases
 
 **Officially Supported Releases:**
 - ✅ OpenStack **Epoxy (2025.1)** - Fully tested
 - ✅ OpenStack **Dalmatian (2024.2)** - Fully tested
-
-**For older OpenStack releases** (Wallaby, Caracal, Bobcat, etc.), you may need to customize the OpenStackSDK version to match your environment. The `uv` environment, the Claude Desktop bundle and the `mcp-server` Docker image all install the dependency versions recorded in `uv.lock`, so change the version in `pyproject.toml` and regenerate the lock:
-
-**Step 1: Modify `pyproject.toml`**
-```toml
-dependencies = [
-    "openstacksdk==3.1.1",  # ← Change to your required version (e.g., 3.1.1 for Wallaby)
-    # ... other dependencies unchanged
-]
-```
-
-**Step 2: Update `uv.lock`**
-```bash
-uv lock --upgrade-package openstacksdk
-uv run --extra dev python -m pytest -q tests
-```
-
-**Step 3: Rebuild the Docker image**
-
-`Dockerfile.MCP-Server` installs exactly the packages in `uv.lock`. Change
-`VERSION` in `build-mcp-server-docker-image.sh` and the `mcp-server` image tag in
-`docker-compose.yml` to a new tag, then build and start:
-```bash
-./build-mcp-server-docker-image.sh
-docker compose up -d
-```
 
 **OpenStackSDK Version Reference:**
 | OpenStack Release | Recommended SDK Version | Notes |
@@ -84,79 +190,23 @@ docker compose up -d
 | Bobcat (2023.2) | `>=3.0.0` | May require testing |
 | Wallaby (2021.1) | `==3.1.1` | Downgrade required |
 
-> ⚠️ **Important**: Do not edit package versions in `Dockerfile.MCP-Server`; the image build fails if `uv.lock` does not match `pyproject.toml`. The `mcpo-proxy` image (`Dockerfile.MCPO-Proxy`) pins its own packages: mcpo 0.0.20 needs mcp 1.x (it fails to start with mcp 2.x) and FastAPI 0.128.0 (it fails with FastAPI 0.162.2). An mcp 1.x proxy still connects to the mcp 2.x server.
+To change the SDK version for an older release, see
+[OpenStack SDK version for older releases](docs/configuration.md#openstack-sdk-version-for-older-releases).
 
----
+## Documentation
 
-### Screenshots
-
-**OpenStack Dashboard (Epoxy 2025.1)**
-
-![OpenStack Dashboard (Epoxy 2025.1)](img/screenshot-openstack-dashboard.png)
-
-**MCP Query Example - Cluster Status**
-
-![Example Cluster Status](img/screenshot-claude-desktop.png)
-
----
-
-## 🆕 Latest Enhancements (v1.x)
-
-### **Bulk Operations & Filter-based Targeting**
-Revolutionary approach to resource management enabling one-step operations:
-
-```bash
-# Traditional approach (multiple steps):
-1. search_instances("test") → get list
-2. set_instance("vm1", "stop") → stop individually  
-3. set_instance("vm2", "stop") → stop individually
-
-# NEW enhanced approach (single step):
-set_instance(action="stop", name_contains="test")  # ✨ Stops ALL instances containing "test"
-```
-
-**Supported Tools with Enhanced Capabilities:**
-- **`set_instance`**: Bulk lifecycle management with filtering (name_contains, status, flavor_contains, image_contains)
-- **`set_volume`**: Bulk volume operations with filtering (name_contains, status, size filtering)
-- **`set_image`**: Bulk image management with filtering (name_contains, status)
-- **`set_networks`**: Bulk network operations with filtering (name_contains, status)
-- **`set_keypair`**: Bulk keypair management with filtering (name_contains)
-- **`set_snapshot`**: Bulk snapshot operations with filtering (name_contains, status)
-
-**Input Format Flexibility:**
-```python
-# Single resource
-resource_names="vm1"
-
-# Multiple resources (comma-separated)
-resource_names="vm1,vm2,vm3"
-
-# JSON array format
-resource_names='["vm1", "vm2", "vm3"]'
-
-# Filter-based (automatic target identification)
-name_contains="test", status="ACTIVE"
-```
-
-### **Post-Action Status Verification**
-Every operation now provides immediate feedback with visual indicators:
-
-```bash
-✅ Bulk Instance Management - Action: stop
-📊 Total instances: 3
-✅ Successes: 2
-❌ Failures: 1
-
-Post-Action Status:
-🟢 test-vm-1: SHUTOFF  
-🟢 test-vm-2: SHUTOFF
-🔴 test-vm-3: ERROR
-```
-
-### **Unified Resource Queries**
-New consolidated `get_instance` tool replaces multiple separate tools:
-- ❌ Old: `get_instance_details`, `get_instance_info`, `get_instance_status`, `get_instance_network_info`
-- ✅ New: `get_instance(names="vm1,vm2")` - Single tool, comprehensive information
+| Guide | Contents |
+| --- | --- |
+| [Usage guide](docs/usage-guide.md) | Example requests, bulk and filtered actions, post-action status, pagination |
+| [OpenWebUI guide](docs/openwebui-guide.md) | Docker Compose stack, direct MCP versus MCPO, OpenWebUI settings, troubleshooting |
+| [Claude Desktop guide](docs/claude-desktop-guide.md) | Extension bundle, `uvx`, source checkout, `mcp-remote`, remote connector |
+| [Claude Code guide](docs/claude-code-guide.md) | Registering the HTTP server in Claude Code |
+| [Configuration guide](docs/configuration.md) | Command-line options, environment variables, endpoints, HTTPS, multiple projects, SDK version |
+| [Security guide](docs/security.md) | Project isolation, read-only default, Bearer authentication |
+| [Multi-user guide](docs/multi-user-guide.md) | Per-user Application Credential authentication (experimental) |
+| [Development guide](docs/development.md) | Tests, live tool checks, adding tools, contributing |
+| [OpenStack CLI vs MCP tools mapping](#-openstack-cli-vs-mcp-tools-mapping) | Every tool, its CLI equivalent, and its validation status |
+| [Validation evidence](docs/validation.md) | Dates, revisions, conditions and counts of the live and unit-test checks |
 
 ---
 
@@ -169,91 +219,9 @@ Service availability, permissions, and asynchronous completion affect results.
 See [API prerequisites and result semantics](#api-prerequisites-and-result-semantics)
 and the [multi-user setup guide](docs/multi-user-guide.md).
 
-**Validation evidence:**
-- **Live snapshot (2026-11-04; working tree based on `a57b165`):** This live
-  snapshot predates the current working-tree changes. Its live
-  classifications remain historical evidence and were not rerun for this change.
-- **Live tool checks:** 105/105 tools registered at that revision exercised. At least one live
-  path passed for 76 tools; 28 tools were unavailable because the test cloud
-  lacks Octavia, Aodh, Neutron QoS, or floating-IP port-forwarding APIs; one
-  tool (`set_server_dump`) reached its documented platform limitation. The
-  `set_snapshot` status fix was retested separately after the full run: an
-  actual snapshot reached `available`, and its isolated test project was
-  removed. These are unique-tool classifications, not individual call counts.
-- **Claude Code prompt checks:** 118/118 documented examples were issued to the
-  real MCP servers. 99 completed their tool workflows, including two
-  successful retries after an initial bad placeholder; two of those 99 used
-  disclosed test substitutions and are not exact request matches. Five
-  composite reports were partial because optional APIs were unavailable;
-  seven direct requests could not run because their cloud service or extension
-  is absent; seven read-like requests were limited by the non-interactive
-  Claude permission policy.
-- **Follow-up targeted checks:** `/mcp/.well-known/openid-configuration`
-  returned 404 without authentication. A real Nova action list explicitly
-  reported that the list has no finish time; optional event-detail lookup
-  returned an event result and derived its latest finish time. The new
-  HTTP-only multi-user test override is **Live unverified**; only its fail-closed
-  default, explicit opt-in, endpoint generation, and startup warning were tested
-  locally.
-- **Targeted telemetry check (2026-11-08 UTC; partial; uncommitted working tree
-  based on `d954eba`):** After Ceilometer, Gnocchi, and Aodh were added to the
-  test cloud, only `set_alarms` and the four new `get_gnocchi_*` tools were
-  rerun through the MCP server. This partial check does not update the
-  105-tool live summary above. All five tools passed at least one live path.
-  A metric-ownership fix for metric-UUID-only lookups was retested live after
-  the MCP server was recreated. Polled metrics were initially absent because
-  the test cloud's ceilometer-compute agent had failed to reach libvirt at
-  startup; after that agent was restarted, `cpu`, `memory.usage`, disk I/O,
-  and network I/O measures were read through the tools. Aodh evaluated `cpu`
-  `rate:mean` alarms to the expected `ok` and `alarm` states. Test alarms were
-  deleted.
-- **Targeted aggregation check (2026-11-09 UTC; partial; uncommitted working
-  tree based on `a5115d3`):** only the new `get_gnocchi_aggregates` tool was
-  run through the MCP server. The test project had one instance, so ranking
-  and grouping returned one series each. After that run, null-gap output,
-  metric-name validation, and the failure hint were changed; those changes
-  and the core aggregation paths were rerun through a second streamable-HTTP
-  MCP server started from the current working tree.
-- **Targeted openstacksdk-usage check (2026-11-10 UTC; partial; commit
-  `c2de34c`, which merges PR #83 and locks openstacksdk 4.22.0):** only the
-  paths changed by that merge were run, through an in-process MCP client with
-  modification tools enabled, as an administrator, with the locked
-  dependencies (openstacksdk 4.22.0, fastmcp 3.4.10). The test cloud was a
-  single-node deployment (compute microversion up to 2.100) with Nova,
-  Neutron, Cinder (with backup), Glance and Heat; Octavia, Neutron QoS and
-  port forwarding were absent, and only one compute host was available.
-  Asynchronous operations were polled with openstacksdk until their final
-  state (300 s per state; 600 s for backups). 73 checks ran: 68 passed; the
-  5 failures came from the test script (output parsing, a metadata argument
-  passed as a string, and a check aimed at the wrong tool). A retest of those
-  paths passed for lock/unlock reporting, metadata set and metadata kept after
-  rebuild. `get_project_details` reports resource counts, not quotas, so it
-  does not cover the corrected quota field of `get_project_info()`, which no
-  registered tool calls; that fix is unit-tested only. All test resources were
-  deleted. This partial check does not update the 105-tool summary above.
-- **fastmcp 4 dependency check (2026-11-10 UTC; partial; uncommitted working
-  tree based on `aa668de`):** `uv.lock` moved to fastmcp 4.1.6 and mcp 2.3.0,
-  and the `mcp-server` image now installs exactly the `uv.lock` packages. The
-  same targeted check as above was repeated with these dependencies through an
-  in-process MCP client, with three test-script errors corrected and the
-  `get_project_details` check removed; it also read `get_gnocchi_service_info`
-  and `get_gnocchi_metrics`. 74/74 checks passed, and all test resources were
-  deleted. A locally built `mcp-server` image served 110 tools over Streamable
-  HTTP, and 13 read tools, including the three Gnocchi read tools named above
-  plus `get_gnocchi_resources`, returned results. A locally built `mcpo-proxy`
-  image (mcpo 0.0.20, mcp 1.30.0, FastAPI 0.128.0) connected to that server,
-  exposed 110 tools, and returned results for `get_service_status`,
-  `get_gnocchi_resources` and `get_volume_list`. Neither image was published.
-  This partial check does not update the 105-tool summary above.
-- **Local unit tests (2026-11-10; same working tree):** 455/455 (100%) with
-  fastmcp 4.1.6 and openstacksdk 4.1.0, 4.9.0 and 4.22.0; no failures or
-  skipped tests. These tests include MCP action-description and
-  advanced-parameter forwarding regressions, the insecure-HTTP opt-in
-  regressions, Gnocchi project-scoping and aggregation-input regressions,
-  Claude Desktop bundle manifest and release-asset checks, regression tests
-  built on real openstacksdk resource objects, and a static check that every
-  `conn.<service>.<method>()` call and keyword exists in the installed
-  openstacksdk; they do not replace live service validation.
+**Validation evidence:** the live checks, Claude Code prompt checks and
+unit-test results behind the Status values below are recorded in
+[docs/validation.md](docs/validation.md).
 
 **Detailed Mapping by Category**
 
@@ -582,1401 +550,13 @@ The feature table marks implemented API paths, not verification against every Op
 - **Telemetry (Gnocchi):** the read-only `get_gnocchi_resources`, `get_gnocchi_metrics`, `get_gnocchi_measures`, `get_gnocchi_aggregates`, and `get_gnocchi_service_info` tools use `gnocchiclient` with the Keystone catalog's `metric` endpoint for the configured interface/region. Ceilometer must be collecting data into Gnocchi; it has no API of its own. Results are limited to resources whose `project_id` is the current project. Metrics are created by the Ceilometer service project, so ownership is checked through the embedded resource. Available metrics depend on deployment. Notification-based metrics such as `vcpus`, `memory`, and `disk.root.size` record flavor sizes. Polled metrics such as `cpu`, `memory.usage`, `disk.device.*`, and `network.*` require a working ceilometer-compute agent and a running instance. `cpu` is cumulative nanoseconds; use `aggregation="rate:mean"` when the archive policy supports it. Current Ceilometer does not produce `cpu_util`. Measures and aggregation methods are limited by each metric's archive policy. `get_gnocchi_aggregates` accepts either structured parameters or an operations expression; both add a current-project resource search, so expression metric references resolve as metric names on matched resources. Arithmetic between metrics returns points only where every operand has data. Gnocchi write operations (measure ingestion, resource/metric/archive policy changes) are not implemented.
 - **Logs and telemetry:** `set_service_logs(action="show")` and `set_metrics(action="show")` return explicit unsupported errors. No centralized logging backend is implemented. `set_metrics` list/summary operations expose Nova/Neutron/Cinder resource metadata only; use the Gnocchi tools for telemetry samples.
 
-## Quick Start
-
-This starts the complete local evaluation stack. OpenWebUI can use either
-integration path:
-
-```text
-Browser → OpenWebUI → MCP-OpenStack-Ops → OpenStack
-Browser → OpenWebUI → MCPO (OpenAPI) → MCP-OpenStack-Ops → OpenStack
-```
-
-Prerequisites are Git, Docker with the Compose plugin, a reachable OpenStack
-environment, and a model provider supported by OpenWebUI. The model should
-support reliable native tool calling.
-
-This default path supports an OpenStack deployment whose Identity, Compute,
-Network, Block Storage, Image, Placement, and Orchestration APIs are reachable
-from the Docker host at one hostname with the configured service ports. If your
-cloud uses different hostnames or URL paths per service, check
-[OpenStack endpoint topology](#openstack-endpoint-topology) before starting.
-
-| Quick Start default | Value |
-| --- | --- |
-| OpenStack identity | One account from `.env` |
-| Available tools | Read-only; modification tools are hidden |
-| HTTP authentication | Disabled |
-| Published network | Localhost only |
-| MCPO configuration | `mcp-config.json.http.local` |
-
-### 1. Clone and configure
-
-```bash
-git clone https://github.com/call518/MCP-OpenStack-Ops.git
-cd MCP-OpenStack-Ops
-cp .env.example .env
-cp mcp-config.json.http mcp-config.json.http.local
-chmod 600 mcp-config.json.http.local
-openssl rand -hex 32
-vi .env
-```
-
-In `.env`:
-
-1. Replace `WEBUI_SECRET_KEY` with the generated value.
-2. Set the `OS_*` authentication, domain, region, protocol, and service-port
-   values for the target OpenStack environment.
-3. Keep these local Quick Start defaults:
-
-```dotenv
-ALLOW_MODIFY_OPERATIONS=false
-MCP_MULTI_USER=false
-REMOTE_AUTH_ENABLE=false
-REMOTE_SECRET_KEY=
-DOCKER_BIND_ADDRESS=127.0.0.1
-MCPO_CONFIG_FILE=mcp-config.json.http.local
-```
-
-The local MCPO copy contains no credentials in this mode and connects to the MCP
-container through the private Compose network. It is ignored by Git, so later
-authentication changes do not modify the tracked reference template.
-The placeholder Authorization header is ignored while `REMOTE_AUTH_ENABLE=false`.
-When enabling Bearer authentication, replace `<REMOTE_SECRET_KEY>` in the local
-MCPO copy with the same value configured in `.env`.
-
-### 2. Start the stack
-
-```bash
-docker compose up -d
-docker compose ps
-```
-
-Wait until `mcp-server` is healthy and `mcpo-proxy` and `open-webui` are running.
-
-| Service | Local URL | Purpose |
-| --- | --- | --- |
-| OpenWebUI | `http://localhost:3000` | Chat interface |
-| MCP server | `http://localhost:8000/mcp` | Direct MCP endpoint |
-| MCPO docs | `http://localhost:8080/mcp-openstack-ops/docs` | Generated OpenAPI schema and test UI |
-
-If `mcp-server` is unhealthy, inspect its log before continuing:
-
-```bash
-docker compose logs mcp-server
-```
-
-### 3. Configure OpenWebUI 0.13
-
-Open `http://localhost:3000`, create the first administrator account, and add a
-model provider. Use a model with reliable native function calling.
-
-For the shortest first run, choose one provider:
-
-- **OpenAI:** open **Settings → Admin → Connections**, add an OpenAI API
-  connection, use `https://api.openai.com/v1`, enter the API key, and save it.
-  See the [OpenWebUI OpenAI guide](https://docs.openwebui.com/getting-started/quick-start/connect-a-provider/starting-with-openai/).
-- **Ollama on the Docker host:** the Compose configuration already points
-  OpenWebUI to `http://host.docker.internal:11434`. Ensure Ollama listens where
-  Docker can reach it and select a tool-capable model. See the
-  [OpenWebUI Ollama guide](https://docs.openwebui.com/getting-started/quick-start/connect-a-provider/starting-with-ollama/).
-- **Another OpenAI-compatible provider or local server:** add its base URL and
-  API key under **Settings → Admin → Connections**. When the provider does not
-  expose a model list, enter the model ID manually. See the
-  [OpenAI-compatible provider guide](https://docs.openwebui.com/getting-started/quick-start/connect-a-provider/starting-with-openai-compatible/).
-
-Confirm that the selected model appears in a new chat before configuring the
-MCP integration.
-
-#### 3.1 Add an external tool-server connection
-
-Choose one of the following connections. The direct MCP option has fewer
-components; use MCPO when OpenAPI compatibility is required.
-
-**Option A: Direct MCP connection**
-
-Open **Settings → Admin → Tools → Integrations**, find **External Tool
-Servers**, and add this connection:
-
-| Field | Value |
-| --- | --- |
-| Type | `MCP (Streamable HTTP)` |
-| Name | `MCP OpenStack Ops Direct` |
-| ID | `mcp-openstack-ops-direct` or the generated value |
-| URL | `http://mcp-server:8000/mcp` |
-| Authentication | `None` |
-| Function name filter list | Empty |
-| Enabled | On |
-
-Use `Bearer` authentication with the `REMOTE_SECRET_KEY` value instead when
-`REMOTE_AUTH_ENABLE=true`. Save the connection and confirm that the connection
-check succeeds. See the
-[OpenWebUI native MCP guide](https://docs.openwebui.com/features/extensibility/mcp/)
-for supported transports and current compatibility notes.
-
-**Option B: MCPO OpenAPI connection**
-
-Open **Settings → Admin → Tools → Integrations**, find **External Tool
-Servers**, and add this connection:
-
-| Field | Value |
-| --- | --- |
-| Type | `OpenAPI` |
-| Name | `MCP OpenStack Ops` |
-| ID | `mcp-openstack-ops` or the generated value |
-| URL | `http://mcpo-proxy:8000/mcp-openstack-ops` |
-| Authentication | `None` |
-| Function name filter list | Empty |
-| Enabled | On |
-
-This is an administrator-managed connection, so OpenWebUI fetches the schema
-from its own container. Use the Compose service address above, not
-`http://localhost:8080`; inside the OpenWebUI container, `localhost` refers to
-OpenWebUI itself. The UI automatically fetches `openapi.json` from the supplied
-base URL. Save the connection and confirm that the connection check succeeds.
-
-#### 3.2 Enable Tool Search for the full tool inventory
-
-The OpenStack server plus OpenWebUI's built-in tools can exceed a model
-provider's maximum number of function definitions per request. Open
-**Settings → Admin → System → Interface**. This is the administrator
-**Interface** entry below **Authentication**, not the personal Interface entry
-near the top of the settings menu. In the **Chat** section, set:
-
-| Setting | Value |
-| --- | --- |
-| Tool Search | On |
-| Defer Built-in Tools | On |
-| Deferral Threshold (characters) | `0` |
-| Always Loaded Tools | Empty |
-
-Save the settings. Tool Search keeps the complete tool inventory available but
-sends only `search_tools`, `call_tool`, and any explicitly always-loaded tools
-to the model until a matching tool is needed. See the
-[OpenWebUI tools documentation](https://docs.openwebui.com/features/extensibility/plugin/tools/).
-
-#### 3.3 Configure OpenAI reasoning models
-
-This step applies only to an OpenAI reasoning model that needs both non-default
-reasoning effort and function tools. In **Settings → Admin → AI → Connections**,
-edit its OpenAI connection and select API type **Responses**. Chat Completions
-does not support function tools together with a non-`none` reasoning effort on
-newer reasoning models.
-
-With OpenWebUI 0.13.0, leave the chat's **Model controls → Advanced Params →
-Reasoning Effort** at **Default**. Selecting **Custom** initializes the field to
-`medium` and sends the Chat Completions parameter `reasoning_effort`, which is
-not valid in a Responses request. Default omits that override and lets the model
-apply its own default effort. To force an explicit Responses value, add this
-custom parameter instead:
-
-```text
-Name: reasoning
-Value: {"effort":"medium"}
-```
-
-See the [OpenAI Responses migration guide](https://developers.openai.com/api/docs/guides/migrate-to-responses)
-and the [OpenWebUI Open Responses guide](https://docs.openwebui.com/getting-started/quick-start/connect-a-provider/starting-with-open-responses/).
-
-Models and providers without this constraint may keep their normal API type and
-reasoning settings.
-
-#### 3.4 Enable the connection in a chat
-
-Open a new chat, select the model, click the **Integrations** icon beside the
-message input, and enable `MCP OpenStack Ops` under **Tools**. Global tool-server
-connections are not automatically enabled in every chat.
-
-### 4. Verify
-
-Ask the model:
-
-```text
-Use mcp-openstack-ops to list the instances in my OpenStack project.
-```
-
-A successful response confirms either the OpenWebUI → MCP server → OpenStack
-path or the OpenWebUI → MCPO → MCP server → OpenStack path, depending on the
-connection selected in the chat. For the MCPO option, the documentation URL
-above should also list the generated tool endpoints. For connection failures,
-inspect the services used by the selected path:
-
-```bash
-docker compose logs mcp-server mcpo-proxy open-webui
-```
-
-Common OpenWebUI 0.13 errors:
-
-| Error | Cause | Fix |
-| --- | --- | --- |
-| `Cannot connect to host localhost` | An administrator connection used a browser/host URL from inside the OpenWebUI container | Use `http://mcp-server:8000/mcp` for direct MCP or `http://mcpo-proxy:8000/mcp-openstack-ops` for MCPO |
-| `tools: array too long` | External and built-in tool definitions exceeded the model provider's request limit | Enable Tool Search with threshold `0` |
-| `Function tools with reasoning_effort are not supported ... /v1/chat/completions` | Chat Completions received function tools and a non-`none` reasoning effort | Use Responses, or set reasoning effort to `none` if reasoning is not needed |
-| `Unsupported parameter: reasoning_effort ... moved to reasoning.effort` | OpenWebUI 0.13.0 sent a custom Reasoning Effort through a Responses connection | Set Reasoning Effort to Default; use custom `reasoning={"effort":"medium"}` only when an explicit value is required |
-| MCPO logs `POST http://mcp-server:8000/mcp "404 Not Found"` and `McpError: Session terminated`; `mcp-server` logs `Rejected request with unknown or expired session ID` | MCP sessions exist only in the running `mcp-server` process. After `mcp-server` restarts, MCPO keeps its old session and does not reconnect. `docker compose restart` does not wait for the `mcp-server` health check, so MCPO can connect to the old process just before it stops | With `mcp-server` running, run `docker compose restart mcpo-proxy`. To restart both, use `docker compose up -d --force-recreate mcp-server mcpo-proxy` instead of `docker compose restart`. If a direct MCP client reports the same session error, reconnect it |
-
-### 5. Enable modifications only when needed
-
-Create, update, and delete tools are intentionally absent by default. To enable
-them, set `ALLOW_MODIFY_OPERATIONS=true` in `.env` and recreate the MCP path:
-
-```bash
-docker compose up -d --force-recreate mcp-server mcpo-proxy
-```
-
-OpenStack policy still controls what the configured account may change. For
-Bearer authentication, non-local exposure, and custom configuration files, see
-[Server Configuration](#server-configuration). For request-scoped user accounts,
-see the [multi-user guide](docs/multi-user-guide.md).
-
-Stop the stack without deleting the OpenWebUI data volume with:
-
-```bash
-docker compose down
-```
-
-### 6. Installation variants and detailed guides
-
-The steps above are the local, single-account evaluation path. Use the matching
-guide when your environment differs:
-
-| Environment or requirement | Follow-up guide |
-| --- | --- |
-| OpenStack APIs use HTTPS with a public or private CA | [HTTPS and private CA setup](#https-and-private-ca-setup) |
-| OpenStack services use different hosts or URL paths | [OpenStack endpoint topology](#openstack-endpoint-topology) |
-| Host ports `3000`, `8000`, or `8080` are occupied | [Docker Compose environment variables](#environment-variables) |
-| MCP is exposed beyond localhost | [Bearer authentication and remote-access precautions](#bearer-token-authentication) |
-| Each user supplies a separate OpenStack identity | [Multi-user setup and usage guide](docs/multi-user-guide.md) |
-| Separate fixed accounts or projects need separate MCP entries | [Multi-project configuration](#multi-project-configuration) |
-| Claude Desktop or Claude Code is the client | [Claude Desktop](#claude-desktop-integration) or [Claude Code](#claude-code-integration) |
-| OpenAI reasoning models need explicit reasoning effort | [OpenAI reasoning-model settings](#33-configure-openai-reasoning-models) |
-
-## Claude Desktop Integration
-
-Choose **one** of the following options. Option 1 is the simplest: it installs
-from a file and shows a settings form, with no configuration file to edit.
-Options 2-4 add a server entry to `claude_desktop_config.json`.
-
-| Option | Use when | Requirements on the Claude Desktop computer |
-| --- | --- | --- |
-| [1. Desktop extension (`.mcpb`) (recommended)](#option-1-desktop-extension-mcpb-recommended) | Install a released version in one step | Claude Desktop with extension support |
-| [2. PyPI package with `uvx`](#option-2-pypi-package-with-uvx) | Run the released server from `claude_desktop_config.json` | uv |
-| [3. Source checkout with `uv`](#option-3-source-checkout-with-uv) | Run unreleased or modified source | Git, uv |
-| [4. Existing Docker HTTP server with `npx`](#option-4-existing-docker-http-server-with-npx) | Reuse the running Docker Compose `mcp-server` | Node.js 18+ |
-
-In options 1-3, Claude Desktop starts a local MCP server on that computer,
-which needs network access to the OpenStack APIs. In option 4, Claude Desktop
-starts only the `mcp-remote` bridge; the MCP server is a separate HTTP server,
-even when it runs on the same computer, and reaches OpenStack with its own `.env`.
-
-The examples name the server entries `OpenStack-uvx`, `OpenStack-uv`, and
-`OpenStack-npx`. Keep a server name at 21
-characters or fewer: clients can prefix it to each tool name (Claude Code uses
-`mcp__<server>__<tool>`), the Claude API limits tool names to 64 characters, and
-the longest tool name here has 36 characters. A server on the public internet can
-instead be added as a [remote custom connector](#remote-custom-connector), which
-does not use `claude_desktop_config.json`.
-
-### Option 1: Desktop extension (.mcpb) (recommended)
-
-Starting with the first release that includes it, each
-[GitHub Release](https://github.com/call518/MCP-OpenStack-Ops/releases) provides
-`mcp-openstack-ops-<version>.mcpb`. Earlier releases do not have this file.
-
-1. Download the `.mcpb` file from the release.
-2. In Claude Desktop, open **Settings > Extensions > Advanced settings >
-   Install Extension…** and select the file. On Windows, double-clicking the
-   file or dragging it into a chat did not install it.
-3. Fill in the settings form. Each field title shows the environment variable
-   it sets, as listed in [Environment Variables](#environment-variables).
-   Keystone host, project, user name, and password are required. Ports,
-   domains, and region are prefilled with the server defaults. The CA
-   certificate is optional. **Allow modify operations** is off, so only read
-   tools are registered.
-
-Claude Desktop stores the password as a sensitive value instead of writing it
-to `claude_desktop_config.json`. The bundle contains the source, `pyproject.toml`,
-and `uv.lock`; Claude Desktop installs Python and the locked dependencies with
-uv. To upgrade, install the `.mcpb` file of a newer release. To build a bundle
-from a checkout, run `scripts/build-mcpb.sh <version>`; it requires Python 3 and
-Node.js and writes `dist/mcp-openstack-ops-<version>.mcpb`.
-
-The bundle uses the MCPB `uv` server type (manifest version 0.4). The Claude
-Desktop version that first supports it is not documented; if installation is
-refused, update Claude Desktop or use option 2. uv may choose the newest Python
-allowed by `requires-python = ">=3.12"`. The locked dependencies install from
-wheels on Python 3.12-3.14 for Windows, macOS, and Linux; on 3.15, PyYAML has no
-wheel and builds as pure Python without a compiler. The bundle was installed and
-started on Linux with Python 3.15, and the unit tests pass on Python 3.12-3.15.
-
-### Configuration file for options 2-4
-
-Open Claude Desktop **Settings > Developer > Edit Config**, or edit the file
-directly:
-
-- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-- Linux: `~/.config/Claude/claude_desktop_config.json`
-
-Merge the entry into the existing `mcpServers` object, then quit and restart
-Claude Desktop. MCP logs are in `~/Library/Logs/Claude` (macOS),
-`%APPDATA%\Claude\logs` (Windows), or `~/.config/Claude/logs` (Linux). This file
-stores the values you put in it in plain text; keep it private and do not commit
-it.
-
-### Option 2: PyPI package with uvx
-
-`uvx` is included with [uv](https://docs.astral.sh/uv/). It downloads the
-`mcp-openstack-ops` package and a suitable Python from PyPI into a cached tool
-environment and runs it; no clone is needed. Download it once before the first
-Claude Desktop launch:
-
-```bash
-uvx mcp-openstack-ops --help
-```
-
-The first run installs the latest release from
-[PyPI](https://pypi.org/project/mcp-openstack-ops/); later runs reuse the cached
-version and do not check for updates. To upgrade, run
-`uvx mcp-openstack-ops@latest --help` and restart Claude Desktop. To keep the
-same version on every computer, use an exact version such as
-`mcp-openstack-ops@X.Y.Z` in both the command and `args`.
-
-```json
-{
-  "mcpServers": {
-    "OpenStack-uvx": {
-      "command": "uvx",
-      "args": ["mcp-openstack-ops", "--type", "stdio"],
-      "env": {
-        "OS_AUTH_HOST": "<keystone-host>",
-        "OS_AUTH_PORT": "5000",
-        "OS_PROJECT_NAME": "<project>",
-        "OS_USERNAME": "<user>",
-        "OS_PASSWORD": "<password>",
-        "OS_USER_DOMAIN_NAME": "Default",
-        "OS_PROJECT_DOMAIN_NAME": "Default",
-        "OS_REGION_NAME": "RegionOne",
-        "ALLOW_MODIFY_OPERATIONS": "false"
-      }
-    }
-  }
-}
-```
-
-Add the endpoint, HTTPS, and port variables your cloud needs from
-[Environment Variables](#environment-variables). With
-`ALLOW_MODIFY_OPERATIONS=false`, only read tools are registered. The tracked
-`mcp-config.json.stdio` template sets `PYTHONPATH=/app/src`, the source path inside
-this project's containers; use its `env` values, not its `command`, for Claude
-Desktop.
-
-### Option 3: Source checkout with uv
-
-Use this option for changes that are not released on PyPI. Requirements: Git
-and [uv](https://docs.astral.sh/uv/); uv installs Python 3.12+ and the locked
-dependencies.
-
-Clone this repository on the Claude Desktop computer. In the commands and configuration below,
-`/path/to/MCP-OpenStack-Ops` is the absolute path of this clone: the directory
-that contains `pyproject.toml`, `uv.lock`, and `src/`. Then prepare the
-environment once so that the first Claude Desktop launch does not wait for
-installation:
-
-```bash
-git clone https://github.com/call518/MCP-OpenStack-Ops.git /path/to/MCP-OpenStack-Ops
-uv --directory /path/to/MCP-OpenStack-Ops sync
-```
-
-On Windows, use a Windows path such as `C:\work\MCP-OpenStack-Ops` in the
-commands, and write it as `C:\\work\\MCP-OpenStack-Ops` in JSON. For Claude
-Desktop on Windows, clone the repository on Windows rather than using a clone
-inside WSL, whose `.venv` is built for Linux.
-
-Add an entry with the absolute path of the clone. Only `command` and `args`
-differ from option 2:
-
-```json
-{
-  "mcpServers": {
-    "OpenStack-uv": {
-      "command": "uv",
-      "args": ["--directory", "/path/to/MCP-OpenStack-Ops", "run",
-               "mcp-openstack-ops", "--type", "stdio"],
-      "env": {
-        "OS_AUTH_HOST": "<keystone-host>",
-        "OS_AUTH_PORT": "5000",
-        "OS_PROJECT_NAME": "<project>",
-        "OS_USERNAME": "<user>",
-        "OS_PASSWORD": "<password>",
-        "OS_USER_DOMAIN_NAME": "Default",
-        "OS_PROJECT_DOMAIN_NAME": "Default",
-        "OS_REGION_NAME": "RegionOne",
-        "ALLOW_MODIFY_OPERATIONS": "false"
-      }
-    }
-  }
-}
-```
-
-After `git pull`, restart Claude Desktop to load the updated source.
-
-### Option 4: Existing Docker HTTP server with npx
-
-Claude Desktop starts local commands from `claude_desktop_config.json`; it does
-not take an HTTP URL there. To use the Docker Compose `mcp-server`, use the
-third-party [`mcp-remote`](https://github.com/geelen/mcp-remote) stdio-to-HTTP
-bridge. It requires Node.js 18 or later; Claude Desktop uses the system Node.js.
-Register the MCP server's `/mcp` URL, not the MCPO URL. Replace host port `8000`
-if you changed it:
-
-```json
-{
-  "mcpServers": {
-    "OpenStack-npx": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote@0.15.2", "http://127.0.0.1:8000/mcp",
-               "--transport", "http-only",
-               "--header", "Authorization:${REMOTE_SECRET_KEY}"],
-      "env": {
-        "REMOTE_SECRET_KEY": "Bearer <REMOTE_SECRET_KEY>"
-      }
-    }
-  }
-}
-```
-
-`mcp-remote` substitutes this `env` value into the `Authorization` header. Set it
-to `Bearer `, a space, and the MCP server's `REMOTE_SECRET_KEY` value; without the
-`Bearer ` prefix the server rejects the connection. Do not use `OS_PASSWORD`; the
-OpenStack credentials stay in the server's `.env`. The prefix is kept in `env`
-because Claude Desktop on Windows does not escape spaces in `args`. If server authentication is disabled
-(`REMOTE_AUTH_ENABLE=false`), remove the `--header` arguments and `env`. Keep the
-`mcp-remote` version pinned. Use plain HTTP only for a loopback address; for another
-host, publish the server over HTTPS. The server's own `.env` decides the
-OpenStack account and whether `set_*` tools are registered.
-
-### Remote custom connector
-
-This is not a `claude_desktop_config.json` option. Remote connectors are added in Claude **Customize > Connectors > Add custom
-connector**, not in `claude_desktop_config.json`. Claude connects to the server
-from Anthropic's cloud, not from your computer, so the server must have an HTTPS
-URL reachable from the public internet; servers on a private network, VPN, or
-behind a firewall cannot be reached without allowlisting or an MCP tunnel.
-
-This server does not implement OAuth. With `REMOTE_AUTH_ENABLE=true`, choose
-**No sign-in** and add an `authorization` request header whose value is
-`Bearer <REMOTE_SECRET_KEY>`, including the scheme. Request-header
-authentication is a beta feature that not every organization has. The token
-grants the server's configured OpenStack account to anyone who holds it. Never
-expose this server without authentication. Review
-[Bearer Token Authentication](#bearer-token-authentication) and keep
-`ALLOW_MODIFY_OPERATIONS=false` unless writes are required. Multi-user mode
-uses custom `X-OpenStack-*` headers, and custom header names need Anthropic
-approval; see the [multi-user guide](docs/multi-user-guide.md).
-
-Limitations: none of the options has been installed in the Claude Desktop app
-yet. For option 1, a built bundle passed `mcpb validate`, and its unpacked
-`mcp_config` ran with an MCP client after host-style variable substitution. The
-release workflow that attaches the bundle has not run yet. Options 2-4 were
-checked with an MCP client using the same command, arguments, and environment.
-Option 2 was checked by installing the package from a local checkout with `uvx`,
-not by downloading it from PyPI. With server authentication enabled, option 4
-connected with the `Bearer ` value and was rejected without the prefix or with a
-wrong key. The remote custom connector path is unverified.
-
-See the [Claude Desktop local MCP guide](https://modelcontextprotocol.io/docs/develop/connect-local-servers),
-[desktop extensions (MCPB)](https://claude.com/docs/connectors/building/mcpb),
-and [custom connectors](https://claude.com/docs/connectors/custom/remote-mcp).
-
 ---
 
-## Claude Code Integration
+## Contributing
 
-Install Claude Code and start the MCP server in `streamable-http` mode first.
-Register the MCP server's `/mcp` URL, not the MCPO/OpenAPI proxy URL. The example
-below uses the Docker host port `8000`; replace the host/port for your deployment
-and use HTTPS for remote connections. Registration does not start the server.
-
-For the existing single-account mode with `REMOTE_AUTH_ENABLE=true`, enter the
-server's `REMOTE_SECRET_KEY` without saving its literal value in shell history:
-
-```bash
-read -rsp 'MCP Bearer token: ' OPENSTACK_MCP_TOKEN
-echo
-export OPENSTACK_MCP_TOKEN
-
-claude mcp add-json --scope user openstack-ops '{"type":"http","url":"http://127.0.0.1:8000/mcp","headers":{"Authorization":"Bearer ${OPENSTACK_MCP_TOKEN}"}}'
-claude mcp list
-claude
-```
-
-Keep `OPENSTACK_MCP_TOKEN` exported in the terminal that launches Claude Code.
-`--scope user` saves the registration in your normal user configuration. If server
-authentication is disabled, use this registration command instead:
-
-```bash
-claude mcp add --transport http --scope user openstack-ops http://127.0.0.1:8000/mcp
-```
-
-In Claude Code, check `/mcp` and ask, for example:
-
-```text
-Use openstack-ops to list all instances in the project.
-```
-
-Remove the registration when no longer needed (this does not stop the server):
-
-```bash
-claude mcp remove --scope user openstack-ops
-unset OPENSTACK_MCP_TOKEN
-```
-
-This Bearer configuration uses the server's configured OpenStack account. For
-experimental per-user authentication, see the [multi-user guide](docs/multi-user-guide.md).
-See also the [Claude Code MCP documentation](https://code.claude.com/docs/en/mcp).
-
-## Server Configuration
-
-### Command Line Options
-
-```bash
-uv run python -m mcp_openstack_ops --help
-
-Options:
-  --log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}
-                        Logging level
-  --type {stdio,streamable-http}
-                        Transport type (default: stdio)
-  --host HOST          Host address for HTTP transport (default: 127.0.0.1)
-  --port PORT          Port number for HTTP transport (default: 8080)
-  --auth-enable        Enable Bearer token authentication for streamable-http mode
-  --secret-key SECRET  Secret key for Bearer token authentication
-  --multi-user         Use request-local Application Credentials (streamable-http only)
-```
-
-### Environment Variables
-
-| Variable | Description | Default | Usage |
-|----------|-------------|---------|--------|
-| **OpenStack Authentication** |
-| `OS_AUTH_HOST` | OpenStack Identity service host | Required | Authentication host address |
-| `OS_AUTH_PORT` | OpenStack Identity service port | Required | Authentication port |
-| `OS_AUTH_PROTOCOL` | Connection protocol (http or https) | `http` | Use `https` for production with SSL/TLS |
-| `OS_CACERT` | SSL CA certificate path for HTTPS | Optional | Required for secure HTTPS connections (e.g., `/etc/ssl/certs/ca.pem`). If not set with HTTPS, SSL verification is disabled (insecure) |
-| `OS_USERNAME` | OpenStack username | Required in single-account mode | Unused for multi-user request authentication |
-| `OS_PASSWORD` | OpenStack password | Required in single-account mode | Unused for multi-user request authentication |
-| `OS_PROJECT_NAME` | OpenStack project name | Required in single-account mode | Multi-user scope comes from each Application Credential |
-| `OS_IDENTITY_API_VERSION` | Identity API version | `3` | API version |
-| `OS_PROJECT_DOMAIN_NAME` | Project domain name | `default` | Domain scope |
-| `OS_USER_DOMAIN_NAME` | User domain name | `default` | Domain scope |
-| `OS_REGION_NAME` | OpenStack region | `RegionOne` | Regional scope |
-| **OpenStack Service Ports** |
-| `OS_COMPUTE_PORT` | Compute service port | `8774` | Nova endpoint |
-| `OS_NETWORK_PORT` | Network service port | `9696` | Neutron endpoint |
-| `OS_VOLUME_PORT` | Volume service port | `8776` | Cinder endpoint |
-| `OS_IMAGE_PORT` | Image service port | `9292` | Glance endpoint |
-| `OS_PLACEMENT_PORT` | Placement service port | `8780` | Placement endpoint |
-| `OS_HEAT_STACK_PORT` | Heat orchestration service port | `8004` | Heat API endpoint |
-| `OS_HEAT_STACK_CFN_PORT` | Heat CloudFormation service port | `18888` | Heat CFN API endpoint (default: 8000, changed to avoid Docker port conflicts) |
-| **MCP Server Configuration** |
-| `MCP_LOG_LEVEL` | Logging level | `INFO` | Development debugging |
-| `ALLOW_MODIFY_OPERATIONS` | Enable modify operations | `false` | Safety control for state modifications |
-| `FASTMCP_TYPE` | Transport type | `stdio` | Rarely needed to change |
-| `FASTMCP_HOST` | HTTP host address | `127.0.0.1` | For HTTP mode only |
-| `FASTMCP_PORT` | HTTP port number | `8080` | For HTTP mode only |
-| **Authentication (Optional)** |
-| `MCP_MULTI_USER` | Enable request-scoped per-user Application Credential authentication | `false` | Streamable HTTP only; requires HTTPS OpenStack endpoints by default and can be combined with shared Bearer authentication |
-| `MCP_MULTI_USER_ALLOW_INSECURE_HTTP` | Allow multi-user OpenStack API requests over HTTP | `false` | Development/testing only; requires `MCP_MULTI_USER=true` and transmits credentials and tokens in plaintext |
-| `REMOTE_AUTH_ENABLE` | Enable Bearer token authentication for streamable-http mode | `false` | Production security |
-| `REMOTE_SECRET_KEY` | Shared secret for Bearer token authentication | Required when auth enabled | Checked before per-user authentication when both modes are enabled |
-| **Docker Compose** |
-| `DOCKER_BIND_ADDRESS` | Published-port bind address | `127.0.0.1` | Keep local when HTTP authentication is disabled |
-| `DOCKER_EXTERNAL_PORT_OPENWEBUI` | OpenWebUI host port | `3000` | Browser access |
-| `DOCKER_EXTERNAL_PORT_MCP_SERVER` | MCP server host port | `8000` | Direct MCP clients |
-| `DOCKER_EXTERNAL_PORT_MCPO_PROXY` | MCPO host port | `8080` | OpenAPI proxy and docs |
-| `MCPO_CONFIG_FILE` | MCPO configuration mounted by Compose | `mcp-config.json.http.local` | Copy the tracked HTTP template to this ignored local file before starting Compose |
-
-### OpenStack endpoint topology
-
-Single-account and multi-user connections currently construct service URLs from
-one `OS_AUTH_HOST`, `OS_AUTH_PROTOCOL`, and the `OS_*_PORT` values. This works
-for compact deployments, API gateways, and virtual IPs that expose every listed
-service on one host. The server does not currently discover different service
-hosts or custom URL paths from the Keystone service catalog.
-
-Before starting, confirm that these URLs are reachable from inside the
-`mcp-server` container. If the cloud publishes different service hosts or paths,
-place a gateway or reverse proxy at `OS_AUTH_HOST` that maps the configured ports
-to those endpoints. Do not proceed by entering only the Keystone hostname; the
-MCP server may authenticate successfully and then fail on the first service tool.
-
-`OS_INTERFACE` does not change these explicit endpoint URLs. The current
-single-host configuration uses the internal interface convention.
-
-Every service URL is built even when the service is not deployed. If a firewall
-silently drops traffic to such a port (for example `OS_VOLUME_PORT` on a cloud
-without Cinder), calls to that service wait for the connection timeout instead
-of failing immediately. Let the port be refused, or point it at a reachable
-gateway, so that a missing service fails fast with an explicit error.
-
-Aodh (`alarming`) and Gnocchi (`metric`) have no `OS_*_PORT` setting. Their
-tools use the Keystone catalog endpoint for `OS_INTERFACE` and
-`OS_REGION_NAME`, which must also be reachable from the `mcp-server` container.
-
-
-### HTTPS and private CA setup
-
-For HTTPS OpenStack endpoints signed by a public CA, use the system CA bundle
-already present in the container:
-
-```dotenv
-OS_AUTH_PROTOCOL=https
-OS_CACERT=/etc/pki/tls/certs/ca-bundle.crt
-```
-
-For a private CA, the certificate must exist inside the `mcp-server` container;
-a host path in `.env` alone is not enough.
-
-Uncomment and replace the CA volume example under `mcp-server` in
-`docker-compose.yml`:
-
-```yaml
-volumes:
-  - /absolute/host/path/openstack-ca.pem:/etc/ssl/certs/openstack-ca.pem:ro
-```
-
-Then configure the container path, recreate the MCP path, and check its logs:
-
-```dotenv
-OS_AUTH_PROTOCOL=https
-OS_CACERT=/etc/ssl/certs/openstack-ca.pem
-```
-
-```bash
-docker compose up -d --force-recreate mcp-server mcpo-proxy
-docker compose logs mcp-server
-```
-
-Without `OS_CACERT`, single-account HTTPS disables certificate verification and
-is not a secure production configuration. Multi-user mode fails closed unless
-HTTPS is enabled, and its full requirements are documented in the
-[multi-user guide](docs/multi-user-guide.md).
-
-The tracked `mcp-config.json.*` files are reference templates. Before adding
-credentials, copy only the template you need; all matching `.local` files are
-ignored by Git:
-
-```bash
-cp mcp-config.json.http mcp-config.json.http.local
-cp mcp-config.json.multi-user mcp-config.json.multi-user.local
-cp mcp-config.json.multi-project mcp-config.json.multi-project.local
-cp mcp-config.json.stdio mcp-config.json.stdio.local
-chmod 600 mcp-config.json.*.local
-```
-
-For MCPO, select the copy in `.env`, for example
-`MCPO_CONFIG_FILE=mcp-config.json.multi-user.local`. Point non-Compose clients
-to their local copy separately. Never put real credentials in a tracked
-template.
-
----
-
-## 🔒 Project Isolation & Security
-
-### Single Project Scope Operation
-
-**MCP-OpenStack-Ops operates within a strictly defined project scope** determined by the `OS_PROJECT_NAME` environment variable. This provides complete tenant isolation and data privacy in multi-tenant OpenStack environments.
-
-**Key Security Features:**
-
-- **100% Complete Resource Isolation**: All operations are restricted to resources within the specified project with enhanced security validation
-- **Zero Cross-tenant Data Leakage**: Advanced project ownership validation prevents access to resources from other projects
-- **Multi-layer Security Filtering**: Each service implements intelligent resource filtering by current project ID with additional validation
-- **Secure Resource Lookup**: All resource searches use project-scoped lookup with ownership verification
-- **Shared Resource Access**: Intelligently includes shared/public resources (networks, images) while maintaining strict security boundaries
-- **Cross-Project Access Prevention**: Enhanced protection against accidental operations on similarly-named resources in other projects
-
-**Filtered Resources by Project:**
-
-| Service | Project-Scoped Resources | Notes |
-|---------|-------------------------|-------|
-| **Identity** | Users (via role assignments), Role assignments | Only users with roles in current project |
-| **Compute** | Instances, Flavors (embedded data), Keypairs | All instances within project scope |
-| **Image** | Private images (owned), Public/Community/Shared images | Smart filtering prevents zero-image issues |
-| **Network** | Networks, Subnets, Security Groups, Floating IPs, Routers | Includes shared/external networks for access |
-| **Storage** | Volumes, Snapshots, Backups | All storage resources within project |
-| **Orchestration** | Heat Stacks, Stack Resources | All orchestration within project |
-| **Load Balancer** | Load Balancers, Listeners, Pools | All load balancing within project |
-| **Monitoring** | Resource usage, Project quotas | Project-specific monitoring data |
-
-### Security Validation & Testing
-
-**Project Isolation Security Test**
-
-To verify that project isolation is working correctly, run the included security test:
-
-```bash
-# Run project isolation security test
-python test_project_isolation.py
-```
-
-**Expected Test Results:**
-```
-🔒 OpenStack Project Isolation Security Test
-==================================================
-📋 Testing project isolation for: your-project
-
-1️⃣ Testing Connection and Project ID...
-✅ Connection successful
-✅ Current project ID: abc123-def456-ghi789
-✅ Project name 'your-project' matches project ID
-
-2️⃣ Testing Resource Ownership Validation...
-✅ Found 5 compute instances
-   Instance web-server-01: ✅ Owned
-   Instance db-server-01: ✅ Owned
-✅ Found 3/8 owned networks
-✅ Found 10/10 owned volumes
-
-3️⃣ Testing Service-Level Project Filtering...
-✅ Compute service returned 5 instances
-✅ Network service returned 3 networks  
-✅ Storage service returned 10 volumes
-
-4️⃣ Testing Secure Resource Lookup...
-ℹ️  Network 'admin' not found or not accessible in current project
-ℹ️  Instance 'demo' not found or not accessible in current project
-
-🎯 Project Isolation Test Results
-========================================
-✅ All security tests passed!
-✅ Project 'your-project' isolation verified
-✅ Cross-project access prevention confirmed
-
-🔒 Your OpenStack MCP Server is properly secured!
-```
-
-**Security Features Validated:**
-- ✅ Project ID verification and matching
-- ✅ Resource ownership validation for all services
-- ✅ Service-level project filtering
-- ✅ Secure resource lookup with cross-project protection
-- ✅ Prevention of accidental operations on other projects' resources
-
-### Multi-project configuration
-
-For managing multiple OpenStack projects, deploy multiple MCP server instances with different `OS_PROJECT_NAME` values:
-
-**Example: Managing 3 Projects**
-
-```bash
-# Project 1: Production Environment
-OS_PROJECT_NAME=production
-# ... other config
-python -m mcp_openstack_ops --type stdio
-
-# Project 2: Development Environment  
-OS_PROJECT_NAME=development
-# ... other config  
-python -m mcp_openstack_ops --type streamable-http --port 8001
-
-# Project 3: Testing Environment
-OS_PROJECT_NAME=testing  
-# ... other config
-python -m mcp_openstack_ops --type streamable-http --port 8002
-```
-
-**Claude Desktop Multi-Project Configuration Example:**
-
-```json
-{
-  "mcpServers": {
-    "openstack-production": {
-      "command": "python",
-      "args": ["-m", "mcp_openstack_ops", "--type", "stdio"],
-      "env": {
-        "OS_PROJECT_NAME": "production",
-        "OS_USERNAME": "admin",
-        "OS_PASSWORD": "your-password",
-        "OS_AUTH_HOST": "192.168.35.2"
-      }
-    },
-    "openstack-development": {
-      "command": "python", 
-      "args": ["-m", "mcp_openstack_ops", "--type", "stdio"],
-      "env": {
-        "OS_PROJECT_NAME": "development",
-        "OS_USERNAME": "admin",
-        "OS_PASSWORD": "your-password", 
-        "OS_AUTH_HOST": "192.168.35.2"
-      }
-    },
-    "openstack-testing": {
-      "command": "python",
-      "args": ["-m", "mcp_openstack_ops", "--type", "stdio"], 
-      "env": {
-        "OS_PROJECT_NAME": "testing",
-        "OS_USERNAME": "admin",
-        "OS_PASSWORD": "your-password",
-        "OS_AUTH_HOST": "192.168.35.2"
-      }
-    }
-  }
-}
-```
-
-This allows Claude to access each project independently with complete isolation between environments.
-
-**📁 Reference Configuration File:**
-
-A complete multi-project configuration example is available at `mcp-config.json.multi-project`:
-- **Production**: Read-only operations for safety (`ALLOW_MODIFY_OPERATIONS=false`)
-- **Development**: Full operations enabled (`ALLOW_MODIFY_OPERATIONS=true`) 
-- **Testing**: Debug logging enabled (`MCP_LOG_LEVEL=DEBUG`)
-
-```bash
-# Preserve the tracked template and customize only the ignored local copy
-cp mcp-config.json.multi-project mcp-config.json.multi-project.local
-chmod 600 mcp-config.json.multi-project.local
-# Point the client to this file, or merge its contents into the client's
-# existing private configuration. Do not overwrite an existing client config.
-```
-
----
-
-## Safety Controls
-
-### Modification Operations Protection
-
-By default, all operations that can modify or delete OpenStack resources are **disabled** for safety:
-
-```bash
-# Default setting - Only read-only operations allowed
-ALLOW_MODIFY_OPERATIONS=false
-```
-
-**Protected Operations (when `ALLOW_MODIFY_OPERATIONS=false`):**
-- Instance management (start, stop, restart, pause, unpause)
-- Volume operations (create, delete, attach, detach)
-- Keypair management (create, delete, import)
-- Floating IP operations (create, delete, associate, disassociate)
-- Snapshot management (create, delete)
-- Image management (create, delete, update)
-- Heat stack operations (create, delete, update)
-
-**Always Available (Read-Only Operations):**
-- Cluster status and monitoring
-- Resource listings (instances, volumes, networks, etc.)
-- Service status checks
-- Usage and quota information
-- Search and filtering operations
-
-**⚠️ To Enable Modify Operations:**
-```bash
-# Enable all operations (USE WITH CAUTION)
-ALLOW_MODIFY_OPERATIONS=true
-```
-
-**Tool Registration Behavior:**
-- When `ALLOW_MODIFY_OPERATIONS=false`: Only read-only tools are registered with the MCP server
-- When `ALLOW_MODIFY_OPERATIONS=true`: All tools (read-only + modify operations) are registered
-- Tool availability is determined at server startup - restart required after changing this setting
-
-**Best Practices:**
-- Keep `ALLOW_MODIFY_OPERATIONS=false` in production environments
-- Enable modify operations only in development/testing environments
-- Use separate configurations for different environments
-- Review operations before enabling modify capabilities
-- Restart the MCP server after changing the `ALLOW_MODIFY_OPERATIONS` setting
-
----
-
-## 💬 Example Queries & Usage Patterns
-
-For comprehensive examples of how to interact with this MCP server, including natural language queries and their corresponding tool mappings, see:
-
-**📖 [Example Queries & Usage Patterns](src/mcp_openstack_ops/prompt_template.md#7-example-queries--usage-patterns)**
-
-This section includes:
-- 🎯 Cluster overview and status queries
-- �️ Instance management operations
-- 🌐 Network configuration tasks
-- � Storage management workflows
-- 🔥 Heat orchestration examples
-- ⚖️ Load balancer operations
-- � Advanced search patterns
-- 📊 Monitoring and troubleshooting
-- 🧠 Complex multi-tool query combinations
-
----
-
-## Performance Optimization
-
-### Large-Scale Environment Support
-
-The MCP server is optimized for large OpenStack environments with thousands of instances:
-
-**Pagination Features:**
-- Default limits prevent memory overflow (50 instances per request)
-- Configurable safety limits (maximum 200 instances per request)
-- Offset-based pagination for browsing large datasets
-- Performance metrics tracking (processing time, instances per second)
-
-**Search Optimization:**
-- 2-phase search process (basic info filtering → detailed info retrieval)
-- Intelligent caching with connection reuse
-- Selective API calls to minimize overhead
-- Case-sensitive search options for precise filtering
-
-**Connection Management:**
-- Global connection caching with validity testing
-- Automatic retry mechanisms for transient failures
-- Connection pooling for high-throughput scenarios
-
-**Usage Examples:**
-```bash
-# Safe large environment browsing
-get_instance_details(limit=50, offset=0)     # First 50 instances
-get_instance_details(limit=50, offset=50)    # Next 50 instances
-
-# Emergency override for small environments
-get_instance_details(include_all=True)       # All instances (use with caution)
-
-# Optimized search for large datasets
-search_instances("web", "name", limit=20, offset=0, case_sensitive=False)
-```
-
----
-
-## Development
-
-### Adding New Tools
-
-Edit `src/mcp_openstack_ops/mcp_main.py` to add new MCP tools:
-
-```python
-@mcp.tool()
-async def my_openstack_tool(param: str) -> str:
-    """
-    Brief description of the tool's purpose.
-    
-    Functions:
-    - List specific functions this tool performs
-    - Describe the operations it enables
-    - Mention when to use this tool
-    
-    Use when user requests [specific scenarios].
-    
-    Args:
-        param: Description of the parameter
-        
-    Returns:
-        Description of return value format.
-    """
-    try:
-        logger.info(f"Tool called with param: {param}")
-        # Implementation using functions.py helpers
-        result = my_helper_function(param)
-        
-        response = {
-            "timestamp": datetime.now().isoformat(),
-            "result": result
-        }
-        
-        return json.dumps(response, indent=2, ensure_ascii=False)
-        
-    except Exception as e:
-        error_msg = f"Error: Failed to execute tool - {str(e)}"
-        logger.error(error_msg)
-        return error_msg
-```
-
-### Helper Functions
-
-Add utility functions to `src/mcp_openstack_ops/functions.py`:
-
-```python
-def my_helper_function(param: str) -> dict:
-    """Helper function for OpenStack operations"""
-    try:
-        conn = get_openstack_connection()
-        
-        # OpenStack SDK operations
-        result = conn.some_service.some_operation(param)
-        
-        logger.info(f"Operation completed successfully")
-        return {"success": True, "data": result}
-        
-    except Exception as e:
-        logger.error(f"Helper function error: {e}")
-        raise
-```
-
----
-
-## Testing & Validation
-
-### Local Testing
-```bash
-# Test with MCP Inspector (recommended)
-./scripts/run-mcp-inspector-local.sh
-
-# Test with debug logging
-MCP_LOG_LEVEL=DEBUG uv run python -m mcp_openstack_ops
-
-# Validate OpenStack connection
-uv run python -c "from src.mcp_openstack_ops.functions import get_openstack_connection; print(get_openstack_connection())"
-```
-
-### Live tool checks
-
-`scripts/live_tool_check.py` calls every registered tool through a real MCP
-client (in process, or over Streamable HTTP with `--url`), including negative
-paths, polls asynchronous operations to their final state with openstacksdk,
-and removes what it created. With modification tools enabled it creates and
-deletes projects, domains, users, roles, flavors, networks, images and servers
-named with `--prefix` (default `mcpval`), and its cleanup deletes every resource
-whose name starts with that prefix. Run it only as an administrator against a
-disposable test cloud; state-changing runs require
-`--i-understand-this-is-destructive`.
-
-```bash
-# OS_* variables for the test cloud, plus OS_AUTH_HOST/OS_AUTH_PORT for the server
-. admin-openrc.sh
-ALLOW_MODIFY_OPERATIONS=true uv run python scripts/live_tool_check.py \
-  --i-understand-this-is-destructive \
-  --image cirros --flavor m1.tiny --resize-flavor m1.small \
-  --network demo-net --external-network public1 --existing-server demo1 \
-  --output live-tool-check.json
-```
-
-The summary reports call and final-state check counts and a unique-tool
-classification (`passed`, `passed_partial_service`, `service_absent`,
-`error_paths_only`, `partial`, `failed`). A tool whose service is not deployed
-passes only by returning an explicit error, which is not live validation. Keep
-result files out of the repository (`live-tool-check*.json` is ignored).
-
----
-
-## 🔐 Security & Authentication
-
-### Bearer Token Authentication
-
-For `streamable-http` mode, this MCP server supports Bearer token authentication to secure remote access. This is especially important when running the server in production environments.
-
-#### Configuration
-
-**Enable Authentication:**
-
-```bash
-# In .env file
-REMOTE_AUTH_ENABLE=true
-REMOTE_SECRET_KEY=my-test-secret-key-12345
-```
-
-**Or via CLI:**
-
-```bash
-uv run python -m mcp_openstack_ops --type streamable-http --auth-enable --secret-key your-secure-secret-key-here
-```
-
-#### Security Levels
-
-1. **stdio mode** (Default): Local-only access, no authentication needed
-2. **streamable-http + REMOTE_AUTH_ENABLE=false/undefined**: Remote access without authentication ⚠️ **NOT RECOMMENDED for production**
-3. **streamable-http + REMOTE_AUTH_ENABLE=true**: Remote access with Bearer token authentication ✅ **RECOMMENDED for production**
-4. **streamable-http + MCP_MULTI_USER=true**: Each request authenticates with the caller's project-scoped Keystone Application Credential and requires HTTPS OpenStack endpoints by default. HTTP is available only for isolated development/testing with `MCP_MULTI_USER_ALLOW_INSECURE_HTTP=true`.
-5. **streamable-http + MCP_MULTI_USER=true + REMOTE_AUTH_ENABLE=true**: Each request must pass shared Bearer authentication first and per-user Application Credential authentication second. See the [multi-user guide](docs/multi-user-guide.md).
-
-> **🔒 Default Policy**: `REMOTE_AUTH_ENABLE` and `MCP_MULTI_USER` both default to `false`. A configured `REMOTE_SECRET_KEY` is used only when `REMOTE_AUTH_ENABLE=true`; enabling both modes requires both forms of authentication.
-
-#### Client Configuration
-
-When authentication is enabled, MCP clients must include the Bearer token in the Authorization header:
-
-```json
-{
-  "mcpServers": {
-    "mcp-openstack-ops": {
-      "type": "streamable-http",
-      "url": "http://your-server:8000/mcp",
-      "headers": {
-        "Authorization": "Bearer your-secure-secret-key-here"
-      }
-    }
-  }
-}
-```
-
-#### Security Best Practices
-
-- **Always enable authentication** when using streamable-http mode in production
-- **Use strong, randomly generated secret keys** (32+ characters recommended)
-- **Use HTTPS** when possible (configure reverse proxy with SSL/TLS)
-- **Restrict network access** using firewalls or network policies
-- **Rotate secret keys regularly** for enhanced security
-- **Monitor access logs** for unauthorized access attempts
-
-#### Error Handling
-
-When authentication fails, the server returns:
-- **401 Unauthorized** for missing or invalid tokens
-- **Detailed error messages** in JSON format for debugging
-
----
-
-## 🎯 Recent Improvements & Enhancements
-
-### **🔒 Complete Project Isolation Security Implementation** ✨
-
-**100% Project Isolation Guarantee:**
-- ✅ **Multi-layer Security Validation**: Added comprehensive project ownership validation for all resource operations
-- ✅ **Enhanced Delete Operation Security**: All delete operations now use secure project-scoped lookup with ownership verification
-- ✅ **Create Operation Security**: Resource references during creation (networks, images, etc.) verified for project ownership
-- ✅ **Query Security Enhancement**: All list/get operations include explicit project validation with resource ownership checks
-- ✅ **Cross-Project Access Prevention**: Advanced protection against accidental operations on similarly-named resources in other projects
-- ✅ **Security Test Suite**: Added `test_project_isolation.py` for comprehensive security validation
-
-**Technical Implementation:**
-- ✅ **New Security Utilities**: Added `get_current_project_id()`, `validate_resource_ownership()`, `find_resource_by_name_or_id()` functions
-- ✅ **Service-Level Security**: Enhanced all service modules (compute, network, storage, etc.) with project ownership validation
-- ✅ **Secure Resource Lookup**: Replaced unsafe name-based loops with secure project-scoped resource lookup
-- ✅ **Error Message Enhancement**: Improved error messages to clearly indicate project access restrictions
-
-### **Complete Project Scoping Implementation** 
-
-**Enhanced Security & Tenant Isolation:**
-- ✅ **All Services Project-Scoped**: Identity, Compute, Network, Storage, Image, Orchestration, Load Balancer, and Monitoring services now filter resources by current project ID
-- ✅ **Zero Cross-Tenant Data Leakage**: Automatic filtering at OpenStack SDK level using `current_project_id`
-- ✅ **Smart Resource Access**: Intelligent handling of shared/public resources (networks, images) while maintaining security boundaries
-
-### **Fixed Image Service Issues** 🖼️
-
-**Resolved Zero-Image Count Problems:**
-- ✅ **Enhanced Image Filtering**: Now includes public, community, shared, and project-owned images
-- ✅ **Intelligent Visibility Handling**: Proper handling of different image visibility types
-- ✅ **Prevented Empty Results**: Fixed filtering logic that was too restrictive
-
-### **Improved vCPU/RAM Calculation** ⚡
-
-**Fixed Instance Resource Display:**
-- ✅ **Embedded Flavor Data Usage**: Uses server.flavor attributes directly, avoiding 404 API errors
-- ✅ **Accurate Resource Reporting**: Proper vCPU and RAM values in cluster status reports
-- ✅ **Eliminated API Failures**: No more flavor lookup failures causing zero resource values
-
-### **Enhanced Documentation** 📚
-
-**Comprehensive Project Scoping Documentation:**
-- ✅ **Multi-Project Management Guide**: Complete setup instructions for managing multiple OpenStack projects
-- ✅ **Security & Isolation Details**: Detailed explanation of tenant isolation features
-- ✅ **Reference Configuration**: Copy `mcp-config.json.multi-project` to an ignored `.local` file before adding credentials
-- ✅ **Updated Environment Variables**: Enhanced `.env.example` with project scoping guidance
-
----
-
-## 🚀 Adding Custom Tools
-
-This MCP server is designed for easy extensibility. Follow these steps to add your own custom tools:
-
-### Step-by-Step Guide
-
-#### 1. **Add Helper Functions (Optional)**
-
-Add reusable data functions to `src/mcp_openstack_ops/functions.py`:
-
-```python
-async def get_your_custom_data(target_resource: str = None) -> List[Dict[str, Any]]:
-    """Your custom data retrieval function."""
-    # Example implementation - adapt to your OpenStack service
-    conn = get_openstack_connection()
-    results = []
-    
-    try:
-        # Example: Custom query using OpenStack SDK
-        resources = conn.your_service.list_resources(
-            filters={'name': target_resource} if target_resource else {}
-        )
-        
-        for resource in resources:
-            results.append({
-                'name': resource.name,
-                'id': resource.id,
-                'status': resource.status,
-                'created_at': resource.created_at,
-                # Add your custom fields
-            })
-            
-    except Exception as e:
-        logger.error(f"Failed to get custom data: {e}")
-        return []
-        
-    return results
-```
-
-#### 2. **Create Your MCP Tool File**
-
-Create a new file `src/mcp_openstack_ops/tools/get_your_custom_analysis.py`:
-
-```python
-"""Tool implementation for get_your_custom_analysis."""
-
-import json
-from datetime import datetime
-from typing import Optional
-from ..functions import get_your_custom_data  # Import your helper function
-from ..mcp_main import (
-    logger,
-    mcp,
-)
-
-@mcp.tool()
-async def get_your_custom_analysis(limit: int = 50, target_name: Optional[str] = None) -> str:
-    """
-    [Tool Purpose]: Brief description of what your tool does
-    
-    [Exact Functionality]:
-    - Feature 1: Data aggregation and analysis
-    - Feature 2: Resource monitoring and insights
-    - Feature 3: Performance metrics and reporting
-    
-    [Required Use Cases]:
-    - When user asks "your specific analysis request"
-    - Your business-specific monitoring needs
-    
-    Args:
-        limit: Maximum results (1-100)
-        target_name: Target resource/service name
-    
-    Returns:
-        Formatted analysis results
-    """
-    try:
-        limit = max(1, min(limit, 100))  # Always validate input
-        
-        logger.info(f"Getting custom analysis, limit: {limit}, target: {target_name}")
-        
-        results = await get_your_custom_data(target_resource=target_name)
-        
-        if not results:
-            return f"No custom analysis data found" + (f" for '{target_name}'" if target_name else "")
-        
-        # Apply limit
-        results = results[:limit]
-        
-        # Format results as table
-        table_data = []
-        for item in results:
-            table_data.append({
-                'Name': item.get('name', 'N/A'),
-                'ID': item.get('id', 'N/A'),
-                'Status': item.get('status', 'N/A'),
-                'Created': item.get('created_at', 'N/A'),
-            })
-        
-        # Return formatted JSON
-        return json.dumps({
-            'title': f'Custom Analysis (Top {len(results)})',
-            'data': table_data,
-            'total_count': len(results),
-            'timestamp': datetime.now().isoformat()
-        }, indent=2)
-        
-    except Exception as e:
-        logger.error(f"Failed to get custom analysis: {e}")
-        return f"Error: {str(e)}"
-```
-
-#### 3. **For Modify Operations (Optional)**
-
-If your tool performs modify operations, use the `@conditional_tool` decorator instead:
-
-```python
-"""Tool implementation for set_your_custom_resource."""
-
-from ..mcp_main import (
-    conditional_tool,  # Use this instead of @mcp.tool()
-    handle_operation_result,
-    logger,
-)
-from ..functions import set_your_custom_resource
-
-@conditional_tool  # Only registers when ALLOW_MODIFY_OPERATIONS=true
-async def set_your_custom_resource(resource_name: str, action: str) -> str:
-    """
-    Manage your custom OpenStack resources.
-    
-    Use when user requests custom resource management.
-    """
-    try:
-        result = set_your_custom_resource(resource_name, action)
-        
-        return handle_operation_result(
-            result=result,
-            operation_name="Custom Resource Management",
-            details={
-                'Resource': resource_name,
-                'Action': action
-            }
-        )
-        
-    except Exception as e:
-        logger.error(f"Custom resource operation failed: {e}")
-        return f"Error: {str(e)}"
-```
-
-#### 4. **Update Prompt Template (Recommended)**
-
-Add your tool description to `src/mcp_openstack_ops/prompt_template.md` for better natural language recognition:
-
-```markdown
-### **Your Custom Analysis Tool**
-
-### X. **get_your_custom_analysis**
-**Purpose**: Brief description of what your tool does
-**Usage**: "Show me your custom analysis" or "Get custom analysis for resource_name"
-**Features**: Data aggregation, resource monitoring, performance metrics
-**Optional**: `target_name` parameter for specific resource analysis
-```
-
-#### 5. **Test Your Tool**
-
-```bash
-# Local testing
-./scripts/run-mcp-inspector-local.sh
-
-# Or with Docker
-docker compose up -d
-docker compose logs -f mcp-server
-
-# Test with natural language:
-# "Show me your custom analysis"
-# "Get custom analysis for target_name"
-```
-
-### Tool Registration System
-
-The MCP server uses automatic tool discovery. When you create a new file in `src/mcp_openstack_ops/tools/`, it's automatically registered through the `register_all_tools()` function in `tools/__init__.py`. No manual import registration needed!
-
-### Safety System
-
-- **Read-only tools**: Use `@mcp.tool()` - always available
-- **Modify tools**: Use `@conditional_tool` - only available when `ALLOW_MODIFY_OPERATIONS=true`
-- **Connection**: Always use `get_openstack_connection()` for OpenStack API access
-- **Project isolation**: All operations are automatically scoped to `OS_PROJECT_NAME`
-
-That's it! Your custom tool is ready to use with natural language queries.
-
----
+Contributions are welcome. See the [development guide](docs/development.md) for
+running the tests, adding tools, and the pull request workflow.
 
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request

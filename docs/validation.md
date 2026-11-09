@@ -1,0 +1,98 @@
+# Validation evidence
+
+This file records how the tools were validated: live checks against test
+clouds, Claude Code prompt checks, and local unit tests. The Status column of
+the README [OpenStack CLI vs MCP Tools Mapping](../README.md#-openstack-cli-vs-mcp-tools-mapping)
+summarizes these results per command; this file keeps the dates, source
+revisions, test conditions and counts behind them.
+
+Live classifications count unique tools; unit-test results count test cases.
+A partial or targeted check covers only the paths it names and does not update
+an earlier full summary.
+
+## Validation records
+
+- **Live snapshot (2026-11-04; working tree based on `a57b165`):** This live
+  snapshot predates the current working-tree changes. Its live
+  classifications remain historical evidence and were not rerun for this change.
+- **Live tool checks:** 105/105 tools registered at that revision exercised. At least one live
+  path passed for 76 tools; 28 tools were unavailable because the test cloud
+  lacks Octavia, Aodh, Neutron QoS, or floating-IP port-forwarding APIs; one
+  tool (`set_server_dump`) reached its documented platform limitation. The
+  `set_snapshot` status fix was retested separately after the full run: an
+  actual snapshot reached `available`, and its isolated test project was
+  removed. These are unique-tool classifications, not individual call counts.
+- **Claude Code prompt checks:** 118/118 documented examples were issued to the
+  real MCP servers. 99 completed their tool workflows, including two
+  successful retries after an initial bad placeholder; two of those 99 used
+  disclosed test substitutions and are not exact request matches. Five
+  composite reports were partial because optional APIs were unavailable;
+  seven direct requests could not run because their cloud service or extension
+  is absent; seven read-like requests were limited by the non-interactive
+  Claude permission policy.
+- **Follow-up targeted checks:** `/mcp/.well-known/openid-configuration`
+  returned 404 without authentication. A real Nova action list explicitly
+  reported that the list has no finish time; optional event-detail lookup
+  returned an event result and derived its latest finish time. The new
+  HTTP-only multi-user test override is **Live unverified**; only its fail-closed
+  default, explicit opt-in, endpoint generation, and startup warning were tested
+  locally.
+- **Targeted telemetry check (2026-11-08 UTC; partial; uncommitted working tree
+  based on `d954eba`):** After Ceilometer, Gnocchi, and Aodh were added to the
+  test cloud, only `set_alarms` and the four new `get_gnocchi_*` tools were
+  rerun through the MCP server. This partial check does not update the
+  105-tool live summary above. All five tools passed at least one live path.
+  A metric-ownership fix for metric-UUID-only lookups was retested live after
+  the MCP server was recreated. Polled metrics were initially absent because
+  the test cloud's ceilometer-compute agent had failed to reach libvirt at
+  startup; after that agent was restarted, `cpu`, `memory.usage`, disk I/O,
+  and network I/O measures were read through the tools. Aodh evaluated `cpu`
+  `rate:mean` alarms to the expected `ok` and `alarm` states. Test alarms were
+  deleted.
+- **Targeted aggregation check (2026-11-09 UTC; partial; uncommitted working
+  tree based on `a5115d3`):** only the new `get_gnocchi_aggregates` tool was
+  run through the MCP server. The test project had one instance, so ranking
+  and grouping returned one series each. After that run, null-gap output,
+  metric-name validation, and the failure hint were changed; those changes
+  and the core aggregation paths were rerun through a second streamable-HTTP
+  MCP server started from the current working tree.
+- **Targeted openstacksdk-usage check (2026-11-10 UTC; partial; commit
+  `c2de34c`, which merges PR #83 and locks openstacksdk 4.22.0):** only the
+  paths changed by that merge were run, through an in-process MCP client with
+  modification tools enabled, as an administrator, with the locked
+  dependencies (openstacksdk 4.22.0, fastmcp 3.4.10). The test cloud was a
+  single-node deployment (compute microversion up to 2.100) with Nova,
+  Neutron, Cinder (with backup), Glance and Heat; Octavia, Neutron QoS and
+  port forwarding were absent, and only one compute host was available.
+  Asynchronous operations were polled with openstacksdk until their final
+  state (300 s per state; 600 s for backups). 73 checks ran: 68 passed; the
+  5 failures came from the test script (output parsing, a metadata argument
+  passed as a string, and a check aimed at the wrong tool). A retest of those
+  paths passed for lock/unlock reporting, metadata set and metadata kept after
+  rebuild. `get_project_details` reports resource counts, not quotas, so it
+  does not cover the corrected quota field of `get_project_info()`, which no
+  registered tool calls; that fix is unit-tested only. All test resources were
+  deleted. This partial check does not update the 105-tool summary above.
+- **fastmcp 4 dependency check (2026-11-10 UTC; partial; uncommitted working
+  tree based on `aa668de`):** `uv.lock` moved to fastmcp 4.1.6 and mcp 2.3.0,
+  and the `mcp-server` image now installs exactly the `uv.lock` packages. The
+  same targeted check as above was repeated with these dependencies through an
+  in-process MCP client, with three test-script errors corrected and the
+  `get_project_details` check removed; it also read `get_gnocchi_service_info`
+  and `get_gnocchi_metrics`. 74/74 checks passed, and all test resources were
+  deleted. A locally built `mcp-server` image served 110 tools over Streamable
+  HTTP, and 13 read tools, including the three Gnocchi read tools named above
+  plus `get_gnocchi_resources`, returned results. A locally built `mcpo-proxy`
+  image (mcpo 0.0.20, mcp 1.30.0, FastAPI 0.128.0) connected to that server,
+  exposed 110 tools, and returned results for `get_service_status`,
+  `get_gnocchi_resources` and `get_volume_list`. Neither image was published.
+  This partial check does not update the 105-tool summary above.
+- **Local unit tests (2026-11-10; same working tree):** 455/455 (100%) with
+  fastmcp 4.1.6 and openstacksdk 4.1.0, 4.9.0 and 4.22.0; no failures or
+  skipped tests. These tests include MCP action-description and
+  advanced-parameter forwarding regressions, the insecure-HTTP opt-in
+  regressions, Gnocchi project-scoping and aggregation-input regressions,
+  Claude Desktop bundle manifest and release-asset checks, regression tests
+  built on real openstacksdk resource objects, and a static check that every
+  `conn.<service>.<method>()` call and keyword exists in the installed
+  openstacksdk; they do not replace live service validation.
