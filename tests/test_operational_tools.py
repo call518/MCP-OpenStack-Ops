@@ -183,7 +183,7 @@ def test_bad_pool_range_does_not_fabricate_capacity(conn):
         network_id='net', allocation_pools=[{'start': '192.0.2.19',
             'end': '192.0.2.10'}],
     )]
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError, match='Invalid allocation pool range'):
         network.get_floating_ip_pools()
 
 
