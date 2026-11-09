@@ -45,3 +45,10 @@ where = ["src"]
 
 [tool.setuptools.package-dir]
 "" = "src"
+
+[tool.uv]
+# gnocchiclient's CLI stack (cliff -> cmd2) pulls gnureadline on macOS, a C
+# extension without wheels for new Python releases. The server never loads that
+# CLI, and cmd2 falls back to the standard readline module, so uv installs
+# (including the Claude Desktop bundle) skip it.
+override-dependencies = ["gnureadline; sys_platform == 'never'"]

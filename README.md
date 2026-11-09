@@ -852,7 +852,11 @@ Node.js and writes `dist/mcp-openstack-ops-<version>.mcpb`.
 
 The bundle uses the MCPB `uv` server type (manifest version 0.4). The Claude
 Desktop version that first supports it is not documented; if installation is
-refused, update Claude Desktop or use option 2.
+refused, update Claude Desktop or use option 2. uv may choose the newest Python
+allowed by `requires-python = ">=3.12"`. The locked dependencies install from
+wheels on Python 3.12-3.14 for Windows, macOS, and Linux; on 3.15, PyYAML has no
+wheel and builds as pure Python without a compiler. The bundle was installed and
+started on Linux with Python 3.15, and the unit tests pass on Python 3.12-3.15.
 
 ### Configuration file for options 2-4
 
