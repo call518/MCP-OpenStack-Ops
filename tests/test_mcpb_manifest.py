@@ -25,6 +25,14 @@ def test_optional_service_settings_have_server_defaults():
     assert CONFIG["allow_modify_operations"]["default"] is False
 
 
+def test_titles_name_the_environment_variable_they_set():
+    for name, value in ENV.items():
+        match = re.fullmatch(r"\$\{user_config\.(\w+)\}", value)
+        if match:
+            assert f"({name}" in CONFIG[match[1]]["title"], name
+    assert "optional" in CONFIG["os_cacert"]["title"]
+
+
 def test_bundle_runs_the_stdio_entry_point_with_uv():
     server = MANIFEST["server"]
     assert server["type"] == "uv" and server["entry_point"] == "server.py"

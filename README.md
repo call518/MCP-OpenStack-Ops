@@ -836,12 +836,15 @@ Starting with the first release that includes it, each
 `mcp-openstack-ops-<version>.mcpb`. Earlier releases do not have this file.
 
 1. Download the `.mcpb` file from the release.
-2. Double-click it, drag it into the Claude Desktop window, or select it in
-   **Settings > Extensions > Advanced settings > Install Extension…**.
-3. Fill in the settings form: Keystone host, project, user name, and password
-   are required. Ports, domains, and region are prefilled with the server
-   defaults. **Allow modify operations** is off, so only read tools are
-   registered.
+2. In Claude Desktop, open **Settings > Extensions > Advanced settings >
+   Install Extension…** and select the file. On Windows, double-clicking the
+   file or dragging it into a chat did not install it.
+3. Fill in the settings form. Each field title shows the environment variable
+   it sets, as listed in [Environment Variables](#environment-variables).
+   Keystone host, project, user name, and password are required. Ports,
+   domains, and region are prefilled with the server defaults. The CA
+   certificate is optional. **Allow modify operations** is off, so only read
+   tools are registered.
 
 Claude Desktop stores the password as a sensitive value instead of writing it
 to `claude_desktop_config.json`. The bundle contains the source, `pyproject.toml`,

@@ -60,122 +60,122 @@
   "user_config": {
     "os_auth_host": {
       "type": "string",
-      "title": "Keystone host",
+      "title": "Keystone host (OS_AUTH_HOST)",
       "description": "Host name or IP address of the OpenStack Identity (Keystone) API",
       "required": true
     },
     "os_auth_port": {
       "type": "string",
-      "title": "Keystone port",
+      "title": "Keystone port (OS_AUTH_PORT)",
       "description": "Identity API port",
       "default": "5000",
       "required": true
     },
     "os_auth_protocol": {
       "type": "string",
-      "title": "Protocol",
+      "title": "Protocol (OS_AUTH_PROTOCOL)",
       "description": "http or https for all OpenStack APIs",
       "default": "http",
       "required": true
     },
     "os_cacert": {
       "type": "file",
-      "title": "CA certificate (HTTPS)",
-      "description": "CA bundle for HTTPS. Without it, HTTPS certificate verification is disabled",
+      "title": "CA certificate (OS_CACERT, optional)",
+      "description": "Optional. CA bundle for HTTPS. Without it, HTTPS certificate verification is disabled",
       "required": false
     },
     "os_project_name": {
       "type": "string",
-      "title": "Project name",
+      "title": "Project name (OS_PROJECT_NAME)",
       "description": "OpenStack project to scope the connection to",
       "required": true
     },
     "os_username": {
       "type": "string",
-      "title": "User name",
+      "title": "User name (OS_USERNAME)",
       "description": "OpenStack user name",
       "required": true
     },
     "os_password": {
       "type": "string",
-      "title": "Password",
+      "title": "Password (OS_PASSWORD)",
       "description": "OpenStack user password, stored securely by Claude Desktop",
       "sensitive": true,
       "required": true
     },
     "os_user_domain_name": {
       "type": "string",
-      "title": "User domain",
+      "title": "User domain (OS_USER_DOMAIN_NAME)",
       "description": "Domain of the user",
       "default": "Default",
       "required": true
     },
     "os_project_domain_name": {
       "type": "string",
-      "title": "Project domain",
+      "title": "Project domain (OS_PROJECT_DOMAIN_NAME)",
       "description": "Domain of the project",
       "default": "Default",
       "required": true
     },
     "os_region_name": {
       "type": "string",
-      "title": "Region",
+      "title": "Region (OS_REGION_NAME)",
       "description": "OpenStack region",
       "default": "RegionOne",
       "required": true
     },
     "os_compute_port": {
       "type": "string",
-      "title": "Nova port",
+      "title": "Nova port (OS_COMPUTE_PORT)",
       "description": "Compute (Nova) API port on the Keystone host",
       "default": "8774",
       "required": true
     },
     "os_network_port": {
       "type": "string",
-      "title": "Neutron port",
+      "title": "Neutron port (OS_NETWORK_PORT)",
       "description": "Networking (Neutron) API port on the Keystone host",
       "default": "9696",
       "required": true
     },
     "os_volume_port": {
       "type": "string",
-      "title": "Cinder port",
+      "title": "Cinder port (OS_VOLUME_PORT)",
       "description": "Block Storage (Cinder) API port on the Keystone host",
       "default": "8776",
       "required": true
     },
     "os_image_port": {
       "type": "string",
-      "title": "Glance port",
+      "title": "Glance port (OS_IMAGE_PORT)",
       "description": "Image (Glance) API port on the Keystone host",
       "default": "9292",
       "required": true
     },
     "os_placement_port": {
       "type": "string",
-      "title": "Placement port",
+      "title": "Placement port (OS_PLACEMENT_PORT)",
       "description": "Placement API port on the Keystone host",
       "default": "8780",
       "required": true
     },
     "os_heat_stack_port": {
       "type": "string",
-      "title": "Heat port",
+      "title": "Heat port (OS_HEAT_STACK_PORT)",
       "description": "Orchestration (Heat) API port on the Keystone host",
       "default": "8004",
       "required": true
     },
     "os_heat_stack_cfn_port": {
       "type": "string",
-      "title": "Heat CFN port",
+      "title": "Heat CFN port (OS_HEAT_STACK_CFN_PORT)",
       "description": "Heat CloudFormation API port on the Keystone host",
       "default": "18888",
       "required": true
     },
     "allow_modify_operations": {
       "type": "boolean",
-      "title": "Allow modify operations",
+      "title": "Allow modify operations (ALLOW_MODIFY_OPERATIONS)",
       "description": "Register set_* tools that create, change, or delete cloud resources",
       "default": false,
       "required": false
