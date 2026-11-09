@@ -49,32 +49,29 @@ cross-project queries are outside this phase.
 - ✅ OpenStack **Epoxy (2025.1)** - Fully tested
 - ✅ OpenStack **Dalmatian (2024.2)** - Fully tested
 
-**For older OpenStack releases** (Wallaby, Caracal, Bobcat, etc.), you may need to customize the OpenStackSDK version to match your environment. The SDK version must be changed in **BOTH files**:
+**For older OpenStack releases** (Wallaby, Caracal, Bobcat, etc.), you may need to customize the OpenStackSDK version to match your environment. The `uv` environment, the Claude Desktop bundle and the `mcp-server` Docker image all install the dependency versions recorded in `uv.lock`, so change the version in `pyproject.toml` and regenerate the lock:
 
-**Step 1: Modify `Dockerfile.MCP-Server`**
-```dockerfile
-RUN pip install \
-        'uv>=0.8.5' \
-        'mcpo>=0.0.17' \
-        'fastmcp>=2.12.3' \
-        'aiohttp>=3.12.0' \
-        'openstacksdk==3.1.1' \  # ← Change to your required version (e.g., 3.1.1 for Wallaby)
-        'python-dotenv>=1.0.0'
-```
-
-**Step 2: Modify `pyproject.toml`**
+**Step 1: Modify `pyproject.toml`**
 ```toml
 dependencies = [
-    "fastmcp>=2.12.3",
-    "openstacksdk==3.1.1",  # ← Must match Dockerfile version
-    "python-dotenv>=1.1.1",
-    # ... other dependencies
+    "openstacksdk==3.1.1",  # ← Change to your required version (e.g., 3.1.1 for Wallaby)
+    # ... other dependencies unchanged
 ]
 ```
 
-**Step 3: Rebuild Docker Image**
+**Step 2: Update `uv.lock`**
 ```bash
-docker compose build --no-cache mcp-server
+uv lock --upgrade-package openstacksdk
+uv run --extra dev python -m pytest -q tests
+```
+
+**Step 3: Rebuild the Docker image**
+
+`Dockerfile.MCP-Server` installs exactly the packages in `uv.lock`. Change
+`VERSION` in `build-mcp-server-docker-image.sh` and the `mcp-server` image tag in
+`docker-compose.yml` to a new tag, then build and start:
+```bash
+./build-mcp-server-docker-image.sh
 docker compose up -d
 ```
 
@@ -87,7 +84,7 @@ docker compose up -d
 | Bobcat (2023.2) | `>=3.0.0` | May require testing |
 | Wallaby (2021.1) | `==3.1.1` | Downgrade required |
 
-> ⚠️ **Important**: Both `Dockerfile.MCP-Server` and `pyproject.toml` must have the **same version** to avoid dependency conflicts during container runtime.
+> ⚠️ **Important**: Do not edit package versions in `Dockerfile.MCP-Server`; the image build fails if `uv.lock` does not match `pyproject.toml`. The `mcpo-proxy` image (`Dockerfile.MCPO-Proxy`) pins its own packages: mcpo 0.0.20 needs mcp 1.x (it fails to start with mcp 2.x) and FastAPI 0.128.0 (it fails with FastAPI 0.162.2). An mcp 1.x proxy still connects to the mcp 2.x server.
 
 ---
 
@@ -234,15 +231,29 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
   does not cover the corrected quota field of `get_project_info()`, which no
   registered tool calls; that fix is unit-tested only. All test resources were
   deleted. This partial check does not update the 105-tool summary above.
-- **Local unit tests (2026-11-10; commit `c2de34c`):** 454/454 (100%) with
-  openstacksdk 4.1.0, 4.9.0 and 4.22.0; no failures or skipped tests. These
-  tests include MCP action-description and advanced-parameter forwarding
-  regressions, the insecure-HTTP opt-in regressions, Gnocchi project-scoping
-  and aggregation-input regressions, Claude Desktop bundle manifest and
-  release-asset checks, regression tests built on real openstacksdk resource
-  objects, and a static check that every `conn.<service>.<method>()` call and
-  keyword exists in the installed openstacksdk; they do not replace live
-  service validation.
+- **fastmcp 4 dependency check (2026-11-10 UTC; partial; uncommitted working
+  tree based on `aa668de`):** `uv.lock` moved to fastmcp 4.1.6 and mcp 2.3.0,
+  and the `mcp-server` image now installs exactly the `uv.lock` packages. The
+  same targeted check as above was repeated with these dependencies through an
+  in-process MCP client, with three test-script errors corrected and the
+  `get_project_details` check removed; it also read `get_gnocchi_service_info`
+  and `get_gnocchi_metrics`. 74/74 checks passed, and all test resources were
+  deleted. A locally built `mcp-server` image served 110 tools over Streamable
+  HTTP, and 13 read tools, including the three Gnocchi read tools named above
+  plus `get_gnocchi_resources`, returned results. A locally built `mcpo-proxy`
+  image (mcpo 0.0.20, mcp 1.30.0, FastAPI 0.128.0) connected to that server,
+  exposed 110 tools, and returned results for `get_service_status`,
+  `get_gnocchi_resources` and `get_volume_list`. Neither image was published.
+  This partial check does not update the 105-tool summary above.
+- **Local unit tests (2026-11-10; same working tree):** 455/455 (100%) with
+  fastmcp 4.1.6 and openstacksdk 4.1.0, 4.9.0 and 4.22.0; no failures or
+  skipped tests. These tests include MCP action-description and
+  advanced-parameter forwarding regressions, the insecure-HTTP opt-in
+  regressions, Gnocchi project-scoping and aggregation-input regressions,
+  Claude Desktop bundle manifest and release-asset checks, regression tests
+  built on real openstacksdk resource objects, and a static check that every
+  `conn.<service>.<method>()` call and keyword exists in the installed
+  openstacksdk; they do not replace live service validation.
 
 **Detailed Mapping by Category**
 
