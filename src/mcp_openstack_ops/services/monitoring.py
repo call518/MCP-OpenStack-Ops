@@ -599,7 +599,7 @@ def get_quota(project_name: str = "") -> Dict[str, Any]:
                 'subnets': getattr(network_quotas, 'subnets', -1),
                 'ports': getattr(network_quotas, 'ports', -1),
                 'routers': getattr(network_quotas, 'routers', -1),
-                'floatingips': getattr(network_quotas, 'floatingips', -1),
+                'floatingips': getattr(network_quotas, 'floating_ips', -1),
                 'security_groups': getattr(network_quotas, 'security_groups', -1),
                 'security_group_rules': getattr(network_quotas, 'security_group_rules', -1)
             }
@@ -753,8 +753,14 @@ def get_hypervisor_details(hypervisor_name: str = "all") -> Dict[str, Any]:
             
             # Try to get enhanced statistics from Nova API
             enhanced_stats = None
+            enhanced_stats_note = None
             try:
                 stats_response = conn.compute.get('/os-hypervisors/statistics')
+                if stats_response.status_code != 200:
+                    # Nova removed this API at compute microversion 2.88.
+                    enhanced_stats_note = (
+                        f'/os-hypervisors/statistics returned HTTP {stats_response.status_code}; '
+                        'the API was removed at compute microversion 2.88')
                 if stats_response.status_code == 200:
                     stats_data = stats_response.json()
                     hypervisor_statistics = stats_data.get('hypervisor_statistics', {})
@@ -772,15 +778,18 @@ def get_hypervisor_details(hypervisor_name: str = "all") -> Dict[str, Any]:
                             'data_source': 'nova_hypervisor_statistics_api'
                         }
             except Exception as e:
-                # Continue with regular response if statistics API fails
-                pass
-            
-            return {
+                # Continue with the per-hypervisor data, but say why.
+                enhanced_stats_note = f'/os-hypervisors/statistics unavailable: {e}'
+
+            result = {
                 'success': True,
                 'hypervisors': hypervisors,
                 'total_stats': total_stats,
                 'enhanced_stats': enhanced_stats
             }
+            if enhanced_stats_note:
+                result['enhanced_stats_note'] = enhanced_stats_note
+            return result
         else:
             # Get specific hypervisor
             for hypervisor in conn.compute.hypervisors(details=True):

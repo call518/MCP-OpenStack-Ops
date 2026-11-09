@@ -28,10 +28,11 @@ async def set_floating_ip(action: str, floating_network_id: str = "", port_id: s
     Args:
         action: Action to perform (create/allocate, delete/release, associate, disassociate, set, show, unset, list)
         floating_network_id: ID of external network for create action
-        port_id: Port ID for association operations
+        port_id: Port ID for association operations, or to associate on create
         floating_ip_id: Floating IP ID for operations
-        floating_ip_address: Floating IP address (alternative to floating_ip_id)
-        description: Description for the floating IP (for set action)
+        floating_ip_address: Floating IP address (alternative to floating_ip_id);
+            on create, requests that specific address (subject to Neutron policy)
+        description: Description for the floating IP (for create and set actions)
         
     Returns:
         Result of floating IP management operation in JSON format.

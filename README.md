@@ -81,7 +81,7 @@ docker compose up -d
 **OpenStackSDK Version Reference:**
 | OpenStack Release | Recommended SDK Version | Notes |
 |-------------------|------------------------|-------|
-| Epoxy (2025.1) | `>=3.3.0` | Current default |
+| Epoxy (2025.1) | `>=4.1.0,<=4.22.0` | Current default range; `uv.lock` pins 4.22.0. Unit tests pass with 4.1.0, 4.9.0 and 4.22.0 |
 | Dalmatian (2024.2) | `>=3.2.0` | Fully compatible |
 | Caracal (2024.1) | `>=3.1.0` | May require testing |
 | Bobcat (2023.2) | `>=3.0.0` | May require testing |
@@ -176,7 +176,7 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
 - **Live snapshot (2026-11-04; working tree based on `a57b165`):** This live
   snapshot predates the current working-tree changes. Its live
   classifications remain historical evidence and were not rerun for this change.
-- **Live tool checks:** 105/105 registered tools exercised. At least one live
+- **Live tool checks:** 105/105 tools registered at that revision exercised. At least one live
   path passed for 76 tools; 28 tools were unavailable because the test cloud
   lacks Octavia, Aodh, Neutron QoS, or floating-IP port-forwarding APIs; one
   tool (`set_server_dump`) reached its documented platform limitation. The
@@ -217,12 +217,32 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
   metric-name validation, and the failure hint were changed; those changes
   and the core aggregation paths were rerun through a second streamable-HTTP
   MCP server started from the current working tree.
-- **Local unit tests (current working tree, 2026-11-09):** 316/316 (100%); no
-  failures or skipped tests. These tests include MCP action-description and
-  advanced-parameter forwarding regressions, the insecure-HTTP opt-in
-  regressions, Gnocchi project-scoping and aggregation-input regressions, and
-  Claude Desktop bundle manifest and release-asset checks; they do not replace
-  live service validation.
+- **Targeted openstacksdk-usage check (2026-11-10 UTC; partial; commit
+  `c2de34c`, which merges PR #83 and locks openstacksdk 4.22.0):** only the
+  paths changed by that merge were run, through an in-process MCP client with
+  modification tools enabled, as an administrator, with the locked
+  dependencies (openstacksdk 4.22.0, fastmcp 3.4.10). The test cloud was a
+  single-node deployment (compute microversion up to 2.100) with Nova,
+  Neutron, Cinder (with backup), Glance and Heat; Octavia, Neutron QoS and
+  port forwarding were absent, and only one compute host was available.
+  Asynchronous operations were polled with openstacksdk until their final
+  state (300 s per state; 600 s for backups). 73 checks ran: 68 passed; the
+  5 failures came from the test script (output parsing, a metadata argument
+  passed as a string, and a check aimed at the wrong tool). A retest of those
+  paths passed for lock/unlock reporting, metadata set and metadata kept after
+  rebuild. `get_project_details` reports resource counts, not quotas, so it
+  does not cover the corrected quota field of `get_project_info()`, which no
+  registered tool calls; that fix is unit-tested only. All test resources were
+  deleted. This partial check does not update the 105-tool summary above.
+- **Local unit tests (2026-11-10; commit `c2de34c`):** 454/454 (100%) with
+  openstacksdk 4.1.0, 4.9.0 and 4.22.0; no failures or skipped tests. These
+  tests include MCP action-description and advanced-parameter forwarding
+  regressions, the insecure-HTTP opt-in regressions, Gnocchi project-scoping
+  and aggregation-input regressions, Claude Desktop bundle manifest and
+  release-asset checks, regression tests built on real openstacksdk resource
+  objects, and a static check that every `conn.<service>.<method>()` call and
+  keyword exists in the installed openstacksdk; they do not replace live
+  service validation.
 
 **Detailed Mapping by Category**
 
@@ -232,50 +252,51 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
 |---------------------|---------|------|------|
 | `openstack server list` | `get_instance` | ✅ | Separate reader projects each returned exactly ten owned VMs; bounded lab validation only |
 | `openstack server show` | `get_instance` | ✅ | Own fixture queries completed; foreign private ID returned no details; no 16-owned-ID batch claim |
-| `openstack server create` | `set_instance` (action="create") | ✅ | **ENHANCED** - Bulk creation support |
+| `openstack server create` | `set_instance` (action="create") | ✅ | **ENHANCED** - Bulk creation support. 2026-11-10 targeted check: a server reached ACTIVE |
 | `openstack server start/stop/reboot` | `set_instance` | ✅ | Tool schema exposes all actions and `reboot_type`; bulk stop/start final states verified for two test VMs per project, but reboot was not retested in this round |
-| `openstack server delete` | `set_instance` (action="delete") | ✅ | Tool schema exposes delete and optional force deletion; bulk deletion with `name_contains` filtering |
+| `openstack server delete` | `set_instance` (action="delete") | ✅ | Tool schema exposes delete and optional force deletion; bulk deletion with `name_contains` filtering. `force=true` uses openstacksdk `delete_server(force=True)` (previously a non-existent SDK method); 2026-11-10 targeted check: forced deletion removed the server |
 | `openstack server backup create` | `set_server_backup` | ✅ | Nova backup action with rotation; asynchronous, no custom metadata |
 | `openstack server image create` | `set_instance` (action="snapshot") | ✅ | Accepts optional `snapshot_name` and JSON `metadata`; parameter forwarding is locally tested, not live-retested in this change |
 | `openstack server shelve/unshelve` | `set_instance` | ✅ | Actions are exposed in the tool schema; instance shelving was not live-retested in this change |
-| `openstack server lock/unlock` | `set_instance` | ✅ | Instance locking |
+| `openstack server lock/unlock` | `set_instance` | ✅ | Instance locking. `get_instance_details` reports `locked` from the SDK `is_locked` field (previously always false); 2026-11-10 targeted check: reported true after lock and false after unlock, matching Nova |
+| `openstack console url show` | `set_instance` (action="console") | ✅ | Uses the Nova remote-consoles API (the legacy console actions return 404 on current Nova). `console_type`: novnc (default), spice-html5, rdp-html5, serial, webmks, spice-direct, subject to cloud support. 2026-11-10 targeted check: a noVNC URL was returned |
 | `openstack server pause/unpause` | `set_instance` | ✅ | Instance pausing |
 | `openstack server suspend/resume` | `set_instance` | ✅ | Instance suspension |
 | `openstack server resize` | `set_instance` (action="resize") | ✅ | Uses the existing `flavor` parameter as the target flavor; action exposure is locally tested |
 | `openstack server resize confirm` | `set_instance` (action="confirm_resize") | ✅ | Resize confirmation |
 | `openstack server resize revert` | `set_instance` (action="revert_resize") | ✅ | Resize revert |
-| `openstack server rebuild` | `set_instance` (action="rebuild") | ✅ | Uses `image` and supports optional `new_name`, JSON `metadata`, and `preserve_ephemeral`; not live-retested in this change |
+| `openstack server rebuild` | `set_instance` (action="rebuild") | ✅ | Uses `image` and supports optional `new_name`, JSON `metadata`, and `preserve_ephemeral`. The image is passed as openstacksdk expects (previously the rebuild failed), and `metadata` is sent only when given because Nova replaces server metadata on rebuild. 2026-11-10 targeted check: rebuilt to ACTIVE and existing metadata was kept |
 | `openstack server rescue/unrescue` | `set_instance` | ✅ | Tool schema exposes both actions and optional `rescue_image_id`; not live-retested in this change |
 | `openstack server migrate` | `set_server_migration` (action="migrate") | ✅ | Live migration |
-| `openstack server evacuate` | `set_server_migration` (action="evacuate") | ✅ | Server evacuation |
-| `openstack server migration list` | `set_server_migration` (action="list") | ✅ | Migration listing |
+| `openstack server evacuate` | `set_server_migration` (action="evacuate") | ⚠️ Live unverified | Server evacuation. `on_shared_storage` is sent only when explicitly true; Nova rejects that field from compute microversion 2.14. 2026-11-10 targeted check: on a single host whose compute service was up, Nova refused the request for that reason, not for a schema error, and the server stayed ACTIVE; an actual evacuation needs a failed host and a second compute host |
+| `openstack server migration list` | `set_server_migration` (action="list") | ✅ | Migration listing. With `instance_name`, lists that server's migrations (previously always empty); a listing failure is reported instead of an empty success, and the all-migrations listing reads the SDK `server_id`. 2026-11-10 targeted check: per-server listing returned and an unknown server returned an error |
 | `openstack server migration show` | `set_server_migration` (action="show") | ✅ | Migration details |
 | `openstack server migration abort` | `set_server_migration` (action="abort") | ✅ | Migration abort |
 | `openstack server migration confirm` | `set_server_migration` (action="confirm") | ✅ | Migration confirmation |
 | `openstack server migration force complete` | `set_server_migration` (action="force_complete") | ✅ | Force migration completion |
-| `openstack server add network` | `set_server_network` (action="add_network") | ✅ | Network attachment |
-| `openstack server remove network` | `set_server_network` (action="remove_network") | ✅ | Network detachment |
-| `openstack server add port` | `set_server_network` (action="add_port") | ✅ | Port attachment |
-| `openstack server remove port` | `set_server_network` (action="remove_port") | ✅ | Port detachment |
+| `openstack server add network` | `set_server_network` (action="add_network") | ✅ | Network attachment. Nova creates the interface port, so removing the network deletes it again. 2026-11-10 targeted check: attached |
+| `openstack server remove network` | `set_server_network` (action="remove_network") | ✅ | Network detachment. 2026-11-10 targeted check: no interface port was left, and the network could be deleted afterwards |
+| `openstack server add port` | `set_server_network` (action="add_port") | ✅ | Port attachment by port name or ID (a name was previously reported as not found). 2026-11-10 targeted check: attached by name |
+| `openstack server remove port` | `set_server_network` (action="remove_port") | ✅ | Port detachment by name or ID; detaching does not delete a port you created. 2026-11-10 targeted check: detached by name and the port was kept |
 | `openstack server add floating ip` | `set_server_floating_ip` (action="add") | ✅ | Floating IP association |
 | `openstack server remove floating ip` | `set_server_floating_ip` (action="remove") | ✅ | Floating IP disassociation |
-| `openstack server add fixed ip` | `set_server_fixed_ip` (action="add") | ✅ | Fixed IP addition |
-| `openstack server remove fixed ip` | `set_server_fixed_ip` (action="remove") | ✅ | Fixed IP removal |
+| `openstack server add fixed ip` | `set_server_fixed_ip` (action="add") | ✅ | Fixed IP addition through a new interface whose port Nova creates. 2026-11-10 targeted check: an address from the requested network was assigned |
+| `openstack server remove fixed ip` | `set_server_fixed_ip` (action="remove") | ✅ | Detaches the whole interface that holds the address, which can be the primary interface. 2026-11-10 targeted check: removed and no interface port was left |
 | `openstack server add security group` | `set_server_security_group` (action="add") | ✅ | Security group addition |
 | `openstack server remove security group` | `set_server_security_group` (action="remove") | ✅ | Security group removal |
-| `openstack server add volume` | `set_server_volume` (action="attach") | ✅ | Member attach reached in-use via set_server_volume; guest I/O not tested |
-| `openstack server remove volume` | `set_server_volume` (action="detach") | ✅ | Member detach reached available via set_server_volume |
+| `openstack server add volume` | `set_server_volume` (action="attach") | ✅ | Member attach reached in-use via set_server_volume; guest I/O not tested. The multiattach precheck reads the SDK `is_multiattach` field. 2026-11-10 targeted check (administrator): reached in-use |
+| `openstack server remove volume` | `set_server_volume` (action="detach") | ✅ | Member detach reached available via set_server_volume. 2026-11-10 targeted check (administrator): reached available |
 | `openstack server set` | `set_server_properties` (action="set") | ✅ | Server property setting |
 | `openstack server unset` | `set_server_properties` (action="unset") | ✅ | Server property unsetting |
 | `openstack server dump create` | `set_server_dump` | ❌ Unsupported | Returns an explicit unsupported result; no dump is created |
 | `openstack server event list` | `get_server_events` | ✅ | Pass the server name or UUID via `instance_name`, not `server_id`. The action list has no completion time; set `include_event_details=true` to fetch per-action event results and derive the latest finish time. Detailed lookup is capped at 10 actions. Event visibility follows Nova policy |
-| `openstack server group list` | `get_server_groups` | ✅ | Server group listing |
-| `openstack server group create/delete` | `set_server_group` | ✅ | Server group management |
+| `openstack server group list` | `get_server_groups` | ✅ | Server group listing. Reads `member_ids` and, from compute microversion 2.64, `policy` instead of `policies`; a listing failure is reported instead of an empty list. 2026-11-10 targeted check: listed with its policy |
+| `openstack server group create/delete` | `set_server_group` | ✅ | Server group management. 2026-11-10 targeted check: create and show reported the policy and members, then the group was deleted |
 | `openstack flavor list` | `set_flavor` (action="list") | ✅ | Requires modification tools to be enabled for registration |
 | `openstack flavor create/delete` | `set_flavor` | ✅ | Flavor management |
 | `openstack keypair list` | `get_keypair_list` | ✅ | Empty scoped read completed; member keypair creation/deletion read-back tested separately |
 | `openstack keypair create/delete` | `set_keypair` | ✅ | Explicit member MCP create/delete read-back passed; no successful Claude write workflow claimed |
-| `openstack hypervisor list` | `get_hypervisor_details` | ✅ | Administrator lookup verified; missing per-host capacity and incomplete totals are null, not zero. Global enhanced statistics remain separate |
+| `openstack hypervisor list` | `get_hypervisor_details` | ✅ | Administrator lookup verified; missing per-host capacity and incomplete totals are null, not zero. Global enhanced statistics remain separate; when `/os-hypervisors/statistics` is unavailable (removed at compute microversion 2.88), `enhanced_stats_note` explains why. That note is unit-tested only; in the 2026-11-10 targeted check the statistics API still returned data |
 | `openstack availability zone list` | `get_availability_zones` | ✅ | Compute/Cinder availability reads the SDK state mapping; missing availability is null. Actual available zones verified |
 
 ### 2. 🌐 **Network (Neutron)**
@@ -283,7 +304,7 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
 | `openstack network list` | `get_network_details` | ✅ | Two owned private networks plus one policy-visible shared external network per reader; no other test project private networks |
-| `openstack network show` | `get_network_details` (network_name) | ⚠️ Live unverified | Foreign-ID negative checked; dual-project positive named reader lookup not independently asserted |
+| `openstack network show` | `get_network_details` (network_name) | ✅ | Foreign-ID negative checked. A name that matches nothing returns an explicit error (previously an empty success). 2026-11-10 targeted check (administrator): named lookup returned the network and a missing name returned the error; a dual-project positive lookup by reader roles is still not asserted |
 | `openstack network create` | `set_networks` (action="create") | ✅ | Default mtu=0 omits the wire field: backend MTU 1450 verified; explicit 1400 retained in both member projects |
 | `openstack network delete` | `set_networks` (action="delete") | ✅ | Both default/explicit-MTU test networks removed through actual TCP MCP, API absence confirmed |
 | `openstack network set` | `set_networks` (action="update") | ✅ | **ENHANCED** - Bulk updates |
@@ -291,44 +312,51 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
 | `openstack subnet create/delete` | `set_subnets` | ✅ | Member TCP MCP subnet create read back; deletion allowed parent network removal in both projects |
 | `openstack router list` | `get_routers` | ⚠️ Live unverified | Only part of composite error requests in this round; no independent reader result attribution |
 | `openstack router create/delete` | `set_routers` | ✅ | Project-owned routers; attached interfaces are not removed automatically |
-| `openstack floating ip list` | `get_floating_ips` | ✅ | Floating IP listing |
-| `openstack floating ip create` | `set_floating_ip` (action="create") | ✅ | Floating IP creation |
-| `openstack floating ip delete` | `set_floating_ip` (action="delete") | ✅ | Floating IP deletion |
+| `openstack floating ip list` | `get_floating_ips` | ✅ | Floating IP listing. A failed query returns an error instead of a placeholder address. 2026-11-10 targeted check: listed |
+| `openstack floating ip create` | `set_floating_ip` (action="create") | ✅ | Floating IP creation. `description`, `port_id` and `floating_ip_address` are forwarded (previously dropped). 2026-11-10 targeted check: created with its description; `port_id` and `floating_ip_address` on create were not live-tested |
+| `openstack floating ip delete` | `set_floating_ip` (action="delete") | ✅ | Floating IP deletion. 2026-11-10 targeted check: released |
 | `openstack floating ip set` | `set_floating_ip` (action="set") | ✅ | Floating IP property setting |
-| `openstack floating ip show` | `set_floating_ip` (action="show") | ✅ | Floating IP details |
-| `openstack floating ip unset` | `set_floating_ip` (action="unset") | ✅ | Floating IP property clearing |
-| `openstack floating ip pool list` | `get_floating_ip_pools` | ⚠️ Live unverified | Composite result not independently attributed; available global pool capacity remains unknown |
+| `openstack floating ip show` | `set_floating_ip` (action="show") | ✅ | Floating IP details. 2026-11-10 targeted check: shown by ID |
+| `openstack floating ip unset` | `set_floating_ip` (action="unset") | ❌ Limitation | The tool exposes no parameter that selects what to unset, so this action always returns an error. Use `set` or `disassociate` |
+| `openstack floating ip pool list` | `get_floating_ip_pools` | ✅ | Available global pool capacity remains unknown (`available_ips=null`). A failed query returns an error instead of a placeholder pool. 2026-11-10 targeted check: the external network pool was listed |
 | `openstack floating ip port forwarding create` | `set_floating_ip_port_forwarding` (action="create") | ⚠️ Live unverified | Implemented; test platform port-forwarding endpoint returns HTTP 404 |
 | `openstack floating ip port forwarding delete` | `set_floating_ip_port_forwarding` (action="delete") | ⚠️ Live unverified | Implemented; test platform port-forwarding endpoint returns HTTP 404 |
 | `openstack floating ip port forwarding list` | `set_floating_ip_port_forwarding` (action="list") | ⚠️ Live unverified | Implemented; test platform port-forwarding endpoint returns HTTP 404 |
 | `openstack floating ip port forwarding set` | `set_floating_ip_port_forwarding` (action="set") | ⚠️ Live unverified | Implemented; test platform port-forwarding endpoint returns HTTP 404 |
 | `openstack floating ip port forwarding show` | `set_floating_ip_port_forwarding` (action="show") | ⚠️ Live unverified | Implemented; test platform port-forwarding endpoint returns HTTP 404 |
-| `openstack security group list` | `get_security_groups` | ✅ | Scoped reader list completed; default and test groups visible |
+| `openstack security group list` | `get_security_groups` | ✅ | Scoped reader list completed; default and test groups visible. A failed query returns an error instead of a placeholder `default` group |
 | `openstack security group create/delete` | `set_security_groups` | ✅ | Project-owned security groups |
 | `openstack port list` | `set_network_ports` (action="list") | ⚠️ Live unverified | Implemented list action requires modification-tool registration; not exercised in this round |
 | `openstack port create/delete` | `set_network_ports` | ✅ | Port management |
 | `openstack network qos policy list` | `get_network_qos_policies` | ⚠️ Live unverified | Implemented; test platform QoS endpoint returns HTTP 404 |
 | `openstack network qos policy create` | `set_network_qos_policies` | ⚠️ Live unverified | Implemented; test platform QoS endpoint returns HTTP 404. Policy containers only; no bandwidth rules |
-| `openstack network agent list` | `get_service_status` (includes agents) | ⚠️ Live unverified | Reader service-policy restrictions; partial data is not proof of global health |
+| `openstack network agent list` | `get_service_status` (includes agents) | ⚠️ Live unverified | Reader service-policy restrictions; partial data is not proof of global health. 2026-11-10 targeted check returned agents as administrator only |
 | `openstack network agent set` | `set_network_agents` | ✅ | Enable/disable cloud-wide agents; usually admin-only |
 
 ### 3. 💾 **Storage (Cinder)**
 
+When the Block Storage service is not deployed, the Cinder volume, snapshot,
+type, backup, group, QoS, transfer and server-volume paths report an explicit
+"Block Storage (Cinder) service is not available" error with endpoint URLs
+redacted. This behavior is unit-tested only; the 2026-11-10 targeted check ran
+on a cloud with Cinder.
+
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
-| `openstack volume list` | `get_volume_list` | ✅ | Exactly ten owned volumes per reader; no other test project volume IDs returned |
+| `openstack volume list` | `get_volume_list` | ✅ | Exactly ten owned volumes per reader; no other test project volume IDs returned. `multiattach` and `source_volid` read the SDK `is_multiattach` and `source_volume_id` fields. 2026-11-10 targeted check: listed with those fields |
 | `openstack volume show` | `get_volume_list` | ✅ | Listing-based client filtering; no dedicated get_volume_list filter argument |
-| `openstack volume create/delete` | `set_volume` | ✅ | Volume creation/deletion |
+| `openstack volume create/delete` | `set_volume` | ✅ | Volume creation/deletion. 2026-11-10 targeted check: a 1 GB volume reached available and two volumes were deleted |
 | `openstack volume set --size` | `set_volume` (action="extend") | ✅ | Positive new_size takes precedence over size; size remains a fallback. A test volume reached the requested size and available state; API acceptance alone is not completion |
 | `openstack volume set` (other properties) | — | ❌ Not implemented | set_volume has no modify/update action; do not send this unsupported action |
-| `openstack volume type list` | `get_volume_types` | ✅ | Volume type listing |
+| `openstack volume type list` | `get_volume_types` | ✅ | Volume type listing. A failed query returns an error instead of a placeholder `standard` type. 2026-11-10 targeted check: listed |
 | `openstack volume type create/delete` | `set_volume_types` | ✅ | Volume type management; usually admin-only |
 | `openstack volume snapshot list` | `get_volume_snapshots` | ✅ | Two owned base snapshots per reader; API final states checked |
-| `openstack volume snapshot create/delete` | `set_snapshot` | ✅ | Explicit member MCP snapshots reached available and were deleted. Post-action status resolves snapshots instead of reporting an unknown resource type; no restore/I/O claim |
+| `openstack volume snapshot create/delete` | `set_snapshot` | ✅ | Explicit member MCP snapshots reached available and were deleted. Post-action status resolves snapshots instead of reporting an unknown resource type; no restore/I/O claim. 2026-11-10 targeted check (administrator): reached available and was deleted |
 | `openstack backup list` | `get_volume_backups` | ✅ | Three owned available backups per reader; base backup creation used real Cinder APIs |
-| `openstack backup create/delete` | `set_volume_backups` | ✅ | Volume backup management |
+| `openstack backup create/delete` | `set_volume_backups` | ✅ | Volume backup management. 2026-11-10 targeted check: a backup reached available and was deleted |
+| `openstack volume backup restore` | `set_volume_backups` (action="restore") | ✅ | Restores to a new volume named by `volume_name`, or to `volume_id`. Works with both the `volume_id=` and the `volume=` (openstacksdk 4.14+) restore signatures. 2026-11-10 targeted check (openstacksdk 4.22.0): restored to a new volume that reached available; restoring into an existing volume was not tested |
 | `openstack volume transfer request list` | `get_volume_transfers` | ✅ | Request listing only; authorization keys are excluded |
-| `openstack server volume list` | `get_server_volumes` | ✅ | Server volume listing |
+| `openstack server volume list` | `get_server_volumes` | ✅ | Server volume listing. A server that does not exist returns an explicit error (previously an empty success). 2026-11-10 targeted check: listed the attached volume; a missing server returned the error |
 | `openstack server add/remove volume` | `set_server_volume` / `set_volume` (action="attach"/"detach") | ✅ | Both paths reached in-use then available in both member projects; foreign endpoints rejected; guest I/O not tested |
 | `openstack volume group list` | `get_volume_groups` | ✅ | Requires Cinder generic groups (API >= 3.13) |
 | `openstack volume group create` | `set_volume_groups` | ✅ | Create/list/show/delete; create requires group_type and volume_types |
@@ -339,12 +367,12 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
-| `openstack image list` | `get_image_detail_list` | ✅ | Image listing |
+| `openstack image list` | `get_image_detail_list` | ✅ | Image listing. A failed query returns an error instead of an empty list. 2026-11-10 targeted check: listed |
 | `openstack image show` | `get_image_detail_list` (filtering) | ✅ | Specific image query |
 | `openstack image create` | `set_image` (action="create") | ✅ | Enhanced image creation with min_disk, min_ram, properties |
 | `openstack image delete` | `set_image` (action="delete") | ✅ | Image deletion |
 | `openstack image set` | `set_image` (action="update") | ✅ | Image property modification |
-| `openstack image save` | `set_image` (action="save") | ✅ | Image download |
+| `openstack image save` | — | ❌ Not implemented | `set_image` supports create, delete, update and list only; there is no download action |
 | `openstack image add project` | `set_image_members` (action="add") | ✅ | Add a project to an image with shared visibility |
 | `openstack image member list` | `get_image_members` | ✅ | Image member listing |
 | `openstack image member create` | `set_image_members` | ✅ | Image member management |
@@ -362,25 +390,27 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
 | `openstack project show` | `get_project_details` (name param) | ✅ | Specific project query |
 | `openstack project create/delete` | `set_project` | ✅ | Project management |
 | `openstack role list` | `get_role_assignments` | ✅ | Role listing |
-| `openstack role assignment list` | `get_role_assignments` | ⚠️ Live unverified | Reader Keystone policy denial; not a successful data lookup |
-| `openstack role create/delete` | `set_roles` | ✅ | Role management |
+| `openstack role assignment list` | `get_role_assignments` | ✅ | A failed query returns an error instead of a placeholder assignment. 2026-11-10 targeted check: listed as administrator; reader roles were denied by Keystone policy in an earlier round |
+| `openstack role create` | `set_roles` (action="create") | ✅ | Role creation; `set_roles` also lists roles |
+| `openstack role delete` | — | ❌ Not implemented | `set_roles` supports list and create only |
 | `openstack domain list` | `get_domains` | ✅ | Subject to Keystone policy |
 | `openstack domain create/delete` | `set_domains` | ✅ | Disable explicitly with update before delete |
 | `openstack group list` | `get_identity_groups` | ✅ | Subject to Keystone policy |
 | `openstack group create/delete` | `set_identity_groups` | ✅ | Group management |
-| `openstack service list` | `get_service_status` | ⚠️ Live unverified | Reader service-policy restrictions; partial data is not proof of global health |
-| `openstack service create/delete` | `set_services` | ✅ | Service management |
+| `openstack service list` | `get_service_status` | ⚠️ Live unverified | Reader service-policy restrictions; partial data is not proof of global health. Compute and volume service zones read the SDK `availability_zone` field (previously always `unknown`); 2026-11-10 targeted check confirmed this as administrator only |
+| `openstack service list` (Keystone catalog) | `set_services` (action="list") | ✅ | Reads the SDK `is_enabled` field (previously every service showed enabled). 2026-11-10 targeted check: enabled flags matched Keystone |
+| `openstack service create/delete` | — | ❌ Not implemented | `set_services` supports list only |
 | `openstack endpoint list` | `get_service_status` (includes endpoints) | ⚠️ Live unverified | Reader service-policy restrictions; partial data is not proof of global health |
 
 ### 6. 🔥 **Orchestration (Heat)**
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
-| `openstack stack list` | `get_heat_stacks` | ✅ | The stack's project ID or Heat self link must match the current project; unknown and foreign owners are excluded. Own and foreign test stacks were checked |
+| `openstack stack list` | `get_heat_stacks` | ✅ | The stack's project ID or Heat self link must match the current project; unknown and foreign owners are excluded. Own and foreign test stacks were checked. `owner` reads the SDK `owner_id` field, and a failed query returns an error instead of a placeholder stack. 2026-11-10 targeted check: an owned test stack was listed |
 | `openstack stack show` | `get_heat_stacks` | ✅ Partial | Select the target from the returned list; no name/filter parameter. Resource/event/template/output queries use get_heat_stack_details |
-| `openstack stack create` | `set_heat_stack` (action="create") | ✅ | Stack creation |
-| `openstack stack delete` | `set_heat_stack` (action="delete") | ✅ | Foreign-project deletion rejected; owned stack deletion completed after the ownership change |
-| `openstack stack update` | `set_heat_stack` (action="update") | ⚠️ Live unverified | Requires matching stack ownership; owned update after the ownership change has not been live retested |
+| `openstack stack create` | `set_heat_stack` (action="create") | ✅ | Stack creation. 2026-11-10 targeted check: reached CREATE_COMPLETE |
+| `openstack stack delete` | `set_heat_stack` (action="delete") | ✅ | Foreign-project deletion rejected; owned stack deletion completed after the ownership change. 2026-11-10 targeted check: deleted |
+| `openstack stack update` | `set_heat_stack` (action="update") | ✅ | Requires matching stack ownership. The result reads the SDK `status` field (previously the tool reported a failure after Heat accepted the update). 2026-11-10 targeted check: an owned stack update was reported as accepted and reached UPDATE_COMPLETE |
 | `openstack stack suspend/resume` | — | ❌ Not implemented | set_heat_stack supports create, delete and update only |
 | `openstack stack resource list` | `get_heat_stack_details` (section="resources") | ✅ | Actual Heat resources |
 | `openstack stack event list` | `get_heat_stack_details` (section="events") | ✅ | Owned stack events retrieved after the ownership change |
@@ -388,6 +418,13 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
 | `openstack stack output list` | `get_heat_stack_details` (section="outputs") | ✅ | Owned stack outputs retrieved after the ownership change |
 
 ### 7. ⚖️ **Load Balancer (Octavia)**
+
+The Octavia tools read the openstacksdk attribute names (`is_admin_state_up`,
+`is_enabled`, the listener `load_balancer_id`, the L7 rule `rule_value` and
+plural quota fields), list pool members with `members(pool)`, create L7 rules
+with `create_l7_rule(policy, ...)`, and filter listeners by load balancer. These
+corrections are unit-tested against real openstacksdk resource objects only;
+Octavia was not available in any live test cloud.
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
@@ -496,7 +533,7 @@ collected instead of substituting allocations.
 | Resource monitoring | `get_resource_monitoring` | ⚠️ Live unverified | Reader physical-capacity policy restrictions; allocations are separate from capacity; no live utilization |
 | Service status | `get_service_status` | ⚠️ Live unverified | Reader service-policy restrictions; partial data is not proof of global health |
 | Cluster overview | `get_service_status` + `get_resource_monitoring` | ⚠️ Live unverified | Reader physical-capacity policy restrictions; allocations are separate from capacity; no live utilization |
-| Service log metadata | `set_service_logs` | Partial | Service listing only; log retrieval is unavailable without a logging backend |
+| Service log metadata | `set_service_logs` | Partial | Service listing only; log retrieval is unavailable without a logging backend. Network agents are listed from the SDK `is_admin_state_up` field (previously omitted); 2026-11-10 targeted check: listed with network agents |
 | Resource metadata | `set_metrics` | Partial | Nova/Neutron/Cinder list/summary only; does not call Gnocchi. Use `get_gnocchi_*` for telemetry |
 | `gnocchi resource list/search/show/history` | `get_gnocchi_resources` | ✅ | Current-project resources; list, attribute filter, show with metrics map, and history passed live |
 | `gnocchi metric list/show` | `get_gnocchi_metrics` | ✅ | List, per-resource details, show by resource + name, and show by metric UUID passed live |
@@ -504,14 +541,14 @@ collected instead of substituting allocations.
 | `gnocchi aggregates` | `get_gnocchi_aggregates` | ✅ | Current-project search is always applied. Passed live: project-wide `cpu` `rate:mean` mean, `top`, `groupby="flavor_name"`, and the `memory.usage`/`memory` ratio expression. Ranking across several resources is unit-tested only because the test project had one instance. A metric UUID owned outside the project returned 404 in expression mode. Mixed modes and missing metrics returned failures with hints. Unfilled gaps are returned as null |
 | `gnocchi archive-policy/archive-policy-rule/resource-type list`, `gnocchi capabilities list`, `gnocchi status` | `get_gnocchi_service_info` | ✅ | All five sections returned live with the admin test account; a denied section is reported per section |
 | Alarm management | `set_alarms` | ✅ | list/create/show/delete passed live, by name and by ID. Evaluation passed live: `cpu` alarms with `aggregation_method="rate:mean"` reached `ok` and `alarm` as expected, and a `vcpus` alarm reached `alarm`. Aodh accepted alarms for a nonexistent resource and for the default `cpu_util`, which current Ceilometer does not collect; check metrics with `get_gnocchi_metrics` first |
-| Compute agents | `set_compute_agents` | ✅ | Compute agent management |
+| Compute agents | `set_compute_agents` | ✅ | list/show of Nova services and hypervisors. `show` by `agent_id` looks the service up in the service listing (the SDK has no single-service lookup; this previously failed), and zones and hypervisor capacity read the SDK field names. 2026-11-10 targeted check (administrator): list with hypervisors, show by ID, show by host, and an explicit error for an unknown ID |
 | Usage statistics | `get_usage_statistics` | ✅ | Period compute allocation-hours plus separately labeled current snapshots |
 
 ### 9. 📏 **Usage & Quota**
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
-| `openstack quota show` | `get_quota` | ✅ | Quota query |
+| `openstack quota show` | `get_quota` | ✅ | Quota query. The network floating IP quota reads the SDK `floating_ips` field (previously always -1). 2026-11-10 targeted check: matched the Neutron quota |
 | `openstack quota set` | `set_quota` (action="set") | ✅ | Routes supplied fields to Nova/Neutron/Cinder; partial failures are reported |
 | `openstack quota delete` | `set_quota` (action="delete") | ✅ | Resets all three service quotas to defaults; requires modification tools |
 | `openstack usage show` | `get_usage_statistics` | ✅ | Current-project Nova simple tenant usage; not monetary charges |
@@ -1166,6 +1203,12 @@ MCP server may authenticate successfully and then fail on the first service tool
 `OS_INTERFACE` does not change these explicit endpoint URLs. The current
 single-host configuration uses the internal interface convention.
 
+Every service URL is built even when the service is not deployed. If a firewall
+silently drops traffic to such a port (for example `OS_VOLUME_PORT` on a cloud
+without Cinder), calls to that service wait for the connection timeout instead
+of failing immediately. Let the port be refused, or point it at a reachable
+gateway, so that a missing service fails fast with an explicit error.
+
 Aodh (`alarming`) and Gnocchi (`metric`) have no `OS_*_PORT` setting. Their
 tools use the Keystone catalog endpoint for `OS_INTERFACE` and
 `OS_REGION_NAME`, which must also be reachable from the `mcp-server` container.
@@ -1574,6 +1617,34 @@ MCP_LOG_LEVEL=DEBUG uv run python -m mcp_openstack_ops
 # Validate OpenStack connection
 uv run python -c "from src.mcp_openstack_ops.functions import get_openstack_connection; print(get_openstack_connection())"
 ```
+
+### Live tool checks
+
+`scripts/live_tool_check.py` calls every registered tool through a real MCP
+client (in process, or over Streamable HTTP with `--url`), including negative
+paths, polls asynchronous operations to their final state with openstacksdk,
+and removes what it created. With modification tools enabled it creates and
+deletes projects, domains, users, roles, flavors, networks, images and servers
+named with `--prefix` (default `mcpval`), and its cleanup deletes every resource
+whose name starts with that prefix. Run it only as an administrator against a
+disposable test cloud; state-changing runs require
+`--i-understand-this-is-destructive`.
+
+```bash
+# OS_* variables for the test cloud, plus OS_AUTH_HOST/OS_AUTH_PORT for the server
+. admin-openrc.sh
+ALLOW_MODIFY_OPERATIONS=true uv run python scripts/live_tool_check.py \
+  --i-understand-this-is-destructive \
+  --image cirros --flavor m1.tiny --resize-flavor m1.small \
+  --network demo-net --external-network public1 --existing-server demo1 \
+  --output live-tool-check.json
+```
+
+The summary reports call and final-state check counts and a unique-tool
+classification (`passed`, `passed_partial_service`, `service_absent`,
+`error_paths_only`, `partial`, `failed`). A tool whose service is not deployed
+passes only by returning an explicit error, which is not live validation. Keep
+result files out of the repository (`live-tool-check*.json` is ignored).
 
 ---
 

@@ -42,7 +42,7 @@ def get_load_balancer_pools(listener_name_or_id: str = None) -> Dict[str, Any]:
         pool_details = []
         for pool in pools:
             # Get members for this pool
-            members = list(conn.load_balancer.members(pool_id=pool.id))
+            members = list(conn.load_balancer.members(pool.id))
             member_summary = []
             
             for member in members:
@@ -52,7 +52,7 @@ def get_load_balancer_pools(listener_name_or_id: str = None) -> Dict[str, Any]:
                     'address': member.address,
                     'protocol_port': member.protocol_port,
                     'weight': getattr(member, 'weight', 1),
-                    'admin_state_up': member.admin_state_up,
+                    'admin_state_up': member.is_admin_state_up,
                     'operating_status': getattr(member, 'operating_status', 'Unknown')
                 }
                 member_summary.append(member_info)
@@ -63,7 +63,7 @@ def get_load_balancer_pools(listener_name_or_id: str = None) -> Dict[str, Any]:
                 'description': pool.description,
                 'protocol': pool.protocol,
                 'lb_algorithm': pool.lb_algorithm,
-                'admin_state_up': pool.admin_state_up,
+                'admin_state_up': pool.is_admin_state_up,
                 'listener_id': getattr(pool, 'listener_id', None),
                 'members': member_summary,
                 'member_count': len(member_summary),
@@ -154,7 +154,7 @@ def set_load_balancer_pool(action: str, pool_name_or_id: str = "", name: str = "
                     'protocol': pool.protocol,
                     'lb_algorithm': pool.lb_algorithm,
                     'listener_id': pool.listener_id,
-                    'admin_state_up': pool.admin_state_up,
+                    'admin_state_up': pool.is_admin_state_up,
                     'provisioning_status': pool.provisioning_status,
                     'operating_status': pool.operating_status
                 }
@@ -217,7 +217,7 @@ def set_load_balancer_pool(action: str, pool_name_or_id: str = "", name: str = "
                         'address': member.address,
                         'protocol_port': member.protocol_port,
                         'weight': member.weight,
-                        'admin_state_up': member.admin_state_up,
+                        'admin_state_up': member.is_admin_state_up,
                         'operating_status': member.operating_status
                     })
             except Exception as e:
@@ -231,7 +231,7 @@ def set_load_balancer_pool(action: str, pool_name_or_id: str = "", name: str = "
                     'description': pool.description,
                     'protocol': pool.protocol,
                     'lb_algorithm': pool.lb_algorithm,
-                    'admin_state_up': pool.admin_state_up,
+                    'admin_state_up': pool.is_admin_state_up,
                     'provisioning_status': pool.provisioning_status,
                     'operating_status': pool.operating_status,
                     'listener_id': getattr(pool, 'listener_id', None),
@@ -283,7 +283,7 @@ def set_load_balancer_pool(action: str, pool_name_or_id: str = "", name: str = "
                     'description': updated_pool.description,
                     'protocol': updated_pool.protocol,
                     'lb_algorithm': updated_pool.lb_algorithm,
-                    'admin_state_up': updated_pool.admin_state_up,
+                    'admin_state_up': updated_pool.is_admin_state_up,
                     'provisioning_status': updated_pool.provisioning_status,
                     'operating_status': updated_pool.operating_status
                 }
@@ -339,7 +339,7 @@ def get_load_balancer_pool_members(pool_name_or_id: str) -> Dict[str, Any]:
                 'address': member.address,
                 'protocol_port': member.protocol_port,
                 'weight': member.weight,
-                'admin_state_up': member.admin_state_up,
+                'admin_state_up': member.is_admin_state_up,
                 'provisioning_status': member.provisioning_status,
                 'operating_status': member.operating_status,
                 'backup': getattr(member, 'backup', False),
@@ -444,7 +444,7 @@ def set_load_balancer_pool_member(action: str, pool_name_or_id: str, member_id: 
                     'address': member.address,
                     'protocol_port': member.protocol_port,
                     'weight': member.weight,
-                    'admin_state_up': member.admin_state_up,
+                    'admin_state_up': member.is_admin_state_up,
                     'provisioning_status': member.provisioning_status,
                     'operating_status': member.operating_status,
                     'pool_id': pool.id
@@ -499,7 +499,7 @@ def set_load_balancer_pool_member(action: str, pool_name_or_id: str, member_id: 
                     'address': member.address,
                     'protocol_port': member.protocol_port,
                     'weight': member.weight,
-                    'admin_state_up': member.admin_state_up,
+                    'admin_state_up': member.is_admin_state_up,
                     'provisioning_status': member.provisioning_status,
                     'operating_status': member.operating_status,
                     'backup': getattr(member, 'backup', False),
@@ -551,7 +551,7 @@ def set_load_balancer_pool_member(action: str, pool_name_or_id: str, member_id: 
                     'address': updated_member.address,
                     'protocol_port': updated_member.protocol_port,
                     'weight': updated_member.weight,
-                    'admin_state_up': updated_member.admin_state_up,
+                    'admin_state_up': updated_member.is_admin_state_up,
                     'provisioning_status': updated_member.provisioning_status,
                     'operating_status': updated_member.operating_status
                 }

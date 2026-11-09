@@ -22,7 +22,9 @@ async def set_server_fixed_ip(
     Functions:
     - Add fixed IP to server on specified network
     - Remove specific fixed IP from server
-    - Create new port with specified or auto-assigned fixed IP
+    - Adds a new interface (Nova-created port, deleted again on removal) with
+      the specified or auto-assigned fixed IP; remove detaches the interface
+      that holds the IP
     
     Use when user requests:
     - "Add fixed IP X to server Y on network Z"

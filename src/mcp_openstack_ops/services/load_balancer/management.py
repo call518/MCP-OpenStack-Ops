@@ -30,7 +30,7 @@ def get_load_balancer_availability_zones() -> Dict[str, Any]:
                 'name': zone.name,
                 'description': getattr(zone, 'description', ''),
                 'availability_zone_profile_id': getattr(zone, 'availability_zone_profile_id', None),
-                'enabled': getattr(zone, 'enabled', True)
+                'enabled': getattr(zone, 'is_enabled', True)
             }
             zone_details.append(zone_info)
         
@@ -88,7 +88,7 @@ def set_load_balancer_availability_zone(action: str, **kwargs) -> Dict[str, Any]
                 'availability_zone': {
                     'name': az.name,
                     'description': getattr(az, 'description', ''),
-                    'enabled': getattr(az, 'enabled', True)
+                    'enabled': getattr(az, 'is_enabled', True)
                 }
             }
         
@@ -147,7 +147,7 @@ def get_load_balancer_flavors() -> Dict[str, Any]:
                 'name': flavor.name,
                 'description': getattr(flavor, 'description', ''),
                 'flavor_profile_id': getattr(flavor, 'flavor_profile_id', None),
-                'enabled': getattr(flavor, 'enabled', True)
+                'enabled': getattr(flavor, 'is_enabled', True)
             }
             flavor_details.append(flavor_info)
         
@@ -206,7 +206,7 @@ def set_load_balancer_flavor(action: str, **kwargs) -> Dict[str, Any]:
                     'id': flavor.id,
                     'name': flavor.name,
                     'description': getattr(flavor, 'description', ''),
-                    'enabled': getattr(flavor, 'enabled', True)
+                    'enabled': getattr(flavor, 'is_enabled', True)
                 }
             }
         
@@ -298,11 +298,11 @@ def get_load_balancer_quotas(project_id: str = "") -> Dict[str, Any]:
             quota = conn.load_balancer.get_quota(project_id)
             quota_info = {
                 'project_id': project_id,
-                'load_balancer': getattr(quota, 'load_balancer', -1),
-                'listener': getattr(quota, 'listener', -1),
-                'pool': getattr(quota, 'pool', -1),
-                'health_monitor': getattr(quota, 'health_monitor', -1),
-                'member': getattr(quota, 'member', -1)
+                'load_balancer': getattr(quota, 'load_balancers', -1),
+                'listener': getattr(quota, 'listeners', -1),
+                'pool': getattr(quota, 'pools', -1),
+                'health_monitor': getattr(quota, 'health_monitors', -1),
+                'member': getattr(quota, 'members', -1)
             }
             return {
                 'success': True,
@@ -314,11 +314,11 @@ def get_load_balancer_quotas(project_id: str = "") -> Dict[str, Any]:
             for quota in quotas:
                 quota_info = {
                     'project_id': quota.project_id,
-                    'load_balancer': getattr(quota, 'load_balancer', -1),
-                    'listener': getattr(quota, 'listener', -1),
-                    'pool': getattr(quota, 'pool', -1),
-                    'health_monitor': getattr(quota, 'health_monitor', -1),
-                    'member': getattr(quota, 'member', -1)
+                    'load_balancer': getattr(quota, 'load_balancers', -1),
+                    'listener': getattr(quota, 'listeners', -1),
+                    'pool': getattr(quota, 'pools', -1),
+                    'health_monitor': getattr(quota, 'health_monitors', -1),
+                    'member': getattr(quota, 'members', -1)
                 }
                 quota_details.append(quota_info)
             
@@ -377,11 +377,11 @@ def set_load_balancer_quota(action: str, **kwargs) -> Dict[str, Any]:
                 'message': f'Quota updated for project: {project_id}',
                 'quota': {
                     'project_id': project_id,
-                    'load_balancer': getattr(updated_quota, 'load_balancer', -1),
-                    'listener': getattr(updated_quota, 'listener', -1),
-                    'pool': getattr(updated_quota, 'pool', -1),
-                    'health_monitor': getattr(updated_quota, 'health_monitor', -1),
-                    'member': getattr(updated_quota, 'member', -1)
+                    'load_balancer': getattr(updated_quota, 'load_balancers', -1),
+                    'listener': getattr(updated_quota, 'listeners', -1),
+                    'pool': getattr(updated_quota, 'pools', -1),
+                    'health_monitor': getattr(updated_quota, 'health_monitors', -1),
+                    'member': getattr(updated_quota, 'members', -1)
                 }
             }
         

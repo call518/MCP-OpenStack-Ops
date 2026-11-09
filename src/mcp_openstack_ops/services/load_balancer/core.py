@@ -9,6 +9,7 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 from ...connection import get_openstack_connection
+from .listeners import listener_belongs_to_load_balancer
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -54,16 +55,18 @@ def get_load_balancer_list(limit: int = 50, offset: int = 0, include_all: bool =
         for lb in load_balancers:
             try:
                 # Get listeners for this load balancer
-                listeners = list(conn.load_balancer.listeners(loadbalancer_id=lb.id))
+                listeners = list(conn.load_balancer.listeners(load_balancer_id=lb.id))
                 listener_summary = []
                 
                 for listener in listeners:
+                    if not listener_belongs_to_load_balancer(listener, lb.id):
+                        continue
                     listener_info = {
                         'id': listener.id,
                         'name': listener.name,
                         'protocol': listener.protocol,
                         'protocol_port': listener.protocol_port,
-                        'admin_state_up': listener.admin_state_up
+                        'admin_state_up': listener.is_admin_state_up
                     }
                     listener_summary.append(listener_info)
                 
@@ -77,7 +80,7 @@ def get_load_balancer_list(limit: int = 50, offset: int = 0, include_all: bool =
                     'vip_network_id': lb.vip_network_id,
                     'provisioning_status': lb.provisioning_status,
                     'operating_status': lb.operating_status,
-                    'admin_state_up': lb.admin_state_up,
+                    'admin_state_up': lb.is_admin_state_up,
                     'project_id': lb.project_id,
                     'provider': getattr(lb, 'provider', 'Unknown'),
                     'created_at': str(lb.created_at) if hasattr(lb, 'created_at') else 'N/A',
@@ -166,7 +169,7 @@ def get_load_balancer_details(lb_name_or_id: str) -> Dict[str, Any]:
             'vip_network_id': lb.vip_network_id,
             'provisioning_status': lb.provisioning_status,
             'operating_status': lb.operating_status,
-            'admin_state_up': lb.admin_state_up,
+            'admin_state_up': lb.is_admin_state_up,
             'project_id': lb.project_id,
             'provider': getattr(lb, 'provider', 'Unknown'),
             'created_at': str(lb.created_at) if hasattr(lb, 'created_at') else 'N/A',
@@ -174,17 +177,19 @@ def get_load_balancer_details(lb_name_or_id: str) -> Dict[str, Any]:
         }
         
         # Get listeners
-        listeners = list(conn.load_balancer.listeners(loadbalancer_id=lb.id))
+        listeners = list(conn.load_balancer.listeners(load_balancer_id=lb.id))
         listener_details = []
         
         for listener in listeners:
+            if not listener_belongs_to_load_balancer(listener, lb.id):
+                continue
             # Get pools for this listener
             pools = list(conn.load_balancer.pools(listener_id=listener.id))
             pool_summary = []
             
             for pool in pools:
                 # Get members for this pool
-                members = list(conn.load_balancer.members(pool_id=pool.id))
+                members = list(conn.load_balancer.members(pool.id))
                 member_summary = [{'id': m.id, 'address': m.address, 'protocol_port': m.protocol_port} for m in members]
                 
                 pool_info = {
@@ -192,7 +197,7 @@ def get_load_balancer_details(lb_name_or_id: str) -> Dict[str, Any]:
                     'name': pool.name,
                     'protocol': pool.protocol,
                     'lb_algorithm': pool.lb_algorithm,
-                    'admin_state_up': pool.admin_state_up,
+                    'admin_state_up': pool.is_admin_state_up,
                     'members': member_summary,
                     'member_count': len(member_summary)
                 }
@@ -203,7 +208,7 @@ def get_load_balancer_details(lb_name_or_id: str) -> Dict[str, Any]:
                 'name': listener.name,
                 'protocol': listener.protocol,
                 'protocol_port': listener.protocol_port,
-                'admin_state_up': listener.admin_state_up,
+                'admin_state_up': listener.is_admin_state_up,
                 'pools': pool_summary,
                 'pool_count': len(pool_summary)
             }
@@ -335,7 +340,7 @@ def set_load_balancer(action: str, **kwargs) -> Dict[str, Any]:
                     'id': updated_lb.id,
                     'name': updated_lb.name,
                     'description': updated_lb.description,
-                    'admin_state_up': updated_lb.admin_state_up
+                    'admin_state_up': updated_lb.is_admin_state_up
                 }
             }
         
@@ -457,7 +462,7 @@ def set_load_balancer(action: str, **kwargs) -> Dict[str, Any]:
                         'name': lb.name,
                         'provisioning_status': lb.provisioning_status,
                         'operating_status': lb.operating_status,
-                        'admin_state_up': lb.admin_state_up,
+                        'admin_state_up': lb.is_admin_state_up,
                         'vip_address': lb.vip_address
                     }
                 }
