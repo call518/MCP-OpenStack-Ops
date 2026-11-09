@@ -17,6 +17,25 @@ what the project is, what it can do, the Quick Start, and pointers to details.
   `mcpb/manifest.json` links to `README.md#claude-desktop-integration`; keep that
   anchor.
 
+## Keep English and Korean documents in sync
+
+Every Markdown document in README.md and `docs/` exists in two languages:
+`<name>.md` in English, the default, and `<name>.ko.md` in Korean with the same
+content. `docs/issues/` is outside this rule.
+
+- Whenever you change a document, apply the same change to its other-language
+  file in the same change set, so that both state the same facts, steps, values,
+  tables, and Status/Notes.
+- Create every new document as an English `.md` and a Korean `.ko.md` pair.
+- The first line of each file is a language switcher: `**English** | [Korean](<name>.ko.md)`
+  in the English file and `[English](<name>.md) | **Korean**` in the Korean file.
+- Translate prose only. Keep commands, code blocks, configuration keys, tool and
+  action names, and the mapping's Status values (`✅`, `⚠️ Live unverified`,
+  `❌ Not implemented`, ...) identical in both languages.
+- Links in a Korean file point to the Korean version of other documents
+  (`*.ko.md`) and to the anchors generated from their Korean headings. After
+  editing, check that every relative link and anchor resolves in both languages.
+
 ## Maintain the CLI-to-tool mapping and validation records
 
 For every improvement or fix, review README.md's **OpenStack CLI vs MCP Tools
@@ -60,5 +79,5 @@ pointer to `docs/validation.md`, not the dated records themselves.
   `docs/validation.md` but not to other reports.
 - Before completion, check summary arithmetic, percentages, tool/action names,
   Status/Notes, source identity, and evidence links in README.md and
-  `docs/validation.md` for agreement. If README.ko.md exists, maintain equivalent
-  information in both README files.
+  `docs/validation.md` for agreement, and confirm that README.ko.md and
+  `docs/validation.ko.md` carry the same information.
