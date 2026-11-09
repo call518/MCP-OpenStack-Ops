@@ -11,10 +11,14 @@ RUN dnf install -y epel-release \
         && dnf clean all \
         && update-alternatives --install /usr/bin/python python /usr/bin/python${PYTHON_VERSION} 1000 --slave /usr/bin/pip pip /usr/bin/pip${PYTHON_VERSION}
 
+# mcpo proxies the MCP server over HTTP and does not run this project's code,
+# so it is pinned here rather than in uv.lock. mcpo 0.0.20 imports
+# mcp.client.streamable_http.streamablehttp_client, which mcp 2.x removed, so
+# keep the proxy on mcp 1.x until an mcpo release supports mcp 2.x. An mcp 1.x
+# client still negotiates with the mcp 2.x server.
 RUN pip install \
-        'uv>=0.8.5' \
-        'mcpo>=0.0.17' \
-        'fastmcp>=2.12.4' \
-        'aiohttp>=3.12.0'
+        'mcpo==0.0.20' \
+        'mcp==1.30.0' \
+        'fastapi==0.128.0'
 
 CMD ["mcpo", "--host", "0.0.0.0", "--port", "8000", "--config", "/app/config/mcp-config.json", "--hot-reload"]

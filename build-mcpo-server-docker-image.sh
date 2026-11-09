@@ -6,7 +6,7 @@ IMAGE_NAME="call518/mcpo-proxy-openstack-ops"
 
 echo "=== Building Docker image Name: ${IMAGE_NAME} ==="
 
-VERSION="1.0.2"
+VERSION="1.0.3"
 TAGs="latest"
 
 # Build once with version tag

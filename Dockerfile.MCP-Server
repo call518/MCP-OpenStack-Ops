@@ -9,13 +9,13 @@ RUN dnf install -y epel-release \
         && dnf clean all \
         && update-alternatives --install /usr/bin/python python /usr/bin/python${PYTHON_VERSION} 1000 --slave /usr/bin/pip pip /usr/bin/pip${PYTHON_VERSION}
 
-RUN pip install \
-        'uv>=0.8.5' \
-        'mcpo>=0.0.17' \
-        'fastmcp>=2.12.4' \
-        'aiohttp>=3.12.0' \
-        'openstacksdk>=4.1.0,<=4.22.0' \
-        'gnocchiclient>=7.2.0,<8' \
-        'python-dotenv>=1.1.1'
+# Install the exact runtime dependency set from uv.lock, the same set that CI
+# and the Claude Desktop bundle use. The application code is mounted at runtime.
+COPY pyproject.toml uv.lock /tmp/deps/
+RUN pip install 'uv==0.7.20' \
+        && uv export --project /tmp/deps --locked --no-emit-project --no-hashes \
+                -o /tmp/deps/requirements.txt \
+        && pip install --no-deps -r /tmp/deps/requirements.txt \
+        && rm -rf /tmp/deps
 
 CMD ["/bin/bash", "/app/scripts/mcp-server-docker-cmd.sh"]
