@@ -804,13 +804,201 @@ guide when your environment differs:
 
 ## Claude Desktop Integration
 
-Use `mcp-config.json.stdio` as a reference. Copy it to the ignored local file,
-update the local copy, and merge it into Claude Desktop's private configuration:
+Choose **one** of the following options for each server entry in
+`claude_desktop_config.json`. Option 1 is the simplest.
+
+| Option | Use when | Requirements on the Claude Desktop computer |
+| --- | --- | --- |
+| [1. PyPI package with `uvx` (recommended)](#option-1-pypi-package-with-uvx-recommended) | Run the released server; no clone needed | uv |
+| [2. Source checkout with `uv`](#option-2-source-checkout-with-uv) | Run unreleased or modified source | Git, uv |
+| [3. Existing Docker HTTP server with `npx`](#option-3-existing-docker-http-server-with-npx) | Reuse the running Docker Compose `mcp-server` | Node.js 18+ |
+
+In options 1 and 2, Claude Desktop starts a local MCP server on that computer,
+which needs network access to the OpenStack APIs. In option 3, Claude Desktop
+starts only the `mcp-remote` bridge; the MCP server is a separate HTTP server,
+even when it runs on the same computer, and reaches OpenStack with its own `.env`.
+
+The examples name the server entries `OpenStack-Local-uvx`,
+`OpenStack-Local-uv`, and `OpenStack-Remote-npx`. Keep a server name at 21
+characters or fewer: clients can prefix it to each tool name (Claude Code uses
+`mcp__<server>__<tool>`), the Claude API limits tool names to 64 characters, and
+the longest tool name here has 36 characters. A server on the public internet can
+instead be added as a [remote custom connector](#remote-custom-connector), which
+does not use `claude_desktop_config.json`.
+
+Open Claude Desktop **Settings > Developer > Edit Config**, or edit the file
+directly:
+
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+- Linux: `~/.config/Claude/claude_desktop_config.json`
+
+Merge the entry into the existing `mcpServers` object, then quit and restart
+Claude Desktop. MCP logs are in `~/Library/Logs/Claude` (macOS),
+`%APPDATA%\Claude\logs` (Windows), or `~/.config/Claude/logs` (Linux). This file
+stores the values you put in it in plain text; keep it private and do not commit
+it.
+
+### Option 1: PyPI package with uvx (recommended)
+
+`uvx` is included with [uv](https://docs.astral.sh/uv/). It downloads the
+`mcp-openstack-ops` package and a suitable Python from PyPI into a cached tool
+environment and runs it; no clone is needed. Download it once before the first
+Claude Desktop launch:
 
 ```bash
-cp mcp-config.json.stdio mcp-config.json.stdio.local
-chmod 600 mcp-config.json.stdio.local
+uvx mcp-openstack-ops --help
 ```
+
+The first run installs the latest release from
+[PyPI](https://pypi.org/project/mcp-openstack-ops/); later runs reuse the cached
+version and do not check for updates. To upgrade, run
+`uvx mcp-openstack-ops@latest --help` and restart Claude Desktop. To keep the
+same version on every computer, use an exact version such as
+`mcp-openstack-ops@X.Y.Z` in both the command and `args`.
+
+```json
+{
+  "mcpServers": {
+    "OpenStack-Local-uvx": {
+      "command": "uvx",
+      "args": ["mcp-openstack-ops", "--type", "stdio"],
+      "env": {
+        "OS_AUTH_HOST": "<keystone-host>",
+        "OS_AUTH_PORT": "5000",
+        "OS_PROJECT_NAME": "<project>",
+        "OS_USERNAME": "<user>",
+        "OS_PASSWORD": "<password>",
+        "OS_USER_DOMAIN_NAME": "Default",
+        "OS_PROJECT_DOMAIN_NAME": "Default",
+        "OS_REGION_NAME": "RegionOne",
+        "ALLOW_MODIFY_OPERATIONS": "false"
+      }
+    }
+  }
+}
+```
+
+Add the endpoint, HTTPS, and port variables your cloud needs from
+[Environment Variables](#environment-variables). With
+`ALLOW_MODIFY_OPERATIONS=false`, only read tools are registered. The tracked
+`mcp-config.json.stdio` template sets `PYTHONPATH=/app/src`, the source path inside
+this project's containers; use its `env` values, not its `command`, for Claude
+Desktop.
+
+### Option 2: Source checkout with uv
+
+Use this option for changes that are not released on PyPI. Requirements: Git
+and [uv](https://docs.astral.sh/uv/); uv installs Python 3.12+ and the locked
+dependencies.
+
+Clone this repository on the Claude Desktop computer. In the commands and configuration below,
+`/path/to/MCP-OpenStack-Ops` is the absolute path of this clone: the directory
+that contains `pyproject.toml`, `uv.lock`, and `src/`. Then prepare the
+environment once so that the first Claude Desktop launch does not wait for
+installation:
+
+```bash
+git clone https://github.com/call518/MCP-OpenStack-Ops.git /path/to/MCP-OpenStack-Ops
+uv --directory /path/to/MCP-OpenStack-Ops sync
+```
+
+On Windows, use a Windows path such as `C:\work\MCP-OpenStack-Ops` in the
+commands, and write it as `C:\\work\\MCP-OpenStack-Ops` in JSON. For Claude
+Desktop on Windows, clone the repository on Windows rather than using a clone
+inside WSL, whose `.venv` is built for Linux.
+
+Add an entry with the absolute path of the clone. Only `command` and `args`
+differ from option 1:
+
+```json
+{
+  "mcpServers": {
+    "OpenStack-Local-uv": {
+      "command": "uv",
+      "args": ["--directory", "/path/to/MCP-OpenStack-Ops", "run",
+               "mcp-openstack-ops", "--type", "stdio"],
+      "env": {
+        "OS_AUTH_HOST": "<keystone-host>",
+        "OS_AUTH_PORT": "5000",
+        "OS_PROJECT_NAME": "<project>",
+        "OS_USERNAME": "<user>",
+        "OS_PASSWORD": "<password>",
+        "OS_USER_DOMAIN_NAME": "Default",
+        "OS_PROJECT_DOMAIN_NAME": "Default",
+        "OS_REGION_NAME": "RegionOne",
+        "ALLOW_MODIFY_OPERATIONS": "false"
+      }
+    }
+  }
+}
+```
+
+After `git pull`, restart Claude Desktop to load the updated source.
+
+### Option 3: Existing Docker HTTP server with npx
+
+Claude Desktop starts local commands from `claude_desktop_config.json`; it does
+not take an HTTP URL there. To use the Docker Compose `mcp-server`, use the
+third-party [`mcp-remote`](https://github.com/geelen/mcp-remote) stdio-to-HTTP
+bridge. It requires Node.js 18 or later; Claude Desktop uses the system Node.js.
+Register the MCP server's `/mcp` URL, not the MCPO URL. Replace host port `8000`
+if you changed it:
+
+```json
+{
+  "mcpServers": {
+    "OpenStack-Remote-npx": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote@0.15.2", "http://127.0.0.1:8000/mcp",
+               "--transport", "http-only",
+               "--header", "Authorization:${REMOTE_SECRET_KEY}"],
+      "env": {
+        "REMOTE_SECRET_KEY": "Bearer <REMOTE_SECRET_KEY>"
+      }
+    }
+  }
+}
+```
+
+`mcp-remote` substitutes this `env` value into the `Authorization` header. Set it
+to `Bearer `, a space, and the MCP server's `REMOTE_SECRET_KEY` value; without the
+`Bearer ` prefix the server rejects the connection. Do not use `OS_PASSWORD`; the
+OpenStack credentials stay in the server's `.env`. The prefix is kept in `env`
+because Claude Desktop on Windows does not escape spaces in `args`. If server authentication is disabled
+(`REMOTE_AUTH_ENABLE=false`), remove the `--header` arguments and `env`. Keep the
+`mcp-remote` version pinned. Use plain HTTP only for a loopback address; for another
+host, publish the server over HTTPS. The server's own `.env` decides the
+OpenStack account and whether `set_*` tools are registered.
+
+### Remote custom connector
+
+This is not a `claude_desktop_config.json` option. Remote connectors are added in Claude **Customize > Connectors > Add custom
+connector**, not in `claude_desktop_config.json`. Claude connects to the server
+from Anthropic's cloud, not from your computer, so the server must have an HTTPS
+URL reachable from the public internet; servers on a private network, VPN, or
+behind a firewall cannot be reached without allowlisting or an MCP tunnel.
+
+This server does not implement OAuth. With `REMOTE_AUTH_ENABLE=true`, choose
+**No sign-in** and add an `authorization` request header whose value is
+`Bearer <REMOTE_SECRET_KEY>`, including the scheme. Request-header
+authentication is a beta feature that not every organization has. The token
+grants the server's configured OpenStack account to anyone who holds it. Never
+expose this server without authentication. Review
+[Bearer Token Authentication](#bearer-token-authentication) and keep
+`ALLOW_MODIFY_OPERATIONS=false` unless writes are required. Multi-user mode
+uses custom `X-OpenStack-*` headers, and custom header names need Anthropic
+approval; see the [multi-user guide](docs/multi-user-guide.md).
+
+Limitations: options 1-3 were checked with an MCP client using the same
+command, arguments, and environment, not in the Claude Desktop app. Option 1 was
+checked by installing the package from a local checkout with `uvx`, not by
+downloading it from PyPI. With server authentication enabled, option 3 connected
+with the `Bearer ` value and was rejected without the prefix or with a wrong key.
+The remote custom connector path is unverified.
+
+See the [Claude Desktop local MCP guide](https://modelcontextprotocol.io/docs/develop/connect-local-servers)
+and [custom connectors](https://claude.com/docs/connectors/custom/remote-mcp).
 
 ---
 
