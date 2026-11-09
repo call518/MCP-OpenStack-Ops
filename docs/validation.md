@@ -1,3 +1,5 @@
+**English** | [Korean](validation.ko.md)
+
 # Validation evidence
 
 This file records how the tools were validated: live checks against test
@@ -81,7 +83,7 @@ an earlier full summary.
   `get_project_details` check removed; it also read `get_gnocchi_service_info`
   and `get_gnocchi_metrics`. 74/74 checks passed, and all test resources were
   deleted. A locally built `mcp-server` image served 110 tools over Streamable
-  HTTP, and 13 read tools, including the three Gnocchi read tools named above
+  HTTP, and 13 read tools, including the two Gnocchi read tools named above
   plus `get_gnocchi_resources`, returned results. A locally built `mcpo-proxy`
   image (mcpo 0.0.20, mcp 1.30.0, FastAPI 0.128.0) connected to that server,
   exposed 110 tools, and returned results for `get_service_status`,

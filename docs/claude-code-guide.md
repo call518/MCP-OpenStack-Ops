@@ -1,3 +1,5 @@
+**English** | [Korean](claude-code-guide.ko.md)
+
 # Claude Code
 
 Install Claude Code and start the MCP server in `streamable-http` mode first,

@@ -1,3 +1,5 @@
+**English** | [Korean](security.ko.md)
+
 # Security, isolation and safety controls
 
 This guide covers how the server limits what it can see and change: project

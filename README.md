@@ -1,3 +1,5 @@
+**English** | [Korean](README.ko.md)
+
 # MCP-OpenStack-Ops
 
 > **MCP OpenStack Operations Server**: A comprehensive MCP (Model Context Protocol) server providing OpenStack project management and monitoring capabilities with built-in safety controls and single-project scope.

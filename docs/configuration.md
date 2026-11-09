@@ -1,3 +1,5 @@
+**English** | [Korean](configuration.ko.md)
+
 # Server configuration
 
 This guide covers command-line options, environment variables, OpenStack

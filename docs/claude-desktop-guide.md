@@ -1,3 +1,5 @@
+**English** | [Korean](claude-desktop-guide.ko.md)
+
 # Claude Desktop
 
 Choose **one** of the following options. Option 1 is the simplest: it installs

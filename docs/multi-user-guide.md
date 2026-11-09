@@ -1,3 +1,5 @@
+**English** | [Korean](multi-user-guide.ko.md)
+
 # Multi-user HTTP setup and usage guide
 
 The server provides an opt-in, experimental multi-user HTTP mode. It keeps

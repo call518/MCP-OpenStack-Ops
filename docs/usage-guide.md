@@ -1,3 +1,5 @@
+**English** | [Korean](usage-guide.ko.md)
+
 # Usage guide
 
 This guide shows how the tools are typically used: example requests, bulk and
