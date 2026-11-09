@@ -128,6 +128,22 @@ def test_api_or_ancestry_failure_does_not_publish(commands, failure) -> None:
     assert commands["created"] == []
 
 
+def test_assets_are_attached_to_created_release(commands, tmp_path) -> None:
+    bundle = tmp_path / "mcp-openstack-ops-0.6.6.mcpb"
+    bundle.write_bytes(b"zip")
+    publish_release.publish_release(REPOSITORY, "0.6.6", (str(bundle),))
+    args, _ = commands["created"][0]
+    assert args[-1] == str(bundle)
+
+
+def test_missing_asset_blocks_publication(commands, tmp_path) -> None:
+    with pytest.raises(ValueError, match="assets not found"):
+        publish_release.publish_release(
+            REPOSITORY, "0.6.6", (str(tmp_path / "missing.mcpb"),)
+        )
+    assert commands["calls"] == []
+
+
 def test_invalid_tag_does_not_call_commands(commands) -> None:
     with pytest.raises(ValueError):
         publish_release.publish_release(REPOSITORY, "$(touch marker)")
@@ -145,9 +161,13 @@ def test_release_job_is_separate_and_uses_scoped_permissions() -> None:
     assert job["concurrency"]["queue"] == "max"
     assert job["steps"][0]["with"]["fetch-depth"] == 0
     assert job["env"]["GH_TOKEN"] == "${{ github.token }}"
-    assert (
-        job["steps"][-1]["run"] == 'python3 -m scripts.publish_release "$RELEASE_TAG"'
+    assert job["steps"][-1]["run"] == (
+        'python3 -m scripts.publish_release "$RELEASE_TAG" mcpb-dist/*.mcpb'
     )
+    assert job["steps"][1]["with"] == {"name": "mcpb", "path": "mcpb-dist/"}
+    build = workflow["jobs"]["build"]["steps"]
+    assert any("scripts/build-mcpb.sh" in step.get("run", "") for step in build)
+    assert any(step.get("with", {}).get("name") == "mcpb" for step in build)
     for name in ("publish-to-testpypi", "publish-to-pypi"):
         assert workflow["jobs"][name]["permissions"] == {"id-token": "write"}
 

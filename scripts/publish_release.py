@@ -66,9 +66,15 @@ def release_notes(repository: str, tag: str, previous: str | None) -> str:
     return "\n".join(notes) + "\n"
 
 
-def publish_release(repository: str, tag: str) -> None:
-    """Create a release once, using the last published release as the baseline."""
+def publish_release(repository: str, tag: str, assets: tuple[str, ...] = ()) -> None:
+    """Create a release once, using the last published release as the baseline.
+
+    Assets are attached only when the release is created.
+    """
     version = release_version(tag)
+    missing = [asset for asset in assets if not Path(asset).is_file()]
+    if missing:
+        raise ValueError(f"Release assets not found: {', '.join(missing)}")
     current = command("git", "rev-parse", "--verify", f"refs/tags/{tag}^{{commit}}")
     remote = command("gh", "api", f"repos/{repository}/commits/{tag}", "--jq", ".sha")
     if current != remote or current != command("git", "rev-parse", "HEAD"):
@@ -118,7 +124,7 @@ def publish_release(repository: str, tag: str) -> None:
         ]
         if re.search(r"(?:a|b|rc)\d+$", version):
             args.extend(["--prerelease", "--latest=false"])
-        command(*args)
+        command(*args, *assets)
     print(f"Published GitHub Release {tag} (previous release: {previous or 'none'}).")
 
 
@@ -126,9 +132,10 @@ def main() -> None:
     """Publish only when explicitly called by the final release job."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("tag")
+    parser.add_argument("assets", nargs="*", help="Files to attach to the release")
     args = parser.parse_args()
     try:
-        publish_release(os.environ["GITHUB_REPOSITORY"], args.tag)
+        publish_release(os.environ["GITHUB_REPOSITORY"], args.tag, tuple(args.assets))
     except subprocess.CalledProcessError as error:
         parser.exit(1, f"Release command failed: {error.stderr or error}\n")
     except (ValueError, KeyError, OSError) as error:

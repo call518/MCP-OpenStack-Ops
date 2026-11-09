@@ -217,10 +217,11 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
   metric-name validation, and the failure hint were changed; those changes
   and the core aggregation paths were rerun through a second streamable-HTTP
   MCP server started from the current working tree.
-- **Local unit tests (current working tree, 2026-11-09):** 311/311 (100%); no
+- **Local unit tests (current working tree, 2026-11-09):** 316/316 (100%); no
   failures or skipped tests. These tests include MCP action-description and
   advanced-parameter forwarding regressions, the insecure-HTTP opt-in
-  regressions, and Gnocchi project-scoping and aggregation-input regressions; they do not replace
+  regressions, Gnocchi project-scoping and aggregation-input regressions, and
+  Claude Desktop bundle manifest and release-asset checks; they do not replace
   live service validation.
 
 **Detailed Mapping by Category**
@@ -804,27 +805,56 @@ guide when your environment differs:
 
 ## Claude Desktop Integration
 
-Choose **one** of the following options for each server entry in
-`claude_desktop_config.json`. Option 1 is the simplest.
+Choose **one** of the following options. Option 1 is the simplest: it installs
+from a file and shows a settings form, with no configuration file to edit.
+Options 2-4 add a server entry to `claude_desktop_config.json`.
 
 | Option | Use when | Requirements on the Claude Desktop computer |
 | --- | --- | --- |
-| [1. PyPI package with `uvx` (recommended)](#option-1-pypi-package-with-uvx-recommended) | Run the released server; no clone needed | uv |
-| [2. Source checkout with `uv`](#option-2-source-checkout-with-uv) | Run unreleased or modified source | Git, uv |
-| [3. Existing Docker HTTP server with `npx`](#option-3-existing-docker-http-server-with-npx) | Reuse the running Docker Compose `mcp-server` | Node.js 18+ |
+| [1. Desktop extension (`.mcpb`) (recommended)](#option-1-desktop-extension-mcpb-recommended) | Install a released version in one step | Claude Desktop with extension support |
+| [2. PyPI package with `uvx`](#option-2-pypi-package-with-uvx) | Run the released server from `claude_desktop_config.json` | uv |
+| [3. Source checkout with `uv`](#option-3-source-checkout-with-uv) | Run unreleased or modified source | Git, uv |
+| [4. Existing Docker HTTP server with `npx`](#option-4-existing-docker-http-server-with-npx) | Reuse the running Docker Compose `mcp-server` | Node.js 18+ |
 
-In options 1 and 2, Claude Desktop starts a local MCP server on that computer,
-which needs network access to the OpenStack APIs. In option 3, Claude Desktop
+In options 1-3, Claude Desktop starts a local MCP server on that computer,
+which needs network access to the OpenStack APIs. In option 4, Claude Desktop
 starts only the `mcp-remote` bridge; the MCP server is a separate HTTP server,
 even when it runs on the same computer, and reaches OpenStack with its own `.env`.
 
-The examples name the server entries `OpenStack-Local-uvx`,
-`OpenStack-Local-uv`, and `OpenStack-Remote-npx`. Keep a server name at 21
+The examples name the server entries `OpenStack-uvx`, `OpenStack-uv`, and
+`OpenStack-npx`. Keep a server name at 21
 characters or fewer: clients can prefix it to each tool name (Claude Code uses
 `mcp__<server>__<tool>`), the Claude API limits tool names to 64 characters, and
 the longest tool name here has 36 characters. A server on the public internet can
 instead be added as a [remote custom connector](#remote-custom-connector), which
 does not use `claude_desktop_config.json`.
+
+### Option 1: Desktop extension (.mcpb) (recommended)
+
+Starting with the first release that includes it, each
+[GitHub Release](https://github.com/call518/MCP-OpenStack-Ops/releases) provides
+`mcp-openstack-ops-<version>.mcpb`. Earlier releases do not have this file.
+
+1. Download the `.mcpb` file from the release.
+2. Double-click it, drag it into the Claude Desktop window, or select it in
+   **Settings > Extensions > Advanced settings > Install Extension…**.
+3. Fill in the settings form: Keystone host, project, user name, and password
+   are required. Ports, domains, and region are prefilled with the server
+   defaults. **Allow modify operations** is off, so only read tools are
+   registered.
+
+Claude Desktop stores the password as a sensitive value instead of writing it
+to `claude_desktop_config.json`. The bundle contains the source, `pyproject.toml`,
+and `uv.lock`; Claude Desktop installs Python and the locked dependencies with
+uv. To upgrade, install the `.mcpb` file of a newer release. To build a bundle
+from a checkout, run `scripts/build-mcpb.sh <version>`; it requires Python 3 and
+Node.js and writes `dist/mcp-openstack-ops-<version>.mcpb`.
+
+The bundle uses the MCPB `uv` server type (manifest version 0.4). The Claude
+Desktop version that first supports it is not documented; if installation is
+refused, update Claude Desktop or use option 2.
+
+### Configuration file for options 2-4
 
 Open Claude Desktop **Settings > Developer > Edit Config**, or edit the file
 directly:
@@ -839,7 +869,7 @@ Claude Desktop. MCP logs are in `~/Library/Logs/Claude` (macOS),
 stores the values you put in it in plain text; keep it private and do not commit
 it.
 
-### Option 1: PyPI package with uvx (recommended)
+### Option 2: PyPI package with uvx
 
 `uvx` is included with [uv](https://docs.astral.sh/uv/). It downloads the
 `mcp-openstack-ops` package and a suitable Python from PyPI into a cached tool
@@ -860,7 +890,7 @@ same version on every computer, use an exact version such as
 ```json
 {
   "mcpServers": {
-    "OpenStack-Local-uvx": {
+    "OpenStack-uvx": {
       "command": "uvx",
       "args": ["mcp-openstack-ops", "--type", "stdio"],
       "env": {
@@ -886,7 +916,7 @@ Add the endpoint, HTTPS, and port variables your cloud needs from
 this project's containers; use its `env` values, not its `command`, for Claude
 Desktop.
 
-### Option 2: Source checkout with uv
+### Option 3: Source checkout with uv
 
 Use this option for changes that are not released on PyPI. Requirements: Git
 and [uv](https://docs.astral.sh/uv/); uv installs Python 3.12+ and the locked
@@ -909,12 +939,12 @@ Desktop on Windows, clone the repository on Windows rather than using a clone
 inside WSL, whose `.venv` is built for Linux.
 
 Add an entry with the absolute path of the clone. Only `command` and `args`
-differ from option 1:
+differ from option 2:
 
 ```json
 {
   "mcpServers": {
-    "OpenStack-Local-uv": {
+    "OpenStack-uv": {
       "command": "uv",
       "args": ["--directory", "/path/to/MCP-OpenStack-Ops", "run",
                "mcp-openstack-ops", "--type", "stdio"],
@@ -936,7 +966,7 @@ differ from option 1:
 
 After `git pull`, restart Claude Desktop to load the updated source.
 
-### Option 3: Existing Docker HTTP server with npx
+### Option 4: Existing Docker HTTP server with npx
 
 Claude Desktop starts local commands from `claude_desktop_config.json`; it does
 not take an HTTP URL there. To use the Docker Compose `mcp-server`, use the
@@ -948,7 +978,7 @@ if you changed it:
 ```json
 {
   "mcpServers": {
-    "OpenStack-Remote-npx": {
+    "OpenStack-npx": {
       "command": "npx",
       "args": ["-y", "mcp-remote@0.15.2", "http://127.0.0.1:8000/mcp",
                "--transport", "http-only",
@@ -990,14 +1020,18 @@ expose this server without authentication. Review
 uses custom `X-OpenStack-*` headers, and custom header names need Anthropic
 approval; see the [multi-user guide](docs/multi-user-guide.md).
 
-Limitations: options 1-3 were checked with an MCP client using the same
-command, arguments, and environment, not in the Claude Desktop app. Option 1 was
-checked by installing the package from a local checkout with `uvx`, not by
-downloading it from PyPI. With server authentication enabled, option 3 connected
-with the `Bearer ` value and was rejected without the prefix or with a wrong key.
-The remote custom connector path is unverified.
+Limitations: none of the options has been installed in the Claude Desktop app
+yet. For option 1, a built bundle passed `mcpb validate`, and its unpacked
+`mcp_config` ran with an MCP client after host-style variable substitution. The
+release workflow that attaches the bundle has not run yet. Options 2-4 were
+checked with an MCP client using the same command, arguments, and environment.
+Option 2 was checked by installing the package from a local checkout with `uvx`,
+not by downloading it from PyPI. With server authentication enabled, option 4
+connected with the `Bearer ` value and was rejected without the prefix or with a
+wrong key. The remote custom connector path is unverified.
 
-See the [Claude Desktop local MCP guide](https://modelcontextprotocol.io/docs/develop/connect-local-servers)
+See the [Claude Desktop local MCP guide](https://modelcontextprotocol.io/docs/develop/connect-local-servers),
+[desktop extensions (MCPB)](https://claude.com/docs/connectors/building/mcpb),
 and [custom connectors](https://claude.com/docs/connectors/custom/remote-mcp).
 
 ---

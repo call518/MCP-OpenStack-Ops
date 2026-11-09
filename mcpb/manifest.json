@@ -1,0 +1,194 @@
+{
+  "manifest_version": "0.4",
+  "name": "mcp-openstack-ops",
+  "display_name": "OpenStack Ops",
+  "version": "0.0.0",
+  "description": "Operate and monitor an OpenStack cloud with one fixed OpenStack account.",
+  "long_description": "Runs the MCP-OpenStack-Ops server locally over stdio. Claude Desktop installs Python and the locked dependencies with uv. Modify tools stay disabled unless 'Allow modify operations' is enabled.",
+  "author": {
+    "name": "JungJungIn",
+    "url": "https://github.com/call518"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/call518/MCP-OpenStack-Ops"
+  },
+  "homepage": "https://github.com/call518/MCP-OpenStack-Ops",
+  "documentation": "https://github.com/call518/MCP-OpenStack-Ops#claude-desktop-integration",
+  "support": "https://github.com/call518/MCP-OpenStack-Ops/issues",
+  "license": "MIT",
+  "keywords": [
+    "openstack",
+    "cloud",
+    "operations",
+    "monitoring"
+  ],
+  "server": {
+    "type": "uv",
+    "entry_point": "server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "${__dirname}",
+        "server.py"
+      ],
+      "env": {
+        "SETUPTOOLS_SCM_PRETEND_VERSION": "0.0.0",
+        "OS_AUTH_HOST": "${user_config.os_auth_host}",
+        "OS_AUTH_PORT": "${user_config.os_auth_port}",
+        "OS_AUTH_PROTOCOL": "${user_config.os_auth_protocol}",
+        "OS_CACERT": "${user_config.os_cacert}",
+        "OS_PROJECT_NAME": "${user_config.os_project_name}",
+        "OS_USERNAME": "${user_config.os_username}",
+        "OS_PASSWORD": "${user_config.os_password}",
+        "OS_USER_DOMAIN_NAME": "${user_config.os_user_domain_name}",
+        "OS_PROJECT_DOMAIN_NAME": "${user_config.os_project_domain_name}",
+        "OS_REGION_NAME": "${user_config.os_region_name}",
+        "OS_COMPUTE_PORT": "${user_config.os_compute_port}",
+        "OS_NETWORK_PORT": "${user_config.os_network_port}",
+        "OS_VOLUME_PORT": "${user_config.os_volume_port}",
+        "OS_IMAGE_PORT": "${user_config.os_image_port}",
+        "OS_PLACEMENT_PORT": "${user_config.os_placement_port}",
+        "OS_HEAT_STACK_PORT": "${user_config.os_heat_stack_port}",
+        "OS_HEAT_STACK_CFN_PORT": "${user_config.os_heat_stack_cfn_port}",
+        "ALLOW_MODIFY_OPERATIONS": "${user_config.allow_modify_operations}"
+      }
+    }
+  },
+  "user_config": {
+    "os_auth_host": {
+      "type": "string",
+      "title": "Keystone host",
+      "description": "Host name or IP address of the OpenStack Identity (Keystone) API",
+      "required": true
+    },
+    "os_auth_port": {
+      "type": "string",
+      "title": "Keystone port",
+      "description": "Identity API port",
+      "default": "5000",
+      "required": true
+    },
+    "os_auth_protocol": {
+      "type": "string",
+      "title": "Protocol",
+      "description": "http or https for all OpenStack APIs",
+      "default": "http",
+      "required": true
+    },
+    "os_cacert": {
+      "type": "file",
+      "title": "CA certificate (HTTPS)",
+      "description": "CA bundle for HTTPS. Without it, HTTPS certificate verification is disabled",
+      "required": false
+    },
+    "os_project_name": {
+      "type": "string",
+      "title": "Project name",
+      "description": "OpenStack project to scope the connection to",
+      "required": true
+    },
+    "os_username": {
+      "type": "string",
+      "title": "User name",
+      "description": "OpenStack user name",
+      "required": true
+    },
+    "os_password": {
+      "type": "string",
+      "title": "Password",
+      "description": "OpenStack user password, stored securely by Claude Desktop",
+      "sensitive": true,
+      "required": true
+    },
+    "os_user_domain_name": {
+      "type": "string",
+      "title": "User domain",
+      "description": "Domain of the user",
+      "default": "Default",
+      "required": true
+    },
+    "os_project_domain_name": {
+      "type": "string",
+      "title": "Project domain",
+      "description": "Domain of the project",
+      "default": "Default",
+      "required": true
+    },
+    "os_region_name": {
+      "type": "string",
+      "title": "Region",
+      "description": "OpenStack region",
+      "default": "RegionOne",
+      "required": true
+    },
+    "os_compute_port": {
+      "type": "string",
+      "title": "Nova port",
+      "description": "Compute (Nova) API port on the Keystone host",
+      "default": "8774",
+      "required": true
+    },
+    "os_network_port": {
+      "type": "string",
+      "title": "Neutron port",
+      "description": "Networking (Neutron) API port on the Keystone host",
+      "default": "9696",
+      "required": true
+    },
+    "os_volume_port": {
+      "type": "string",
+      "title": "Cinder port",
+      "description": "Block Storage (Cinder) API port on the Keystone host",
+      "default": "8776",
+      "required": true
+    },
+    "os_image_port": {
+      "type": "string",
+      "title": "Glance port",
+      "description": "Image (Glance) API port on the Keystone host",
+      "default": "9292",
+      "required": true
+    },
+    "os_placement_port": {
+      "type": "string",
+      "title": "Placement port",
+      "description": "Placement API port on the Keystone host",
+      "default": "8780",
+      "required": true
+    },
+    "os_heat_stack_port": {
+      "type": "string",
+      "title": "Heat port",
+      "description": "Orchestration (Heat) API port on the Keystone host",
+      "default": "8004",
+      "required": true
+    },
+    "os_heat_stack_cfn_port": {
+      "type": "string",
+      "title": "Heat CFN port",
+      "description": "Heat CloudFormation API port on the Keystone host",
+      "default": "18888",
+      "required": true
+    },
+    "allow_modify_operations": {
+      "type": "boolean",
+      "title": "Allow modify operations",
+      "description": "Register set_* tools that create, change, or delete cloud resources",
+      "default": false,
+      "required": false
+    }
+  },
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
+    "runtimes": {
+      "python": ">=3.12"
+    }
+  }
+}
