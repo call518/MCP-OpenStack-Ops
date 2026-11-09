@@ -438,6 +438,7 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 - `get_gnocchi_resources`: Gnocchi telemetry resources of the current project (list, filter, show with metrics map, history)
 - `get_gnocchi_metrics`: Gnocchi metric list/details (archive policy, unit)
 - `get_gnocchi_measures`: Stored telemetry time series for a metric (start/stop, granularity, aggregation, resample)
+- `get_gnocchi_aggregates`: Measured telemetry across many current-project resources (project-wide mean/sum, top N, groupby, metric arithmetic)
 - `get_gnocchi_service_info`: Archive policies, rules, resource types, aggregation capabilities, processing status
 
 ### 🌐 **Network Management Tools (12 tools)**
@@ -580,7 +581,7 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 - **"Show detailed cluster analysis"** / **"resource allocation and capacity"** → 
   - `get_resource_monitoring()` + `get_hypervisor_details()` + `get_instance_details()` + `get_volume_list()`
 
-- **"Resource utilization"** / **"actual CPU or memory usage"** / **"사용률"** →
+- **"Resource utilization"** / **"actual CPU or memory usage"** →
   - `get_gnocchi_resources()` + `get_gnocchi_measures()` for measured values; add `get_resource_monitoring()` only as separately labeled allocation context
 
 - **"Cluster overview"** / **"cluster status"** → 
@@ -621,6 +622,7 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 ### 📈 **Monitoring & Resources**
 - "Hypervisor statistics" / "resource allocation" / "capacity" → `get_resource_monitoring`
 - "Telemetry metrics of a VM" / "metric history" → `get_gnocchi_resources(resource_type="instance", resource_id="server UUID")` then `get_gnocchi_measures(metric="name", resource_id="server UUID")`
+- "Average/total/top N/per-flavor measured usage across instances" → `get_gnocchi_aggregates` (simple mode: `metric`, `aggregation`, optional `reaggregation`, `top`, `groupby`; leave `operations` empty)
 - "Which metrics/granularities exist" → `get_gnocchi_service_info`
 - Alarm `metric` must be an existing Gnocchi metric of the resource; check with `get_gnocchi_metrics` before `set_alarms`
 
@@ -628,11 +630,11 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 
 | Question is about | Source | Tools |
 |---|---|---|
-| **Allocated / reserved / capacity / headroom / quota** (할당, 배정, 여유 용량, 쿼터) | Nova flavors, hypervisors, quotas; current point in time | `get_resource_monitoring`, `get_quota`, `get_hypervisor_details` |
-| **Allocation-hours over a period** (기간별 할당 시간) | Nova simple tenant usage | `get_usage_statistics` |
-| **Measured utilization / load / trend / history / "over the last N hours"** (사용률, 부하, 추이, 이력) | Ceilometer → Gnocchi time series | `get_gnocchi_resources`, `get_gnocchi_metrics`, `get_gnocchi_measures` |
+| **Allocated / reserved / capacity / headroom / quota** | Nova flavors, hypervisors, quotas; current point in time | `get_resource_monitoring`, `get_quota`, `get_hypervisor_details` |
+| **Allocation-hours over a period** | Nova simple tenant usage | `get_usage_statistics` |
+| **Measured utilization / load / trend / history / "over the last N hours"** | Ceilometer → Gnocchi time series | `get_gnocchi_resources`, `get_gnocchi_metrics`, `get_gnocchi_measures` (one resource), `get_gnocchi_aggregates` (many resources) |
 
-- Bare "usage" / "사용량": CPU or memory usage of a server → measured (Gnocchi); "quota usage" / "쿼터 사용량" → `get_quota`; cluster-wide "resource usage" → allocation, and say it is allocation-based.
+- Bare "usage": CPU or memory usage of a server → measured (Gnocchi); "quota usage" → `get_quota`; cluster-wide "resource usage" → allocation, and say it is allocation-based.
 - Gnocchi `vcpus`, `memory`, `disk.root.size` record flavor sizes, not usage. Usage metrics are names like `cpu`, `memory.usage`, `disk.device.read.bytes`.
 - If the requested measured metric is not collected, say "not collected" and name the missing metric. Never substitute allocation numbers or compute a utilization rate from allocation / capacity.
 - Hypervisor-level measured utilization needs host metrics (for example `compute.node.cpu.percent` on `host` or `nova_compute` resources); otherwise only allocation and capacity are available.
@@ -830,7 +832,7 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 "How many vCPUs and how much RAM are allocated in my project?"
 "Show quota usage and limits"
 "Display storage capacity statistics"
-"프로젝트에 할당된 vCPU와 메모리, 남은 쿼터 보여줘"
+"Show the vCPUs and memory allocated to my project and the remaining quota"
 ```
 
 **Tools Used:** `get_resource_monitoring()`, `get_quota()`, `get_usage_statistics()`
@@ -841,19 +843,24 @@ Results are allocations, quotas, and capacity, not measured utilization.
 
 ```
 "Monitor CPU and memory usage of web-01"
-"web-01의 실제 CPU 사용률 추이 보여줘"
+"Show the actual CPU utilization trend of web-01"
 "Show the telemetry metrics collected for server web-01"
 "Show memory measures of web-01 since 2026-11-08T00:00:00, resampled hourly"
 "List all Gnocchi metrics in my project"
 "Show the archive policies and supported aggregation methods"
 "Is Gnocchi measure processing backlogged?"
-"web-01 인스턴스에 수집되는 메트릭 목록 보여줘"
-"web-01의 최근 vcpus 측정값 10개 보여줘"
+"Show the latest 10 vcpus measures of web-01"
+"What is the average CPU usage across all instances in my project?"
+"Show the top 5 instances by CPU usage"
+"Show mean memory usage per flavor"
+"Show the memory.usage to flavor memory ratio across my instances"
 ```
 
-**Tools Used:** `get_gnocchi_resources()`, `get_gnocchi_metrics()`, `get_gnocchi_measures()`, `get_gnocchi_service_info()`
+**Tools Used:** `get_gnocchi_resources()`, `get_gnocchi_metrics()`, `get_gnocchi_measures()`, `get_gnocchi_aggregates()`, `get_gnocchi_service_info()`
 
 **Flow:** Resolve the server UUID with `get_instance_by_name()`, find metric names with `get_gnocchi_resources(resource_type="instance", resource_id=UUID)`, then call `get_gnocchi_measures(metric=name, resource_id=UUID)`. Use a granularity and aggregation from the metric's archive policy. `cpu` is cumulative nanoseconds: request `aggregation="rate:mean"` and divide by granularity × 10^9 × vCPUs for a utilization fraction. Report a missing metric as not collected; never estimate values.
+
+**Cross-resource flow:** Use `get_gnocchi_aggregates` in ONE mode. Simple mode examples: project average CPU → `metric="cpu", aggregation="rate:mean", reaggregation="mean"`; top 5 CPU → `metric="cpu", aggregation="rate:mean", top=5`; per-flavor memory → `metric="memory.usage", reaggregation="mean", groupby="flavor_name"`. Use expression mode (`operations` only) just for arithmetic such as `(/ (metric memory.usage mean) (metric memory mean))`; write metric names, never metric UUIDs. Report `resource_name` from the series and state that results cover only the current project. A "Metric ... does not exist" failure can also mean no current-project resource matched.
 
 ### 🚨 **Alarms (Aodh)**
 
@@ -863,7 +870,7 @@ Results are allocations, quotas, and capacity, not measured utilization.
 "Create an alarm when web-01 CPU exceeds 80%"
 "Show details and current state of alarm mem-high"
 "Delete alarm mem-high"
-"web-01 vcpus 메트릭에 임계값 알람 만들어줘"
+"Create a threshold alarm on the vcpus metric of web-01"
 ```
 
 **Tools Used:** `set_alarms()` (requires `ALLOW_MODIFY_OPERATIONS=true`), `get_gnocchi_metrics()`

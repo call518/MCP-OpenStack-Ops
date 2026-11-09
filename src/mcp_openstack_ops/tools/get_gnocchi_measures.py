@@ -25,7 +25,9 @@ async def get_gnocchi_measures(
     collected by Ceilometer, such as cpu, memory.usage, or disk and network
     counters. Cumulative counters like cpu (nanoseconds) grow over time;
     compare consecutive values for rates. Some metrics such as vcpus and memory
-    record flavor sizes, not usage. For allocations, capacity, or quotas, use
+    record flavor sizes, not usage. For averages, totals, top N, or groups
+    across many resources, use get_gnocchi_aggregates. For allocations,
+    capacity, or quotas, use
     get_resource_monitoring or get_quota. If a metric is not collected, report
     that; do not substitute allocation data.
 

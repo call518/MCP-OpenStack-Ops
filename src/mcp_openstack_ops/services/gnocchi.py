@@ -1,6 +1,8 @@
 """Read-only, project-scoped Gnocchi (metric service) operations."""
 
 import json
+import math
+import re
 from datetime import datetime
 from typing import Any
 
@@ -9,9 +11,22 @@ from gnocchiclient.v1 import client as gnocchi_client
 from ..connection import get_openstack_connection
 
 MAX_LIMIT = 1000
+MAX_SERIES = 100
+MAX_TOP = 100
+MAX_OPERATIONS_LENGTH = 1000
 SERVICE_INFO_SECTIONS = (
     "archive_policies", "archive_policy_rules", "resource_types",
     "capabilities", "status",
+)
+# Names inserted into an operations expression must not contain spaces or
+# parentheses, so they cannot change the expression structure.
+_TOKEN = re.compile(r"^[^\s()]+$")
+AGGREGATES_HINT = (
+    "Check metric names with get_gnocchi_metrics and aggregation methods "
+    "with get_gnocchi_service_info. 'Metric ... does not exist' also means no "
+    "current-project resource of resource_type matched filters and has that "
+    "metric. When combining resources whose points do not align, set fill=0 "
+    "or lower needed_overlap."
 )
 
 
@@ -214,3 +229,153 @@ def get_gnocchi_service_info(sections: str | None = None) -> dict[str, Any]:
                 "sections": data, "errors": errors}
     except Exception as exc:
         return _failure(exc)
+
+
+def _token(value: str, field: str) -> str:
+    if not _TOKEN.match(value):
+        raise ValueError(f"{field} must be a single name without spaces or "
+                         "parentheses")
+    return value
+
+
+def _build_operations(metric: str | None, aggregation: str,
+                      reaggregation: str | None,
+                      operations: str | None) -> str:
+    """Build a Gnocchi operations expression from one of the two input modes."""
+    if operations:
+        if metric or reaggregation:
+            raise ValueError("Use either metric/aggregation/reaggregation or "
+                             "operations, not both")
+        expression = operations.strip()
+        if len(expression) > MAX_OPERATIONS_LENGTH:
+            raise ValueError("operations is too long")
+        depth = 0
+        for char in expression:
+            depth += {"(": 1, ")": -1}.get(char, 0)
+            if depth < 0:
+                break
+        if not expression.startswith("(") or depth != 0:
+            raise ValueError("operations must be one balanced expression such "
+                             "as (metric cpu rate:mean)")
+        return expression
+    if not metric:
+        raise ValueError("metric or operations is required")
+    expression = (f"(metric {_token(metric, 'metric')} "
+                  f"{_token(aggregation, 'aggregation')})")
+    if reaggregation:
+        expression = (f"(aggregate {_token(reaggregation, 'reaggregation')} "
+                      f"{expression})")
+    return expression
+
+
+def _series(measures: dict[str, Any], path: tuple[str, ...] = ()) -> list:
+    """Flatten Gnocchi aggregate measures into labeled series."""
+    found = []
+    for key, value in measures.items():
+        if isinstance(value, dict):
+            found += _series(value, path + (key,))
+            continue
+        labels = path + (key,)
+        entry: dict[str, Any] = {"label": "/".join(labels)}
+        if len(labels) == 3:
+            entry.update(resource_id=labels[0], metric=labels[1],
+                         aggregation=labels[2])
+        # Gnocchi returns NaN for unfilled gaps; NaN is not valid JSON.
+        rows = [[ts.isoformat() if isinstance(ts, datetime) else ts, step,
+                 None if isinstance(point, float) and math.isnan(point)
+                 else point] for ts, step, point in value]
+        entry["rows"] = rows
+        found.append(entry)
+    return found
+
+
+def _collect(response: dict[str, Any], group: dict | None) -> list:
+    names = {ref.get("id"): ref.get("display_name") or ref.get("name")
+             for ref in response.get("references") or []
+             if isinstance(ref, dict)}
+    collected = []
+    for entry in _series(response.get("measures") or {}):
+        if group is not None:
+            entry["group"] = group
+        if names.get(entry.get("resource_id")):
+            entry["resource_name"] = names[entry["resource_id"]]
+        collected.append(entry)
+    return collected
+
+
+def get_gnocchi_aggregates(
+    metric: str | None = None,
+    aggregation: str = "mean",
+    reaggregation: str | None = None,
+    operations: str | None = None,
+    resource_type: str = "instance",
+    filters: str | None = None,
+    groupby: str | None = None,
+    top: int = 0,
+    start: str | None = None,
+    stop: str | None = None,
+    granularity: float | None = None,
+    fill: str | None = None,
+    needed_overlap: float | None = None,
+    limit: int = 20,
+) -> dict[str, Any]:
+    """Aggregate measures across current-project resources."""
+    try:
+        _check_limit(limit)
+        if not 0 <= top <= MAX_TOP:
+            raise ValueError(f"top must be between 0 and {MAX_TOP}")
+        expression = _build_operations(metric, aggregation, reaggregation,
+                                       operations)
+        _token(resource_type, "resource_type")
+        groups = ([_token(g.strip(), "groupby") for g in groupby.split(",")
+                   if g.strip()] if groupby else None)
+        conditions: list[dict[str, Any]] = []
+        if filters:
+            parsed = json.loads(filters)
+            if not isinstance(parsed, dict):
+                raise ValueError("filters must be a JSON object")
+            conditions = [{"=": {key: value}} for key, value in parsed.items()]
+        fill_value: Any = None
+        if fill in ("null", "dropna"):
+            fill_value = fill
+        elif fill not in (None, ""):
+            fill_value = float(fill)
+        client, project_id = _context()
+        # The project condition is always applied. With a search, Gnocchi
+        # resolves (metric X ...) as metric names of matched resources only.
+        search = {"and": [{"=": {"project_id": project_id}}] + conditions}
+        response = client.aggregates.fetch(
+            expression, search=search, resource_type=resource_type,
+            start=start, stop=stop, granularity=granularity,
+            needed_overlap=needed_overlap, groupby=groups,
+            fill=fill_value, details=True)
+        if groups:
+            series = [entry for item in response
+                      for entry in _collect(item.get("measures") or {},
+                                            item.get("group"))]
+        else:
+            series = _collect(response, None)
+        for entry in series:
+            values = [row[2] for row in entry["rows"] if row[2] is not None]
+            entry["latest"] = values[-1] if values else None
+            entry["total"] = len(entry["rows"])
+            entry["rows"] = entry["rows"][-limit:]
+        total_series = len(series)
+        if top:
+            series = sorted(
+                (s for s in series if s["latest"] is not None),
+                key=lambda s: s["latest"], reverse=True)[:top]
+        truncated = len(series) > MAX_SERIES
+        series = series[:MAX_SERIES]
+        return {
+            "success": True, "operations": expression,
+            "resource_type": resource_type, "groupby": groups,
+            "ranked_by": "latest value, highest first" if top else None,
+            "columns": ["timestamp", "granularity", "value"],
+            "series": series, "series_count": len(series),
+            "total_series": total_series, "truncated": truncated,
+        }
+    except Exception as exc:
+        result = _failure(exc)
+        result["hint"] = AGGREGATES_HINT
+        return result

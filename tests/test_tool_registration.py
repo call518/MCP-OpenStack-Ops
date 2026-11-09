@@ -24,7 +24,7 @@ async def verify():
     tools = {tool.name: tool for tool in await mcp.list_tools()}
     read_tools = [tool for tool in tools.values()
                   if tool.name.startswith(('get_', 'search_'))]
-    assert len(read_tools) == 54
+    assert len(read_tools) == 55
     for tool in read_tools:
         assert tool.description.strip(), tool.name
         for parameter, schema in tool.parameters.get('properties', {}).items():
@@ -35,6 +35,7 @@ async def verify():
         'get_image_members', 'get_heat_stack_details',
         'get_network_qos_policies', 'get_gnocchi_resources',
         'get_gnocchi_metrics', 'get_gnocchi_measures', 'get_gnocchi_service_info',
+        'get_gnocchi_aggregates',
     }
     writes = {
         'set_alarms', 'set_routers', 'set_security_groups', 'set_users',
@@ -47,6 +48,9 @@ async def verify():
     for name in ('get_resource_monitoring', 'get_usage_statistics'):
         assert 'get_gnocchi_measures' in tools[name].description, name
     assert 'get_resource_monitoring' in tools['get_gnocchi_measures'].description
+    assert 'get_gnocchi_aggregates' in tools['get_gnocchi_measures'].description
+    aggregates = tools['get_gnocchi_aggregates'].description
+    assert 'get_gnocchi_measures' in aggregates and 'never metric UUIDs' in aggregates
     enabled = os.environ['ALLOW_MODIFY_OPERATIONS'] == 'true'
     assert (writes <= tools.keys()) if enabled else not (writes & tools.keys())
     if enabled:

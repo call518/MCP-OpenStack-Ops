@@ -135,6 +135,110 @@ def test_service_info_rejects_unknown_section(client):
     client.factory.assert_not_called()
 
 
+STAMP = datetime(2026, 1, 1, tzinfo=timezone.utc)
+PER_RESOURCE = {
+    "measures": {
+        "res-a": {"cpu": {"rate:mean": [(STAMP, 300.0, 5.0)]}},
+        "res-c": {"cpu": {"rate:mean": [(STAMP, 300.0, 9.0)]}},
+        "res-d": {"cpu": {"rate:mean": [(STAMP, 300.0, None)]}},
+    },
+    "references": [{"id": "res-a", "display_name": "vm-a"},
+                   {"id": "res-c", "display_name": "vm-c"}],
+}
+
+
+def test_aggregates_simple_mode_builds_expression_and_scopes_project(client):
+    client.aggregates.fetch.return_value = {
+        "measures": {"aggregated": [(STAMP, 300.0, 7.0)]}}
+    result = gnocchi.get_gnocchi_aggregates(
+        "cpu", "rate:mean", "mean", filters='{"flavor_name": "m1.small"}')
+    args, kwargs = client.aggregates.fetch.call_args
+    assert args[0] == "(aggregate mean (metric cpu rate:mean))"
+    assert kwargs["search"] == {"and": [{"=": {"project_id": "project-a"}},
+                                        {"=": {"flavor_name": "m1.small"}}]}
+    assert result["operations"] == args[0]
+    assert result["series"][0]["label"] == "aggregated"
+    assert result["series"][0]["latest"] == 7.0
+
+
+def test_aggregates_expression_mode_is_still_project_scoped(client):
+    client.aggregates.fetch.return_value = {"measures": {}}
+    expression = "(metric 00000000-0000-0000-0000-000000000000 mean)"
+    gnocchi.get_gnocchi_aggregates(operations=expression)
+    args, kwargs = client.aggregates.fetch.call_args
+    assert args[0] == expression
+    assert kwargs["search"]["and"][0] == {"=": {"project_id": "project-a"}}
+
+
+def test_aggregates_top_ranks_latest_values_and_names_resources(client):
+    client.aggregates.fetch.return_value = PER_RESOURCE
+    result = gnocchi.get_gnocchi_aggregates("cpu", "rate:mean", top=1)
+    assert [s["resource_id"] for s in result["series"]] == ["res-c"]
+    assert result["series"][0]["resource_name"] == "vm-c"
+    assert result["total_series"] == 3 and result["ranked_by"]
+
+
+def test_aggregates_nan_gaps_become_null_and_are_not_ranked(client):
+    client.aggregates.fetch.return_value = {"measures": {
+        "res-a": {"cpu": {"rate:mean": [(STAMP, 300.0, 5.0)]}},
+        "res-c": {"cpu": {"rate:mean": [(STAMP, 300.0, 3.0),
+                                        (STAMP, 300.0, float("nan"))]}}}}
+    result = gnocchi.get_gnocchi_aggregates("cpu", "rate:mean", top=2)
+    assert [s["latest"] for s in result["series"]] == [5.0, 3.0]
+    assert result["series"][1]["rows"][-1][2] is None
+
+
+def test_aggregates_accepts_metric_names_with_symbols(client):
+    client.aggregates.fetch.return_value = {"measures": {}}
+    gnocchi.get_gnocchi_aggregates("demo.queue_depth|g")
+    assert client.aggregates.fetch.call_args.args[0] == (
+        "(metric demo.queue_depth|g mean)")
+
+
+def test_aggregates_groupby_collects_each_group(client):
+    client.aggregates.fetch.return_value = [
+        {"group": {"flavor_name": "m1.small"},
+         "measures": {"measures": {"aggregated": [(STAMP, 300.0, 1.0)]}}},
+        {"group": {"flavor_name": "m1.large"},
+         "measures": {"measures": {"aggregated": [(STAMP, 300.0, 2.0)]}}},
+    ]
+    result = gnocchi.get_gnocchi_aggregates(
+        "memory.usage", reaggregation="mean", groupby="flavor_name")
+    assert client.aggregates.fetch.call_args.kwargs["groupby"] == ["flavor_name"]
+    assert [s["group"]["flavor_name"] for s in result["series"]] == [
+        "m1.small", "m1.large"]
+
+
+def test_aggregates_fill_zero_is_forwarded(client):
+    client.aggregates.fetch.return_value = {"measures": {}}
+    gnocchi.get_gnocchi_aggregates("cpu", fill="0")
+    assert client.aggregates.fetch.call_args.kwargs["fill"] == 0.0
+
+
+@pytest.mark.parametrize("kwargs", [
+    {},
+    {"metric": "cpu", "operations": "(metric cpu mean)"},
+    {"metric": "cpu mean) (metric x"},
+    {"metric": "cpu", "reaggregation": "mean)"},
+    {"operations": "(metric cpu mean"},
+    {"operations": "metric cpu mean"},
+    {"operations": "(metric cpu mean))("},
+    {"metric": "cpu", "groupby": "flavor name"},
+    {"metric": "cpu", "top": 101},
+    {"metric": "cpu", "filters": "[]"},
+])
+def test_aggregates_invalid_input_fails_before_cloud_call(client, kwargs):
+    result = gnocchi.get_gnocchi_aggregates(**kwargs)
+    assert not result["success"] and result["hint"]
+    client.factory.assert_not_called()
+
+
+def test_aggregates_failure_includes_hint(client):
+    client.aggregates.fetch.side_effect = RuntimeError("No overlap")
+    result = gnocchi.get_gnocchi_aggregates("cpu", reaggregation="mean")
+    assert result["error"] == "No overlap" and "fill" in result["hint"]
+
+
 def test_missing_endpoint_is_reported_as_failure(client):
     client.resource.search.side_effect = RuntimeError("endpoint not found")
     result = gnocchi.get_gnocchi_resources()

@@ -624,6 +624,7 @@ def set_metrics(
 
 from .services.alarms import set_alarms
 from .services.gnocchi import (
+    get_gnocchi_aggregates,
     get_gnocchi_measures,
     get_gnocchi_metrics,
     get_gnocchi_resources,
