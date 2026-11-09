@@ -554,6 +554,9 @@ async def test_other_routes_still_require_credentials(monkeypatch, path):
     (b'{"error":{"message":"Parse error: private-value"}}', 'invalid_json'),
     (b'{"error":{"message":"Validation error: private-value"}}', 'invalid_jsonrpc'),
     (b'{"error":{"message":"Bad Request: Unsupported protocol version: private-value"}}', 'unsupported_protocol'),
+    (b'{"error":{"message":"params._meta must be an object carrying the required '
+     b"'io.modelcontextprotocol/protocolVersion' and 'io.modelcontextprotocol/clientCapabilities' "
+     b'envelope keys"}}', 'unsupported_protocol'),
     (b'{"error":{"message":"Bad Request: Missing session ID"}}', 'missing_session_id'),
     (b'{"error":{"message":"private-value"}}', 'unclassified'),
     (b'[]', 'unclassified'), (b'null', 'unclassified'),

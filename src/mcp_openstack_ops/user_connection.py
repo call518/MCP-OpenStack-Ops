@@ -244,6 +244,10 @@ def _bad_request_reason(body: bytes) -> str:
             ("Parse error:", "invalid_json"),
             ("Validation error:", "invalid_jsonrpc"),
             ("Bad Request: Unsupported protocol version:", "unsupported_protocol"),
+            # mcp 2.x answers an unknown MCP-Protocol-Version header by
+            # requiring the newer protocol envelope in params._meta.
+            ("params._meta must be an object carrying the required "
+             "'io.modelcontextprotocol/protocolVersion'", "unsupported_protocol"),
             ("Bad Request: Missing session ID", "missing_session_id"),
         ):
             if message.startswith(prefix):
