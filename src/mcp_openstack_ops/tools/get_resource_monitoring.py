@@ -22,6 +22,8 @@ async def get_resource_monitoring() -> str:
     Use for current inventory and capacity planning. No historical trends or
     telemetry samples are collected. Physical totals and project allocations
     have different scopes and should not be divided into a utilization rate.
+    For measured CPU/memory utilization, load, or trends, use
+    get_gnocchi_measures instead; never present these allocations as usage.
     
     Returns:
         Resource monitoring data in JSON format with cluster summary, hypervisor details, and usage statistics.

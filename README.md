@@ -33,7 +33,7 @@ cross-project queries are outside this phase.
 - ✅ **90+ Purpose-Built Tools**: Broad coverage across compute, networking, storage, images, identity, Heat, and Octavia load balancing tasks. Project resources are scoped to the active project; cloud-wide administrative APIs remain subject to OpenStack policy.
 - ✅ **Bulk & Filtered Actions**: Instance, volume, network, image, snapshot, and keypair managers accept comma-delimited targets or filter criteria to orchestrate bulk changes intentionally.
 - ✅ **Post-Action Feedback & Async Guidance**: Mutating tools reuse a shared result handler that adds emoji status checks, asynchronous timing notes, and follow-up verification commands.
-- ✅ **Monitoring & Usage Insights**: `get_service_status`, `get_resource_monitoring`, `get_usage_statistics`, and quota tools report service probes, project allocations, separate quota limits, and API-backed compute allocation-hours. Live utilization and historical trends are not collected.
+- ✅ **Monitoring & Usage Insights**: `get_service_status`, `get_resource_monitoring`, `get_usage_statistics`, and quota tools report service probes, project allocations, separate quota limits, and API-backed compute allocation-hours. These tools do not collect live utilization or trends; read-only `get_gnocchi_*` tools return telemetry time series when Ceilometer and Gnocchi are deployed.
 - ✅ **Unified Instance Queries**: The `get_instance` tool consolidates name, ID, status, and free-form search paths with pagination plus summary/detailed modes.
 - ✅ **Server Insight & Audit Trail**: Dedicated tools expose server events, hypervisor details, availability zones, quotas, and resource ownership to speed diagnostics.
 - ✅ **Load Balancer Management**: Octavia tools cover listeners, pools, members, health monitors, flavors, quotas, and amphora operations with the same safety gates.
@@ -198,10 +198,23 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
   HTTP-only multi-user test override is **Live unverified**; only its fail-closed
   default, explicit opt-in, endpoint generation, and startup warning were tested
   locally.
-- **Local unit tests (current working tree, 2026-11-05):** 274/274 (100%); no
+- **Targeted telemetry check (2026-11-08 UTC; partial; uncommitted working tree
+  based on `d954eba`):** After Ceilometer, Gnocchi, and Aodh were added to the
+  test cloud, only `set_alarms` and the four new `get_gnocchi_*` tools were
+  rerun through the MCP server. This partial check does not update the
+  105-tool live summary above. All five tools passed at least one live path.
+  A metric-ownership fix for metric-UUID-only lookups was retested live after
+  the MCP server was recreated. Polled metrics were initially absent because
+  the test cloud's ceilometer-compute agent had failed to reach libvirt at
+  startup; after that agent was restarted, `cpu`, `memory.usage`, disk I/O,
+  and network I/O measures were read through the tools. Aodh evaluated `cpu`
+  `rate:mean` alarms to the expected `ok` and `alarm` states. Test alarms were
+  deleted.
+- **Local unit tests (current working tree, 2026-11-08):** 293/293 (100%); no
   failures or skipped tests. These tests include MCP action-description and
-  advanced-parameter forwarding regressions plus the insecure-HTTP opt-in
-  regressions; they do not replace live service validation.
+  advanced-parameter forwarding regressions, the insecure-HTTP opt-in
+  regressions, and Gnocchi project-scoping regressions; they do not replace
+  live service validation.
 
 **Detailed Mapping by Category**
 
@@ -462,14 +475,26 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
 
 ### 8. 📊 **Monitoring & Logging**
 
+Allocation and measured telemetry are separate. `get_resource_monitoring`,
+`get_quota`, and `get_usage_statistics` report flavor allocations, quotas,
+capacity, and allocation-hours from Nova. `get_gnocchi_*` tools report observed
+time series collected by Ceilometer into Gnocchi. Tool descriptions cross-reference
+each other so that requests for utilization, load, or trends use Gnocchi. They
+also instruct the model to report an uncollected measured metric as not
+collected instead of substituting allocations.
+
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
 | Resource monitoring | `get_resource_monitoring` | ⚠️ Live unverified | Reader physical-capacity policy restrictions; allocations are separate from capacity; no live utilization |
 | Service status | `get_service_status` | ⚠️ Live unverified | Reader service-policy restrictions; partial data is not proof of global health |
 | Cluster overview | `get_service_status` + `get_resource_monitoring` | ⚠️ Live unverified | Reader physical-capacity policy restrictions; allocations are separate from capacity; no live utilization |
 | Service log metadata | `set_service_logs` | Partial | Service listing only; log retrieval is unavailable without a logging backend |
-| Resource metadata | `set_metrics` | Partial | list/summary only; telemetry sample retrieval is unavailable |
-| Alarm management | `set_alarms` | ⚠️ Live unverified | Implemented; Aodh/Gnocchi unavailable in the test platform. Requires services and collected metrics |
+| Resource metadata | `set_metrics` | Partial | Nova/Neutron/Cinder list/summary only; does not call Gnocchi. Use `get_gnocchi_*` for telemetry |
+| `gnocchi resource list/search/show/history` | `get_gnocchi_resources` | ✅ | Current-project resources; list, attribute filter, show with metrics map, and history passed live |
+| `gnocchi metric list/show` | `get_gnocchi_metrics` | ✅ | List, per-resource details, show by resource + name, and show by metric UUID passed live |
+| `gnocchi measures show` | `get_gnocchi_measures` | ✅ | By resource + name and by metric UUID passed live, including start, granularity, resample, refresh, latest-N limit, and `rate:mean` for `cpu`; `memory.usage`, disk, and network measures were read. Unsupported aggregation and missing metric returned failures |
+| `gnocchi archive-policy/archive-policy-rule/resource-type list`, `gnocchi capabilities list`, `gnocchi status` | `get_gnocchi_service_info` | ✅ | All five sections returned live with the admin test account; a denied section is reported per section |
+| Alarm management | `set_alarms` | ✅ | list/create/show/delete passed live, by name and by ID. Evaluation passed live: `cpu` alarms with `aggregation_method="rate:mean"` reached `ok` and `alarm` as expected, and a `vcpus` alarm reached `alarm`. Aodh accepted alarms for a nonexistent resource and for the default `cpu_util`, which current Ceilometer does not collect; check metrics with `get_gnocchi_metrics` first |
 | Compute agents | `set_compute_agents` | ✅ | Compute agent management |
 | Usage statistics | `get_usage_statistics` | ✅ | Period compute allocation-hours plus separately labeled current snapshots |
 
@@ -491,13 +516,14 @@ and the [multi-user setup guide](docs/multi-user-guide.md).
 The feature table marks implemented API paths, not verification against every OpenStack deployment. Service and policy requirements must be checked in the target deployment. A missing service, extension, required microversion, or permission is an operation failure, not an empty successful result.
 
 - **Modification tools:** the MCP server registers `set_*` management tools only when `ALLOW_MODIFY_OPERATIONS=true`. Existing action guards also reject writes when disabled. Dedicated read-only `get_*` tools remain available. API authorization is enforced by the target cloud; agent, user, domain, type and QoS administration may require elevated OpenStack roles.
-- **Alarms:** `set_alarms` calls the Keystone catalog's `alarming` endpoint for the configured interface/region. It supports list/create/show/delete of project alarms and creates `gnocchi_resources_threshold` alarms. Aodh, Gnocchi, the specified resource and a collected metric are required. The default metric is `cpu_util`, which is not collected by every deployment. `metric`, `resource_type`, `aggregation_method`, `granularity`, `evaluation_periods`, and `alarm_actions` can be supplied. An empty action list creates an alarm without notifications. There is no simulation fallback.
+- **Alarms:** `set_alarms` calls the Keystone catalog's `alarming` endpoint for the configured interface/region. It supports list/create/show/delete of project alarms and creates `gnocchi_resources_threshold` alarms. Aodh, Gnocchi, the specified resource and a collected metric are required. The default metric `cpu_util` is kept for compatibility, but Ceilometer has not produced it since Stein, so such alarms stay `insufficient data`. For CPU alarms, use `metric="cpu"` with `aggregation_method="rate:mean"`; the threshold is CPU nanoseconds per granularity window (percent / 100 × granularity × 10⁹ × vCPUs; 80% of one vCPU over 300 s is `2.4e11`). `metric`, `resource_type`, `aggregation_method`, `granularity`, `evaluation_periods`, and `alarm_actions` can be supplied. An empty action list creates an alarm without notifications. There is no simulation fallback.
 - **Usage:** `get_usage_statistics` calls Nova simple tenant usage for the current project. Requires Nova API microversion 2.40 or newer for complete pagination. Date bounds are UTC midnight, start inclusive and end exclusive; start must precede end. `usage_statistics.period_compute` contains paginated Nova allocation-hours, not actual CPU load, billed currency, or network/storage history. Nova accounts using VM lifetime and the latest flavor; stop/pause/resize history is not reconstructed. Existing `compute`, `network`, and `storage` fields are current snapshots, labeled by `snapshot_fields` and `snapshot_timestamp`. An unavailable period API returns failure. A failed snapshot section is reported as partial failure.
 - **Capacity:** `get_resource_monitoring` separates flavor allocations from project quota limits and the physical totals of visible hypervisors. Missing physical totals or incomplete flavor allocations return `null`, not invented capacity or zero usage. Physical totals and project allocations have different scopes. This tool does not collect live utilization or trends.
 - **Floating IP pools:** `total_ips` is the exact sum of visible subnet allocation ranges; `used_ips` counts visible Floating IP objects. Global `available_ips` is `null`: other projects and non-floating ports may consume addresses that are not visible to the caller.
 - **Volume groups:** the cloud must support Cinder generic groups (microversion 3.13 or newer). Create requires an existing `group_type` and comma-delimited `volume_types`. Deletion does not delete member volumes unless `delete_volumes=true` is explicitly supplied. Async creation/deletion responses mean accepted, not finished.
 - **Identity and images:** `set_users` reads a new user's password from the server variable named by `password_env`; never put passwords in prompts. It does not grant project roles. Disable a domain explicitly with `set_domains(action="update", enabled=false)` before deleting it. Image member modifications require an image owned by the current project, shared visibility, and appropriate Glance policy; adding a member does not automatically accept the recipient's membership.
-- **Logs and telemetry:** `set_service_logs(action="show")` and `set_metrics(action="show")` return explicit unsupported errors. No centralized logging or telemetry sample backend is implemented. Their list/summary operations expose service or resource metadata only.
+- **Telemetry (Gnocchi):** the read-only `get_gnocchi_resources`, `get_gnocchi_metrics`, `get_gnocchi_measures`, and `get_gnocchi_service_info` tools use `gnocchiclient` with the Keystone catalog's `metric` endpoint for the configured interface/region. Ceilometer must be collecting data into Gnocchi; it has no API of its own. Results are limited to resources whose `project_id` is the current project. Metrics are created by the Ceilometer service project, so ownership is checked through the embedded resource. Available metrics depend on deployment. Notification-based metrics such as `vcpus`, `memory`, and `disk.root.size` record flavor sizes. Polled metrics such as `cpu`, `memory.usage`, `disk.device.*`, and `network.*` require a working ceilometer-compute agent and a running instance. `cpu` is cumulative nanoseconds; use `aggregation="rate:mean"` when the archive policy supports it. Current Ceilometer does not produce `cpu_util`. Measures and aggregation methods are limited by each metric's archive policy. Gnocchi write operations (measure ingestion, resource/metric/archive policy changes) are not implemented.
+- **Logs and telemetry:** `set_service_logs(action="show")` and `set_metrics(action="show")` return explicit unsupported errors. No centralized logging backend is implemented. `set_metrics` list/summary operations expose Nova/Neutron/Cinder resource metadata only; use the Gnocchi tools for telemetry samples.
 
 ## Quick Start
 
@@ -730,6 +756,7 @@ Common OpenWebUI 0.13 errors:
 | `tools: array too long` | External and built-in tool definitions exceeded the model provider's request limit | Enable Tool Search with threshold `0` |
 | `Function tools with reasoning_effort are not supported ... /v1/chat/completions` | Chat Completions received function tools and a non-`none` reasoning effort | Use Responses, or set reasoning effort to `none` if reasoning is not needed |
 | `Unsupported parameter: reasoning_effort ... moved to reasoning.effort` | OpenWebUI 0.13.0 sent a custom Reasoning Effort through a Responses connection | Set Reasoning Effort to Default; use custom `reasoning={"effort":"medium"}` only when an explicit value is required |
+| MCPO logs `POST http://mcp-server:8000/mcp "404 Not Found"` and `McpError: Session terminated`; `mcp-server` logs `Rejected request with unknown or expired session ID` | MCP sessions exist only in the running `mcp-server` process. After `mcp-server` restarts, MCPO keeps its old session and does not reconnect. `docker compose restart` does not wait for the `mcp-server` health check, so MCPO can connect to the old process just before it stops | With `mcp-server` running, run `docker compose restart mcpo-proxy`. To restart both, use `docker compose up -d --force-recreate mcp-server mcpo-proxy` instead of `docker compose restart`. If a direct MCP client reports the same session error, reconnect it |
 
 ### 5. Enable modifications only when needed
 
@@ -901,6 +928,11 @@ MCP server may authenticate successfully and then fail on the first service tool
 
 `OS_INTERFACE` does not change these explicit endpoint URLs. The current
 single-host configuration uses the internal interface convention.
+
+Aodh (`alarming`) and Gnocchi (`metric`) have no `OS_*_PORT` setting. Their
+tools use the Keystone catalog endpoint for `OS_INTERFACE` and
+`OS_REGION_NAME`, which must also be reachable from the `mcp-server` container.
+
 
 ### HTTPS and private CA setup
 

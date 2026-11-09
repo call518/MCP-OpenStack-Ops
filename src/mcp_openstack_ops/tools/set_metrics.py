@@ -12,7 +12,11 @@ async def set_metrics(
 ) -> str:
     """
     List/summary resource metadata; telemetry samples are unavailable.
-    
+
+    Returns Nova/Neutron/Cinder resource status counts, not measured metrics.
+    For telemetry metrics or utilization, use get_gnocchi_metrics and
+    get_gnocchi_measures.
+
     Args:
         action: Action to perform - list, summary; show returns an explicit unsupported error
         resource_type: Type of resource (compute, network, storage, identity)

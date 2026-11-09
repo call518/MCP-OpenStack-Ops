@@ -21,6 +21,7 @@ async def get_usage_statistics(start_date: str = "", end_date: str = "") -> str:
     
     Use for project usage reports. Period data comes from Nova simple tenant usage.
     It measures allocation-hours, not live utilization or monetary charges.
+    For measured CPU/memory utilization or trends, use get_gnocchi_measures.
     Missing or denied usage API returns failure without synthetic fallback.
     
     Args:

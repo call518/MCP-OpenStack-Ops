@@ -30,9 +30,14 @@ async def set_alarms(
         resource_id: Resource ID to monitor
         threshold: Required for create; zero and negative thresholds are valid
         comparison: Comparison operator (gt, lt, eq, ne, ge, le)
-        metric: Existing Gnocchi metric name (default cpu_util; cloud must collect it)
+        metric: Existing Gnocchi metric name. The default cpu_util is not
+            produced by Ceilometer since Stein; for CPU use metric="cpu" with
+            aggregation_method="rate:mean". Check with get_gnocchi_metrics.
         resource_type: Gnocchi resource type (default instance)
-        aggregation_method: Aggregation supported by the metric archive policy
+        aggregation_method: Aggregation supported by the metric archive policy.
+            With cpu and rate:mean, threshold is CPU nanoseconds per
+            granularity window: percent / 100 * granularity * 1e9 * vCPUs
+            (80% of 1 vCPU over 300 s = 2.4e11)
         granularity: Evaluation window in seconds (default 300)
         evaluation_periods: Number of windows (default 1)
         alarm_actions: Notification URLs; empty means no notification actions

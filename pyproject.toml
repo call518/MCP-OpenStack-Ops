@@ -11,6 +11,7 @@ dependencies = [
     "python-dotenv>=1.1.1",
     "setuptools-scm>=10.0.5",
     "pre-commit>=4.6.0",
+    "gnocchiclient>=7.2.0,<8",
 ]
 
 [project.optional-dependencies]

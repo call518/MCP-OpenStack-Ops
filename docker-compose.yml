@@ -16,7 +16,7 @@ services:
 
   mcp-server:
     env_file: .env
-    image: call518/mcp-server-openstack-ops:1.0.3
+    image: call518/mcp-server-openstack-ops:1.0.4
     container_name: mcp-openstack-ops-mcp-server
     ports:
       - "${DOCKER_BIND_ADDRESS:-127.0.0.1}:${DOCKER_EXTERNAL_PORT_MCP_SERVER}:8000"

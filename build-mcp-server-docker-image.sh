@@ -6,7 +6,7 @@ IMAGE_NAME="call518/mcp-server-openstack-ops"
 
 echo "=== Building Docker image Name: ${IMAGE_NAME} ==="
 
-VERSION="1.0.3"
+VERSION="1.0.4"
 TAGs="latest"
 
 # Build once with version tag

@@ -408,7 +408,7 @@ For requests like "Create cluster status report", "Show cluster operational repo
 - `get_service_status()` - Check all OpenStack service availability
 
 **2. Infrastructure & Resource Analysis:**
-- `get_resource_monitoring()` - Physical resource utilization (CPU, RAM, storage)
+- `get_resource_monitoring()` - Project allocations, quota limits, and visible physical capacity (not measured utilization)
 - `get_hypervisor_details()` - Physical infrastructure and hypervisor status
 
 **3. Compute Resources:**
@@ -435,6 +435,10 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 - `get_instance_by_name`: Quick single instance lookup
 - `get_instances_by_status`: Filter instances by operational status
 - `get_resource_monitoring`: current project flavor allocations, separate quota limits and visible hypervisor capacity; no live utilization or trends
+- `get_gnocchi_resources`: Gnocchi telemetry resources of the current project (list, filter, show with metrics map, history)
+- `get_gnocchi_metrics`: Gnocchi metric list/details (archive policy, unit)
+- `get_gnocchi_measures`: Stored telemetry time series for a metric (start/stop, granularity, aggregation, resample)
+- `get_gnocchi_service_info`: Archive policies, rules, resource types, aggregation capabilities, processing status
 
 ### 🌐 **Network Management Tools (12 tools)**
 **Core Network Operations:**
@@ -573,8 +577,11 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 - **"Create cluster status report"** / **"Cluster status report"** / **"클러스터 운영 현황"** → 
   - `get_service_status()` + `get_resource_monitoring()` + `get_hypervisor_details()` + `get_instance_details()` + `get_project_details()` + `get_network_details()` + `get_volume_list()` + `get_load_balancer_details()` + `get_heat_stacks()`
 
-- **"Show detailed cluster analysis"** / **"resource utilization"** → 
+- **"Show detailed cluster analysis"** / **"resource allocation and capacity"** → 
   - `get_resource_monitoring()` + `get_hypervisor_details()` + `get_instance_details()` + `get_volume_list()`
+
+- **"Resource utilization"** / **"actual CPU or memory usage"** / **"사용률"** →
+  - `get_gnocchi_resources()` + `get_gnocchi_measures()` for measured values; add `get_resource_monitoring()` only as separately labeled allocation context
 
 - **"Cluster overview"** / **"cluster status"** → 
   - `get_service_status()` + `get_resource_monitoring()` + `get_instance_details()` + `get_project_details()` + `get_network_details()`
@@ -612,27 +619,44 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 - "Create/delete stack" → `set_heat_stack("stack_name", "action")`
 
 ### 📈 **Monitoring & Resources**
-- "Hypervisor statistics" / "resource monitoring" → `get_resource_monitoring`
+- "Hypervisor statistics" / "resource allocation" / "capacity" → `get_resource_monitoring`
+- "Telemetry metrics of a VM" / "metric history" → `get_gnocchi_resources(resource_type="instance", resource_id="server UUID")` then `get_gnocchi_measures(metric="name", resource_id="server UUID")`
+- "Which metrics/granularities exist" → `get_gnocchi_service_info`
+- Alarm `metric` must be an existing Gnocchi metric of the resource; check with `get_gnocchi_metrics` before `set_alarms`
+
+### ⚖️ **Allocation vs Measured Telemetry (choose by what the number means)**
+
+| Question is about | Source | Tools |
+|---|---|---|
+| **Allocated / reserved / capacity / headroom / quota** (할당, 배정, 여유 용량, 쿼터) | Nova flavors, hypervisors, quotas; current point in time | `get_resource_monitoring`, `get_quota`, `get_hypervisor_details` |
+| **Allocation-hours over a period** (기간별 할당 시간) | Nova simple tenant usage | `get_usage_statistics` |
+| **Measured utilization / load / trend / history / "over the last N hours"** (사용률, 부하, 추이, 이력) | Ceilometer → Gnocchi time series | `get_gnocchi_resources`, `get_gnocchi_metrics`, `get_gnocchi_measures` |
+
+- Bare "usage" / "사용량": CPU or memory usage of a server → measured (Gnocchi); "quota usage" / "쿼터 사용량" → `get_quota`; cluster-wide "resource usage" → allocation, and say it is allocation-based.
+- Gnocchi `vcpus`, `memory`, `disk.root.size` record flavor sizes, not usage. Usage metrics are names like `cpu`, `memory.usage`, `disk.device.read.bytes`.
+- If the requested measured metric is not collected, say "not collected" and name the missing metric. Never substitute allocation numbers or compute a utilization rate from allocation / capacity.
+- Hypervisor-level measured utilization needs host metrics (for example `compute.node.cpu.percent` on `host` or `nova_compute` resources); otherwise only allocation and capacity are available.
 
 ---
 
 ## 4. Response Formatting Guidelines
 
 1. **Call appropriate tool** → **Present structured results** → **Include operation status**
-2. **For monitoring queries, ALWAYS include BOTH**:
-   - **Physical Resources**: Hardware utilization (e.g., "pCPU: 3/4 (75%)")
-   - **Virtual/Quota Resources**: Project allocation (e.g., "vCPU Quota: 3/40 (7.5%)")
-   - **Memory Both Ways**: Physical + virtual memory quotas  
-   - **Instance Quota**: Current vs limit (e.g., "Instances: 3/40 (7.5%)")
+2. **For monitoring queries, label every number by its kind** (see "Allocation vs Measured Telemetry" in section 3):
+   - **Allocated**: flavor reservations of the current project (`get_resource_monitoring`)
+   - **Quota**: project limits; quota usage = allocated / quota (e.g., "vCPU: 3/40 (7.5%)")
+   - **Visible physical capacity**: hypervisor totals; may be `null` for non-admin users
+   - **Measured**: observed telemetry from `get_gnocchi_measures`, with timestamp and granularity
+   - Never divide project allocations by physical capacity, and never call allocations "usage" or "utilization"
+   - If no measured metric is collected, write "not collected" instead of a number
 3. **For management operations**: Add confirmation and show actual returned status
-4. **MANDATORY TABLE FORMAT** for resource data:
+4. **TABLE FORMAT** for resource data (example values):
 
-| Resource | Actual Usage | Total Capacity | Usage Rate | Quota Limit | Quota Usage |
-|----------|--------------|----------------|------------|-------------|-------------|
-| **Physical CPU (pCPU)** | 3/4 cores | 4 cores | 75.0% | - | - |
-| **Virtual CPU (vCPU)** | - | - | - | 40 vCPU | 7.5% |
-| **Physical Memory** | 5,120/31,805 MB | 31.1 GB | 16.1% | - | - |
-| **Virtual Memory** | - | - | - | 96,000 MB | 5.3% |
+| Resource | Allocated (project) | Quota | Quota Usage | Visible Physical Capacity | Measured (Gnocchi) |
+|----------|---------------------|-------|-------------|---------------------------|--------------------|
+| **vCPU** | 3 vCPU | 40 vCPU | 7.5% | 4 cores or `null` | `cpu`: not collected |
+| **Memory** | 5,120 MB | 96,000 MB | 5.3% | 31,805 MB or `null` | `memory.usage`: 1,830 MB (mean, 5 min, 10:05 UTC) |
+| **Instances** | 3 | 40 | 7.5% | - | - |
 
 ---
 
@@ -672,7 +696,8 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 "Create port forwarding" → set_floating_ip_port_forwarding("create", floating_ip_address="IP", external_port=80, internal_port=8080)
 "Create 50GB volume" → set_volume("vol-name", "create", size=50)
 "Check instance states" → get_instance_details() + get_instances_by_status()  [Instance state analysis across projects]
-"Show hypervisor utilization" → get_resource_monitoring() + get_hypervisor_details()  [Resource utilization monitoring]
+"Show hypervisor allocation and capacity" → get_resource_monitoring() + get_hypervisor_details()  [Allocation, not measured utilization]
+"Show CPU usage of web-01 over the last hour" → get_gnocchi_resources() + get_gnocchi_measures()  [Measured telemetry]
 "Check load balancer status" → get_load_balancer_details()  [Load balancer health monitoring]
 ```
 
@@ -701,7 +726,7 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 "Show me the overall cluster status"
 "Create a comprehensive cluster report"
 "What's the current infrastructure health?"
-"Give me a cluster overview with resource utilization"
+"Give me a cluster overview with resource allocation and capacity"
 ```
 
 **Tools Used:** `get_service_status()`, `get_resource_monitoring()`, `get_service_status()`
@@ -798,16 +823,52 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 
 **Tools Used:** `search_instances()`, `get_instances_by_status()`
 
-### 📊 **Resource Monitoring**
+### 📊 **Resource Allocation & Capacity**
 
 ```
-"Show resource utilization by hypervisor"
-"Monitor CPU and memory usage"
+"Show resource allocation and capacity by hypervisor"
+"How many vCPUs and how much RAM are allocated in my project?"
 "Show quota usage and limits"
 "Display storage capacity statistics"
+"프로젝트에 할당된 vCPU와 메모리, 남은 쿼터 보여줘"
 ```
 
 **Tools Used:** `get_resource_monitoring()`, `get_quota()`, `get_usage_statistics()`
+
+Results are allocations, quotas, and capacity, not measured utilization.
+
+### 📡 **Telemetry Metrics (Gnocchi)**
+
+```
+"Monitor CPU and memory usage of web-01"
+"web-01의 실제 CPU 사용률 추이 보여줘"
+"Show the telemetry metrics collected for server web-01"
+"Show memory measures of web-01 since 2026-11-08T00:00:00, resampled hourly"
+"List all Gnocchi metrics in my project"
+"Show the archive policies and supported aggregation methods"
+"Is Gnocchi measure processing backlogged?"
+"web-01 인스턴스에 수집되는 메트릭 목록 보여줘"
+"web-01의 최근 vcpus 측정값 10개 보여줘"
+```
+
+**Tools Used:** `get_gnocchi_resources()`, `get_gnocchi_metrics()`, `get_gnocchi_measures()`, `get_gnocchi_service_info()`
+
+**Flow:** Resolve the server UUID with `get_instance_by_name()`, find metric names with `get_gnocchi_resources(resource_type="instance", resource_id=UUID)`, then call `get_gnocchi_measures(metric=name, resource_id=UUID)`. Use a granularity and aggregation from the metric's archive policy. `cpu` is cumulative nanoseconds: request `aggregation="rate:mean"` and divide by granularity × 10^9 × vCPUs for a utilization fraction. Report a missing metric as not collected; never estimate values.
+
+### 🚨 **Alarms (Aodh)**
+
+```
+"List alarms in my project"
+"Create an alarm when web-01 memory.usage exceeds 1500 MB"
+"Create an alarm when web-01 CPU exceeds 80%"
+"Show details and current state of alarm mem-high"
+"Delete alarm mem-high"
+"web-01 vcpus 메트릭에 임계값 알람 만들어줘"
+```
+
+**Tools Used:** `set_alarms()` (requires `ALLOW_MODIFY_OPERATIONS=true`), `get_gnocchi_metrics()`
+
+**Flow:** Before `set_alarms(action="create")`, confirm the metric exists on the resource with `get_gnocchi_metrics(resource_id=UUID)`. Aodh accepts nonexistent resources and uncollected metrics such as the default `cpu_util`, and such alarms stay `insufficient data`. Never rely on the `cpu_util` default: for CPU percentage alarms, pass `metric="cpu"`, `aggregation_method="rate:mean"`, and `threshold = percent / 100 × granularity × 10^9 × vCPUs` (80% of 1 vCPU at 300 s = 2.4e11). A new alarm is `insufficient data` until evaluated, which can take several minutes; report the returned state, not an assumed one.
 
 ### 🛠️ **Troubleshooting**
 
@@ -834,13 +895,13 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 ### 📈 **Performance & Optimization**
 
 ```
-"Show top 10 resource-consuming instances"
-"Display flavor utilization statistics"
+"Show top 10 instances by allocated vCPU and RAM"
+"Display flavor allocation statistics"
 "Monitor network resource counts and status"
-"Check storage I/O performance"
+"Check disk I/O telemetry of web-01"
 ```
 
-**Tools Used:** `get_instance_details()`, `get_resource_monitoring()`, `get_resource_monitoring()`
+**Tools Used:** `get_instance_details()`, `get_resource_monitoring()` (allocation), `get_gnocchi_measures()` (measured I/O, if collected)
 
 ### 🎛️ **Batch Operations**
 
@@ -860,7 +921,7 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 ```
 "Show complete infrastructure overview" →
 1. get_service_status() (service health)
-2. get_resource_monitoring() (resource utilization)
+2. get_resource_monitoring() (allocation and capacity)
 3. get_instance_details() (compute resources)
 4. get_network_details() (network topology)
 5. get_volume_list() (storage resources)
@@ -870,8 +931,8 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 ```
 "Troubleshoot performance issues" →
 1. get_instance_details() (instance status & specs)
-2. get_resource_monitoring() (resource utilization)
-3. get_hypervisor_details() (host capacity)
+2. get_gnocchi_measures() (measured load, if collected)
+3. get_resource_monitoring() + get_hypervisor_details() (allocation and host capacity)
 4. get_service_status() (service health)
 ```
 
@@ -914,6 +975,6 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 - `get_domains`, `get_identity_groups`: read-only Keystone listings. `set_domains` and `set_identity_groups` support list/create/show/update/delete. Domains must be explicitly disabled before deletion.
 - `get_image_members`: read-only image member listing. `set_image_members(action="add")` adds a recipient project to a shared image; recipient acceptance is separate.
 - `get_heat_stack_details`: `section` is resources/events/template/outputs.
-- `set_service_logs(action="show")` and `set_metrics(action="show")` are unavailable without additional backend implementation. Never claim to have retrieved logs or telemetry samples from metadata-only results.
+- `set_service_logs(action="show")` and `set_metrics(action="show")` are unavailable without additional backend implementation. Never claim to have retrieved logs or telemetry samples from metadata-only results; telemetry samples come only from `get_gnocchi_measures`.
 
 Confirm service availability and permissions in the target deployment before attempting Aodh/Neutron QoS operations or network-agent state changes. Check returned errors and partial flags; never describe an accepted asynchronous request as a completed operation. Usage date bounds are UTC midnight, start inclusive/end exclusive. Missing physical capacity is null, not zero. Physical capacity and project allocations have different scopes and must not be divided into a utilization rate.

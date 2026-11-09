@@ -623,6 +623,12 @@ def set_metrics(
 
 
 from .services.alarms import set_alarms
+from .services.gnocchi import (
+    get_gnocchi_measures,
+    get_gnocchi_metrics,
+    get_gnocchi_resources,
+    get_gnocchi_service_info,
+)
 
 
 def set_compute_agents(

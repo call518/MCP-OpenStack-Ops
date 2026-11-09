@@ -24,7 +24,7 @@ async def verify():
     tools = {tool.name: tool for tool in await mcp.list_tools()}
     read_tools = [tool for tool in tools.values()
                   if tool.name.startswith(('get_', 'search_'))]
-    assert len(read_tools) == 50
+    assert len(read_tools) == 54
     for tool in read_tools:
         assert tool.description.strip(), tool.name
         for parameter, schema in tool.parameters.get('properties', {}).items():
@@ -33,7 +33,8 @@ async def verify():
         'get_volume_transfers', 'get_volume_backups', 'get_volume_groups',
         'get_volume_qos', 'get_domains', 'get_identity_groups',
         'get_image_members', 'get_heat_stack_details',
-        'get_network_qos_policies',
+        'get_network_qos_policies', 'get_gnocchi_resources',
+        'get_gnocchi_metrics', 'get_gnocchi_measures', 'get_gnocchi_service_info',
     }
     writes = {
         'set_alarms', 'set_routers', 'set_security_groups', 'set_users',
@@ -42,10 +43,16 @@ async def verify():
         'set_network_qos_policies', 'set_network_agents',
     }
     assert reads <= tools.keys()
+    # Allocation tools and measured telemetry tools must point to each other.
+    for name in ('get_resource_monitoring', 'get_usage_statistics'):
+        assert 'get_gnocchi_measures' in tools[name].description, name
+    assert 'get_resource_monitoring' in tools['get_gnocchi_measures'].description
     enabled = os.environ['ALLOW_MODIFY_OPERATIONS'] == 'true'
     assert (writes <= tools.keys()) if enabled else not (writes & tools.keys())
     if enabled:
         assert 'metric' in tools['set_alarms'].parameters['properties']
+        alarm_metric = tools['set_alarms'].parameters['properties']['metric']
+        assert 'rate:mean' in alarm_metric['description']
         assert 'volume_types' in tools['set_volume_groups'].parameters['properties']
         expected_actions = {
             'set_instance': {'delete', 'resize', 'snapshot', 'rebuild'},
