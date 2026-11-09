@@ -5,11 +5,94 @@ This module contains functions for managing volumes, snapshots, backups,
 volume types, and other storage-related components.
 """
 
+import inspect
 import logging
+import os
+import re
 from typing import Dict, List, Any, Optional
+from urllib.parse import urlsplit
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+CINDER_UNAVAILABLE = 'Block Storage (Cinder) service is not available in this cloud'
+_URL_PATTERN = re.compile(r"https?://[^\s'\"<>]+")
+
+
+def _volume_port() -> Optional[int]:
+    try:
+        return int(os.environ.get('OS_VOLUME_PORT', '8776'))
+    except ValueError:
+        return None
+
+
+def _mentions_volume_endpoint(text: str) -> bool:
+    """True when an error names a URL on the configured Cinder port.
+
+    Both connection modes build the block-storage endpoint override from
+    OS_VOLUME_PORT, so a connection or discovery failure against that port is
+    a failure to reach Cinder rather than another service.
+    """
+    port = _volume_port()
+    for url in _URL_PATTERN.findall(text):
+        try:
+            if urlsplit(url).port == port:
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+def _is_block_storage_unavailable(exc: BaseException) -> bool:
+    """Recognize the errors openstacksdk raises when Cinder is absent.
+
+    Without Cinder the endpoint override points at an unserved URL, so the SDK
+    fails while building the block-storage proxy: 4.9 dereferences missing
+    endpoint data (AttributeError on ``api_version``), 4.22 raises
+    ServiceDiscoveryException ("No endpoint data found").
+    """
+    from openstack import exceptions as sdk_exceptions
+    text = str(exc)
+    if isinstance(exc, AttributeError):
+        return "'NoneType' object has no attribute 'api_version'" in text
+    if isinstance(exc, (sdk_exceptions.EndpointNotFound,
+                        sdk_exceptions.ServiceDisabledException)):
+        return True
+    if isinstance(exc, sdk_exceptions.ServiceDiscoveryException):
+        return 'block-storage' in text or 'volume' in text
+    try:
+        from keystoneauth1 import exceptions as ksa_exceptions
+    except ImportError:  # pragma: no cover - keystoneauth ships with the SDK
+        return False
+    if isinstance(exc, ksa_exceptions.EndpointNotFound):
+        return True
+    if isinstance(exc, (ksa_exceptions.ConnectFailure,
+                        ksa_exceptions.DiscoveryFailure)):
+        return _mentions_volume_endpoint(text)
+    return False
+
+
+def block_storage_unavailable_message(exc: BaseException) -> Optional[str]:
+    """Return a clear message when ``exc`` means Cinder is unavailable.
+
+    The original error text is kept, with endpoint URLs replaced so private
+    endpoints are not exposed. Returns None for any other error.
+    """
+    if not _is_block_storage_unavailable(exc):
+        return None
+    detail = _URL_PATTERN.sub('<endpoint>', str(exc)) or type(exc).__name__
+    return f'{CINDER_UNAVAILABLE}: {detail}'
+
+
+def _storage_error_text(exc: BaseException) -> str:
+    """Error text for storage failures: the Cinder message when it applies."""
+    return block_storage_unavailable_message(exc) or str(exc)
+
+
+def _storage_failure(message: str, exc: BaseException) -> Dict[str, Any]:
+    unavailable = block_storage_unavailable_message(exc)
+    return {'success': False, 'message': unavailable or message,
+            'error': unavailable or str(exc)}
 
 
 def get_volume_list() -> List[Dict[str, Any]]:
@@ -47,14 +130,14 @@ def get_volume_list() -> List[Dict[str, Any]]:
                     'volume_type': getattr(volume, 'volume_type', 'unknown'),
                     'bootable': getattr(volume, 'is_bootable', False),
                     'encrypted': getattr(volume, 'is_encrypted', False),
-                    'multiattach': getattr(volume, 'multiattach', False),
+                    'multiattach': getattr(volume, 'is_multiattach', False),
                     'availability_zone': getattr(volume, 'availability_zone', 'unknown'),
                     'project_id': getattr(volume, 'project_id', current_project_id),
                     'created_at': str(getattr(volume, 'created_at', 'unknown')),
                     'updated_at': str(getattr(volume, 'updated_at', 'unknown')),
                     'description': getattr(volume, 'description', ''),
                     'metadata': getattr(volume, 'metadata', {}),
-                    'source_volid': getattr(volume, 'source_volid', None),
+                    'source_volid': getattr(volume, 'source_volume_id', None),
                     'snapshot_id': getattr(volume, 'snapshot_id', None),
                     'image_id': getattr(volume, 'image_id', None),
                     'attachments': attachments,
@@ -65,6 +148,10 @@ def get_volume_list() -> List[Dict[str, Any]]:
         return volumes
     except Exception as e:
         logger.error(f"Failed to get volume list: {e}")
+        unavailable = block_storage_unavailable_message(e)
+        if unavailable:
+            raise RuntimeError(
+                f"OpenStack resource query failed: {unavailable}") from None
         raise RuntimeError("OpenStack resource query failed") from None
 
 
@@ -303,10 +390,11 @@ def set_volume(volume_name: str, action: str, **kwargs) -> Dict[str, Any]:
             
     except Exception as e:
         logger.error(f"Failed to manage volume: {e}")
+        error = _storage_error_text(e)
         return {
             'success': False,
-            'message': f'Failed to manage volume: {str(e)}',
-            'error': str(e)
+            'message': f'Failed to manage volume: {error}',
+            'error': error
         }
 
 
@@ -337,12 +425,11 @@ def get_volume_types() -> List[Dict[str, Any]]:
         return volume_types
     except Exception as e:
         logger.error(f"Failed to get volume types: {e}")
-        return [
-            {
-                'id': 'type-1', 'name': 'standard', 'description': 'Standard volume type',
-                'is_public': True, 'extra_specs': {}, 'error': str(e)
-            }
-        ]
+        # Do not fabricate a placeholder volume type: callers report the error.
+        unavailable = block_storage_unavailable_message(e)
+        if unavailable:
+            raise RuntimeError(unavailable) from e
+        raise
 
 
 def get_volume_snapshots() -> List[Dict[str, Any]]:
@@ -380,6 +467,10 @@ def get_volume_snapshots() -> List[Dict[str, Any]]:
         return snapshots
     except Exception as e:
         logger.error(f"Failed to get volume snapshots: {e}")
+        unavailable = block_storage_unavailable_message(e)
+        if unavailable:
+            raise RuntimeError(
+                f"OpenStack resource query failed: {unavailable}") from None
         raise RuntimeError("OpenStack resource query failed") from None
 
 
@@ -516,11 +607,27 @@ def set_snapshot(snapshot_name: str, action: str, **kwargs) -> Dict[str, Any]:
             
     except Exception as e:
         logger.error(f"Failed to manage snapshot: {e}")
+        error = _storage_error_text(e)
         return {
             'success': False,
-            'message': f'Failed to manage snapshot: {str(e)}',
-            'error': str(e)
+            'message': f'Failed to manage snapshot: {error}',
+            'error': error
         }
+
+
+def _restore_backup(api, backup, volume_id, name):
+    """Call restore_backup across openstacksdk signatures.
+
+    openstacksdk 4.14 renamed the target argument from ``volume_id`` to
+    ``volume``; older releases (such as the locked 4.9) accept only
+    ``volume_id``.
+    """
+    try:
+        parameters = inspect.signature(api.restore_backup).parameters
+    except (TypeError, ValueError):
+        parameters = {}
+    target = 'volume' if 'volume' in parameters else 'volume_id'
+    return api.restore_backup(backup, **{target: volume_id}, name=name)
 
 
 def set_volume_backups(action: str, backup_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
@@ -554,15 +661,14 @@ def set_volume_backups(action: str, backup_name: Optional[str] = None, **kwargs)
         if action == 'delete':
             api.delete_backup(backup, ignore_missing=False)
             return {'success': True, 'message': 'Backup deletion accepted'}
-        restored = api.restore_backup(
-            backup, volume_id=kwargs.get('volume_id'),
-                name=kwargs.get('volume_name') or None,
+        restored = _restore_backup(
+            api, backup, kwargs.get('volume_id'),
+            kwargs.get('volume_name') or None,
         )
         return {'success': True, 'restore': restored.to_dict(),
                 'message': 'Backup restoration accepted; check status before use'}
     except Exception as exc:
-        return {'success': False, 'message': 'Backup operation failed',
-            'error': str(exc)}
+        return _storage_failure('Backup operation failed', exc)
 
 
 def set_volume_groups(action: str, group_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
@@ -609,8 +715,7 @@ def set_volume_groups(action: str, group_name: Optional[str] = None, **kwargs) -
         api.delete_group(group, delete_volumes=kwargs.get('delete_volumes', False))
         return {'success': True, 'message': 'Group deletion accepted'}
     except Exception as exc:
-        return {'success': False, 'message': 'Volume group operation failed',
-            'error': str(exc)}
+        return _storage_failure('Volume group operation failed', exc)
 
 
 def set_volume_qos(action: str, qos_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
@@ -663,8 +768,7 @@ def set_volume_qos(action: str, qos_name: Optional[str] = None, **kwargs) -> Dic
         response.raise_for_status()
         return {'success': True, 'qos_policy': response.json()['qos_specs']}
     except Exception as exc:
-        return {'success': False, 'message': 'Volume QoS operation failed',
-            'error': str(exc)}
+        return _storage_failure('Volume QoS operation failed', exc)
 
 
 def get_server_volumes(instance_name: str) -> List[Dict[str, Any]]:
@@ -723,7 +827,7 @@ def get_server_volumes(instance_name: str) -> List[Dict[str, Any]]:
                         'size': 0,
                         'status': 'unknown',
                         'attachment_id': getattr(attachment, 'id', 'unknown'),
-                        'error': f'Could not retrieve volume details: {e}'
+                        'error': f'Could not retrieve volume details: {_storage_error_text(e)}'
                     }
                 
                 attached_volumes.append(volume_info)
@@ -751,7 +855,7 @@ def get_server_volumes(instance_name: str) -> List[Dict[str, Any]]:
         
     except Exception as e:
         logger.error(f"Failed to get server volumes: {e}")
-        return [{'error': str(e), 'instance_name': instance_name}]
+        return [{'error': _storage_error_text(e), 'instance_name': instance_name}]
 
 
 def set_server_volume(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
@@ -815,7 +919,7 @@ def set_server_volume(instance_name: str, action: str, **kwargs) -> Dict[str, An
             
             # Check if volume is available
             volume_status = getattr(volume, 'status', 'unknown')
-            if volume_status not in ['available', 'in-use'] and not getattr(volume, 'multiattach', False):
+            if volume_status not in ['available', 'in-use'] and not getattr(volume, 'is_multiattach', False):
                 return {
                     'success': False,
                     'message': f'Volume "{volume_name}" is not available (status: {volume_status})'
@@ -903,10 +1007,11 @@ def set_server_volume(instance_name: str, action: str, **kwargs) -> Dict[str, An
             
     except Exception as e:
         logger.error(f"Failed to manage server volume: {e}")
+        error = _storage_error_text(e)
         return {
             'success': False,
-            'message': f'Failed to manage server volume: {str(e)}',
-            'error': str(e)
+            'message': f'Failed to manage server volume: {error}',
+            'error': error
         }
 
 def set_volume_types(action: str, type_name: str, description: str = '') -> Dict[str,
@@ -925,8 +1030,7 @@ def set_volume_types(action: str, type_name: str, description: str = '') -> Dict
         api.delete_type(resource, ignore_missing=False)
         return {'success': True, 'message': 'Volume type deletion accepted'}
     except Exception as exc:
-        return {'success': False, 'message': 'Volume type operation failed',
-            'error': str(exc)}
+        return _storage_failure('Volume type operation failed', exc)
 
 
 def get_volume_transfers() -> Dict[str, Any]:
@@ -940,5 +1044,4 @@ def get_volume_transfers() -> Dict[str, Any]:
                      for t in get_openstack_connection().block_storage.transfers()]
         return {'success': True, 'transfers': transfers, 'count': len(transfers)}
     except Exception as exc:
-        return {'success': False, 'message': 'Volume transfer listing failed',
-            'error': str(exc)}
+        return _storage_failure('Volume transfer listing failed', exc)

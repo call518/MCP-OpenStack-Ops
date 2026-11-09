@@ -456,7 +456,7 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 **Floating IP Management:**
 - `get_floating_ips`: List floating IPs and status (always available)
 - `get_floating_ip_pools`: Visible allocation-range totals and Floating IP counts; global free capacity is unknown (`available_ips=null`)
-- `set_floating_ip`: Enhanced floating IP operations (create/delete/associate/disassociate/set/show/unset) (**Conditional Tool**)
+- `set_floating_ip`: Enhanced floating IP operations (create/delete/associate/disassociate/set/show/list) (**Conditional Tool**). `unset` is not usable: it has no parameter selecting what to unset
 - `set_floating_ip_port_forwarding`: Port forwarding rule management (create/delete/list/show/set) (**Conditional Tool**)
 
 **Network Advanced Features:**
@@ -491,7 +491,7 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
   - **Bulk Support**: Process multiple instances: `instance_names="vm1,vm2,vm3"`
   - **Filter-based**: Direct targeting: `name_contains="ttt", status="ACTIVE"`
   - **Post-action Status**: Automatic verification with emoji indicators 🟢🔴🟡
-  - **Actions**: create/start/stop/restart/pause/unpause/suspend/resume/backup/shelve/lock/rescue/resize/rebuild (**Conditional Tool**)
+  - **Actions**: create/start/stop/restart/reboot/pause/unpause/suspend/resume/delete/resize/confirm_resize/revert_resize/snapshot/console/shelve/unshelve/lock/unlock/rescue/unrescue/rebuild (**Conditional Tool**); backups use `set_server_backup`
 - `get_instance`: **NEW UNIFIED** - Replaces get_instance_details/get_instance_info/get_instance_status/get_instance_network_info
   - Single tool for all instance queries with comprehensive information
   - **Parameters**: `instance_names` (supports comma-separated and "all")

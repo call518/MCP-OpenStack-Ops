@@ -21,6 +21,16 @@ from .services.core import (
 from .connection import reset_connection_cache
 
 
+
+def _service_zone(service, default='unknown'):
+    """Return a Nova/Cinder service zone.
+
+    openstacksdk maps the API's ``zone`` field to ``availability_zone``;
+    ``service.zone`` raises AttributeError on real SDK resources.
+    """
+    return (getattr(service, 'availability_zone', None)
+            or getattr(service, 'zone', None) or default)
+
 def get_service_status() -> List[Dict[str, Any]]:
     """
     Returns detailed service status information for compute and network services.
@@ -40,7 +50,7 @@ def get_service_status() -> List[Dict[str, Any]]:
                     'host': service.host,
                     'status': service.status,
                     'state': service.state,
-                    'zone': getattr(service, 'zone', 'unknown'),
+                    'zone': _service_zone(service),
                     'updated_at': str(getattr(service, 'updated_at', 'unknown')),
                     'disabled_reason': getattr(service, 'disabled_reason', None),
                     'service_type': 'compute'
@@ -82,7 +92,7 @@ def get_service_status() -> List[Dict[str, Any]]:
                     'host': service.host,
                     'status': service.status,
                     'state': service.state,
-                    'zone': getattr(service, 'zone', 'unknown'),
+                    'zone': _service_zone(service),
                     'updated_at': str(getattr(service, 'updated_at', 'unknown')),
                     'disabled_reason': getattr(service, 'disabled_reason', None),
                     'service_type': 'volume'
@@ -367,7 +377,7 @@ def set_services(action: str, service_name: Optional[str] = None, **kwargs) -> D
                         'name': service.name,
                         'type': service.type,
                         'description': getattr(service, 'description', 'N/A'),
-                        'enabled': getattr(service, 'enabled', True),
+                        'enabled': getattr(service, 'is_enabled', True),
                         'created_at': str(getattr(service, 'created_at', 'N/A')),
                         'updated_at': str(getattr(service, 'updated_at', 'N/A'))
                     })
@@ -437,7 +447,7 @@ def set_service_logs(
                         'name': agent.agent_type,
                         'type': 'network',
                         'host': agent.host,
-                        'status': 'enabled' if agent.is_enabled else 'disabled',
+                        'status': 'enabled' if agent.is_admin_state_up else 'disabled',
                         'state': 'up' if agent.is_alive else 'down'
                     })
                     
@@ -662,7 +672,7 @@ def set_compute_agents(
                             'id': service.id,
                             'binary': service.binary,
                             'host': service.host,
-                            'zone': service.zone,
+                            'zone': _service_zone(service),
                             'status': service.status,
                             'state': service.state,
                             'updated_at': service.updated_at,
@@ -674,20 +684,17 @@ def set_compute_agents(
             # Get hypervisor information
             try:
                 hypervisors = []
-                for hypervisor in conn.compute.hypervisors():
+                from .services.monitoring import _hypervisor_capacity
+                for hypervisor in conn.compute.hypervisors(details=True):
                     if not host or hypervisor.name == host:
+                        # SDK names are memory_size/local_disk_size; Nova
+                        # 2.88+ omits capacity fields, which stay None.
                         hypervisors.append({
                             'id': hypervisor.id,
                             'name': hypervisor.name,
                             'status': hypervisor.status,
                             'state': hypervisor.state,
-                            'vcpus': hypervisor.vcpus,
-                            'vcpus_used': hypervisor.vcpus_used,
-                            'memory_mb': hypervisor.memory_mb,
-                            'memory_mb_used': hypervisor.memory_mb_used,
-                            'local_gb': hypervisor.local_gb,
-                            'local_gb_used': hypervisor.local_gb_used,
-                            'running_vms': hypervisor.running_vms
+                            **_hypervisor_capacity(hypervisor),
                         })
                         
                 return {
@@ -704,6 +711,7 @@ def set_compute_agents(
                 return {
                     'success': True,
                     'compute_services': agents,
+                    'hypervisors_error': str(e),
                     'count': {'services': len(agents)}
                 }
                 
@@ -717,12 +725,23 @@ def set_compute_agents(
             # Get specific agent details
             if agent_id:
                 try:
-                    service = conn.compute.get_service(agent_id)
+                    # The compute proxy has no get_service(); look the
+                    # service up from the os-services listing instead.
+                    service = next(
+                        (svc for svc in conn.compute.services()
+                         if str(svc.id) == str(agent_id)),
+                        None,
+                    )
+                    if service is None:
+                        return {
+                            'success': False,
+                            'message': f'Compute service "{agent_id}" not found'
+                        }
                     agent_details = {
                         'id': service.id,
                         'binary': service.binary,
                         'host': service.host,
-                        'zone': service.zone,
+                        'zone': _service_zone(service),
                         'status': service.status,
                         'state': service.state,
                         'updated_at': service.updated_at,
@@ -747,7 +766,7 @@ def set_compute_agents(
                             'id': service.id,
                             'binary': service.binary,
                             'host': service.host,
-                            'zone': service.zone,
+                            'zone': _service_zone(service),
                             'status': service.status,
                             'state': service.state
                         })

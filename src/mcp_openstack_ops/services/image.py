@@ -138,7 +138,8 @@ def get_image_detail_list() -> List[Dict[str, Any]]:
         
     except Exception as e:
         logger.error(f"Failed to get detailed image list: {e}")
-        return []
+        # An empty list would read as "no images"; let callers report the error.
+        raise
 
 
 def set_image(image_name: str, action: str, **kwargs) -> Dict[str, Any]:

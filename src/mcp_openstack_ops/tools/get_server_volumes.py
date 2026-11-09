@@ -3,6 +3,7 @@
 import json
 from datetime import datetime
 from ..functions import get_server_volumes as _get_server_volumes
+from ..services.compute import find_server_by_name_or_id as _find_server
 from ..mcp_main import (
     logger,
     mcp,
@@ -25,6 +26,11 @@ async def get_server_volumes(
         logger.info(f"Getting volumes for server: {instance_name}")
         
         volumes_result = _get_server_volumes(instance_name=instance_name)
+        
+        # The volume lookup returns [] both for "no volumes" and for a server
+        # that does not exist; distinguish the two explicitly.
+        if not volumes_result and _find_server(instance_name) is None:
+            return f'Error: Server "{instance_name}" not found'
         
         response = {
             "timestamp": datetime.now().isoformat(),

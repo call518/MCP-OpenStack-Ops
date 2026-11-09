@@ -12,6 +12,35 @@ from ...connection import get_openstack_connection
 logger = logging.getLogger(__name__)
 
 
+def listener_load_balancer_ids(listener) -> list:
+    """Return the load balancer IDs a listener is attached to.
+
+    The SDK exposes ``load_balancer_id`` (body key ``loadbalancer_id``) and
+    ``load_balancers`` (a list of ``{'id': ...}`` references).
+    """
+    ids = []
+    lb_id = getattr(listener, 'load_balancer_id', None)
+    if lb_id:
+        ids.append(lb_id)
+    for ref in getattr(listener, 'load_balancers', None) or []:
+        ref_id = ref.get('id') if isinstance(ref, dict) else getattr(ref, 'id', None)
+        if ref_id and ref_id not in ids:
+            ids.append(ref_id)
+    return ids
+
+
+def _listener_load_balancer_id(listener):
+    ids = listener_load_balancer_ids(listener)
+    return ids[0] if ids else None
+
+
+def listener_belongs_to_load_balancer(listener, lb_id: str) -> bool:
+    """True unless the listener reports load balancer IDs that exclude lb_id."""
+    ids = listener_load_balancer_ids(listener)
+    return not ids or lb_id in ids
+
+
+
 def get_load_balancer_listeners(lb_name_or_id: str) -> Dict[str, Any]:
     """
     Get listeners for a specific load balancer.
@@ -34,18 +63,20 @@ def get_load_balancer_listeners(lb_name_or_id: str) -> Dict[str, Any]:
             }
         
         # Get listeners
-        listeners = list(conn.load_balancer.listeners(loadbalancer_id=lb.id))
+        listeners = list(conn.load_balancer.listeners(load_balancer_id=lb.id))
         listener_details = []
         
         for listener in listeners:
+            if not listener_belongs_to_load_balancer(listener, lb.id):
+                continue
             listener_info = {
                 'id': listener.id,
                 'name': listener.name,
                 'description': listener.description,
                 'protocol': listener.protocol,
                 'protocol_port': listener.protocol_port,
-                'admin_state_up': listener.admin_state_up,
-                'loadbalancer_id': listener.loadbalancer_id,
+                'admin_state_up': listener.is_admin_state_up,
+                'loadbalancer_id': _listener_load_balancer_id(listener),
                 'default_pool_id': getattr(listener, 'default_pool_id', None),
                 'created_at': str(listener.created_at) if hasattr(listener, 'created_at') else 'N/A',
                 'updated_at': str(listener.updated_at) if hasattr(listener, 'updated_at') else 'N/A'
@@ -131,7 +162,7 @@ def set_load_balancer_listener(action: str, **kwargs) -> Dict[str, Any]:
                     'name': listener.name,
                     'protocol': listener.protocol,
                     'protocol_port': listener.protocol_port,
-                    'admin_state_up': listener.admin_state_up
+                    'admin_state_up': listener.is_admin_state_up
                 }
             }
         
@@ -190,7 +221,7 @@ def set_load_balancer_listener(action: str, **kwargs) -> Dict[str, Any]:
                     'id': updated_listener.id,
                     'name': updated_listener.name,
                     'description': updated_listener.description,
-                    'admin_state_up': updated_listener.admin_state_up
+                    'admin_state_up': updated_listener.is_admin_state_up
                 }
             }
         
@@ -287,8 +318,8 @@ def set_load_balancer_listener(action: str, **kwargs) -> Dict[str, Any]:
                     'description': listener.description,
                     'protocol': listener.protocol,
                     'protocol_port': listener.protocol_port,
-                    'admin_state_up': listener.admin_state_up,
-                    'loadbalancer_id': listener.loadbalancer_id,
+                    'admin_state_up': listener.is_admin_state_up,
+                    'loadbalancer_id': _listener_load_balancer_id(listener),
                     'default_pool_id': getattr(listener, 'default_pool_id', None)
                 }
             }

@@ -36,7 +36,12 @@ async def get_network_details(network_name: str = "all") -> str:
     try:
         logger.info(f"Fetching network details: {network_name}")
         details = await to_thread.run_sync(partial(_get_network_details, network_name))
-        
+        if network_name.lower() != "all" and not details:
+            # A specific lookup that matched nothing is an error, not an
+            # empty inventory.
+            return (f"Error: Network '{network_name}' not found or not "
+                    "accessible in the current project")
+
         result = {
             "timestamp": datetime.now().isoformat(), 
             "requested_network": network_name,

@@ -45,7 +45,9 @@ async def set_server_migration(
         migration_id: Migration ID for show/abort/force_complete actions
         block_migration: Block migration mode (auto, true, false)
         admin_pass: Admin password for evacuation
-        on_shared_storage: Whether using shared storage for evacuation
+        on_shared_storage: Legacy evacuation flag for compute microversions
+            older than 2.14. Leave false on modern clouds, where Nova detects
+            shared storage itself and rejects this field
         
     Returns:
         JSON string containing operation results

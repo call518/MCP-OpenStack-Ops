@@ -222,7 +222,7 @@ def get_instance_details(
                     'fault': getattr(server, 'fault', None),
                     'progress': getattr(server, 'progress', 0),
                     'config_drive': getattr(server, 'config_drive', False),
-                    'locked': getattr(server, 'locked', False)
+                    'locked': getattr(server, 'is_locked', False)
                 }
                 
                 # Add volume attachment info if available
@@ -441,6 +441,29 @@ def search_instances(
         raise RuntimeError("OpenStack instance search failed") from None
 
 
+# Nova server status values (API "status" field).
+NOVA_SERVER_STATUSES = frozenset({
+    'ACTIVE', 'BUILD', 'DELETED', 'ERROR', 'HARD_REBOOT', 'MIGRATING',
+    'PASSWORD', 'PAUSED', 'REBOOT', 'REBUILD', 'RESCUE', 'RESIZE',
+    'REVERT_RESIZE', 'SHELVED', 'SHELVED_OFFLOADED', 'SHUTOFF',
+    'SOFT_DELETED', 'SUSPENDED', 'UNKNOWN', 'VERIFY_RESIZE',
+})
+
+
+def find_server_by_name_or_id(name_or_id: str) -> Optional[Any]:
+    """Return the server whose name or ID matches, or None.
+
+    API failures propagate so callers can report them instead of treating
+    them as "not found".
+    """
+    from ..connection import get_openstack_connection
+    conn = get_openstack_connection()
+    for srv in conn.compute.servers():
+        if getattr(srv, 'name', '') == name_or_id or getattr(srv, 'id', '') == name_or_id:
+            return srv
+    return None
+
+
 def get_instances_by_status(
     status: str, *, enrich_images: bool = True
 ) -> List[Dict[str, Any]]:
@@ -452,7 +475,16 @@ def get_instances_by_status(
         
     Returns:
         List of instances with matching status
+
+    Raises:
+        ValueError: if ``status`` is not a Nova server status.
     """
+    if str(status or '').strip().upper() not in NOVA_SERVER_STATUSES:
+        raise ValueError(
+            f'Invalid instance status "{status}". Valid statuses: '
+            + ', '.join(sorted(NOVA_SERVER_STATUSES))
+        )
+    status = status.strip()
     try:
         result = get_instance_details(
             include_all=True, enrich_images=enrich_images, status_filter=status
@@ -694,7 +726,9 @@ def set_instance(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
         elif action.lower() in ['delete', 'terminate']:
             force = kwargs.get('force', False)
             if force:
-                conn.compute.force_delete_server(server)
+                # openstacksdk exposes forceDelete as delete_server(force=True);
+                # there is no force_delete_server() proxy method.
+                conn.compute.delete_server(server, force=True)
                 return {
                     'success': True,
                     'message': f'Instance "{instance_name}" force deleted'
@@ -759,15 +793,30 @@ def set_instance(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
             }
             
         elif action.lower() == 'console':
-            console_type = kwargs.get('type', 'novnc')  # novnc, xvpvnc, spice-html5, rdp-html5, serial
-            
+            # novnc, spice-html5, rdp-html5, serial, webmks (>= 2.8),
+            # spice-direct (>= 2.99); xvpvnc is legacy-only.
+            console_type = kwargs.get('type', 'novnc') or 'novnc'
+
             try:
-                console = conn.compute.get_server_console_url(server, console_type)
+                # create_console() uses the remote-consoles API
+                # (POST /servers/{id}/remote-consoles) at microversion >= 2.6
+                # and only falls back to the legacy os-get*Console server
+                # actions on older clouds. The legacy actions are gone on
+                # current Nova and return 404 there.
+                console = conn.compute.create_console(server, console_type)
+                console = dict(console or {})
+                url = console.get('url')
+                if not url:
+                    return {
+                        'success': False,
+                        'message': f'Failed to get console URL: no URL returned for console type "{console_type}"'
+                    }
                 return {
                     'success': True,
                     'console': {
-                        'type': console_type,
-                        'url': console.get('url', 'unknown')
+                        'type': console.get('type') or console_type,
+                        'protocol': console.get('protocol'),
+                        'url': url
                     }
                 }
             except Exception as e:
@@ -848,19 +897,23 @@ def set_instance(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
                     'message': f'Image "{image_name}" not found'
                 }
                 
+            # Proxy.rebuild_server(server, image, **attrs): the image is a
+            # required positional argument; attrs must use Server.rebuild()
+            # keyword names (name, admin_password, preserve_ephemeral,
+            # metadata, ...). Nova replaces server metadata on rebuild, so
+            # only send it when the caller supplied a non-empty object.
             rebuild_params = {
-                'image_id': image.id,
-                'name': kwargs.get('new_name', getattr(server, 'name', '')),
-                'admin_pass': kwargs.get('admin_pass'),
-                'preserve_ephemeral': kwargs.get('preserve_ephemeral', False),
-                'metadata': kwargs.get('metadata', {}),
-                'personality': kwargs.get('personality', [])
+                'preserve_ephemeral': bool(kwargs.get('preserve_ephemeral', False)),
             }
-            
-            # Remove None values
-            rebuild_params = {k: v for k, v in rebuild_params.items() if v is not None}
-            
-            conn.compute.rebuild_server(server, **rebuild_params)
+            if kwargs.get('new_name'):
+                rebuild_params['name'] = kwargs['new_name']
+            admin_password = kwargs.get('admin_password', kwargs.get('admin_pass'))
+            if admin_password:
+                rebuild_params['admin_password'] = admin_password
+            if kwargs.get('metadata'):
+                rebuild_params['metadata'] = kwargs['metadata']
+
+            conn.compute.rebuild_server(server, image.id, **rebuild_params)
             return {
                 'success': True,
                 'message': f'Instance "{instance_name}" rebuild initiated with image {image_name}'
@@ -1070,6 +1123,19 @@ def get_server_events(
         }
 
 
+def _server_group_policies(group) -> List[str]:
+    """Return a server group's policies for any compute microversion.
+
+    Nova 2.64+ returns a single ``policy`` instead of the ``policies`` list,
+    so ``ServerGroup.policies`` is None on modern clouds.
+    """
+    policies = getattr(group, 'policies', None)
+    if policies:
+        return list(policies)
+    policy = getattr(group, 'policy', None)
+    return [policy] if policy else []
+
+
 def get_server_groups() -> List[Dict[str, Any]]:
     """
     Get list of server groups.
@@ -1085,12 +1151,12 @@ def get_server_groups() -> List[Dict[str, Any]]:
         
         try:
             for group in conn.compute.server_groups():
-                members = getattr(group, 'members', []) or []
+                members = getattr(group, 'member_ids', []) or []
                 
                 server_groups.append({
                     'id': group.id,
                     'name': getattr(group, 'name', 'unnamed'),
-                    'policies': list(getattr(group, 'policies', [])),
+                    'policies': _server_group_policies(group),
                     'members': list(members),
                     'member_count': len(members),
                     'metadata': getattr(group, 'metadata', {}),
@@ -1100,13 +1166,14 @@ def get_server_groups() -> List[Dict[str, Any]]:
                     'updated_at': str(getattr(group, 'updated_at', 'unknown'))
                 })
         except Exception as e:
-            logger.warning(f"Server groups may not be supported: {e}")
-            return []
-        
+            logger.error(f"Failed to list server groups: {e}")
+            # An empty list would read as "no server groups"; report the error.
+            raise
+
         return server_groups
     except Exception as e:
         logger.error(f"Failed to get server groups: {e}")
-        return []
+        raise
 
 
 def set_server_group(group_name: str, action: str, **kwargs) -> Dict[str, Any]:
@@ -1151,8 +1218,8 @@ def set_server_group(group_name: str, action: str, **kwargs) -> Dict[str, Any]:
                 'server_group': {
                     'id': server_group.id,
                     'name': getattr(server_group, 'name', 'unnamed'),
-                    'policies': getattr(server_group, 'policies', policies),
-                    'members': getattr(server_group, 'members', [])
+                    'policies': _server_group_policies(server_group) or policies,
+                    'members': getattr(server_group, 'member_ids', [])
                 }
             }
             
@@ -1203,8 +1270,8 @@ def set_server_group(group_name: str, action: str, **kwargs) -> Dict[str, Any]:
                 'server_group': {
                     'id': server_group.id,
                     'name': getattr(server_group, 'name', 'unnamed'),
-                    'policies': getattr(server_group, 'policies', []),
-                    'members': getattr(server_group, 'members', []),
+                    'policies': _server_group_policies(server_group),
+                    'members': getattr(server_group, 'member_ids', []),
                     'metadata': getattr(server_group, 'metadata', {}),
                     'project_id': getattr(server_group, 'project_id', 'unknown'),
                     'user_id': getattr(server_group, 'user_id', 'unknown')
@@ -1223,6 +1290,21 @@ def set_server_group(group_name: str, action: str, **kwargs) -> Dict[str, Any]:
             'message': f'Failed to manage server group: {str(e)}',
             'error': str(e)
         }
+
+
+def _find_port_by_name_or_id(conn: Any, name_or_id: str):
+    """Resolve a Neutron port by name or ID.
+
+    Returns ``(port, None)`` or ``(None, error_message)``.
+    """
+    try:
+        port = conn.network.find_port(name_or_id, ignore_missing=True)
+    except Exception as e:
+        # e.g. DuplicateResource when several ports share the name
+        return None, f'Port "{name_or_id}" could not be resolved: {e}'
+    if port is None:
+        return None, f'Port "{name_or_id}" not found'
+    return port, None
 
 
 def set_server_network(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
@@ -1276,24 +1358,23 @@ def set_server_network(instance_name: str, action: str, **kwargs) -> Dict[str, A
                     'message': f'Network "{network_name}" not found'
                 }
             
-            # Create port and attach to server
-            port_params = {
-                'network_id': network.id,
-                'name': f'{instance_name}-port-{network.id[:8]}'
-            }
-            
+            # Let Nova create (and therefore own) the port: a port Nova
+            # creates for an interface attach is deleted by Nova when the
+            # interface is detached, so remove_network does not leave an
+            # orphaned port behind that blocks network/subnet deletion.
+            interface_params = {'net_id': network.id}
+
             # Optional fixed IP
             fixed_ip = kwargs.get('fixed_ip')
             if fixed_ip:
-                port_params['fixed_ips'] = [{'ip_address': fixed_ip}]
-            
-            port = conn.network.create_port(**port_params)
-            conn.compute.create_server_interface(server, port_id=port.id)
-            
+                interface_params['fixed_ips'] = [{'ip_address': fixed_ip}]
+
+            interface = conn.compute.create_server_interface(server, **interface_params)
+
             return {
                 'success': True,
                 'message': f'Network "{network_name}" added to server "{instance_name}"',
-                'port_id': port.id
+                'port_id': getattr(interface, 'port_id', None)
             }
             
         elif action.lower() == 'remove_network':
@@ -1344,25 +1425,18 @@ def set_server_network(instance_name: str, action: str, **kwargs) -> Dict[str, A
                     'message': 'port parameter is required for add_port action'
                 }
             
-            # Check if port exists
-            try:
-                port = conn.network.get_port(port_id)
-                if not port:
-                    return {
-                        'success': False,
-                        'message': f'Port "{port_id}" not found'
-                    }
-            except Exception:
-                return {
-                    'success': False,
-                    'message': f'Port "{port_id}" not found'
-                }
-            
-            conn.compute.create_server_interface(server, port_id=port_id)
+            # Resolve the port by name or ID. get_port() only accepts an ID,
+            # so a port given by name was always reported as not found.
+            port, error = _find_port_by_name_or_id(conn, port_id)
+            if error:
+                return {'success': False, 'message': error}
+
+            conn.compute.create_server_interface(server, port_id=port.id)
             
             return {
                 'success': True,
-                'message': f'Port "{port_id}" added to server "{instance_name}"'
+                'message': f'Port "{port_id}" added to server "{instance_name}"',
+                'port_id': port.id
             }
             
         elif action.lower() == 'remove_port':
@@ -1373,10 +1447,16 @@ def set_server_network(instance_name: str, action: str, **kwargs) -> Dict[str, A
                     'message': 'port parameter is required for remove_port action'
                 }
             
+            # Accept a port name or ID; match the attached interface by ID.
+            port_ids = {port_id}
+            port, _ = _find_port_by_name_or_id(conn, port_id)
+            if port is not None:
+                port_ids.add(port.id)
+
             # Find interface with this port
             interface = None
             for intf in conn.compute.server_interfaces(server):
-                if getattr(intf, 'port_id', '') == port_id:
+                if getattr(intf, 'port_id', '') in port_ids:
                     interface = intf
                     break
             
@@ -1386,11 +1466,14 @@ def set_server_network(instance_name: str, action: str, **kwargs) -> Dict[str, A
                     'message': f'Port "{port_id}" not found on server "{instance_name}"'
                 }
             
+            # Detach only. Nova keeps ports that were created outside Nova
+            # (preserve_on_delete) and removes only the ports it created.
             conn.compute.delete_server_interface(interface, server)
             
             return {
                 'success': True,
-                'message': f'Port "{port_id}" removed from server "{instance_name}"'
+                'message': f'Port "{port_id}" removed from server "{instance_name}"',
+                'port_id': interface.port_id
             }
         else:
             return {
@@ -1600,26 +1683,24 @@ def set_server_fixed_ip(instance_name: str, action: str, **kwargs) -> Dict[str, 
                     'message': f'Network "{network_name}" not found'
                 }
             
-            # Create port with fixed IP
-            port_params = {
-                'network_id': network.id,
-                'name': f'{instance_name}-fixed-ip-port'
-            }
-            
+            # Let Nova create (and own) the port so that removing the fixed
+            # IP (detaching the interface) also deletes the port instead of
+            # leaking it.
+            interface_params = {'net_id': network.id}
             if fixed_ip:
-                port_params['fixed_ips'] = [{'ip_address': fixed_ip}]
+                interface_params['fixed_ips'] = [{'ip_address': fixed_ip}]
             
-            port = conn.network.create_port(**port_params)
-            conn.compute.create_server_interface(server, port_id=port.id)
+            interface = conn.compute.create_server_interface(server, **interface_params)
             
             # Get assigned IP
-            assigned_ip = port.fixed_ips[0]['ip_address'] if port.fixed_ips else 'unknown'
+            fixed_ips = getattr(interface, 'fixed_ips', None) or []
+            assigned_ip = fixed_ips[0].get('ip_address', 'unknown') if fixed_ips else (fixed_ip or 'unknown')
             
             return {
                 'success': True,
                 'message': f'Fixed IP "{assigned_ip}" added to server "{instance_name}" on network "{network_name}"',
                 'fixed_ip': assigned_ip,
-                'port_id': port.id
+                'port_id': getattr(interface, 'port_id', None)
             }
             
         elif action.lower() == 'remove':
@@ -1787,7 +1868,7 @@ def set_server_security_group(instance_name: str, action: str, **kwargs) -> Dict
                     'server_group': {
                         'id': group.id,
                         'name': getattr(group, 'name', 'unnamed'),
-                        'policies': list(getattr(group, 'policies', [])),
+                        'policies': _server_group_policies(group),
                         'members': []
                     }
                 }
@@ -1837,13 +1918,13 @@ def set_server_security_group(instance_name: str, action: str, **kwargs) -> Dict
                     'message': f'Server group "{group_name}" not found'
                 }
             
-            members = getattr(server_group, 'members', []) or []
+            members = getattr(server_group, 'member_ids', []) or []
             return {
                 'success': True,
                 'server_group': {
                     'id': server_group.id,
                     'name': getattr(server_group, 'name', 'unnamed'),
-                    'policies': list(getattr(server_group, 'policies', [])),
+                    'policies': _server_group_policies(server_group),
                     'members': list(members),
                     'member_count': len(members),
                     'metadata': getattr(server_group, 'metadata', {}),
@@ -2047,8 +2128,8 @@ def set_server_migration(instance_name: str, action: str, **kwargs) -> Dict[str,
         from ..connection import get_openstack_connection
         conn = get_openstack_connection()
         
-        # Find the server for most actions
-        if action.lower() not in ['list']:
+        # Find the server for most actions (and for a server-scoped list)
+        if action.lower() not in ['list'] or instance_name:
             server = None
             for srv in conn.compute.servers():
                 if getattr(srv, 'name', '') == instance_name or srv.id == instance_name:
@@ -2089,7 +2170,11 @@ def set_server_migration(instance_name: str, action: str, **kwargs) -> Dict[str,
                 evacuate_params['host'] = host
             if admin_pass:
                 evacuate_params['admin_pass'] = admin_pass
-            evacuate_params['on_shared_storage'] = on_shared_storage
+            # onSharedStorage exists only before compute microversion 2.14;
+            # the SDK negotiates a newer microversion, where Nova rejects the
+            # field. Send it only when explicitly requested (legacy clouds).
+            if on_shared_storage:
+                evacuate_params['on_shared_storage'] = True
             
             conn.compute.evacuate_server(server, **evacuate_params)
             
@@ -2136,7 +2221,7 @@ def set_server_migration(instance_name: str, action: str, **kwargs) -> Dict[str,
                     for migration in conn.compute.migrations():
                         migrations.append({
                             'id': getattr(migration, 'id', 'unknown'),
-                            'server_id': getattr(migration, 'instance_uuid', 'unknown'),
+                            'server_id': getattr(migration, 'server_id', None) or 'unknown',
                             'status': getattr(migration, 'status', 'unknown'),
                             'migration_type': getattr(migration, 'migration_type', 'unknown'),
                             'source_node': getattr(migration, 'source_node', 'unknown'),
@@ -2146,7 +2231,11 @@ def set_server_migration(instance_name: str, action: str, **kwargs) -> Dict[str,
                         })
             except Exception as e:
                 logger.warning(f"Could not list migrations: {e}")
-                
+                return {
+                    'success': False,
+                    'message': f'Could not list migrations: {e}'
+                }
+
             return {
                 'success': True,
                 'migrations': migrations,

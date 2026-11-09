@@ -91,7 +91,8 @@ async def set_instance(
         reboot_type: Reboot type, SOFT or HARD, for reboot/restart
         snapshot_name: Image name for snapshot action
         metadata: JSON object for create, snapshot, or rebuild metadata
-        console_type: Console protocol for console action (default: novnc)
+        console_type: Remote console type for console action: novnc (default),
+                      spice-html5, rdp-html5, serial, webmks, spice-direct
         rescue_image_id: Optional image ID for rescue action
         new_name: Optional server name for rebuild action
         preserve_ephemeral: Preserve ephemeral storage during rebuild
