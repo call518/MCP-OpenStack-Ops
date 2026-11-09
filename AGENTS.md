@@ -3,11 +3,27 @@
 These instructions supplement the user's global guidelines. They do not authorize
 Git writes, external publication, or changes to existing cloud resources.
 
-## Maintain the CLI-to-tool mapping and validation snapshot
+## Keep the documentation structure
+
+README.md is the first page a new visitor reads. Keep it short and in this order:
+what the project is, what it can do, the Quick Start, and pointers to details.
+
+- The Quick Start covers only Claude Desktop with the `.mcpb` bundle and OpenWebUI
+  with Docker Compose. Keep it condensed and runnable; put other installation
+  types, full settings, and troubleshooting in the matching `docs/` guide and
+  link to it.
+- When behavior, settings, or installation steps change, update the affected
+  `docs/` guides as well as README.md, and keep their links and anchors valid.
+  `mcpb/manifest.json` links to `README.md#claude-desktop-integration`; keep that
+  anchor.
+
+## Maintain the CLI-to-tool mapping and validation records
 
 For every improvement or fix, review README.md's **OpenStack CLI vs MCP Tools
-Mapping** section. Keep its summary, tool rows, Status, Notes, and linked evidence
-consistent with the resulting implementation and actual verification.
+Mapping** section and `docs/validation.md`. Keep the mapping's tool rows, Status, and
+Notes, and the validation records in `docs/validation.md`, consistent with the
+resulting implementation and actual verification. README.md keeps only a short
+pointer to `docs/validation.md`, not the dated records themselves.
 
 - Update affected rows whenever tools, actions, parameters, prerequisites,
   permissions, limitations, or behavior change. Use registered tool names and
@@ -16,7 +32,8 @@ consistent with the resulting implementation and actual verification.
   successful live validation as **Live unverified**, with the specific reason.
   Missing services/APIs, policy denials, failures, and timeouts are not passes.
   Keep intentional capability limitations and unimplemented actions explicit.
-- Keep **Live tool checks** and **Local unit tests** in separate summary groups.
+- In `docs/validation.md`, keep **Live tool checks** and **Local unit tests** in separate
+  summary groups.
   Live classifications count unique tools; unit tests count test cases. Multiple
   tests for one tool do not increase the unique-tool count. Keep classification
   totals consistent with the stated inventory and scope.
@@ -33,12 +50,15 @@ consistent with the resulting implementation and actual verification.
   Label targeted retests as partial; do not extrapolate them to the full toolset.
   Document polling limits and distinguish accepted requests from confirmed final
   resource states. Explain changes in test conditions that affect comparisons.
-- Keep `docs/` for reusable user guidance only. Do not create or retain
-  issue-specific reports, dated test results, or evidence JSON in `docs/`, or
-  embed those records in usage guides. Report case-specific verification results,
-  limits, failures, and cleanup in chat unless the user explicitly requests a
-  separate artifact. Never expose credentials, private endpoints, or sensitive
-  resource data. Do not add report links to README.md.
+- Keep `docs/` for reusable user guidance, plus the validation records in
+  `docs/validation.md`. Do not create other issue-specific reports, dated test
+  results, or evidence JSON in `docs/`, or embed those records in usage guides.
+  Report case-specific verification results, limits, failures, and cleanup in
+  chat unless the user explicitly requests a separate artifact. Never expose
+  credentials, private endpoints, or sensitive resource data. Dated validation
+  summaries belong only in `docs/validation.md`; README.md may link to
+  `docs/validation.md` but not to other reports.
 - Before completion, check summary arithmetic, percentages, tool/action names,
-  Status/Notes, source identity, and evidence links for agreement. If README.ko.md
-  exists, maintain equivalent information in both README files.
+  Status/Notes, source identity, and evidence links in README.md and
+  `docs/validation.md` for agreement. If README.ko.md exists, maintain equivalent
+  information in both README files.
