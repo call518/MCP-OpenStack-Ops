@@ -137,6 +137,25 @@ an earlier full summary.
     (including the five `get_gnocchi_*` tools, which now report "Metric service
     (Gnocchi) is not available"), 3 reached error paths only, none partial or
     failed.
+  - **Multi-user HTTP mode (PyPI 3.7.6 server, HTTP-only test override):** two
+    projects, each with a non-admin `member` user and an Application
+    Credential. Missing, wrong or mismatched credentials returned 401 while the
+    server's administrator `OS_*` variables were still set (no fallback). OAuth
+    discovery routes and `/register` returned 404. Each user saw only its own
+    project's servers and networks, could neither find nor stop the other
+    project's server, and stopped and started its own; 20 concurrent requests
+    from both users kept their identities. With shared Bearer authentication, a
+    missing or wrong token returned 401. A deleted credential was rejected on
+    the next request while the other user kept working. No credential secret
+    appeared in the server logs, and the `INSECURE TEST MODE` warning was
+    logged (28/28 checks).
+  - **Docker:** the published image `call518/mcp-server-openstack-ops:1.0.5`
+    (fastmcp 4.1.6, mcp 2.3.0 and openstacksdk 4.22.0, as in `uv.lock`) with
+    the 3.7.6 source mounted as in `docker-compose.yml`: 78/78 calls read-only,
+    and 256/256 calls and 61/61 final-state checks with modification tools,
+    using the live script of the next record. `Dockerfile.MCP-Server` could
+    not be rebuilt from the test network, whose proxy blocks the Rocky Linux
+    mirrors.
 
   These checks are partial for Octavia, Aodh, Neutron QoS, port forwarding,
   Gnocchi with data, and paths that need a second compute host, and do not

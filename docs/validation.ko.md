@@ -119,6 +119,23 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
     호출했습니다. 75개가 통과했고, 32개는 없는 서비스가 필요했으며(이제 "Metric
     service (Gnocchi) is not available"을 보고하는 `get_gnocchi_*` 도구 5개 포함),
     3개는 오류 경로만 실행했고, partial이나 실패는 없었습니다.
+  - **멀티 유저 HTTP 모드 (PyPI 3.7.6 서버, HTTP 전용 테스트 override):** 프로젝트
+    2개에 각각 관리자가 아닌 `member` 사용자와 Application Credential을 두었습니다.
+    서버의 관리자 `OS_*` 변수가 설정된 상태에서도 없거나 틀리거나 짝이 맞지 않는
+    자격 증명은 401을 반환했습니다(fallback 없음). OAuth discovery 경로와
+    `/register`는 404를 반환했습니다. 각 사용자는 자기 프로젝트의 서버와 네트워크만
+    보았고, 다른 프로젝트의 서버를 찾거나 중지하지 못했으며, 자기 서버는 중지하고
+    시작했습니다. 두 사용자의 동시 요청 20개도 각자의 신원을 유지했습니다. 공유
+    Bearer 인증에서는 토큰이 없거나 틀리면 401을 반환했습니다. 삭제한 자격 증명은
+    다음 요청에서 거부되었고 다른 사용자는 계속 동작했습니다. 서버 로그에는 자격
+    증명 secret이 나타나지 않았고 `INSECURE TEST MODE` 경고가 기록되었습니다(점검
+    28/28개).
+  - **Docker:** 게시된 이미지 `call518/mcp-server-openstack-ops:1.0.5`(`uv.lock`과
+    같은 fastmcp 4.1.6, mcp 2.3.0, openstacksdk 4.22.0)에 `docker-compose.yml`처럼
+    3.7.6 소스를 마운트했습니다. 다음 기록의 live 스크립트로 읽기 전용은 호출
+    78/78개, 수정 도구를 켜면 호출 256/256개와 최종 상태 점검 61/61개였습니다. 테스트
+    네트워크의 프록시가 Rocky Linux 미러를 막아 `Dockerfile.MCP-Server`는 다시
+    빌드하지 못했습니다.
 
   이 점검은 Octavia, Aodh, Neutron QoS, port forwarding, 데이터가 있는 Gnocchi, 두
   번째 컴퓨트 호스트가 필요한 경로에 대해서는 부분 점검이며, 위의 105개 도구 요약을
