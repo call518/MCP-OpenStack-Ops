@@ -232,10 +232,10 @@ unit-test results behind the Status values below are recorded in
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
 | `openstack server list` | `get_instance` | ✅ | Separate reader projects each returned exactly ten owned VMs; bounded lab validation only |
-| `openstack server show` | `get_instance` | ✅ | Own fixture queries completed; foreign private ID returned no details; no 16-owned-ID batch claim. Each instance reports `boot_source` (`image` or `volume`); summary mode shows a volume-backed instance's image as unknown, and `detailed=true` resolves it from the boot volume. The `boot_source` field is unit-tested, not live-retested |
+| `openstack server show` | `get_instance` | ✅ | Own fixture queries completed; foreign private ID returned no details; no 16-owned-ID batch claim. Each instance reports `boot_source` (`image` or `volume`); summary mode shows a volume-backed instance's image as unknown, and `detailed=true` resolves it from the boot volume. 2026-11-10 OpenStack 2026.1 check (3.7.6): `volume` for volume-backed servers in summary and detailed modes, `image` otherwise; detailed mode resolved the image name from the boot volume |
 | `openstack server create` | `set_instance` (action="create") | ✅ | **ENHANCED** - Bulk creation support. Boots the image on the flavor's local disk unless a volume option below is given. 2026-11-10 targeted check: a server reached ACTIVE |
-| `openstack server create --boot-from-volume <size>` | `set_instance` (action="create", `boot_from_volume`, `volume_size`) | ✅ | Root disk on a new Cinder volume created from the image; optional `volume_type` and `delete_on_termination`; bulk creation supported. 2026-11-10 targeted check: three servers created in one call reached ACTIVE, each on a bootable 10 GB volume at `/dev/vda`. Volume deletion with the server was not checked |
-| `openstack server create --volume` | `set_instance` (action="create", `boot_volume`) | ⚠️ Live unverified | Boots one server from an existing available, bootable volume, without an image. Block-device mapping is unit-tested against openstacksdk; not yet created live |
+| `openstack server create --boot-from-volume <size>` | `set_instance` (action="create", `boot_from_volume`, `volume_size`) | ✅ | Root disk on a new Cinder volume created from the image; optional `volume_type` and `delete_on_termination`; bulk creation supported. 2026-11-10 targeted check: three servers created in one call reached ACTIVE, each on a bootable 10 GB volume at `/dev/vda`. 2026-11-10 OpenStack 2026.1 check (3.7.6): 1 GB root volumes with `volume_type`; the root volume was deleted with the server, and kept with `delete_on_termination=false` |
+| `openstack server create --volume` | `set_instance` (action="create", `boot_volume`) | ✅ | Boots one server from an existing available, bootable volume, without an image. 2026-11-10 OpenStack 2026.1 check (3.7.6): the server reached ACTIVE on that volume; an in-use, non-bootable or missing volume, and two server names, were refused without creating a server |
 | `openstack server start/stop/reboot` | `set_instance` | ✅ | Tool schema exposes all actions and `reboot_type`; bulk stop/start final states verified for two test VMs per project, but reboot was not retested in this round |
 | `openstack server delete` | `set_instance` (action="delete") | ✅ | Tool schema exposes delete and optional force deletion; bulk deletion with `name_contains` filtering. `force=true` uses openstacksdk `delete_server(force=True)` (previously a non-existent SDK method); 2026-11-10 targeted check: forced deletion removed the server |
 | `openstack server backup create` | `set_server_backup` | ✅ | Nova backup action with rotation; asynchronous, no custom metadata |
@@ -322,8 +322,9 @@ unit-test results behind the Status values below are recorded in
 When the Block Storage service is not deployed, the Cinder volume, snapshot,
 type, backup, group, QoS, transfer and server-volume paths report an explicit
 "Block Storage (Cinder) service is not available" error with endpoint URLs
-redacted. This behavior is unit-tested only; the 2026-11-10 targeted check ran
-on a cloud with Cinder.
+redacted. This was checked live on OpenStack 2026.1 without Cinder with
+release 3.7.3 (see [validation](docs/validation.md)); the storage code is
+unchanged since.
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
@@ -510,7 +511,9 @@ capacity, and allocation-hours from Nova. `get_gnocchi_*` tools report observed
 time series collected by Ceilometer into Gnocchi. Tool descriptions cross-reference
 each other so that requests for utilization, load, or trends use Gnocchi. They
 also instruct the model to report an uncollected measured metric as not
-collected instead of substituting allocations.
+collected instead of substituting allocations. When the Keystone catalog has no
+metric endpoint, the `get_gnocchi_*` tools report "Metric service (Gnocchi) is
+not available in this cloud" (checked live on OpenStack 2026.1).
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|

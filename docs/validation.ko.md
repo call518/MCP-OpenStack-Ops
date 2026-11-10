@@ -84,6 +84,66 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   `__DEFAULT__` 타입 10 GB 볼륨을 보고했습니다. 기존 볼륨으로 부팅(`boot_volume`)과
   서버 삭제 시 볼륨 삭제는 확인하지 않았습니다. 서버 3대는 사용자를 위해 실행 상태로
   두었습니다. 이 부분 점검은 위의 105개 도구 요약을 갱신하지 않습니다.
+- **OpenStack 2026.1 live 점검 (2026-11-10 UTC, 일회용 OzarLand
+  openstack-quick-lab 클라우드, Kolla-Ansible 22.2.0 all-in-one, compute
+  microversion 최대 2.103, 관리자 계정):** 수정 도구를 켠 채
+  `scripts/live_tool_check.py`를 openstacksdk 4.22.0과 4.9.0으로 in process 실행했고,
+  PyPI 패키지를 서버로 써서 Streamable HTTP로도 실행했습니다. 최종 상태는
+  openstacksdk로 폴링했으며 테스트 리소스는 남지 않았습니다.
+  - **릴리스 3.7.3 (`aa668de`), Cinder가 없는 클라우드:** 수정 실행마다 호출
+    238/242개와 최종 상태 점검 54/54개, 읽기 전용은 호출 72/76개였습니다. 57개 도구가
+    통과했고, 5개는 Cinder 부분을 사용할 수 없다고 보고하며 통과했고, 40개는 없는
+    서비스가 필요했고, 3개는 오류 경로만 실행했습니다. 실패 4건은 Gnocchi가 없는
+    클라우드에서의 `get_gnocchi_*` 호출이었고, `get_gnocchi_measures`는 호출하지
+    않았습니다(110개 중 109개). 호출한 Cinder 도구 13개는 약
+    0.01초 만에 엔드포인트 URL 없이 "Block Storage (Cinder) service is not
+    available"을 보고했습니다.
+  - **릴리스 3.7.6 (`f528b03`), Cinder 추가 (LVM, NFS 백업):** 수정 실행마다 호출
+    248/253개와 최종 상태 점검 59/59개였습니다(PyPI 설치는 fastmcp 4.1.7을 받음).
+    74개 도구가 통과했고, 27개는 없는 서비스(Octavia, Aodh, Neutron QoS)가 필요했고,
+    3개는 오류 경로만 실행했습니다. `set_volume_backups`는 partial이었고
+    `get_gnocchi_*` 도구 4개는 실패했는데, 둘 다 다음 기록에서 고친 테스트 스크립트
+    오류 때문이었으며, 다음 기록에서는 `get_gnocchi_measures`도 호출합니다(여기서는
+    110개 중 109개 호출).
+  - **3.7.6의 Cinder 및 볼륨 부팅 대상 점검** (openstacksdk 4.22.0과 4.9.0): 연결과
+    분리, 연결된 볼륨의 전체 및 증분 백업, 새 볼륨과 원본 볼륨으로의 복원, 스냅샷,
+    transfer, Cinder가 포함된 종합 보고서가 통과했습니다(호출 30/30개, 점검 24/24개).
+    `volume_type`을 지정한 새 1 GB 루트 볼륨, 부팅 가능한 기존 볼륨, 한 번의 호출로
+    만든 서버 2대의 `set_instance` 생성이 ACTIVE에 도달했습니다. `boot_source`는 요약
+    모드와 상세 모드에서 모두 맞았고, 루트 볼륨은 서버와 함께 삭제되었으며
+    `delete_on_termination=false`이면 유지되었습니다. 잘못된 옵션 조합 6개는 서버를
+    만들지 않고 거부되었고(호출 19/19개, 점검 20/20개), 사용 중인 부팅 볼륨을 준 별도
+    호출도 같은 방식으로 거부되었습니다.
+  - **Gnocchi 오류 및 live 스크립트 수정 (`f528b03` 기반 작업 트리):** openstacksdk
+    4.22.0과 4.9.0에서 호출 256/256개와 최종 상태 점검 61/61개였고, 110개 도구를 모두
+    호출했습니다. 75개가 통과했고, 32개는 없는 서비스가 필요했으며(이제 "Metric
+    service (Gnocchi) is not available"을 보고하는 `get_gnocchi_*` 도구 5개 포함),
+    3개는 오류 경로만 실행했고, partial이나 실패는 없었습니다.
+  - **멀티 유저 HTTP 모드 (PyPI 3.7.6 서버, HTTP 전용 테스트 override):** 프로젝트
+    2개에 각각 관리자가 아닌 `member` 사용자와 Application Credential을 두었습니다.
+    서버의 관리자 `OS_*` 변수가 설정된 상태에서도 없거나 틀리거나 짝이 맞지 않는
+    자격 증명은 401을 반환했습니다(fallback 없음). OAuth discovery 경로와
+    `/register`는 404를 반환했습니다. 각 사용자는 자기 프로젝트의 서버와 네트워크만
+    보았고, 다른 프로젝트의 서버를 찾거나 중지하지 못했으며, 자기 서버는 중지하고
+    시작했습니다. 두 사용자의 동시 요청 20개도 각자의 신원을 유지했습니다. 공유
+    Bearer 인증에서는 토큰이 없거나 틀리면 401을 반환했습니다. 삭제한 자격 증명은
+    다음 요청에서 거부되었고 다른 사용자는 계속 동작했습니다. 서버 로그에는 자격
+    증명 secret이 나타나지 않았고 `INSECURE TEST MODE` 경고가 기록되었습니다(점검
+    28/28개).
+  - **Docker:** 게시된 이미지 `call518/mcp-server-openstack-ops:1.0.5`(`uv.lock`과
+    같은 fastmcp 4.1.6, mcp 2.3.0, openstacksdk 4.22.0)에 `docker-compose.yml`처럼
+    3.7.6 소스를 마운트했습니다. 다음 기록의 live 스크립트로 읽기 전용은 호출
+    78/78개, 수정 도구를 켜면 호출 256/256개와 최종 상태 점검 61/61개였습니다. 테스트
+    네트워크의 프록시가 Rocky Linux 미러를 막아 `Dockerfile.MCP-Server`는 다시
+    빌드하지 못했습니다.
+
+  이 점검은 Octavia, Aodh, Neutron QoS, port forwarding, 데이터가 있는 Gnocchi, 두
+  번째 컴퓨트 호스트가 필요한 경로에 대해서는 부분 점검이며, 위의 105개 도구 요약을
+  갱신하지 않습니다.
+- **로컬 단위 테스트 (2026-11-10, Gnocchi 오류 및 live 스크립트 수정을 넣은
+  `f528b03` 기반 작업 트리):** fastmcp 4.1.6과 openstacksdk 4.1.0, 4.9.0, 4.22.0에서
+  479/479 (100%)이며, 실패나 건너뛴 테스트는 없습니다. 새 Gnocchi 회귀 테스트 3개는
+  이전 코드에서 실패합니다.
 - **로컬 단위 테스트 (2026-11-10, `prompt_template.md`의 깨진 제목 2곳을 고친
   `f528b03` 기반 작업 트리):** fastmcp
   4.1.6과 openstacksdk 4.1.0, 4.9.0, 4.22.0에서 `python -m pytest -q tests`로 실행해
@@ -105,3 +165,11 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   다룹니다. 기존 등록 테스트에서도 새 도구의 읽기 전용 쓰기 차단을 확인합니다. 실제
   OpenStack 규칙은 생성하거나 삭제하지 않았으므로 `set_security_group_rules`는 **Live
   unverified**로 유지합니다.
+- **로컬 통합 테스트 (2026-11-11, PR #85를 `c8d4f51`에 커밋 없이 병합하고 live
+  harness 통합 수정을 포함한 작업 트리):** fastmcp 4.1.6과 고정된 openstacksdk
+  4.22.0에서 `python -m pytest -q tests`로 실행해 497/497 (100%)이며, 실패나 건너뛴
+  테스트는 없습니다. 새 harness 회귀 테스트 2건은 Gnocchi, Aodh, Heat, Cinder와
+  Cinder Backup의 선택형 서비스 routing을 검증합니다. harness는 이제 111번째 도구인
+  `set_security_group_rules`를 호출하고 제한 CIDR 규칙의 생성과 삭제를 확인하지만, 이번
+  통합에서는 해당 harness 경로를 실제 클라우드에서 실행하지 않았으므로 기존 live
+  상태는 바뀌지 않습니다.

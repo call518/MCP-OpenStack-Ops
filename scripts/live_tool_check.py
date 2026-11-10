@@ -117,9 +117,12 @@ def _has_error(data, depth: int = 0) -> bool:
 # MCP exception is still a failure.
 OPTIONAL_SERVICE_PREFIXES = {
     'get_load_balancer': 'load-balancer', 'set_load_balancer': 'load-balancer',
+    'get_volume_backups': 'backup', 'set_volume_backups': 'backup',
     'get_volume': 'block-storage', 'set_volume': 'block-storage',
     'set_snapshot': 'block-storage', 'set_alarms': 'alarming',
     'get_network_qos_policies': 'qos', 'set_network_qos_policies': 'qos',
+    'get_gnocchi': 'metric',
+    'get_heat_stack': 'orchestration', 'set_heat_stack': 'orchestration',
 }
 # Composite reads whose block-storage section fails without Cinder.
 STORAGE_SECTION_TOOLS = {'get_quota', 'set_quota', 'get_resource_monitoring',
@@ -221,6 +224,18 @@ class Runner:
         except Exception:
             return False
 
+    def has_cinder_backup(self) -> bool:
+        """Return whether Cinder advertises at least one backup service."""
+        try:
+            return any(
+                getattr(service, 'binary', '') == 'cinder-backup'
+                for service in self.conn.block_storage.services(
+                    binary='cinder-backup',
+                )
+            )
+        except Exception:
+            return True  # Let the actual backup call expose policy/API failures.
+
 
 async def run(args) -> int:
     import openstack
@@ -239,9 +254,14 @@ async def run(args) -> int:
         r = Runner(client, conn, args)
         r.tools = {t.name for t in listed}
         print(f'Registered tools discovered: {len(r.tools)}')
-        for service in ('load-balancer', 'block-storage', 'alarming'):
+        for service in (
+            'load-balancer', 'block-storage', 'alarming', 'metric',
+            'orchestration',
+        ):
             if not r.has_service(service):
                 r.absent.add(service)
+        if 'block-storage' in r.absent or not r.has_cinder_backup():
+            r.absent.add('backup')
         try:
             if not conn.network.find_extension('qos'):
                 r.absent.add('qos')
@@ -259,6 +279,10 @@ async def run(args) -> int:
                     # Needs at least one filter; covered by explicit calls below.
                     await r.call(tool, {}, expect='error', note='requires a filter')
                     continue
+                if tool == 'get_gnocchi_aggregates':
+                    # Needs metric or operations; covered by explicit calls below.
+                    await r.call(tool, {}, expect='error', note='requires metric or operations')
+                    continue
                 await r.call(tool, {})
         await r.call('get_instance', {'all_instances': True})
         await r.call('get_instance', {'names': args.existing_server})
@@ -267,6 +291,11 @@ async def run(args) -> int:
         await r.call('get_instance', {'ids': '00000000-0000-0000-0000-000000000000'},
                      note='unknown id', expect='ok')
         await r.call('get_instance_by_name', {'instance_name': args.existing_server})
+        await r.call('get_gnocchi_aggregates', {'metric': 'cpu', 'aggregation': 'rate:mean',
+                                                'reaggregation': 'mean'})
+        existing = conn.compute.find_server(args.existing_server, ignore_missing=True)
+        if existing:
+            await r.call('get_gnocchi_measures', {'metric': 'cpu', 'resource_id': existing.id})
         await r.call('get_instance_by_name', {'instance_name': f'{P}-missing'}, expect='error')
         await r.call('get_instance_details', {'instance_names': args.existing_server})
         await r.call('get_instance_details', {'all_instances': True, 'limit': 5})
@@ -419,6 +448,34 @@ async def run(args) -> int:
         await r.call('set_routers', {'action': 'delete', 'router_name': f'{P}-router'}, kind='write')
         r.check('router deleted', r.gone(conn.network.find_router, f'{P}-router'))
         await r.call('set_security_groups', {'action': 'create', 'group_name': f'{P}-sg'}, kind='write')
+        await r.call('set_security_group_rules', {
+            'action': 'create', 'security_group': f'{P}-sg',
+            'protocol': 'tcp', 'port_range_min': 80, 'port_range_max': 80,
+            'remote_ip_prefix': '203.0.113.0/24',
+            'description': f'{P}-rule',
+        }, kind='write')
+        group = conn.network.find_security_group(f'{P}-sg', ignore_missing=True)
+        rules = conn.network.security_group_rules(
+            security_group_id=group.id,
+        ) if group else []
+        rule = next((candidate for candidate in rules
+                     if getattr(candidate, 'description', '') == f'{P}-rule'), None)
+        r.check('security group rule created with restricted source', lambda: (
+            rule is not None
+            and rule.protocol == 'tcp'
+            and rule.port_range_min == 80
+            and rule.port_range_max == 80
+            and rule.remote_ip_prefix == '203.0.113.0/24',
+            getattr(rule, 'id', 'missing'),
+        ))
+        await r.call('set_security_group_rules', {
+            'action': 'delete', 'security_group': f'{P}-sg',
+            'rule_id': getattr(rule, 'id', f'{P}-missing'),
+        }, kind='write', expect='ok' if rule else 'error')
+        if rule:
+            r.check('security group rule deleted', r.gone(
+                conn.network.find_security_group_rule, rule.id,
+            ))
         await r.call('set_network_qos_policies', {'action': 'create', 'policy_name': f'{P}-qos'},
                      kind='write', expect='ok' if conn.network.find_extension('qos') else 'error',
                      note='requires the Neutron qos extension')
@@ -651,10 +708,20 @@ async def run(args) -> int:
                                             'specs': '{"read_iops_sec": "1000"}'}, kind='write')
             await r.call('set_volume_qos', {'action': 'show', 'qos_name': f'{P}-vqos'})
             await r.call('set_volume_qos', {'action': 'delete', 'qos_name': f'{P}-vqos'}, kind='write')
-            await r.call('set_volume_backups', {'action': 'create', 'backup_name': f'{P}-vbackup',
-                                                'volume_name': f'{P}-vol'}, kind='write',
-                         expect='ok' if r.has_service('backup') or True else 'error',
-                         note='requires cinder-backup')
+            await r.call('set_volume_backups', {
+                'action': 'create', 'backup_name': f'{P}-vbackup',
+                'volume_id': conn.block_storage.find_volume(f'{P}-vol').id,
+            }, kind='write', note='requires cinder-backup')
+            if 'backup' not in r.absent:
+                r.check('volume backup available', lambda: (
+                    (b := conn.block_storage.find_backup(f'{P}-vbackup', ignore_missing=True)) is not None
+                    and b.status == 'available', getattr(b, 'status', None)), timeout=args.timeout)
+                await r.call('set_volume_backups', {
+                    'action': 'delete', 'backup_name': f'{P}-vbackup',
+                }, kind='write')
+                r.check('volume backup deleted', r.gone(
+                    conn.block_storage.find_backup, f'{P}-vbackup',
+                ), timeout=args.timeout)
             await r.call('set_volume_groups', {'action': 'list'})
             await r.call('set_volume', {'volume_names': f'{P}-vol', 'action': 'delete'}, kind='write')
             r.check('volume deleted', r.gone(conn.block_storage.find_volume, f'{P}-vol'), timeout=args.timeout)
@@ -792,6 +859,12 @@ def sdk_cleanup(prefix: str) -> list[str]:
         for st in conn.orchestration.stacks():
             if st.name.startswith(prefix):
                 attempt(f'stack {st.name}', lambda st=st: conn.orchestration.delete_stack(st))
+    except Exception:
+        pass
+    try:
+        for b in conn.block_storage.backups():
+            if (b.name or '').startswith(prefix):
+                attempt(f'backup {b.name}', lambda b=b: conn.block_storage.delete_backup(b, force=True))
     except Exception:
         pass
     try:

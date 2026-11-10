@@ -99,6 +99,71 @@ an earlier full summary.
   (`boot_volume`) and volume deletion with the server were not exercised. The
   three servers were left running for the user. This partial check does not
   update the 105-tool summary above.
+- **OpenStack 2026.1 live checks (2026-11-10 UTC; disposable OzarLand
+  openstack-quick-lab cloud, Kolla-Ansible 22.2.0 all-in-one, compute
+  microversion up to 2.103; administrator account):** `scripts/live_tool_check.py`
+  ran with modification tools enabled, in process with openstacksdk 4.22.0 and
+  4.9.0, and over Streamable HTTP with the PyPI package as the server. Final
+  states were polled with openstacksdk, and no test resource was left behind.
+  - **Release 3.7.3 (`aa668de`), cloud without Cinder:** 238/242 calls and
+    54/54 final-state checks in each modification run; 72/76 calls read-only.
+    57 tools passed, 5 passed with their Cinder section reported unavailable,
+    40 needed an absent service, and 3 reached error paths only. The 4
+    failures were `get_gnocchi_*` calls on a cloud without Gnocchi, and
+    `get_gnocchi_measures` was not called (109 of 110 tools). The 13
+    Cinder tools called reported "Block Storage (Cinder) service is not
+    available" in about 0.01 s, without endpoint URLs.
+  - **Release 3.7.6 (`f528b03`), Cinder added (LVM, NFS backups):** 248/253
+    calls and 59/59 final-state checks in each modification run (the PyPI
+    install resolved fastmcp 4.1.7). 74 tools passed, 27 needed an absent
+    service (Octavia, Aodh, Neutron QoS), and 3 reached error paths only.
+    `set_volume_backups` was partial and 4 `get_gnocchi_*` tools failed; both
+    came from test-script errors fixed in the next record, which also calls
+    `get_gnocchi_measures` (109 of 110 tools called here).
+  - **Targeted Cinder and boot-from-volume checks on 3.7.6** (openstacksdk
+    4.22.0 and 4.9.0): attach and detach, full and incremental backups of an
+    attached volume, restore to a new volume and onto the source volume,
+    snapshots, transfers and composite reports with Cinder passed (30/30 calls,
+    24/24 checks). `set_instance` create from a new 1 GB root volume with
+    `volume_type`, from an existing bootable volume, and for two servers in one
+    call reached ACTIVE; `boot_source` was right in summary and detailed modes;
+    the root volume was deleted with the server and kept with
+    `delete_on_termination=false`; six invalid option combinations were
+    refused without creating a server (19/19 calls, 20/20 checks), and a
+    separate call with an in-use boot volume was refused the same way.
+  - **Gnocchi error and live-script fixes (working tree based on `f528b03`):**
+    256/256 calls and 61/61 final-state checks with openstacksdk 4.22.0 and
+    4.9.0, all 110 tools called: 75 passed, 32 needed an absent service
+    (including the five `get_gnocchi_*` tools, which now report "Metric service
+    (Gnocchi) is not available"), 3 reached error paths only, none partial or
+    failed.
+  - **Multi-user HTTP mode (PyPI 3.7.6 server, HTTP-only test override):** two
+    projects, each with a non-admin `member` user and an Application
+    Credential. Missing, wrong or mismatched credentials returned 401 while the
+    server's administrator `OS_*` variables were still set (no fallback). OAuth
+    discovery routes and `/register` returned 404. Each user saw only its own
+    project's servers and networks, could neither find nor stop the other
+    project's server, and stopped and started its own; 20 concurrent requests
+    from both users kept their identities. With shared Bearer authentication, a
+    missing or wrong token returned 401. A deleted credential was rejected on
+    the next request while the other user kept working. No credential secret
+    appeared in the server logs, and the `INSECURE TEST MODE` warning was
+    logged (28/28 checks).
+  - **Docker:** the published image `call518/mcp-server-openstack-ops:1.0.5`
+    (fastmcp 4.1.6, mcp 2.3.0 and openstacksdk 4.22.0, as in `uv.lock`) with
+    the 3.7.6 source mounted as in `docker-compose.yml`: 78/78 calls read-only,
+    and 256/256 calls and 61/61 final-state checks with modification tools,
+    using the live script of the next record. `Dockerfile.MCP-Server` could
+    not be rebuilt from the test network, whose proxy blocks the Rocky Linux
+    mirrors.
+
+  These checks are partial for Octavia, Aodh, Neutron QoS, port forwarding,
+  Gnocchi with data, and paths that need a second compute host, and do not
+  update the 105-tool summary above.
+- **Local unit tests (2026-11-10; working tree based on `f528b03` with the
+  Gnocchi error and live-script fixes):** 479/479 (100%) with fastmcp 4.1.6
+  and openstacksdk 4.1.0, 4.9.0 and 4.22.0; no failures or skipped tests. The
+  three new Gnocchi regressions fail on the previous code.
 - **Local unit tests (2026-11-10; working tree based on `f528b03`, with two
   corrupted headings in `prompt_template.md` repaired):** 476/476 (100%) with fastmcp
   4.1.6 and openstacksdk 4.1.0, 4.9.0 and 4.22.0, run as
@@ -124,3 +189,12 @@ an earlier full summary.
   another security group. Existing registration tests also verify the new
   tool's read-only write guard. No live OpenStack rule was created or deleted,
   so `set_security_group_rules` remains **Live unverified**.
+- **Local integration tests (2026-11-11; uncommitted merge of PR #85 into
+  `c8d4f51`, including live-harness integration fixes):** 497/497 (100%) with
+  fastmcp 4.1.6 and the locked openstacksdk 4.22.0, run as
+  `python -m pytest -q tests`; no failures or skipped tests. Two new harness
+  regressions verify optional-service routing for Gnocchi, Aodh, Heat, Cinder
+  and Cinder Backup. The harness now calls the 111th tool,
+  `set_security_group_rules`, and checks restricted-CIDR rule creation and
+  deletion, but those harness paths were not run against a live cloud in this
+  integration, so their existing live statuses do not change.
