@@ -233,10 +233,10 @@ modify operations**를 켜고) 서버를 다시 시작하세요. 이 계정이 �
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
 | `openstack server list` | `get_instance` | ✅ | 서로 다른 reader 프로젝트가 각각 소유한 VM 정확히 10개를 반환함. 제한된 랩 검증만 수행 |
-| `openstack server show` | `get_instance` | ✅ | 자기 프로젝트의 테스트 리소스 조회 완료. 다른 프로젝트의 비공개 ID는 상세 정보를 반환하지 않음. 소유 ID 16개 일괄 조회는 주장하지 않음. 각 인스턴스는 `boot_source`(`image` 또는 `volume`)를 보고함. 요약 모드에서는 볼륨 부팅 인스턴스의 이미지를 unknown으로 표시하고, `detailed=true`이면 부팅 볼륨에서 이미지를 찾음. `boot_source` 필드는 단위 테스트만 했고 live 재검증하지 않음 |
+| `openstack server show` | `get_instance` | ✅ | 자기 프로젝트의 테스트 리소스 조회 완료. 다른 프로젝트의 비공개 ID는 상세 정보를 반환하지 않음. 소유 ID 16개 일괄 조회는 주장하지 않음. 각 인스턴스는 `boot_source`(`image` 또는 `volume`)를 보고함. 요약 모드에서는 볼륨 부팅 인스턴스의 이미지를 unknown으로 표시하고, `detailed=true`이면 부팅 볼륨에서 이미지를 찾음. 2026-11-10 OpenStack 2026.1 점검(3.7.6): 볼륨 부팅 서버는 요약 모드와 상세 모드 모두에서 `volume`, 그 밖에는 `image`. 상세 모드는 부팅 볼륨에서 이미지 이름을 찾음 |
 | `openstack server create` | `set_instance` (action="create") | ✅ | **ENHANCED** - 일괄 생성 지원. 아래 볼륨 옵션을 주지 않으면 이미지를 flavor의 로컬 디스크로 부팅함. 2026-11-10 targeted check: 서버가 ACTIVE에 도달 |
-| `openstack server create --boot-from-volume <size>` | `set_instance` (action="create", `boot_from_volume`, `volume_size`) | ✅ | 루트 디스크를 이미지로 새로 만든 Cinder 볼륨에 둠. 선택적 `volume_type`과 `delete_on_termination`, 일괄 생성 지원. 2026-11-10 targeted check: 한 번의 호출로 만든 서버 3대가 ACTIVE에 도달했고, 각각 `/dev/vda`의 부팅 가능한 10 GB 볼륨을 사용. 서버 삭제 시 볼륨 삭제는 확인하지 않음 |
-| `openstack server create --volume` | `set_instance` (action="create", `boot_volume`) | ⚠️ Live unverified | 사용 가능하고 부팅 가능한 기존 볼륨으로 이미지 없이 서버 1대를 부팅함. 블록 장치 매핑은 openstacksdk 기준으로 단위 테스트했으며, 아직 실제로 만들어 보지 않음 |
+| `openstack server create --boot-from-volume <size>` | `set_instance` (action="create", `boot_from_volume`, `volume_size`) | ✅ | 루트 디스크를 이미지로 새로 만든 Cinder 볼륨에 둠. 선택적 `volume_type`과 `delete_on_termination`, 일괄 생성 지원. 2026-11-10 targeted check: 한 번의 호출로 만든 서버 3대가 ACTIVE에 도달했고, 각각 `/dev/vda`의 부팅 가능한 10 GB 볼륨을 사용. 2026-11-10 OpenStack 2026.1 점검(3.7.6): `volume_type`을 지정한 1 GB 루트 볼륨. 서버를 삭제하면 루트 볼륨도 삭제되었고, `delete_on_termination=false`이면 유지됨 |
+| `openstack server create --volume` | `set_instance` (action="create", `boot_volume`) | ✅ | 사용 가능하고 부팅 가능한 기존 볼륨으로 이미지 없이 서버 1대를 부팅함. 2026-11-10 OpenStack 2026.1 점검(3.7.6): 서버가 그 볼륨으로 ACTIVE에 도달함. 사용 중이거나 부팅할 수 없거나 없는 볼륨, 그리고 서버 이름 2개는 서버를 만들지 않고 거부됨 |
 | `openstack server start/stop/reboot` | `set_instance` | ✅ | 도구 스키마에 모든 action과 `reboot_type`이 노출됨. 프로젝트마다 테스트 VM 2대로 일괄 stop/start 최종 상태를 확인했으나, reboot는 이번에 재검증하지 않음 |
 | `openstack server delete` | `set_instance` (action="delete") | ✅ | 도구 스키마에 delete와 선택적 강제 삭제가 노출됨. `name_contains` 필터로 일괄 삭제. `force=true`는 openstacksdk `delete_server(force=True)`를 사용(이전에는 존재하지 않는 SDK 메서드를 호출). 2026-11-10 targeted check: 강제 삭제로 서버가 제거됨 |
 | `openstack server backup create` | `set_server_backup` | ✅ | 순환 보관을 지원하는 Nova backup action. 비동기이며 사용자 지정 metadata는 없음 |
@@ -321,8 +321,9 @@ modify operations**를 켜고) 서버를 다시 시작하세요. 이 계정이 �
 
 Block Storage 서비스가 배포되어 있지 않으면 Cinder 볼륨, 스냅샷, 유형, 백업, 그룹,
 QoS, transfer, 서버 볼륨 경로는 endpoint URL을 가린 채 "Block Storage (Cinder)
-service is not available"이라는 명시적 오류를 보고합니다. 이 동작은 단위 테스트만
-했고, 2026-11-10 targeted check는 Cinder가 있는 클라우드에서 실행했습니다.
+service is not available"이라는 명시적 오류를 보고합니다. 이 동작은 릴리스 3.7.3으로
+Cinder가 없는 OpenStack 2026.1에서 live로 확인했습니다([검증](docs/validation.ko.md) 참고).
+스토리지 코드는 그 이후 바뀌지 않았습니다.
 
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
@@ -507,7 +508,9 @@ Octavia 도구는 openstacksdk의 속성 이름(`is_admin_state_up`, `is_enabled
 `get_gnocchi_*` 도구는 Ceilometer가 Gnocchi에 수집한 실측 시계열을 보고합니다. 도구
 설명이 서로를 참조하므로 사용률, 부하, 추세를 묻는 요청은 Gnocchi를 사용합니다.
 또한 실측 지표가 수집되지 않았으면 할당량으로 대신하지 말고 수집되지 않았다고
-보고하도록 모델에 지시합니다.
+보고하도록 모델에 지시합니다. Keystone 카탈로그에 metric 엔드포인트가 없으면
+`get_gnocchi_*` 도구는 "Metric service (Gnocchi) is not available in this cloud"를
+보고합니다(OpenStack 2026.1에서 live로 확인).
 
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|

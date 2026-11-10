@@ -84,6 +84,49 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   `__DEFAULT__` 타입 10 GB 볼륨을 보고했습니다. 기존 볼륨으로 부팅(`boot_volume`)과
   서버 삭제 시 볼륨 삭제는 확인하지 않았습니다. 서버 3대는 사용자를 위해 실행 상태로
   두었습니다. 이 부분 점검은 위의 105개 도구 요약을 갱신하지 않습니다.
+- **OpenStack 2026.1 live 점검 (2026-11-10 UTC, 일회용 OzarLand
+  openstack-quick-lab 클라우드, Kolla-Ansible 22.2.0 all-in-one, compute
+  microversion 최대 2.103, 관리자 계정):** 수정 도구를 켠 채
+  `scripts/live_tool_check.py`를 openstacksdk 4.22.0과 4.9.0으로 in process 실행했고,
+  PyPI 패키지를 서버로 써서 Streamable HTTP로도 실행했습니다. 최종 상태는
+  openstacksdk로 폴링했으며 테스트 리소스는 남지 않았습니다.
+  - **릴리스 3.7.3 (`aa668de`), Cinder가 없는 클라우드:** 수정 실행마다 호출
+    238/242개와 최종 상태 점검 54/54개, 읽기 전용은 호출 72/76개였습니다. 57개 도구가
+    통과했고, 5개는 Cinder 부분을 사용할 수 없다고 보고하며 통과했고, 40개는 없는
+    서비스가 필요했고, 3개는 오류 경로만 실행했습니다. 실패 4건은 Gnocchi가 없는
+    클라우드에서의 `get_gnocchi_*` 호출이었고, `get_gnocchi_measures`는 호출하지
+    않았습니다(110개 중 109개). 호출한 Cinder 도구 13개는 약
+    0.01초 만에 엔드포인트 URL 없이 "Block Storage (Cinder) service is not
+    available"을 보고했습니다.
+  - **릴리스 3.7.6 (`f528b03`), Cinder 추가 (LVM, NFS 백업):** 수정 실행마다 호출
+    248/253개와 최종 상태 점검 59/59개였습니다(PyPI 설치는 fastmcp 4.1.7을 받음).
+    74개 도구가 통과했고, 27개는 없는 서비스(Octavia, Aodh, Neutron QoS)가 필요했고,
+    3개는 오류 경로만 실행했습니다. `set_volume_backups`는 partial이었고
+    `get_gnocchi_*` 도구 4개는 실패했는데, 둘 다 다음 기록에서 고친 테스트 스크립트
+    오류 때문이었으며, 다음 기록에서는 `get_gnocchi_measures`도 호출합니다(여기서는
+    110개 중 109개 호출).
+  - **3.7.6의 Cinder 및 볼륨 부팅 대상 점검** (openstacksdk 4.22.0과 4.9.0): 연결과
+    분리, 연결된 볼륨의 전체 및 증분 백업, 새 볼륨과 원본 볼륨으로의 복원, 스냅샷,
+    transfer, Cinder가 포함된 종합 보고서가 통과했습니다(호출 30/30개, 점검 24/24개).
+    `volume_type`을 지정한 새 1 GB 루트 볼륨, 부팅 가능한 기존 볼륨, 한 번의 호출로
+    만든 서버 2대의 `set_instance` 생성이 ACTIVE에 도달했습니다. `boot_source`는 요약
+    모드와 상세 모드에서 모두 맞았고, 루트 볼륨은 서버와 함께 삭제되었으며
+    `delete_on_termination=false`이면 유지되었습니다. 잘못된 옵션 조합 6개는 서버를
+    만들지 않고 거부되었고(호출 19/19개, 점검 20/20개), 사용 중인 부팅 볼륨을 준 별도
+    호출도 같은 방식으로 거부되었습니다.
+  - **Gnocchi 오류 및 live 스크립트 수정 (`f528b03` 기반 작업 트리):** openstacksdk
+    4.22.0과 4.9.0에서 호출 256/256개와 최종 상태 점검 61/61개였고, 110개 도구를 모두
+    호출했습니다. 75개가 통과했고, 32개는 없는 서비스가 필요했으며(이제 "Metric
+    service (Gnocchi) is not available"을 보고하는 `get_gnocchi_*` 도구 5개 포함),
+    3개는 오류 경로만 실행했고, partial이나 실패는 없었습니다.
+
+  이 점검은 Octavia, Aodh, Neutron QoS, port forwarding, 데이터가 있는 Gnocchi, 두
+  번째 컴퓨트 호스트가 필요한 경로에 대해서는 부분 점검이며, 위의 105개 도구 요약을
+  갱신하지 않습니다.
+- **로컬 단위 테스트 (2026-11-10, Gnocchi 오류 및 live 스크립트 수정을 넣은
+  `f528b03` 기반 작업 트리):** fastmcp 4.1.6과 openstacksdk 4.1.0, 4.9.0, 4.22.0에서
+  479/479 (100%)이며, 실패나 건너뛴 테스트는 없습니다. 새 Gnocchi 회귀 테스트 3개는
+  이전 코드에서 실패합니다.
 - **로컬 단위 테스트 (2026-11-10, 이전 파일 분할에서 남은 도달 불가 코드를 제거하고
   `get_instance`에 `boot_source` 필드를 추가한 `c95d561` 기반 작업 트리):** fastmcp
   4.1.6과 openstacksdk 4.1.0, 4.9.0, 4.22.0에서 `python -m pytest -q tests`로 실행해
