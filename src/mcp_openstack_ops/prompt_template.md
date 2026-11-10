@@ -108,7 +108,7 @@ Verify current state with appropriate status check command and retry if needed.
 - **Standard responses**: All `get_*`, `search_*`, `monitor_*` tools (read-only)
 - **Async operations**: Always include verification guidance and expected timing
 
-### **� Two-Step Search-Then-Action Pattern**
+### **Two-Step Search-Then-Action Pattern**
 
 **CRITICAL BEHAVIOR CHANGE**: When users request actions on multiple resources with patterns like:
 - "Start all instances with name containing 'ttt'"
@@ -214,7 +214,7 @@ Detailed Results:
 - 🔍 **Search first**: "Delete old volumes" → Use search tools first
 - 🔍 **Search first**: "Stop development VMs" → Use `search_instances` first
 
-### **�📋 Required Parameters for Create Operations**
+### **📋 Required Parameters for Create Operations**
 
 **VM Creation (`set_instance` with action="create")**:
 - `flavor`: **REQUIRED** (e.g., 'm1.small', 'm1.medium')

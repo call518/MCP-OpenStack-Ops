@@ -99,9 +99,8 @@ an earlier full summary.
   (`boot_volume`) and volume deletion with the server were not exercised. The
   three servers were left running for the user. This partial check does not
   update the 105-tool summary above.
-- **Local unit tests (2026-11-10; working tree based on `c95d561`, with
-  unreachable leftovers of earlier file splits removed and the
-  `get_instance` `boot_source` field added):** 476/476 (100%) with fastmcp
+- **Local unit tests (2026-11-10; working tree based on `f528b03`, with two
+  corrupted headings in `prompt_template.md` repaired):** 476/476 (100%) with fastmcp
   4.1.6 and openstacksdk 4.1.0, 4.9.0 and 4.22.0, run as
   `python -m pytest -q tests`; no failures or skipped tests. These tests
   include the `set_instance` create root-disk regressions (local disk, a new
