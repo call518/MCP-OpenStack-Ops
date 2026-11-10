@@ -7,9 +7,11 @@ from datetime import datetime
 from typing import Any
 
 from gnocchiclient.v1 import client as gnocchi_client
+from keystoneauth1 import exceptions as ksa_exceptions
 
 from ..connection import get_openstack_connection
 
+GNOCCHI_UNAVAILABLE = "Metric service (Gnocchi) is not available in this cloud"
 MAX_LIMIT = 1000
 MAX_SERIES = 100
 MAX_TOP = 100
@@ -51,9 +53,21 @@ def _check_limit(limit: int) -> None:
         raise ValueError(f"limit must be between 1 and {MAX_LIMIT}")
 
 
+def _is_unavailable(exc: Exception) -> bool:
+    """True when the Keystone catalog has no metric endpoint (no Gnocchi)."""
+    return isinstance(exc, ksa_exceptions.EndpointNotFound)
+
+
+def _error_text(exc: Exception) -> str:
+    if _is_unavailable(exc):
+        return f"{GNOCCHI_UNAVAILABLE}: {exc}"
+    return str(exc)
+
+
 def _failure(exc: Exception) -> dict[str, Any]:
-    return {"success": False, "message": "Gnocchi operation failed",
-            "error": str(exc)}
+    message = (GNOCCHI_UNAVAILABLE if _is_unavailable(exc)
+               else "Gnocchi operation failed")
+    return {"success": False, "message": message, "error": _error_text(exc)}
 
 
 def _owned_resource(client: Any, project_id: str, resource_type: str,
@@ -224,7 +238,7 @@ def get_gnocchi_service_info(sections: str | None = None) -> dict[str, Any]:
             try:
                 data[section] = readers[section]()
             except Exception as exc:
-                errors[section] = str(exc)
+                errors[section] = _error_text(exc)
         return {"success": bool(data), "partial": bool(errors and data),
                 "sections": data, "errors": errors}
     except Exception as exc:
@@ -377,5 +391,6 @@ def get_gnocchi_aggregates(
         }
     except Exception as exc:
         result = _failure(exc)
-        result["hint"] = AGGREGATES_HINT
+        if not _is_unavailable(exc):
+            result["hint"] = AGGREGATES_HINT
         return result

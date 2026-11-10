@@ -244,3 +244,32 @@ def test_missing_endpoint_is_reported_as_failure(client):
     result = gnocchi.get_gnocchi_resources()
     assert result == {"success": False, "message": "Gnocchi operation failed",
                       "error": "endpoint not found"}
+
+
+def _no_metric_endpoint():
+    from keystoneauth1 import exceptions as ksa_exceptions
+    return ksa_exceptions.EndpointNotFound(
+        "internal endpoint for metric service in RegionOne region not found")
+
+
+def test_missing_metric_service_is_named(client):
+    client.resource.search.side_effect = _no_metric_endpoint()
+    result = gnocchi.get_gnocchi_resources()
+    assert result["success"] is False
+    assert result["message"] == gnocchi.GNOCCHI_UNAVAILABLE
+    assert result["error"].startswith(gnocchi.GNOCCHI_UNAVAILABLE + ": ")
+    assert "metric service" in result["error"]
+
+
+def test_missing_metric_service_in_service_info_sections(client):
+    client.status.get.side_effect = _no_metric_endpoint()
+    result = gnocchi.get_gnocchi_service_info("status")
+    assert result["success"] is False
+    assert result["errors"]["status"].startswith(gnocchi.GNOCCHI_UNAVAILABLE)
+
+
+def test_missing_metric_service_aggregates_has_no_metric_hint(client):
+    client.aggregates.fetch.side_effect = _no_metric_endpoint()
+    result = gnocchi.get_gnocchi_aggregates("cpu", reaggregation="mean")
+    assert result["message"] == gnocchi.GNOCCHI_UNAVAILABLE
+    assert "hint" not in result
