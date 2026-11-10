@@ -218,10 +218,17 @@ Detailed Results:
 
 **VM Creation (`set_instance` with action="create")**:
 - `flavor`: **REQUIRED** (e.g., 'm1.small', 'm1.medium')
-- `image`: **REQUIRED** (e.g., 'ubuntu-22.04', 'rocky-9')
+- `image`: **REQUIRED** unless `boot_volume` is given (e.g., 'ubuntu-22.04', 'rocky-9')
 - `networks`: Recommended (e.g., 'demo-net', 'private-net')
 - `security_groups`: Optional but recommended (e.g., 'default', 'web-sg')
 - `key_name`: Optional (SSH key pair name)
+- Root disk: by default the image boots on the flavor's local disk. For a
+  Cinder root volume, pass `boot_from_volume=True` with `volume_size` (GB) and
+  optionally `volume_type` and `delete_on_termination`. To boot one instance
+  from an existing available, bootable volume, pass `boot_volume` and no image.
+- To create "the same VM" as an existing server, check whether it boots from a
+  volume (`get_server_volumes`, its root volume's size and type) and copy that
+  root disk choice; don't silently switch it to a local disk.
 
 **Network Creation (`set_networks`)**:
 - `network_name`: **REQUIRED**
@@ -334,6 +341,7 @@ get_instance(all_instances=True, detailed=False) # List all (summary)
 set_instance(action="start", instance_names="vm1")
 set_instance(action="restart", instance_names="vm1,vm2,vm3") 
 set_instance(action="create", instance_names="new-vm", flavor="m1.small", image="ubuntu-20.04", networks="demo-net")
+set_instance(action="create", instance_names="vm-1,vm-2", flavor="m1.small", image="rocky-9", networks="private-net", boot_from_volume=True, volume_size=10)
 
 # Filter-based targeting (NEW!)
 set_instance(action="stop", name_contains="ttt")
@@ -605,6 +613,7 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 - "Stop all instances with name containing 'ttt'" → `set_instance(action="stop", name_contains="ttt")`
 - "Start multiple instances" → `set_instance(action="start", instance_names="vm1,vm2,vm3")`
 - "Create VM with rockylinux-9 image" → `set_instance(action="create", instance_names="vm-name", flavor="m1.small", image="rockylinux-9", networks="demo-net", security_groups="default")`
+- "Create a VM that boots from a 20 GB volume" → `set_instance(action="create", instance_names="vm-name", flavor="m1.small", image="rockylinux-9", networks="demo-net", boot_from_volume=True, volume_size=20)`
 - "Create network" → `set_networks(action="create", network_names="demo-net", description="Demo network", admin_state_up=True)`
 - "Delete networks containing 'test'" → `set_networks(action="delete", name_contains="test")`
 - "Create image metadata with 20GB min disk" → `set_image(action="create", image_names="new-image", disk_format="qcow2", min_disk=20, min_ram=512)` (not a VM snapshot)

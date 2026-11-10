@@ -76,10 +76,12 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   `get_service_status`, `get_gnocchi_resources`, `get_volume_list`가 결과를
   반환했습니다. 두 이미지 모두 배포하지 않았습니다. 이 부분 점검은 위의 105개 도구
   요약을 갱신하지 않습니다.
-- **로컬 단위 테스트 (2026-11-10, 같은 작업 트리):** fastmcp 4.1.6과 openstacksdk
-  4.1.0, 4.9.0, 4.22.0에서 455/455 (100%)이며, 실패나 건너뛴 테스트는 없습니다. 이
-  테스트에는 MCP action 설명과 고급 파라미터 전달 회귀 테스트, 안전하지 않은 HTTP
-  opt-in 회귀 테스트, Gnocchi 프로젝트 범위와 집계 입력 회귀 테스트, Claude Desktop 번들
+- **로컬 단위 테스트 (2026-11-10, `set_instance` 볼륨 부팅 변경이 들어간 `84c346d`
+  기반 작업 트리):** fastmcp 4.1.6과 openstacksdk 4.1.0, 4.9.0, 4.22.0에서
+  `python -m pytest -q tests`로 실행해 469/469 (100%)이며, 실패나 건너뛴 테스트는
+  없습니다. 이 테스트에는 `set_instance` 생성의 루트 디스크 회귀 테스트(로컬 디스크,
+  이미지로 만드는 새 볼륨, 부팅 가능한 기존 볼륨, 거부되는 옵션 조합), MCP action
+  설명과 고급 파라미터 전달 회귀 테스트, 안전하지 않은 HTTP opt-in 회귀 테스트, Gnocchi 프로젝트 범위와 집계 입력 회귀 테스트, Claude Desktop 번들
   manifest와 릴리스 자산 점검, 실제 openstacksdk 리소스 객체로 만든 회귀 테스트, 모든
   `conn.<service>.<method>()` 호출과 키워드가 설치된 openstacksdk에 있는지 확인하는 정적
   검사가 포함됩니다. 이 테스트가 live 서비스 검증을 대신하지는 않습니다.

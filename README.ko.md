@@ -234,7 +234,8 @@ modify operations**를 켜고) 서버를 다시 시작하세요. 이 계정이 �
 |---------------------|---------|------|------|
 | `openstack server list` | `get_instance` | ✅ | 서로 다른 reader 프로젝트가 각각 소유한 VM 정확히 10개를 반환함. 제한된 랩 검증만 수행 |
 | `openstack server show` | `get_instance` | ✅ | 자기 프로젝트의 테스트 리소스 조회 완료. 다른 프로젝트의 비공개 ID는 상세 정보를 반환하지 않음. 소유 ID 16개 일괄 조회는 주장하지 않음 |
-| `openstack server create` | `set_instance` (action="create") | ✅ | **ENHANCED** - 일괄 생성 지원. 2026-11-10 targeted check: 서버가 ACTIVE에 도달 |
+| `openstack server create` | `set_instance` (action="create") | ✅ | **ENHANCED** - 일괄 생성 지원. 아래 볼륨 옵션을 주지 않으면 이미지를 flavor의 로컬 디스크로 부팅함. 2026-11-10 targeted check: 서버가 ACTIVE에 도달 |
+| `openstack server create --boot-from-volume <size>` / `--volume` | `set_instance` (action="create", `boot_from_volume`+`volume_size`, 또는 `boot_volume`) | ⚠️ Live unverified | 루트 디스크를 이미지로 새로 만든 Cinder 볼륨(`volume_size`, 선택적 `volume_type`, `delete_on_termination`)이나, 사용 가능하고 부팅 가능한 기존 볼륨(`boot_volume`, 인스턴스 1대, 이미지 없음)에 둠. 일괄 생성은 `boot_from_volume`에 적용됨. 블록 장치 매핑은 openstacksdk 기준으로 단위 테스트했으며, 볼륨 부팅 서버를 실제로 만들어 본 적은 아직 없음 |
 | `openstack server start/stop/reboot` | `set_instance` | ✅ | 도구 스키마에 모든 action과 `reboot_type`이 노출됨. 프로젝트마다 테스트 VM 2대로 일괄 stop/start 최종 상태를 확인했으나, reboot는 이번에 재검증하지 않음 |
 | `openstack server delete` | `set_instance` (action="delete") | ✅ | 도구 스키마에 delete와 선택적 강제 삭제가 노출됨. `name_contains` 필터로 일괄 삭제. `force=true`는 openstacksdk `delete_server(force=True)`를 사용(이전에는 존재하지 않는 SDK 메서드를 호출). 2026-11-10 targeted check: 강제 삭제로 서버가 제거됨 |
 | `openstack server backup create` | `set_server_backup` | ✅ | 순환 보관을 지원하는 Nova backup action. 비동기이며 사용자 지정 metadata는 없음 |

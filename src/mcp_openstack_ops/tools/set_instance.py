@@ -38,6 +38,11 @@ async def set_instance(
     rescue_image_id: Optional[str] = None,
     new_name: Optional[str] = None,
     preserve_ephemeral: bool = False,
+    boot_from_volume: bool = False,
+    volume_size: Optional[int] = None,
+    volume_type: Optional[str] = None,
+    delete_on_termination: bool = True,
+    boot_volume: Optional[str] = None,
 ) -> str:
     """
     Manage OpenStack instance lifecycle operations.
@@ -57,7 +62,17 @@ async def set_instance(
     
     Use when user requests instance management, VM control, server operations, instance lifecycle management, or server creation.
     
-    CRITICAL: For create action, both flavor AND image are REQUIRED. Operation will fail if either is missing.
+    CRITICAL: For create action, flavor is REQUIRED, and image is REQUIRED unless
+    boot_volume is given. Operation will fail if a required value is missing.
+
+    Root disk for create (pick one):
+    - Default: the image on the flavor's local disk.
+    - boot_from_volume=true with image and volume_size: Nova creates a new Cinder
+      root volume of volume_size GB from the image (boot from volume).
+    - boot_volume: boot from an existing available, bootable volume (no image);
+      one instance only.
+    To copy a server that boots from a volume, check its attached root volume
+    size and type first and pass boot_from_volume with the same values.
     
     Targeting Methods:
     1. Direct: Specify instance_names directly
@@ -83,6 +98,7 @@ async def set_instance(
         # Creation/modification parameters
         flavor: Flavor name for create action (e.g., 'm1.small', 'm1.medium') - REQUIRED for create
         image: Image name for create action (e.g., 'ubuntu-22.04', 'rocky-9') - REQUIRED for create
+               unless boot_volume is given
         networks: Network name(s) for create action (e.g., 'demo-net', 'private-net')
         security_groups: Security group name(s) for create action (e.g., 'default', 'web-sg')
         key_name: SSH keypair name for create action (optional)
@@ -96,7 +112,16 @@ async def set_instance(
         rescue_image_id: Optional image ID for rescue action
         new_name: Optional server name for rebuild action
         preserve_ephemeral: Preserve ephemeral storage during rebuild
-        
+        boot_from_volume: For create, boot from a new Cinder volume created from
+                          image instead of the flavor's local disk
+        volume_size: Root volume size in GB; required with boot_from_volume
+        volume_type: Cinder volume type for the new root volume (optional,
+                     boot_from_volume only)
+        delete_on_termination: Delete the root volume when the instance is
+                               deleted (default true; boot_from_volume or boot_volume)
+        boot_volume: Name or ID of an existing available, bootable volume to
+                     boot one new instance from; don't pass image with it
+
     Returns:
         Clear success message with instance details OR clear error message if operation fails.
         For bulk operations, returns summary of successes and failures.
@@ -111,6 +136,11 @@ async def set_instance(
         set_instance(name_contains="ttt", action="stop")
         set_instance(status="SHUTOFF", action="start")
         set_instance(name_contains="dev", status="ACTIVE", action="restart")
+
+        # Create three instances that boot from new 10 GB volumes
+        set_instance(instance_names="web-1,web-2,web-3", action="create",
+                     flavor="m1.small", image="rocky-9", networks="private-net",
+                     boot_from_volume=True, volume_size=10)
     """
     try:
         if not action or not action.strip():
@@ -240,7 +270,19 @@ async def set_instance(
         if new_name:
             kwargs['new_name'] = new_name
         kwargs['preserve_ephemeral'] = preserve_ephemeral
-            
+        if boot_from_volume:
+            kwargs['boot_from_volume'] = True
+        if volume_size is not None:
+            kwargs['volume_size'] = volume_size
+        if volume_type:
+            kwargs['volume_type'] = volume_type
+        if boot_volume:
+            if len(name_list) > 1:
+                return ("Error: boot_volume boots one instance from an existing "
+                        "volume; use boot_from_volume to create several instances")
+            kwargs['boot_volume'] = boot_volume
+        kwargs['delete_on_termination'] = delete_on_termination
+
         # Handle single instance (backward compatibility)
         if len(name_list) == 1:
             logger.info(f"Managing instance '{name_list[0]}' with action '{action}'")
@@ -261,15 +303,20 @@ async def set_instance(
                 post_status = f'Status Check Failed: {str(e)}'
             
             # Use centralized result handling with enhanced status info
+            details = {
+                "Action": action,
+                "Instance": name_list[0],
+                "Flavor": flavor or "Not specified",
+                "Image": image or "Not specified",
+            }
+            if boot_volume:
+                details["Root disk"] = f"existing volume {boot_volume}"
+            elif boot_from_volume:
+                details["Root disk"] = f"new {volume_size} GB volume"
             base_result = handle_operation_result(
-                result, 
+                result,
                 "Instance Management",
-                {
-                    "Action": action,
-                    "Instance": name_list[0],
-                    "Flavor": flavor or "Not specified",
-                    "Image": image or "Not specified"
-                }
+                details,
             )
             
             # Add post-action status

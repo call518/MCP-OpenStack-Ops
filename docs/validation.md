@@ -89,9 +89,13 @@ an earlier full summary.
   exposed 110 tools, and returned results for `get_service_status`,
   `get_gnocchi_resources` and `get_volume_list`. Neither image was published.
   This partial check does not update the 105-tool summary above.
-- **Local unit tests (2026-11-10; same working tree):** 455/455 (100%) with
-  fastmcp 4.1.6 and openstacksdk 4.1.0, 4.9.0 and 4.22.0; no failures or
-  skipped tests. These tests include MCP action-description and
+- **Local unit tests (2026-11-10; working tree based on `84c346d` with the
+  `set_instance` boot-from-volume change):** 469/469 (100%) with fastmcp 4.1.6
+  and openstacksdk 4.1.0, 4.9.0 and 4.22.0, run as
+  `python -m pytest -q tests`; no failures or skipped tests. These tests
+  include the `set_instance` create root-disk regressions (local disk, a new
+  volume from the image, an existing bootable volume, and refused option
+  combinations), MCP action-description and
   advanced-parameter forwarding regressions, the insecure-HTTP opt-in
   regressions, Gnocchi project-scoping and aggregation-input regressions,
   Claude Desktop bundle manifest and release-asset checks, regression tests

@@ -504,6 +504,26 @@ def get_instances_by_status(
         raise RuntimeError("OpenStack instance status query failed") from None
 
 
+def _root_disk_option_error(options: Dict[str, Any]) -> Optional[str]:
+    """Return why the create root-disk options conflict, or None if they fit."""
+    boot_volume = options.get('boot_volume')
+    boot_from_volume = bool(options.get('boot_from_volume'))
+    volume_size = options.get('volume_size')
+    if boot_volume and options.get('image', options.get('image_name')):
+        return 'Use either image or boot_volume for create, not both.'
+    if boot_volume and boot_from_volume:
+        return ('boot_from_volume creates a new root volume from image; '
+                'use it or boot_volume, not both.')
+    if boot_from_volume:
+        if (not isinstance(volume_size, int) or isinstance(volume_size, bool)
+                or volume_size < 1):
+            return ('volume_size (GB, at least 1) is required when '
+                    'boot_from_volume is true.')
+    elif volume_size is not None or options.get('volume_type'):
+        return 'volume_size and volume_type apply only when boot_from_volume is true.'
+    return None
+
+
 def set_instance(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
     """
     Manage instances (start, stop, reboot, delete, create, etc.).
@@ -535,14 +555,20 @@ def set_instance(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
             flavor_name = kwargs.get('flavor', kwargs.get('flavor_name'))
             image_name = kwargs.get('image', kwargs.get('image_name'))
             network_names = kwargs.get('networks', kwargs.get('network_names', []))
-            
+            boot_volume_name = kwargs.get('boot_volume')
+            delete_on_termination = bool(kwargs.get('delete_on_termination', True))
+
             if not flavor_name:
                 return {
                     'success': False,
                     'message': 'Flavor parameter is required for create action. Please specify a flavor (e.g., m1.small, m1.medium).'
                 }
-                
-            if not image_name:
+
+            root_disk_error = _root_disk_option_error(kwargs)
+            if root_disk_error:
+                return {'success': False, 'message': root_disk_error}
+
+            if not image_name and not boot_volume_name:
                 # Get available images for error message
                 try:
                     all_images = list(conn.image.images())
@@ -575,17 +601,65 @@ def set_instance(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
                 }
             
             # Find image using secure project-scoped lookup
-            image = find_resource_by_name_or_id(
-                conn.image.images(), 
-                image_name, 
-                "Image"
-            )
+            image = None
+            if image_name:
+                image = find_resource_by_name_or_id(
+                    conn.image.images(),
+                    image_name,
+                    "Image"
+                )
 
-            if not image:
-                return {
-                    'success': False,
-                    'message': f'Image "{image_name}" not found or not accessible in current project'
+                if not image:
+                    return {
+                        'success': False,
+                        'message': f'Image "{image_name}" not found or not accessible in current project'
+                    }
+
+            # Root disk: the image on the flavor's local disk (default), a new
+            # volume created from the image, or an existing bootable volume.
+            block_device_mapping = None
+            boot_source = 'image'
+            if boot_volume_name:
+                boot_volume = find_resource_by_name_or_id(
+                    conn.volume.volumes(), boot_volume_name, "Volume"
+                )
+                if not boot_volume:
+                    return {
+                        'success': False,
+                        'message': f'Volume "{boot_volume_name}" not found or not accessible in current project'
+                    }
+                volume_status = getattr(boot_volume, 'status', None)
+                if volume_status != 'available':
+                    return {
+                        'success': False,
+                        'message': f'Volume "{boot_volume_name}" must be available to boot from it; its status is {volume_status}'
+                    }
+                if str(getattr(boot_volume, 'is_bootable', False)).lower() != 'true':
+                    return {
+                        'success': False,
+                        'message': f'Volume "{boot_volume_name}" is not bootable'
+                    }
+                block_device_mapping = [{
+                    'boot_index': 0,
+                    'uuid': boot_volume.id,
+                    'source_type': 'volume',
+                    'destination_type': 'volume',
+                    'delete_on_termination': delete_on_termination,
+                }]
+                boot_source = 'volume'
+            elif kwargs.get('boot_from_volume'):
+                root_volume = {
+                    'boot_index': 0,
+                    'uuid': image.id,
+                    'source_type': 'image',
+                    'destination_type': 'volume',
+                    'volume_size': kwargs['volume_size'],
+                    'delete_on_termination': delete_on_termination,
                 }
+                if kwargs.get('volume_type'):
+                    root_volume['volume_type'] = kwargs['volume_type']
+                block_device_mapping = [root_volume]
+                boot_source = 'new_volume'
             
             # Handle networks with secure project-scoped lookup
             networks = []
@@ -623,9 +697,12 @@ def set_instance(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
             create_params = {
                 'name': instance_name,
                 'flavor_id': flavor.id,
-                'image_id': image.id
             }
-            
+            if block_device_mapping:
+                create_params['block_device_mapping'] = block_device_mapping
+            else:
+                create_params['image_id'] = image.id
+
             if networks:
                 create_params['networks'] = networks
             if key_name:
@@ -650,7 +727,10 @@ def set_instance(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
                         'name': getattr(server, 'name', 'unnamed'),
                         'status': getattr(server, 'status', 'unknown'),
                         'flavor': {'id': flavor.id, 'name': getattr(flavor, 'name', 'unknown')},
-                        'image': {'id': image.id, 'name': getattr(image, 'name', 'unknown')}
+                        'image': ({'id': image.id, 'name': getattr(image, 'name', 'unknown')}
+                                  if image else None),
+                        'boot_source': boot_source,
+                        'block_device_mapping': block_device_mapping or [],
                     }
                 }
             except Exception as create_error:
