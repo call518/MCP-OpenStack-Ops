@@ -12,15 +12,6 @@ from .connection import get_openstack_connection, reset_connection_cache
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Import core functions from services
-from .services.core import (
-    get_service_status
-)
-
-# Import connection utilities
-from .connection import reset_connection_cache
-
-
 
 def _service_zone(service, default='unknown'):
     """Return a Nova/Cinder service zone.

@@ -84,12 +84,15 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   `__DEFAULT__` 타입 10 GB 볼륨을 보고했습니다. 기존 볼륨으로 부팅(`boot_volume`)과
   서버 삭제 시 볼륨 삭제는 확인하지 않았습니다. 서버 3대는 사용자를 위해 실행 상태로
   두었습니다. 이 부분 점검은 위의 105개 도구 요약을 갱신하지 않습니다.
-- **로컬 단위 테스트 (2026-11-10, `set_server_security_group`에서 도달할 수 없는
-  서버 그룹 코드 사본을 제거한 `8b4d39a` 기반 작업 트리):** fastmcp 4.1.6과
-  openstacksdk 4.1.0, 4.9.0, 4.22.0에서 `python -m pytest -q tests`로 실행해 469/469 (100%)이며, 실패나 건너뛴 테스트는
-  없습니다. 이 테스트에는 `set_instance` 생성의 루트 디스크 회귀 테스트(로컬 디스크,
-  이미지로 만드는 새 볼륨, 부팅 가능한 기존 볼륨, 거부되는 옵션 조합), MCP action
-  설명과 고급 파라미터 전달 회귀 테스트, 안전하지 않은 HTTP opt-in 회귀 테스트, Gnocchi 프로젝트 범위와 집계 입력 회귀 테스트, Claude Desktop 번들
-  manifest와 릴리스 자산 점검, 실제 openstacksdk 리소스 객체로 만든 회귀 테스트, 모든
+- **로컬 단위 테스트 (2026-11-10, 이전 파일 분할에서 남은 도달 불가 코드를 제거하고
+  `get_instance`에 `boot_source` 필드를 추가한 `c95d561` 기반 작업 트리):** fastmcp
+  4.1.6과 openstacksdk 4.1.0, 4.9.0, 4.22.0에서 `python -m pytest -q tests`로 실행해
+  476/476 (100%)이며, 실패나 건너뛴 테스트는 없습니다. 이 테스트에는 `set_instance`
+  생성의 루트 디스크 회귀 테스트(로컬 디스크, 이미지로 만드는 새 볼륨, 부팅 가능한 기존
+  볼륨, 거부되는 옵션 조합), 인스턴스 `boot_source` 회귀 테스트,
+  `services.core.get_service_status`의 identity 엔드포인트 fallback 회귀 테스트, MCP
+  action 설명과 고급 파라미터 전달 회귀 테스트, 안전하지 않은 HTTP opt-in 회귀 테스트,
+  Gnocchi 프로젝트 범위와 집계 입력 회귀 테스트, Claude Desktop 번들 manifest와 릴리스
+  자산 점검, 실제 openstacksdk 리소스 객체로 만든 회귀 테스트, 모든
   `conn.<service>.<method>()` 호출과 키워드가 설치된 openstacksdk에 있는지 확인하는 정적
   검사가 포함됩니다. 이 테스트가 live 서비스 검증을 대신하지는 않습니다.

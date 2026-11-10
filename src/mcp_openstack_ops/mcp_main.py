@@ -120,15 +120,7 @@ def handle_operation_result(result: Dict[str, Any], operation_name: str, details
     except Exception as e:
         # Fallback for JSON serialization issues
         return f"Operation completed but response formatting failed: {str(e)}"
-        
-        # Return formatted JSON for other successful dict results
-        try:
-            return json.dumps(result, indent=2, ensure_ascii=False)
-        except Exception as json_error:
-            return f"✅ **{operation_name} Successful**\n\nOperation completed but response formatting failed: {str(json_error)}"
-    
-    # Return string results as-is
-    return str(result) if result else "❌ **Operation Failed**: Empty response"
+
 
 from .connection import get_openstack_connection
 from .functions import (

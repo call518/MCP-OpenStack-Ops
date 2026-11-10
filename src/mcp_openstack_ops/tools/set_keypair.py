@@ -243,5 +243,3 @@ async def set_keypair(
         error_msg = f"Error: Failed to manage keypair(s) - {str(e)}"
         logger.error(error_msg)
         return error_msg
-        logger.error(error_msg)
-        return error_msg

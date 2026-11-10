@@ -58,6 +58,14 @@ def _get_server_image(conn: Any, server: Any) -> Dict[str, str]:
     return info
 
 
+def _server_boot_source(server: Any) -> str:
+    """Return 'image', or 'volume' when Nova reports no image (boot from volume)."""
+    reference = getattr(server, 'image', None)
+    image_id = (reference.get('id') if isinstance(reference, dict)
+                else getattr(reference, 'id', None))
+    return 'image' if image_id else 'volume'
+
+
 def get_instance_details(
     instance_names: Optional[List[str]] = None,
     limit: int = 50,
@@ -213,6 +221,7 @@ def get_instance_details(
                     'availability_zone': getattr(server, 'availability_zone', 'unknown'),
                     'flavor': flavor_info,
                     'image': image_info,
+                    'boot_source': _server_boot_source(server),
                     'key_name': getattr(server, 'key_name', None),
                     'networks': networks,
                     'security_groups': security_groups,

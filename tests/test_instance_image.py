@@ -98,6 +98,29 @@ def test_volume_lookup_failure_does_not_fail_instance_details(conn):
     assert result['image'] == {'id': 'unknown', 'name': 'unknown'}
 
 
+@pytest.mark.parametrize(('image', 'expected'), [
+    ({'id': 'image-a'}, 'image'),
+    (SimpleNamespace(id='image-a'), 'image'),
+    ({}, 'volume'),
+    ('', 'volume'),
+    (None, 'volume'),
+])
+def test_boot_source_follows_the_nova_image_reference(image, expected):
+    assert compute._server_boot_source(SimpleNamespace(image=image)) == expected
+
+
+def test_summary_details_mark_volume_backed_servers(conn):
+    server = volume_server(
+        id='server-a', name='vm', project_id='project-a', status='ACTIVE'
+    )
+    conn.compute.servers.return_value = [server]
+    result = compute.get_instance_details(['vm'], enrich_images=False)
+    (instance,) = result['instances']
+    assert instance['boot_source'] == 'volume'
+    assert instance['image'] == {'id': 'unknown', 'name': 'unknown'}
+    conn.block_storage.get_volume.assert_not_called()
+
+
 def test_name_and_status_queries_share_image_resolution(conn):
     server = volume_server(
         id='server-a', name='vm', project_id='project-a', status='ACTIVE'

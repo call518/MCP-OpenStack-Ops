@@ -56,7 +56,11 @@ async def get_instance(
         
     Returns:
         Instance information in JSON format with metadata and pagination info.
-        
+        Each instance has boot_source: "image" or "volume" (boots from a Cinder
+        volume). Summary mode doesn't look up the image of a volume-backed
+        instance, so its image shows "unknown"; use detailed=True to resolve it
+        from the boot volume.
+
     Examples:
         get_instance(names="vm1,vm2")                    # Get specific instances
         get_instance(status="SHUTOFF")                   # Get all stopped instances
@@ -180,7 +184,8 @@ async def get_instance(
                     'name': instance.get('name', ''),
                     'status': instance.get('status', ''),
                     'flavor': instance.get('flavor', ''),
-                    'image': instance.get('image', '')
+                    'image': instance.get('image', ''),
+                    'boot_source': instance.get('boot_source', ''),
                 })
             result_data['instances'] = summary_instances
             result_data['mode'] = 'summary'

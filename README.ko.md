@@ -233,7 +233,7 @@ modify operations**를 켜고) 서버를 다시 시작하세요. 이 계정이 �
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
 | `openstack server list` | `get_instance` | ✅ | 서로 다른 reader 프로젝트가 각각 소유한 VM 정확히 10개를 반환함. 제한된 랩 검증만 수행 |
-| `openstack server show` | `get_instance` | ✅ | 자기 프로젝트의 테스트 리소스 조회 완료. 다른 프로젝트의 비공개 ID는 상세 정보를 반환하지 않음. 소유 ID 16개 일괄 조회는 주장하지 않음 |
+| `openstack server show` | `get_instance` | ✅ | 자기 프로젝트의 테스트 리소스 조회 완료. 다른 프로젝트의 비공개 ID는 상세 정보를 반환하지 않음. 소유 ID 16개 일괄 조회는 주장하지 않음. 각 인스턴스는 `boot_source`(`image` 또는 `volume`)를 보고함. 요약 모드에서는 볼륨 부팅 인스턴스의 이미지를 unknown으로 표시하고, `detailed=true`이면 부팅 볼륨에서 이미지를 찾음. `boot_source` 필드는 단위 테스트만 했고 live 재검증하지 않음 |
 | `openstack server create` | `set_instance` (action="create") | ✅ | **ENHANCED** - 일괄 생성 지원. 아래 볼륨 옵션을 주지 않으면 이미지를 flavor의 로컬 디스크로 부팅함. 2026-11-10 targeted check: 서버가 ACTIVE에 도달 |
 | `openstack server create --boot-from-volume <size>` | `set_instance` (action="create", `boot_from_volume`, `volume_size`) | ✅ | 루트 디스크를 이미지로 새로 만든 Cinder 볼륨에 둠. 선택적 `volume_type`과 `delete_on_termination`, 일괄 생성 지원. 2026-11-10 targeted check: 한 번의 호출로 만든 서버 3대가 ACTIVE에 도달했고, 각각 `/dev/vda`의 부팅 가능한 10 GB 볼륨을 사용. 서버 삭제 시 볼륨 삭제는 확인하지 않음 |
 | `openstack server create --volume` | `set_instance` (action="create", `boot_volume`) | ⚠️ Live unverified | 사용 가능하고 부팅 가능한 기존 볼륨으로 이미지 없이 서버 1대를 부팅함. 블록 장치 매핑은 openstacksdk 기준으로 단위 테스트했으며, 아직 실제로 만들어 보지 않음 |
