@@ -6,7 +6,7 @@ security groups, floating IPs, and other networking components.
 """
 
 import logging
-from ipaddress import ip_address
+from ipaddress import ip_address, ip_network
 from typing import Dict, List, Any, Optional
 
 # Configure logging
@@ -1553,3 +1553,153 @@ def set_security_groups(
     except Exception as exc:
         return {'success': False, 'message': 'Security group operation failed',
             'error': str(exc)}
+
+
+def set_security_group_rules(
+    action: str,
+    security_group: str,
+    rule_id: str = '',
+    direction: str = 'ingress',
+    protocol: str = '',
+    port_range_min: Optional[int] = None,
+    port_range_max: Optional[int] = None,
+    remote_ip_prefix: str = '',
+    remote_group: str = '',
+    ether_type: str = 'IPv4',
+    description: str = '',
+) -> Dict[str, Any]:
+    """Create or delete a rule on a project-owned security group."""
+    from ..connection import get_openstack_connection
+
+    try:
+        action = action.strip().lower()
+        if action not in {'create', 'delete'}:
+            raise ValueError('Supported actions: create, delete')
+        if not security_group.strip():
+            raise ValueError('security_group is required')
+
+        conn = get_openstack_connection()
+        project_id = conn.current_project_id
+        groups = list(conn.network.security_groups())
+        group = _find_owned_network_resource(
+            groups, security_group.strip(), project_id,
+        )
+
+        if action == 'delete':
+            if not rule_id.strip():
+                raise ValueError('rule_id is required for delete')
+            rules = conn.network.security_group_rules(
+                security_group_id=group.id,
+            )
+            matches = [
+                rule for rule in rules
+                if rule.id == rule_id.strip()
+                and getattr(rule, 'security_group_id', None) == group.id
+                and (
+                    getattr(rule, 'project_id', None)
+                    or getattr(rule, 'tenant_id', None)
+                ) == project_id
+            ]
+            if len(matches) != 1:
+                raise ValueError(
+                    'Rule not found in the selected project-owned security group'
+                )
+            conn.network.delete_security_group_rule(
+                matches[0], ignore_missing=False,
+            )
+            return {
+                'success': True,
+                'message': 'Security group rule deletion accepted',
+            }
+
+        direction = direction.strip().lower()
+        if direction not in {'ingress', 'egress'}:
+            raise ValueError('direction must be ingress or egress')
+
+        ether_types = {'ipv4': 'IPv4', 'ipv6': 'IPv6'}
+        normalized_ether_type = ether_types.get(ether_type.strip().lower())
+        if normalized_ether_type is None:
+            raise ValueError('ether_type must be IPv4 or IPv6')
+
+        protocol = protocol.strip().lower()
+        named_protocols = {
+            'ah', 'dccp', 'egp', 'esp', 'gre', 'icmp', 'igmp',
+            'ipv6-encap', 'ipv6-frag', 'ipv6-icmp', 'ipv6-nonxt',
+            'ipv6-opts', 'ipv6-route', 'ospf', 'pgm', 'rsvp', 'sctp',
+            'tcp', 'udp', 'udplite', 'vrrp',
+        }
+        if protocol in {'any', 'all'}:
+            normalized_protocol = None
+        elif protocol.isdigit() and 0 <= int(protocol) <= 255:
+            normalized_protocol = protocol
+        elif protocol in named_protocols:
+            normalized_protocol = protocol
+        else:
+            raise ValueError(
+                'protocol must be any, a supported protocol name, or 0-255'
+            )
+        if protocol == 'icmp' and normalized_ether_type != 'IPv4':
+            raise ValueError('icmp requires ether_type IPv4')
+        if protocol == 'ipv6-icmp' and normalized_ether_type != 'IPv6':
+            raise ValueError('ipv6-icmp requires ether_type IPv6')
+
+        remote_ip_prefix = remote_ip_prefix.strip()
+        remote_group = remote_group.strip()
+        if bool(remote_ip_prefix) == bool(remote_group):
+            raise ValueError(
+                'Provide exactly one of remote_ip_prefix or remote_group'
+            )
+
+        attrs: Dict[str, Any] = {
+            'security_group_id': group.id,
+            'direction': direction,
+            'protocol': normalized_protocol,
+            'ether_type': normalized_ether_type,
+            'description': description,
+        }
+        if remote_ip_prefix:
+            prefix = ip_network(remote_ip_prefix, strict=True)
+            expected_version = 4 if normalized_ether_type == 'IPv4' else 6
+            if prefix.version != expected_version:
+                raise ValueError(
+                    'remote_ip_prefix IP version must match ether_type'
+                )
+            attrs['remote_ip_prefix'] = str(prefix)
+        else:
+            remote = _find_owned_network_resource(
+                groups, remote_group, project_id,
+            )
+            attrs['remote_group_id'] = remote.id
+
+        if port_range_min is not None or port_range_max is not None:
+            if normalized_protocol is None:
+                raise ValueError('Port ranges cannot be used with protocol any')
+            if port_range_min is None:
+                port_range_min = port_range_max
+            if port_range_max is None:
+                port_range_max = port_range_min
+            port_protocols = {'tcp', 'udp', 'sctp', 'dccp', 'udplite'}
+            icmp_protocols = {'icmp', 'ipv6-icmp'}
+            if protocol not in port_protocols | icmp_protocols:
+                raise ValueError(
+                    'Port ranges require a port-based or ICMP protocol name'
+                )
+            minimum = 0 if protocol in icmp_protocols else 1
+            maximum = 255 if protocol in icmp_protocols else 65535
+            if not (
+                minimum <= port_range_min <= port_range_max <= maximum
+            ):
+                raise ValueError(
+                    f'Port range must be {minimum}-{maximum} and ordered'
+                )
+            attrs['port_range_min'] = port_range_min
+            attrs['port_range_max'] = port_range_max
+
+        rule = conn.network.create_security_group_rule(**attrs)
+        return {'success': True, 'security_group_rule': rule.to_dict()}
+    except Exception as exc:
+        return {
+            'success': False,
+            'message': 'Security group rule operation failed',
+            'error': str(exc),
+        }

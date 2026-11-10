@@ -28,7 +28,7 @@ instances are stopped?" into OpenStack API calls and returns the results.
   not even registered unless you enable them.
 - **One project at a time**: each server works inside one OpenStack project and
   checks resource ownership.
-- **Broad coverage**: 110 tools (55 read-only, 55 management) for Nova,
+- **Broad coverage**: 111 tools (55 read-only, 56 management) for Nova,
   Neutron, Cinder, Glance, Keystone, Heat, Octavia, and Gnocchi/Aodh telemetry.
 
 For an AI-generated walkthrough of the code, see
@@ -151,7 +151,7 @@ what the account may do.
 
 - ✅ **Project-Scoped Operations**: Every tool enforces the configured `OS_PROJECT_NAME`, validating resource ownership so actions stay inside a single tenant.
 - ✅ **Safety-Gated Writes**: Modify (`set_*`) tooling only registers when `ALLOW_MODIFY_OPERATIONS=true`, keeping default deployments read-only and auditable.
-- ✅ **Broad Tool Coverage**: 110 tools across compute, networking, storage, images, identity, Heat, Octavia load balancing and telemetry. Project resources are scoped to the active project; cloud-wide administrative APIs remain subject to OpenStack policy.
+- ✅ **Broad Tool Coverage**: 111 tools across compute, networking, storage, images, identity, Heat, Octavia load balancing and telemetry. Project resources are scoped to the active project; cloud-wide administrative APIs remain subject to OpenStack policy.
 - ✅ **Bulk & Filtered Actions**: Instance, volume, network, image, snapshot, and keypair managers accept comma-delimited targets or filter criteria to orchestrate bulk changes intentionally.
 - ✅ **Post-Action Feedback & Async Guidance**: Management tools report per-resource results, the status read back after the action, and timing notes for asynchronous operations.
 - ✅ **Monitoring & Usage Insights**: `get_service_status`, `get_resource_monitoring`, `get_usage_statistics`, and quota tools report service probes, project allocations, separate quota limits, and API-backed compute allocation-hours. These tools do not collect live utilization or trends; read-only `get_gnocchi_*` tools return telemetry time series when Ceilometer and Gnocchi are deployed.
@@ -309,6 +309,7 @@ unit-test results behind the Status values below are recorded in
 | `openstack floating ip port forwarding show` | `set_floating_ip_port_forwarding` (action="show") | ⚠️ Live unverified | Implemented; test platform port-forwarding endpoint returns HTTP 404 |
 | `openstack security group list` | `get_security_groups` | ✅ | Scoped reader list completed; default and test groups visible. A failed query returns an error instead of a placeholder `default` group |
 | `openstack security group create/delete` | `set_security_groups` | ✅ | Project-owned security groups |
+| `openstack security group rule create/delete` | `set_security_group_rules` | ⚠️ Live unverified | Implemented for project-owned groups. Create requires an explicit CIDR or project-owned remote group; delete verifies the rule belongs to the selected group. Not live-tested in this change |
 | `openstack port list` | `set_network_ports` (action="list") | ⚠️ Live unverified | Implemented list action requires modification-tool registration; not exercised in this round |
 | `openstack port create/delete` | `set_network_ports` | ✅ | Port management |
 | `openstack network qos policy list` | `get_network_qos_policies` | ⚠️ Live unverified | Implemented; test platform QoS endpoint returns HTTP 404 |

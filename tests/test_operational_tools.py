@@ -26,6 +26,7 @@ from openstack.network.v2.network import Network
 from openstack.network.v2.qos_policy import QoSPolicy
 from openstack.network.v2.router import Router
 from openstack.network.v2.security_group import SecurityGroup
+from openstack.network.v2.security_group_rule import SecurityGroupRule
 from openstack.network.v2.subnet import Subnet
 from openstack.orchestration.v1._proxy import Proxy as HeatProxy
 from openstack.orchestration.v1.stack import Stack
@@ -312,6 +313,162 @@ def test_router_cross_project_delete_rejected(conn):
         project_id='project-b')]
     assert not network.set_routers('delete', 'router-a')['success']
     conn.network.delete_router.assert_not_called()
+
+
+def test_security_group_rule_create_uses_exact_owned_group(conn):
+    group = SecurityGroup(id='group-a', name='web', project_id='project-a')
+    rule = SecurityGroupRule(
+        id='rule-a', security_group_id='group-a', project_id='project-a',
+    )
+    conn.network.security_groups.return_value = [group]
+    conn.network.create_security_group_rule.return_value = rule
+
+    result = network.set_security_group_rules(
+        'create', 'web', protocol='tcp', port_range_min=80,
+        port_range_max=80, remote_ip_prefix='203.0.113.0/24',
+        description='Public web access',
+    )
+
+    assert result['success']
+    conn.network.create_security_group_rule.assert_called_once_with(
+        security_group_id='group-a', direction='ingress', protocol='tcp',
+        ether_type='IPv4', port_range_min=80, port_range_max=80,
+        remote_ip_prefix='203.0.113.0/24',
+        description='Public web access',
+    )
+
+
+def test_security_group_rule_create_resolves_owned_remote_group(conn):
+    target = SecurityGroup(id='group-a', name='web', project_id='project-a')
+    remote = SecurityGroup(id='group-b', name='clients', project_id='project-a')
+    conn.network.security_groups.return_value = [target, remote]
+    conn.network.create_security_group_rule.return_value = SecurityGroupRule(
+        id='rule-a', security_group_id='group-a', project_id='project-a',
+    )
+
+    result = network.set_security_group_rules(
+        'create', 'web', protocol='tcp', port_range_min=443,
+        remote_group='clients',
+    )
+
+    assert result['success']
+    kwargs = conn.network.create_security_group_rule.call_args.kwargs
+    assert kwargs['remote_group_id'] == 'group-b'
+    assert kwargs['port_range_min'] == 443
+    assert kwargs['port_range_max'] == 443
+    assert 'remote_ip_prefix' not in kwargs
+
+
+@pytest.mark.parametrize('kwargs', [
+    {'protocol': 'tcp'},
+    {'protocol': 'tcp', 'remote_ip_prefix': '0.0.0.0/0',
+        'remote_group': 'clients'},
+    {'protocol': 'tcp', 'remote_ip_prefix': '2001:db8::/64'},
+    {'protocol': 'tcp', 'remote_ip_prefix': '0.0.0.0/0',
+        'port_range_min': 443, 'port_range_max': 80},
+    {'protocol': 'any', 'remote_ip_prefix': '0.0.0.0/0',
+        'port_range_min': 80},
+    {'protocol': 'ftp', 'remote_ip_prefix': '0.0.0.0/0'},
+    {'protocol': 'tcp', 'direction': 'sideways',
+        'remote_ip_prefix': '0.0.0.0/0'},
+    {'protocol': 'icmp', 'ether_type': 'IPv6',
+        'remote_ip_prefix': '::/0'},
+    {'protocol': 'tcp', 'remote_ip_prefix': '203.0.113.1/24'},
+])
+def test_security_group_rule_create_rejects_unsafe_inputs(conn, kwargs):
+    conn.network.security_groups.return_value = [
+        SecurityGroup(id='group-a', name='web', project_id='project-a'),
+        SecurityGroup(id='group-b', name='clients', project_id='project-a'),
+    ]
+
+    assert not network.set_security_group_rules('create', 'web', **kwargs)[
+        'success'
+    ]
+    conn.network.create_security_group_rule.assert_not_called()
+
+
+def test_security_group_rule_remote_group_must_be_owned(conn):
+    conn.network.security_groups.return_value = [
+        SecurityGroup(id='group-a', name='web', project_id='project-a'),
+        SecurityGroup(id='group-b', name='clients', project_id='project-b'),
+    ]
+
+    result = network.set_security_group_rules(
+        'create', 'web', protocol='tcp', port_range_min=443,
+        remote_group='group-b',
+    )
+
+    assert not result['success']
+    conn.network.create_security_group_rule.assert_not_called()
+
+
+def test_security_group_rule_cannot_target_other_project(conn):
+    conn.network.security_groups.return_value = [
+        SecurityGroup(id='group-b', name='web', project_id='project-b'),
+    ]
+
+    result = network.set_security_group_rules(
+        'create', 'group-b', protocol='tcp', port_range_min=80,
+        remote_ip_prefix='0.0.0.0/0',
+    )
+
+    assert not result['success']
+    conn.network.create_security_group_rule.assert_not_called()
+
+
+def test_security_group_rule_delete_checks_parent_group(conn):
+    group = SecurityGroup(id='group-a', name='web', project_id='project-a')
+    conn.network.security_groups.return_value = [group]
+    conn.network.security_group_rules.return_value = [
+        SecurityGroupRule(
+            id='rule-a', security_group_id='group-b', project_id='project-a',
+        ),
+    ]
+
+    result = network.set_security_group_rules(
+        'delete', 'web', rule_id='rule-a',
+    )
+
+    assert not result['success']
+    conn.network.security_group_rules.assert_called_once_with(
+        security_group_id='group-a',
+    )
+    conn.network.delete_security_group_rule.assert_not_called()
+
+
+def test_security_group_rule_delete_owned_rule(conn):
+    group = SecurityGroup(id='group-a', name='web', project_id='project-a')
+    rule = SecurityGroupRule(
+        id='rule-a', security_group_id='group-a', project_id='project-a',
+    )
+    conn.network.security_groups.return_value = [group]
+    conn.network.security_group_rules.return_value = [rule]
+
+    result = network.set_security_group_rules(
+        'delete', 'web', rule_id='rule-a',
+    )
+
+    assert result['success']
+    conn.network.delete_security_group_rule.assert_called_once_with(
+        rule, ignore_missing=False,
+    )
+
+
+def test_security_group_rule_delete_rejects_other_project_rule(conn):
+    group = SecurityGroup(id='group-a', name='web', project_id='project-a')
+    conn.network.security_groups.return_value = [group]
+    conn.network.security_group_rules.return_value = [
+        SecurityGroupRule(
+            id='rule-a', security_group_id='group-a', project_id='project-b',
+        ),
+    ]
+
+    result = network.set_security_group_rules(
+        'delete', 'web', rule_id='rule-a',
+    )
+
+    assert not result['success']
+    conn.network.delete_security_group_rule.assert_not_called()
 
 
 def test_groups_create_requires_volume_types_and_resolves_ids(conn):

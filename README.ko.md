@@ -29,7 +29,7 @@ OpenStack 프로젝트를 조회하고 운영할 수 있게 해 줍니다.
 - **한 번에 하나의 프로젝트**: 서버 하나는 OpenStack 프로젝트 하나 안에서만
   동작하고, 리소스 소유권을 확인합니다.
 - **넓은 범위**: Nova, Neutron, Cinder, Glance, Keystone, Heat, Octavia,
-  Gnocchi/Aodh 텔레메트리를 다루는 도구 110개(조회 55개, 관리 55개)를
+  Gnocchi/Aodh 텔레메트리를 다루는 도구 111개(조회 55개, 관리 56개)를
   제공합니다.
 
 AI가 생성한 코드 설명은
@@ -152,7 +152,7 @@ modify operations**를 켜고) 서버를 다시 시작하세요. 이 계정이 �
 
 - ✅ **프로젝트 범위 작업**: 모든 도구가 설정된 `OS_PROJECT_NAME`을 적용하고 리소스 소유권을 확인하므로, 작업이 하나의 테넌트 안에서만 이루어집니다.
 - ✅ **안전 장치가 있는 변경 작업**: 변경(`set_*`) 도구는 `ALLOW_MODIFY_OPERATIONS=true`일 때만 등록되므로, 기본 배포는 읽기 전용이고 감사하기 쉽습니다.
-- ✅ **넓은 도구 범위**: 컴퓨트, 네트워크, 스토리지, 이미지, ID, Heat, Octavia 로드밸런싱, 텔레메트리를 다루는 도구 110개. 프로젝트 리소스는 현재 프로젝트로 범위가 제한되고, 클라우드 전체 관리 API는 OpenStack 정책을 따릅니다.
+- ✅ **넓은 도구 범위**: 컴퓨트, 네트워크, 스토리지, 이미지, ID, Heat, Octavia 로드밸런싱, 텔레메트리를 다루는 도구 111개. 프로젝트 리소스는 현재 프로젝트로 범위가 제한되고, 클라우드 전체 관리 API는 OpenStack 정책을 따릅니다.
 - ✅ **일괄 작업과 필터 작업**: 인스턴스, 볼륨, 네트워크, 이미지, 스냅샷, 키페어 관리 도구는 쉼표로 구분한 대상이나 필터 조건을 받아 여러 리소스를 한 번에 의도대로 변경합니다.
 - ✅ **작업 후 결과와 비동기 안내**: 관리 도구는 리소스별 결과, 작업 후 다시 읽은 상태, 비동기 작업의 시간 안내를 함께 보고합니다.
 - ✅ **모니터링과 사용량 정보**: `get_service_status`, `get_resource_monitoring`, `get_usage_statistics`, quota 도구는 서비스 점검, 프로젝트 할당량, 별도의 quota 한도, API 기반 컴퓨트 할당 시간을 보고합니다. 이 도구들은 실시간 사용률이나 추세를 수집하지 않습니다. Ceilometer와 Gnocchi가 배포되어 있으면 읽기 전용 `get_gnocchi_*` 도구가 텔레메트리 시계열을 돌려줍니다.
@@ -310,6 +310,7 @@ modify operations**를 켜고) 서버를 다시 시작하세요. 이 계정이 �
 | `openstack floating ip port forwarding show` | `set_floating_ip_port_forwarding` (action="show") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼의 port-forwarding endpoint가 HTTP 404를 반환 |
 | `openstack security group list` | `get_security_groups` | ✅ | 범위가 제한된 reader 목록 조회 완료. default와 테스트 그룹이 보임. 조회에 실패하면 가짜 `default` 그룹 대신 오류를 반환 |
 | `openstack security group create/delete` | `set_security_groups` | ✅ | 프로젝트 소유 보안 그룹 |
+| `openstack security group rule create/delete` | `set_security_group_rules` | ⚠️ Live unverified | 프로젝트 소유 그룹에 대해 구현됨. 생성 시 명시적인 CIDR 또는 프로젝트 소유 원격 그룹이 필요하며, 삭제 시 규칙이 선택한 그룹 소속인지 확인. 이번 변경에서는 live 테스트하지 않음 |
 | `openstack port list` | `set_network_ports` (action="list") | ⚠️ Live unverified | 구현된 list action은 변경 도구가 등록되어야 사용 가능. 이번에 실행하지 않음 |
 | `openstack port create/delete` | `set_network_ports` | ✅ | Port 관리 |
 | `openstack network qos policy list` | `get_network_qos_policies` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼의 QoS endpoint가 HTTP 404를 반환 |

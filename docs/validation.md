@@ -114,3 +114,13 @@ an earlier full summary.
   built on real openstacksdk resource objects, and a static check that every
   `conn.<service>.<method>()` call and keyword exists in the installed
   openstacksdk; they do not replace live service validation.
+- **Local security-group-rule tests (2026-11-11; uncommitted working tree
+  based on `e522451`):** 492/492 (100%) with fastmcp 4.1.6 and the locked
+  openstacksdk 4.22.0, run as `python -m pytest -q tests`; no failures or
+  skipped tests. The new 16-case security-group-rule regression set covers
+  exact create/delete SDK calls, single-port normalization, explicit CIDR or
+  project-owned remote-group selection, protocol, port-range and IPv4/IPv6
+  validation, and rejection of cross-project groups or rules belonging to
+  another security group. Existing registration tests also verify the new
+  tool's read-only write guard. No live OpenStack rule was created or deleted,
+  so `set_security_group_rules` remains **Live unverified**.

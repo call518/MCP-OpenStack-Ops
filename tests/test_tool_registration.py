@@ -38,7 +38,8 @@ async def verify():
         'get_gnocchi_aggregates',
     }
     writes = {
-        'set_alarms', 'set_routers', 'set_security_groups', 'set_users',
+        'set_alarms', 'set_routers', 'set_security_groups',
+        'set_security_group_rules', 'set_users',
         'set_volume_types', 'set_domains', 'set_identity_groups',
         'set_volume_backups', 'set_volume_groups', 'set_volume_qos',
         'set_network_qos_policies', 'set_network_agents',
@@ -65,6 +66,7 @@ async def verify():
             'set_keypair': {'import', 'show'},
             'set_network_ports': {'show'},
             'set_subnets': {'show'},
+            'set_security_group_rules': {'create', 'delete'},
         }
         for name, actions in expected_actions.items():
             description = tools[name].parameters['properties']['action']['description']
@@ -74,6 +76,9 @@ async def verify():
         ('set_alarms', {'action': 'create', 'alarm_name': 'a'}),
         ('set_routers', {'action': 'create', 'router_name': 'a'}),
         ('set_security_groups', {'action': 'delete', 'group_name': 'a'}),
+        ('set_security_group_rules', {
+            'action': 'delete', 'security_group': 'a', 'rule_id': 'rule-a',
+        }),
         ('set_users', {'action': 'create', 'user_name': 'a'}),
         ('set_volume_types', {'action': 'delete', 'type_name': 'a'}),
         ('set_domains', {'action': 'delete', 'domain_name': 'a'}),

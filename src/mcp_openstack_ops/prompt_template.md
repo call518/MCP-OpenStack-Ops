@@ -449,7 +449,7 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 - `get_gnocchi_aggregates`: Measured telemetry across many current-project resources (project-wide mean/sum, top N, groupby, metric arithmetic)
 - `get_gnocchi_service_info`: Archive policies, rules, resource types, aggregation capabilities, processing status
 
-### 🌐 **Network Management Tools (12 tools)**
+### 🌐 **Network Management Tools (15 tools)**
 **Core Network Operations:**
 - `get_network_details`: Network and subnet information (always available)
 - `set_networks`: **ENHANCED** - Network management with bulk operations and filtering
@@ -460,6 +460,9 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
   - **Actions**: create/delete/update/list (**Conditional Tool**)
 - `set_subnets`: Subnet operations (create/delete/update) (**Conditional Tool**)
 - `set_network_ports`: Port management (create/delete/update) (**Conditional Tool**)
+- `get_security_groups`: Project security groups and their firewall rules (always available)
+- `set_security_groups`: Create/delete project-owned security groups (**Conditional Tool**)
+- `set_security_group_rules`: Create/delete firewall rules on project-owned security groups (**Conditional Tool**). Creating a rule requires an explicit source/destination CIDR or remote group; use `0.0.0.0/0` or `::/0` only when access from anywhere is intended
 
 **Floating IP Management:**
 - `get_floating_ips`: List floating IPs and status (always available)
@@ -469,6 +472,7 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 
 **Network Advanced Features:**
 - `get_routers`: Router configuration and routing tables (always available)
+- `get_network_qos_policies`: List project QoS policy containers (always available)
 - `set_network_qos_policies`: Create/list/delete project QoS policy containers (**Conditional Tool**); no automatic bandwidth rules
 - `set_network_agents`: List/enable/disable cloud-wide agents (**Conditional Tool**); OpenStack admin policy may apply
 
@@ -625,6 +629,9 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 - "Associate/disassociate floating IP" → `set_server_floating_ip(server_name="X", action="add/remove", floating_ip="Y")`
 - "List floating IP pools" → `get_floating_ip_pools()`
 - "Create port forwarding rule" → `set_floating_ip_port_forwarding("create", floating_ip_address="IP", external_port=80, internal_port=8080, internal_ip_address="192.168.1.100")`
+- "Open TCP 80 on security group web from 203.0.113.0/24" → `set_security_group_rules(action="create", security_group="web", protocol="tcp", port_range_min=80, port_range_max=80, remote_ip_prefix="203.0.113.0/24")`
+- For a request to open a VM port, use `get_instance` and `get_security_groups` to identify the attached group. If the source CIDR or remote group is omitted, ask for it; never assume public `0.0.0.0/0` or `::/0` access.
+- Before deleting a security group rule, use `get_security_groups` to obtain its rule ID, then pass both the group and rule ID to `set_security_group_rules(action="delete", ...)`.
 - "Show Heat stacks" → `get_heat_stacks`
 - "Create/delete stack" → `set_heat_stack("stack_name", "action")`
 
@@ -968,6 +975,7 @@ Results are allocations, quotas, and capacity, not measured utilization.
 - **"Can I create a new VM?"** → Project quotas + available flavors + network options
 - **"Why is my instance slow?"** → Instance details + resource monitoring + hypervisor status
 - **"Show network connectivity"** → Network details + security groups + floating IPs + routers
+- **"Open public TCP port 80 on security group web"** → `set_security_group_rules(action="create", security_group="web", protocol="tcp", port_range_min=80, port_range_max=80, remote_ip_prefix="0.0.0.0/0")`
 
 ### **Tool Availability**
 - **Read-only tools** (`get_*`, `search_*`, `monitor_*`): Always available
@@ -976,12 +984,13 @@ Results are allocations, quotas, and capacity, not measured utilization.
 
 ---
 
-**Enhanced with 89 comprehensive OpenStack management tools including advanced server management, network operations, storage management, identity & access control, image management, orchestration, and monitoring capabilities. Optimized for production environments with built-in safety controls and performance optimization.**
+**Enhanced with 111 OpenStack tools including advanced server management, network operations, storage management, identity & access control, image management, orchestration, and monitoring capabilities. Optimized for production environments with built-in safety controls and performance optimization.**
 
 
 ### Additional API-backed operations
 
 - `set_routers`, `set_security_groups`: create/delete project-owned resources; do not implicitly detach dependencies.
+- `set_security_group_rules`: create/delete rules only on project-owned security groups. Create requires exactly one explicit `remote_ip_prefix` or project-owned `remote_group`; delete verifies that `rule_id` belongs to the selected group.
 - `get_network_qos_policies`: read-only listing of project policy containers.
 - `set_volume_types`: create/delete types subject to administrative policy.
 - `get_volume_backups`, `get_volume_groups`, `get_volume_qos`, `get_volume_transfers`: read-only Cinder inventories. Transfer authorization keys are excluded.
