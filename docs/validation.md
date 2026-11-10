@@ -89,6 +89,16 @@ an earlier full summary.
   exposed 110 tools, and returned results for `get_service_status`,
   `get_gnocchi_resources` and `get_volume_list`. Neither image was published.
   This partial check does not update the 105-tool summary above.
+- **Targeted boot-from-volume check (2026-11-10; working tree based on
+  `84c346d` with the `set_instance` boot-from-volume change, served by a
+  locally rebuilt `mcp-server` image):** one `set_instance` create call with
+  `boot_from_volume` and `volume_size=10` created three servers on
+  `private-net`. `get_instance` reported all three ACTIVE, and
+  `get_server_volumes` reported for each a bootable, in-use 10 GB volume of
+  type `__DEFAULT__` at `/dev/vda`. Booting from an existing volume
+  (`boot_volume`) and volume deletion with the server were not exercised. The
+  three servers were left running for the user. This partial check does not
+  update the 105-tool summary above.
 - **Local unit tests (2026-11-10; working tree based on `84c346d` with the
   `set_instance` boot-from-volume change):** 469/469 (100%) with fastmcp 4.1.6
   and openstacksdk 4.1.0, 4.9.0 and 4.22.0, run as

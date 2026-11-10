@@ -76,6 +76,14 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   `get_service_status`, `get_gnocchi_resources`, `get_volume_list`가 결과를
   반환했습니다. 두 이미지 모두 배포하지 않았습니다. 이 부분 점검은 위의 105개 도구
   요약을 갱신하지 않습니다.
+- **볼륨 부팅 targeted check (2026-11-10, `set_instance` 볼륨 부팅 변경이 들어간
+  `84c346d` 기반 작업 트리를 로컬에서 다시 빌드한 `mcp-server` 이미지로 제공):**
+  `boot_from_volume`과 `volume_size=10`을 준 `set_instance` 생성 호출 한 번으로
+  `private-net`에 서버 3대를 만들었습니다. `get_instance`는 세 대 모두 ACTIVE로
+  보고했고, `get_server_volumes`는 각각 `/dev/vda`에 연결된 부팅 가능하고 in-use인
+  `__DEFAULT__` 타입 10 GB 볼륨을 보고했습니다. 기존 볼륨으로 부팅(`boot_volume`)과
+  서버 삭제 시 볼륨 삭제는 확인하지 않았습니다. 서버 3대는 사용자를 위해 실행 상태로
+  두었습니다. 이 부분 점검은 위의 105개 도구 요약을 갱신하지 않습니다.
 - **로컬 단위 테스트 (2026-11-10, `set_instance` 볼륨 부팅 변경이 들어간 `84c346d`
   기반 작업 트리):** fastmcp 4.1.6과 openstacksdk 4.1.0, 4.9.0, 4.22.0에서
   `python -m pytest -q tests`로 실행해 469/469 (100%)이며, 실패나 건너뛴 테스트는
