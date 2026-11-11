@@ -158,17 +158,17 @@ MCP 서버 인스턴스 하나는 프로젝트 하나로 범위가 정해집니�
 # Project 1: Production Environment
 OS_PROJECT_NAME=production
 # ... other config
-python -m mcp_openstack_ops --type stdio
+uv run python -m mcp_openstack_ops --type stdio
 
 # Project 2: Development Environment
 OS_PROJECT_NAME=development
 # ... other config
-python -m mcp_openstack_ops --type streamable-http --port 8001
+uv run python -m mcp_openstack_ops --type streamable-http --port 8001
 
 # Project 3: Testing Environment
 OS_PROJECT_NAME=testing
 # ... other config
-python -m mcp_openstack_ops --type streamable-http --port 8002
+uv run python -m mcp_openstack_ops --type streamable-http --port 8002
 ```
 
 **Claude Desktop 다중 프로젝트 설정 예:**

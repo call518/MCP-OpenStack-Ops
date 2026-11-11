@@ -6,6 +6,9 @@
 
 ## 준비와 테스트 실행
 
+Git과 [uv](https://docs.astral.sh/uv/)가 필요합니다. 필요하면 uv가 Python 3.12를
+자동으로 설치합니다.
+
 ```bash
 git clone https://github.com/call518/MCP-OpenStack-Ops.git
 cd MCP-OpenStack-Ops

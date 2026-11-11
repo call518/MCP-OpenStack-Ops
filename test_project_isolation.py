@@ -6,7 +6,7 @@ This script validates that all OpenStack operations are properly scoped
 to the current project specified by OS_PROJECT_NAME environment variable.
 
 Usage:
-    python test_project_isolation.py
+    uv run python test_project_isolation.py
 
 Requirements:
     - .env file with OpenStack credentials

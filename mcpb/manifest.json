@@ -188,7 +188,7 @@
       "linux"
     ],
     "runtimes": {
-      "python": ">=3.12"
+      "python": ">=3.12,<3.13"
     }
   }
 }

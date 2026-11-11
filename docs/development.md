@@ -6,6 +6,9 @@ This guide covers local development, testing, and adding tools.
 
 ## Set up and run the tests
 
+Requirements are Git and [uv](https://docs.astral.sh/uv/). uv installs Python
+3.12 automatically if needed.
+
 ```bash
 git clone https://github.com/call518/MCP-OpenStack-Ops.git
 cd MCP-OpenStack-Ops

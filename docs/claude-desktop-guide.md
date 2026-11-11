@@ -53,11 +53,9 @@ Node.js and writes `dist/mcp-openstack-ops-<version>.mcpb`.
 
 The bundle uses the MCPB `uv` server type (manifest version 0.4). The Claude
 Desktop version that first supports it is not documented; if installation is
-refused, update Claude Desktop or use option 2. uv may choose the newest Python
-allowed by `requires-python = ">=3.12"`. The locked dependencies install from
-wheels on Python 3.12-3.14 for Windows, macOS, and Linux; on 3.15, PyYAML has no
-wheel and builds as pure Python without a compiler. The bundle was installed and
-started on Linux with Python 3.15, and the unit tests pass on Python 3.12-3.15.
+refused, update Claude Desktop or use option 2. The project supports Python 3.12
+only (`requires-python = ">=3.12,<3.13"`), and uv installs a matching Python
+version with the locked dependencies.
 
 ## Configuration file for options 2-4
 
@@ -77,9 +75,9 @@ it.
 ## Option 2: PyPI package with uvx
 
 `uvx` is included with [uv](https://docs.astral.sh/uv/). It downloads the
-`mcp-openstack-ops` package and a suitable Python from PyPI into a cached tool
-environment and runs it; no clone is needed. Download it once before the first
-Claude Desktop launch:
+`mcp-openstack-ops` package from PyPI, installs a suitable Python if needed, and
+runs it in a cached tool environment; no clone is needed. Download it once
+before the first Claude Desktop launch:
 
 ```bash
 uvx mcp-openstack-ops --help
@@ -124,7 +122,7 @@ Desktop.
 ## Option 3: Source checkout with uv
 
 Use this option for changes that are not released on PyPI. Requirements: Git
-and [uv](https://docs.astral.sh/uv/); uv installs Python 3.12+ and the locked
+and [uv](https://docs.astral.sh/uv/); uv installs Python 3.12 and the locked
 dependencies.
 
 Clone this repository on the Claude Desktop computer. In the commands and configuration below,

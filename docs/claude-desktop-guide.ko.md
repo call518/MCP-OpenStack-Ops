@@ -51,11 +51,9 @@ Desktop이 uv로 Python과 고정된 의존성을 설치합니다. 업그레이�
 
 번들은 MCPB `uv` 서버 유형(manifest 버전 0.4)을 사용합니다. 이를 처음 지원하는 Claude
 Desktop 버전은 문서화되어 있지 않습니다. 설치가 거부되면 Claude Desktop을
-업데이트하거나 방법 2를 사용하세요. uv는 `requires-python = ">=3.12"`가 허용하는
-가장 최신 Python을 고를 수 있습니다. 고정된 의존성은 Windows, macOS, Linux의 Python
-3.12~3.14에서 wheel로 설치됩니다. 3.15에서는 PyYAML의 wheel이 없어 컴파일러 없이
-순수 Python으로 빌드됩니다. 번들은 Linux의 Python 3.15에서 설치와 실행을 확인했고,
-단위 테스트는 Python 3.12~3.15에서 통과합니다.
+업데이트하거나 방법 2를 사용하세요. 이 프로젝트는 Python 3.12만 지원하며
+(`requires-python = ">=3.12,<3.13"`), uv는 이에 맞는 Python 버전과 고정된 의존성을
+설치합니다.
 
 ## 방법 2~4의 설정 파일
 
@@ -74,8 +72,9 @@ Claude Desktop의 **Settings > Developer > Edit Config**를 열거나 파일을 
 ## 방법 2: uvx로 PyPI 패키지 실행
 
 `uvx`는 [uv](https://docs.astral.sh/uv/)에 포함되어 있습니다. `mcp-openstack-ops`
-패키지와 알맞은 Python을 PyPI에서 캐시된 도구 환경으로 내려받아 실행하므로 저장소를
-복제할 필요가 없습니다. Claude Desktop을 처음 실행하기 전에 한 번 내려받아 두세요.
+패키지를 PyPI에서 내려받고, 필요하면 알맞은 Python을 설치한 뒤 캐시된 도구
+환경에서 실행하므로 저장소를 복제할 필요가 없습니다. Claude Desktop을 처음
+실행하기 전에 한 번 내려받아 두세요.
 
 ```bash
 uvx mcp-openstack-ops --help
@@ -118,7 +117,7 @@ uvx mcp-openstack-ops --help
 ## 방법 3: uv로 소스 체크아웃 실행
 
 PyPI에 릴리스되지 않은 변경을 쓸 때 이 방법을 사용하세요. Git과
-[uv](https://docs.astral.sh/uv/)가 필요하며, uv가 Python 3.12+와 고정된 의존성을
+[uv](https://docs.astral.sh/uv/)가 필요하며, uv가 Python 3.12와 고정된 의존성을
 설치합니다.
 
 Claude Desktop 컴퓨터에 이 저장소를 복제하세요. 아래 명령과 설정의

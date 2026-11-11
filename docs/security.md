@@ -49,7 +49,7 @@ To check project isolation against your cloud, run the included test with the
 `OS_*` variables of the target project:
 
 ```bash
-python test_project_isolation.py
+uv run python test_project_isolation.py
 ```
 
 **Example output:**

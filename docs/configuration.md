@@ -162,17 +162,17 @@ OpenStack projects, deploy multiple MCP server instances with different
 # Project 1: Production Environment
 OS_PROJECT_NAME=production
 # ... other config
-python -m mcp_openstack_ops --type stdio
+uv run python -m mcp_openstack_ops --type stdio
 
 # Project 2: Development Environment
 OS_PROJECT_NAME=development
 # ... other config
-python -m mcp_openstack_ops --type streamable-http --port 8001
+uv run python -m mcp_openstack_ops --type streamable-http --port 8001
 
 # Project 3: Testing Environment
 OS_PROJECT_NAME=testing
 # ... other config
-python -m mcp_openstack_ops --type streamable-http --port 8002
+uv run python -m mcp_openstack_ops --type streamable-http --port 8002
 ```
 
 **Claude Desktop Multi-Project Configuration Example:**

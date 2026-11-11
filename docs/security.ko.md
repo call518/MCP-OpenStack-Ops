@@ -46,7 +46,7 @@ MCP-OpenStack-Ops는 `OS_PROJECT_NAME` 환경 변수가 정하는 프로젝트 �
 테스트를 실행하세요.
 
 ```bash
-python test_project_isolation.py
+uv run python test_project_isolation.py
 ```
 
 **출력 예:**

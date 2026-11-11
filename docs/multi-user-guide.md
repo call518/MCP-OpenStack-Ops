@@ -75,8 +75,8 @@ See the official [OpenStack Application Credential CLI documentation](https://do
 
 ## Server setup
 
-With Git, Python 3.12+, and uv installed on the server, clone and install
-`main` to use this mode from source:
+With Git and uv installed on the server, clone and install `main` to use this
+mode from source. uv installs Python 3.12 automatically if needed:
 
 ```bash
 git clone --branch main --single-branch \

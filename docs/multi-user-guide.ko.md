@@ -73,8 +73,8 @@ openstack application credential delete mcp-openwebui
 
 ## 서버 설정
 
-서버에 Git, Python 3.12+, uv가 설치되어 있으면, 이 모드를 소스로 쓰기 위해 `main`을
-복제하고 설치하세요.
+서버에 Git과 uv가 설치되어 있으면, 이 모드를 소스로 쓰기 위해 `main`을
+복제하고 설치하세요. 필요하면 uv가 Python 3.12를 자동으로 설치합니다.
 
 ```bash
 git clone --branch main --single-branch \
