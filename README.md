@@ -437,7 +437,7 @@ Octavia was not available in any live test cloud.
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
 | `openstack loadbalancer list` | `get_load_balancer_list` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer listing with pagination |
-| `openstack loadbalancer show` | `get_load_balancer_details` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer detailed information |
+| `openstack loadbalancer show` | `get_load_balancer_details` | ✅ | 2026-11-12 targeted Octavia read check passed. Load balancer detailed information; pools are matched to listeners from each pool's `listeners` references |
 | `openstack loadbalancer create` | `set_load_balancer` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer creation |
 | `openstack loadbalancer delete` | `set_load_balancer` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer deletion |
 | `openstack loadbalancer set` | `set_load_balancer` (action="update") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer property update |
@@ -454,11 +454,11 @@ Octavia was not available in any live test cloud.
 | `openstack loadbalancer listener stats show` | `set_load_balancer_listener` (action="stats") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Listener statistics |
 | `openstack loadbalancer listener unset` | `set_load_balancer_listener` (action="unset") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Listener property unset |
 | **Pool Management** | | | |
-| `openstack loadbalancer pool list` | `get_load_balancer_pools` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool listing (all or by listener) |
+| `openstack loadbalancer pool list` | `get_load_balancer_pools` | ✅ | 2026-11-12 targeted Octavia read check passed. Pool listing (all or by listener); reports `listener_ids`, `loadbalancer_ids` and `health_monitor_id` from the Octavia response |
 | `openstack loadbalancer pool create` | `set_load_balancer_pool` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool creation with algorithms |
 | `openstack loadbalancer pool delete` | `set_load_balancer_pool` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool deletion |
 | `openstack loadbalancer pool set` | `set_load_balancer_pool` (action="set") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool property update |
-| `openstack loadbalancer pool show` | `get_load_balancer_pools` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool detailed information |
+| `openstack loadbalancer pool show` | `get_load_balancer_pools` | ✅ | 2026-11-12 targeted Octavia read check passed. Pool detailed information, including `listener_ids`, `loadbalancer_ids` and `health_monitor_id` |
 | `openstack loadbalancer pool stats show` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | `openstack loadbalancer pool unset` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | **Member Management** | | | |
@@ -469,11 +469,11 @@ Octavia was not available in any live test cloud.
 | `openstack loadbalancer member show` | `get_load_balancer_pool_members` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool member detailed information |
 | `openstack loadbalancer member unset` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | **Health Monitor Management** | | | |
-| `openstack loadbalancer healthmonitor list` | `get_load_balancer_health_monitors` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Health monitor listing |
+| `openstack loadbalancer healthmonitor list` | `get_load_balancer_health_monitors` | ✅ | 2026-11-12 targeted Octavia read check passed. Health monitor listing (all or by pool); reports `pool_ids` from the Octavia response |
 | `openstack loadbalancer healthmonitor create` | `set_load_balancer_health_monitor` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Health monitor creation |
 | `openstack loadbalancer healthmonitor delete` | `set_load_balancer_health_monitor` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Health monitor deletion |
 | `openstack loadbalancer healthmonitor set` | `set_load_balancer_health_monitor` (action="set") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Health monitor update |
-| `openstack loadbalancer healthmonitor show` | `get_load_balancer_health_monitors` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Health monitor detailed information |
+| `openstack loadbalancer healthmonitor show` | `get_load_balancer_health_monitors` | ✅ | 2026-11-12 targeted Octavia read check passed. Health monitor detailed information, including `pool_ids` |
 | `openstack loadbalancer healthmonitor unset` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | **L7 Policy Management** | | | |
 | `openstack loadbalancer l7policy list` | `get_load_balancer_l7_policies` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. L7 policy listing |

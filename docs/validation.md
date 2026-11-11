@@ -198,3 +198,28 @@ an earlier full summary.
   `set_security_group_rules`, and checks restricted-CIDR rule creation and
   deletion, but those harness paths were not run against a live cloud in this
   integration, so their existing live statuses do not change.
+- **Targeted Octavia read check (2026-11-12; partial; uncommitted working
+  tree based on `05dfd12`):** Octavia GET responses report pool and
+  health-monitor relations only as `listeners`, `loadbalancers`,
+  `healthmonitor_id` and `pools`; the create-only `listener_id` and `pool_id`
+  were `None`. Octavia also rejected `GET /v2.0/lbaas/pools?listener_id=...`
+  with 400, which made `get_load_balancer_details` fail. After the fix, the
+  service functions were called in the running `mcp-server` container (source
+  mounted, openstacksdk Octavia proxy) against one HTTP load balancer with one
+  listener, one pool of two members and one TCP health monitor:
+  `get_load_balancer_details`, `get_load_balancer_pools` (all and by
+  listener), `set_load_balancer_pool` (show),
+  `get_load_balancer_health_monitors` (all and by pool) and
+  `set_load_balancer_health_monitor` (show) all returned the expected
+  relations (7/7 read calls). Calls went through the service layer, not the
+  MCP transport. After the `mcp-server` container was restarted,
+  `get_load_balancer_details` also succeeded through OpenWebUI and the MCP
+  server for the same load balancer. No resource
+  was created or changed. This partial check does not update the 105-tool
+  summary above.
+- **Local load-balancer relation tests (2026-11-12; same working tree):**
+  500/500 (100%) with fastmcp 4.1.6 and the locked openstacksdk 4.22.0, run as
+  `uv run pytest -q`; no failures or skipped tests. Two new regressions build
+  pools and health monitors in the Octavia GET response shape, and existing
+  tests now assert that no `listener_id` filter is sent to the pool list. The
+  two new regressions failed on the previous code.

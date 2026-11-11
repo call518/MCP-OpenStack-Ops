@@ -173,3 +173,25 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   `set_security_group_rules`를 호출하고 제한 CIDR 규칙의 생성과 삭제를 확인하지만, 이번
   통합에서는 해당 harness 경로를 실제 클라우드에서 실행하지 않았으므로 기존 live
   상태는 바뀌지 않습니다.
+- **Octavia 대상 읽기 점검 (2026-11-12, 부분 점검, `05dfd12` 기반의 커밋되지 않은
+  작업 트리):** Octavia GET 응답은 풀과 헬스 모니터의 관계를 `listeners`,
+  `loadbalancers`, `healthmonitor_id`, `pools`로만 보고하며, 생성 전용인
+  `listener_id`와 `pool_id`는 `None`이었습니다. 또한 Octavia는
+  `GET /v2.0/lbaas/pools?listener_id=...`를 400으로 거부했고, 이 때문에
+  `get_load_balancer_details`가 실패했습니다. 수정 후 실행 중인 `mcp-server`
+  컨테이너(소스 마운트, openstacksdk Octavia proxy)에서 서비스 함수를 호출했습니다.
+  대상은 리스너 1개, 멤버 2개인 풀 1개, TCP 헬스 모니터 1개로 구성된 HTTP
+  로드밸런서 1개입니다. `get_load_balancer_details`, `get_load_balancer_pools`
+  (전체 및 리스너별), `set_load_balancer_pool` (show),
+  `get_load_balancer_health_monitors` (전체 및 풀별),
+  `set_load_balancer_health_monitor` (show)가 모두 기대한 관계 정보를
+  반환했습니다(읽기 호출 7/7). 호출은 MCP 전송 계층이 아닌 서비스 계층을 거쳤습니다.
+  `mcp-server` 컨테이너를 재시작한 뒤에는
+  `get_load_balancer_details`도 같은 로드밸런서에 대해 OpenWebUI와 MCP 서버를 거쳐
+  성공했습니다. 리소스를 생성하거나 변경하지
+  않았습니다. 이 부분 점검은 위의 105개 도구 요약을 갱신하지 않습니다.
+- **로컬 로드밸런서 관계 필드 테스트 (2026-11-12, 같은 작업 트리):** fastmcp 4.1.6과
+  고정된 openstacksdk 4.22.0에서 `uv run pytest -q`로 실행해 500/500 (100%)이며,
+  실패나 건너뛴 테스트는 없습니다. 새 회귀 테스트 2건은 풀과 헬스 모니터를 Octavia
+  GET 응답 형태로 구성하고, 기존 테스트는 풀 목록 조회에 `listener_id` 필터를 보내지
+  않는지 확인합니다. 새 회귀 테스트 2건은 이전 코드에서 실패했습니다.

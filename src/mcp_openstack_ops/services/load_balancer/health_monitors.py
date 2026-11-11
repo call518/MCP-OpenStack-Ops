@@ -8,8 +8,13 @@ including creating, updating, deleting, and querying health monitors.
 import logging
 from typing import Dict, Any
 from ...connection import get_openstack_connection
+from .pools import resource_ref_ids
 
 logger = logging.getLogger(__name__)
+
+
+def _monitor_pool_ids(monitor) -> list:
+    return resource_ref_ids(monitor, 'pool_id', 'pools')
 
 
 def get_load_balancer_health_monitors(pool_name_or_id: str = "") -> Dict[str, Any]:
@@ -44,9 +49,10 @@ def get_load_balancer_health_monitors(pool_name_or_id: str = "") -> Dict[str, An
         # Get health monitors
         for monitor in conn.load_balancer.health_monitors():
             # If pool filter is specified, only include monitors for that pool
-            if target_pool and getattr(monitor, 'pool_id', None) != target_pool.id:
+            pool_ids = _monitor_pool_ids(monitor)
+            if target_pool and target_pool.id not in pool_ids:
                 continue
-                
+
             monitor_info = {
                 'id': monitor.id,
                 'name': getattr(monitor, 'name', ''),
@@ -58,7 +64,8 @@ def get_load_balancer_health_monitors(pool_name_or_id: str = "") -> Dict[str, An
                 'admin_state_up': monitor.is_admin_state_up,
                 'provisioning_status': monitor.provisioning_status,
                 'operating_status': monitor.operating_status,
-                'pool_id': getattr(monitor, 'pool_id', None),
+                'pool_id': pool_ids[0] if pool_ids else None,
+                'pool_ids': pool_ids,
                 'http_method': getattr(monitor, 'http_method', None),
                 'url_path': getattr(monitor, 'url_path', None),
                 'expected_codes': getattr(monitor, 'expected_codes', None),
@@ -217,7 +224,8 @@ def set_load_balancer_health_monitor(action: str, monitor_name_or_id: str = "", 
                     'success': False,
                     'message': f'Health monitor not found: {monitor_name_or_id}'
                 }
-            
+
+            pool_ids = _monitor_pool_ids(monitor)
             return {
                 'success': True,
                 'health_monitor': {
@@ -231,7 +239,8 @@ def set_load_balancer_health_monitor(action: str, monitor_name_or_id: str = "", 
                     'admin_state_up': monitor.is_admin_state_up,
                     'provisioning_status': monitor.provisioning_status,
                     'operating_status': monitor.operating_status,
-                    'pool_id': getattr(monitor, 'pool_id', None),
+                    'pool_id': pool_ids[0] if pool_ids else None,
+                    'pool_ids': pool_ids,
                     'http_method': getattr(monitor, 'http_method', None),
                     'url_path': getattr(monitor, 'url_path', None),
                     'expected_codes': getattr(monitor, 'expected_codes', None),

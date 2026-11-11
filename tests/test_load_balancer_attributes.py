@@ -121,6 +121,8 @@ def test_load_balancer_details_and_status(conn):
     assert pool['admin_state_up'] is False
     assert pool['member_count'] == 1
     conn.load_balancer.members.assert_called_once_with('pool-1')
+    # Octavia rejects ?listener_id= on GET /pools with 400; filter by LB instead.
+    conn.load_balancer.pools.assert_called_once_with(loadbalancer_id='lb-1')
 
     status = core.set_load_balancer('status', lb_name_or_id='web-lb')
     assert status['success'] is True
@@ -234,6 +236,63 @@ def test_health_monitor_list_show_and_set(conn):
     assert shown['health_monitor']['admin_state_up'] is False
     assert updated['success'] is True, updated
     assert updated['health_monitor']['admin_state_up'] is False
+
+
+def test_pool_reports_relations_from_octavia_get_response(conn):
+    # Octavia GET responses carry listeners/loadbalancers lists, not listener_id.
+    pool = Pool.existing(
+        id='pool-1', name='web-pool', description='', protocol='HTTP',
+        lb_algorithm='ROUND_ROBIN', is_admin_state_up=True,
+        provisioning_status='ACTIVE', operating_status='ONLINE',
+        listeners=[{'id': 'lis-1'}], loadbalancers=[{'id': 'lb-1'}],
+        health_monitor_id='hm-1',
+    )
+    conn.load_balancer.pools.return_value = [pool]
+    conn.load_balancer.members.return_value = []
+
+    listed = pools.get_load_balancer_pools()
+    shown = pools.set_load_balancer_pool('show', pool_name_or_id='web-pool')
+
+    conn.load_balancer.find_listener.return_value = _listener()
+    conn.load_balancer.pools.reset_mock()
+    conn.load_balancer.pools.return_value = [
+        pool, Pool.existing(id='pool-2', name='other', listeners=[{'id': 'lis-2'}]),
+    ]
+    by_listener = pools.get_load_balancer_pools('http')
+
+    # Octavia rejects ?listener_id= on GET /pools with 400; filter client-side.
+    conn.load_balancer.pools.assert_called_once_with()
+    assert [p['id'] for p in by_listener['pools']] == ['pool-1']
+    for result in (listed['pools'][0], shown['pool']):
+        assert result['listener_id'] == 'lis-1'
+        assert result['listener_ids'] == ['lis-1']
+        assert result['loadbalancer_ids'] == ['lb-1']
+        assert result['health_monitor_id'] == 'hm-1'
+
+
+def test_health_monitor_reports_and_filters_by_octavia_pools_list(conn):
+    # Octavia GET responses carry a pools list, not pool_id.
+    def monitor(monitor_id, pool_id):
+        return HealthMonitor.existing(
+            id=monitor_id, name=monitor_id, type='TCP', delay=10, timeout=5,
+            max_retries=3, is_admin_state_up=True, provisioning_status='ACTIVE',
+            operating_status='ONLINE', pools=[{'id': pool_id}],
+        )
+
+    conn.load_balancer.pools.return_value = [_pool()]
+    conn.load_balancer.health_monitors.return_value = [
+        monitor('hm-1', 'pool-1'), monitor('hm-other', 'pool-2'),
+    ]
+
+    listed = health_monitors.get_load_balancer_health_monitors()
+    filtered = health_monitors.get_load_balancer_health_monitors('web-pool')
+    shown = health_monitors.set_load_balancer_health_monitor('show', monitor_name_or_id='hm-1')
+
+    assert listed['health_monitors'][0]['pool_id'] == 'pool-1'
+    assert listed['health_monitors'][0]['pool_ids'] == ['pool-1']
+    assert [m['id'] for m in filtered['health_monitors']] == ['hm-1']
+    assert shown['health_monitor']['pool_id'] == 'pool-1'
+    assert shown['health_monitor']['pool_ids'] == ['pool-1']
 
 
 def test_l7_policy_list_and_rule_show(conn):

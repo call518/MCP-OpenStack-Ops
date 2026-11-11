@@ -12,6 +12,34 @@ from ...connection import get_openstack_connection
 logger = logging.getLogger(__name__)
 
 
+def resource_ref_ids(resource, id_attr: str, list_attr: str) -> list:
+    """Return related resource IDs from a single-ID attribute and a reference list.
+
+    Octavia accepts single IDs such as ``listener_id`` or ``pool_id`` only in
+    create requests; GET responses report relations as lists of ``{'id': ...}``
+    references (``listeners``, ``loadbalancers``, ``pools``).
+    """
+    ids = []
+    single_id = getattr(resource, id_attr, None)
+    if single_id:
+        ids.append(single_id)
+    for ref in getattr(resource, list_attr, None) or []:
+        ref_id = ref.get('id') if isinstance(ref, dict) else getattr(ref, 'id', None)
+        if ref_id and ref_id not in ids:
+            ids.append(ref_id)
+    return ids
+
+
+def _pool_relations(pool) -> Dict[str, Any]:
+    listener_ids = resource_ref_ids(pool, 'listener_id', 'listeners')
+    return {
+        'listener_id': listener_ids[0] if listener_ids else None,
+        'listener_ids': listener_ids,
+        'loadbalancer_ids': resource_ref_ids(pool, 'loadbalancer_id', 'loadbalancers'),
+        'health_monitor_id': getattr(pool, 'health_monitor_id', None),
+    }
+
+
 def get_load_balancer_pools(listener_name_or_id: str = None) -> Dict[str, Any]:
     """
     Get load balancer pools, optionally filtered by listener.
@@ -34,7 +62,11 @@ def get_load_balancer_pools(listener_name_or_id: str = None) -> Dict[str, Any]:
                     'message': f'Listener not found: {listener_name_or_id}'
                 }
             
-            pools = list(conn.load_balancer.pools(listener_id=listener.id))
+            # Octavia rejects ?listener_id= on GET /pools; filter client-side.
+            pools = [
+                pool for pool in conn.load_balancer.pools()
+                if listener.id in resource_ref_ids(pool, 'listener_id', 'listeners')
+            ]
         else:
             # Get all pools
             pools = list(conn.load_balancer.pools())
@@ -64,7 +96,7 @@ def get_load_balancer_pools(listener_name_or_id: str = None) -> Dict[str, Any]:
                 'protocol': pool.protocol,
                 'lb_algorithm': pool.lb_algorithm,
                 'admin_state_up': pool.is_admin_state_up,
-                'listener_id': getattr(pool, 'listener_id', None),
+                **_pool_relations(pool),
                 'members': member_summary,
                 'member_count': len(member_summary),
                 'created_at': str(pool.created_at) if hasattr(pool, 'created_at') else 'N/A',
@@ -234,7 +266,7 @@ def set_load_balancer_pool(action: str, pool_name_or_id: str = "", name: str = "
                     'admin_state_up': pool.is_admin_state_up,
                     'provisioning_status': pool.provisioning_status,
                     'operating_status': pool.operating_status,
-                    'listener_id': getattr(pool, 'listener_id', None),
+                    **_pool_relations(pool),
                     'members': members,
                     'member_count': len(members),
                     'created_at': str(pool.created_at) if hasattr(pool, 'created_at') else 'N/A',

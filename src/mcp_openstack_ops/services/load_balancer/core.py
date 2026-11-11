@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 from ...connection import get_openstack_connection
 from .listeners import listener_belongs_to_load_balancer
+from .pools import resource_ref_ids
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -179,12 +180,17 @@ def get_load_balancer_details(lb_name_or_id: str) -> Dict[str, Any]:
         # Get listeners
         listeners = list(conn.load_balancer.listeners(load_balancer_id=lb.id))
         listener_details = []
-        
+        # Octavia rejects ?listener_id= on GET /pools; list by load balancer
+        # and match each pool's listeners references instead.
+        lb_pools = list(conn.load_balancer.pools(loadbalancer_id=lb.id))
+
         for listener in listeners:
             if not listener_belongs_to_load_balancer(listener, lb.id):
                 continue
-            # Get pools for this listener
-            pools = list(conn.load_balancer.pools(listener_id=listener.id))
+            pools = [
+                pool for pool in lb_pools
+                if listener.id in resource_ref_ids(pool, 'listener_id', 'listeners')
+            ]
             pool_summary = []
             
             for pool in pools:

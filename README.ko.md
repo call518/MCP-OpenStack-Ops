@@ -438,7 +438,7 @@ Octavia 도구는 openstacksdk의 속성 이름(`is_admin_state_up`, `is_enabled
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
 | `openstack loadbalancer list` | `get_load_balancer_list` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 페이지 처리를 지원하는 로드밸런서 목록 |
-| `openstack loadbalancer show` | `get_load_balancer_details` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서 상세 정보 |
+| `openstack loadbalancer show` | `get_load_balancer_details` | ✅ | 2026-11-12 Octavia 대상 읽기 점검 통과. 로드밸런서 상세 정보. 풀은 각 풀의 `listeners` 참조로 리스너에 연결 |
 | `openstack loadbalancer create` | `set_load_balancer` (action="create") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서 생성 |
 | `openstack loadbalancer delete` | `set_load_balancer` (action="delete") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서 삭제 |
 | `openstack loadbalancer set` | `set_load_balancer` (action="update") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서 속성 변경 |
@@ -455,11 +455,11 @@ Octavia 도구는 openstacksdk의 속성 이름(`is_admin_state_up`, `is_enabled
 | `openstack loadbalancer listener stats show` | `set_load_balancer_listener` (action="stats") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 리스너 통계 |
 | `openstack loadbalancer listener unset` | `set_load_balancer_listener` (action="unset") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 리스너 속성 해제 |
 | **풀 관리** | | | |
-| `openstack loadbalancer pool list` | `get_load_balancer_pools` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 풀 목록(전체 또는 리스너별) |
+| `openstack loadbalancer pool list` | `get_load_balancer_pools` | ✅ | 2026-11-12 Octavia 대상 읽기 점검 통과. 풀 목록(전체 또는 리스너별). Octavia 응답의 `listener_ids`, `loadbalancer_ids`, `health_monitor_id` 표시 |
 | `openstack loadbalancer pool create` | `set_load_balancer_pool` (action="create") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 알고리즘을 지정한 풀 생성 |
 | `openstack loadbalancer pool delete` | `set_load_balancer_pool` (action="delete") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 풀 삭제 |
 | `openstack loadbalancer pool set` | `set_load_balancer_pool` (action="set") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 풀 속성 변경 |
-| `openstack loadbalancer pool show` | `get_load_balancer_pools` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 풀 상세 정보 |
+| `openstack loadbalancer pool show` | `get_load_balancer_pools` | ✅ | 2026-11-12 Octavia 대상 읽기 점검 통과. 풀 상세 정보(`listener_ids`, `loadbalancer_ids`, `health_monitor_id` 포함) |
 | `openstack loadbalancer pool stats show` | N/A | ❌ Not implemented | 이 CLI 작업에 해당하는 등록된 도구/action이 없음 |
 | `openstack loadbalancer pool unset` | N/A | ❌ Not implemented | 이 CLI 작업에 해당하는 등록된 도구/action이 없음 |
 | **멤버 관리** | | | |
@@ -470,11 +470,11 @@ Octavia 도구는 openstacksdk의 속성 이름(`is_admin_state_up`, `is_enabled
 | `openstack loadbalancer member show` | `get_load_balancer_pool_members` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 풀 멤버 상세 정보 |
 | `openstack loadbalancer member unset` | N/A | ❌ Not implemented | 이 CLI 작업에 해당하는 등록된 도구/action이 없음 |
 | **헬스 모니터 관리** | | | |
-| `openstack loadbalancer healthmonitor list` | `get_load_balancer_health_monitors` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 헬스 모니터 목록 |
+| `openstack loadbalancer healthmonitor list` | `get_load_balancer_health_monitors` | ✅ | 2026-11-12 Octavia 대상 읽기 점검 통과. 헬스 모니터 목록(전체 또는 풀별). Octavia 응답의 `pool_ids` 표시 |
 | `openstack loadbalancer healthmonitor create` | `set_load_balancer_health_monitor` (action="create") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 헬스 모니터 생성 |
 | `openstack loadbalancer healthmonitor delete` | `set_load_balancer_health_monitor` (action="delete") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 헬스 모니터 삭제 |
 | `openstack loadbalancer healthmonitor set` | `set_load_balancer_health_monitor` (action="set") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 헬스 모니터 변경 |
-| `openstack loadbalancer healthmonitor show` | `get_load_balancer_health_monitors` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 헬스 모니터 상세 정보 |
+| `openstack loadbalancer healthmonitor show` | `get_load_balancer_health_monitors` | ✅ | 2026-11-12 Octavia 대상 읽기 점검 통과. 헬스 모니터 상세 정보(`pool_ids` 포함) |
 | `openstack loadbalancer healthmonitor unset` | N/A | ❌ Not implemented | 이 CLI 작업에 해당하는 등록된 도구/action이 없음 |
 | **L7 정책 관리** | | | |
 | `openstack loadbalancer l7policy list` | `get_load_balancer_l7_policies` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. L7 정책 목록 |
