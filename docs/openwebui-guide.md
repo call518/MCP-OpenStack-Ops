@@ -136,7 +136,9 @@ model provider. Use a model with reliable native function calling.
 For the shortest first run, choose one provider:
 
 - **OpenAI:** open **Settings → Admin → Connections**, add an OpenAI API
-  connection, use `https://api.openai.com/v1`, enter the API key, and save it.
+  connection, use `https://api.openai.com/v1`, enter the API key, set **API
+  Type** to **Chat Completions** for the Quick Start default (see
+  [3.3](#33-configure-openai-reasoning-models)), and save it.
   See the [OpenWebUI OpenAI guide](https://docs.openwebui.com/getting-started/quick-start/connect-a-provider/starting-with-openai/).
 - **Ollama on the Docker host:** the Compose configuration already points
   OpenWebUI to `http://host.docker.internal:11434`. Ensure Ollama listens where
@@ -219,15 +221,27 @@ to the model until a matching tool is needed. See the
 
 ### 3.3 Configure OpenAI reasoning models
 
-The Quick Start defaults to `DEFAULT_MODEL_PARAMS={"reasoning_effort":"none"}`.
-This applies to every model, disables model reasoning, and allows function tools
-through Chat Completions for models that support this compatibility mode.
+For OpenAI reasoning models, the connection's **API Type** and the **Reasoning
+Effort** parameter must match. Set **API Type** under **Settings → Admin →
+Connections → edit the OpenAI connection**, and use one of these combinations:
 
-Use the Responses API when GPT-6.1 Terra must retain reasoning while calling
-tools. If you need an explicit non-default reasoning effort, first ensure the
-model's actual provider connection uses **Responses**; parameter names differ
-between Responses and Chat Completions. Keeping the OpenWebUI setting at
-**Default** avoids sending an endpoint-specific override.
+| Setup | API Type | Reasoning Effort | Result |
+| --- | --- | --- | --- |
+| Quick Start default | **Chat Completions** | `none` (from `DEFAULT_MODEL_PARAMS`) | Tools work; model reasoning is off |
+| Reasoning with tools | **Responses** | **Default** in every scope | Tools work; the model uses its default reasoning effort |
+
+Other combinations fail with OpenWebUI 0.13.0:
+
+- **Responses** with any `reasoning_effort` value, including `none`: OpenWebUI
+  sends the Chat Completions parameter `reasoning_effort` unchanged, and the
+  Responses API rejects it with `Unsupported parameter: 'reasoning_effort'`.
+- **Chat Completions** with a reasoning effort other than `none`: the API
+  rejects the request with `Function tools with reasoning_effort are not
+  supported`.
+
+The Quick Start default `DEFAULT_MODEL_PARAMS={"reasoning_effort":"none"}`
+applies to every model, disables model reasoning, and allows function tools
+through Chat Completions for models that support this compatibility mode.
 
 The default can be applied at either of these scopes:
 
@@ -251,9 +265,9 @@ instead. Setting `ENABLE_PERSISTENT_CONFIG=false` makes environment values win
 on every start, but administrator UI changes are then not persisted.
 
 To use model reasoning instead, set `DEFAULT_MODEL_PARAMS={}` before the first
-start, use a provider connection that actually sends the request through
-**Responses**, and leave **Reasoning Effort** at **Default** under **Settings →
-Admin → Models → _model_ → Advanced Params**. Remove any `reasoning_effort` or
+start, set the connection's **API Type** to **Responses**, and leave
+**Reasoning Effort** at **Default** under **Settings → Admin → Models → Model
+Defaults** and **Settings → Admin → Models → _model_ → Advanced Params**. Remove any `reasoning_effort` or
 `reasoning` override from the chat's **Controls → Advanced Params** and
 **Settings → General → Advanced Parameters**, then start a new chat. OpenWebUI
 can merge parameters from these scopes, so an old override can still make the
@@ -298,8 +312,8 @@ Common OpenWebUI 0.13 errors:
 | --- | --- | --- |
 | `Cannot connect to host localhost` | An administrator connection used a browser/host URL from inside the OpenWebUI container | Use `http://mcp-server:8000/mcp` for direct MCP or `http://mcpo-proxy:8000/mcp-openstack-ops` for MCPO |
 | `tools: array too long` | External and built-in tool definitions exceeded the model provider's request limit | Enable Tool Search with threshold `0` |
-| `Function tools with reasoning_effort are not supported ... /v1/chat/completions` | Chat Completions received function tools and a non-`none` reasoning effort | Use Responses, or set reasoning effort to `none` if reasoning is not needed |
-| `Unsupported parameter: reasoning_effort ... moved to reasoning.effort` | OpenWebUI 0.13.0 sent a Chat Completions parameter through a Responses connection | Remove the override and set Reasoning Effort to Default |
+| `Function tools with reasoning_effort are not supported ... /v1/chat/completions` | Chat Completions received function tools and a non-`none` reasoning effort | Set Reasoning Effort to `none` (Quick Start default), or switch **API Type** to **Responses** with Reasoning Effort at **Default** |
+| `Unsupported parameter: reasoning_effort ... moved to reasoning.effort` | OpenWebUI 0.13.0 sent the Chat Completions parameter `reasoning_effort` (even `none`) through a connection with **API Type: Responses** | Set **API Type** to **Chat Completions** (Quick Start default), or keep **Responses** and set Reasoning Effort to **Default** in every scope; then start a new chat |
 | MCPO logs `POST http://mcp-server:8000/mcp "404 Not Found"` and `McpError: Session terminated`; `mcp-server` logs `Rejected request with unknown or expired session ID` | MCP sessions exist only in the running `mcp-server` process. After `mcp-server` restarts, MCPO keeps its old session and does not reconnect. `docker compose restart` does not wait for the `mcp-server` health check, so MCPO can connect to the old process just before it stops | With `mcp-server` running, run `docker compose restart mcpo-proxy`. To restart both, use `docker compose up -d --force-recreate mcp-server mcpo-proxy` instead of `docker compose restart`. If a direct MCP client reports the same session error, reconnect it |
 
 ## 5. Enable modifications only when needed

@@ -115,19 +115,21 @@ MCPO(`http://localhost:8080`)가 시작됩니다.
 **3. OpenWebUI를 MCP 서버에 연결**
 
 1. `http://localhost:3000`을 열어 관리자 계정을 만들고, **Settings → Admin →
-   Connections**에서 모델 공급자를 추가합니다.
-2. Quick Start는 `.env.example`에 이미 들어 있는 다음 기본값으로 Chat
-   Completions의 도구 호출을 활성화합니다.
+   Connections**에서 모델 공급자를 추가합니다. OpenAI 연결이라면 저장하기 전에
+   연결 대화상자의 **API Type**을 **Chat Completions**로 설정하세요.
+2. Quick Start는 `.env.example`에 이미 들어 있는 다음 기본값으로 모델 reasoning을
+   끄고 Chat Completions를 통해 도구를 호출합니다.
 
    ```dotenv
    DEFAULT_MODEL_PARAMS={"reasoning_effort":"none"}
    ```
 
-   이 값은 모든 모델에 적용되며 모델 reasoning을 끕니다. `open-webui-data` 볼륨이
-   이미 있으면 저장된 DB 값이 우선하므로 **Settings → Admin → Models → Model
-   Defaults → Model Parameters**에서도 같은 값을 설정하세요. Responses API로
-   reasoning을 사용하려면 최초 기동 전에 `DEFAULT_MODEL_PARAMS={}`로 바꾸고
-   **Reasoning Effort**를 **Default**로 두세요. 자세한 내용은
+   이 값은 **API Type: Chat Completions**에서만 동작합니다. **Responses**로 두면
+   OpenWebUI 0.13.0이 그대로 `reasoning_effort`를 보내므로 모든 요청이
+   `Unsupported parameter: 'reasoning_effort'` 오류로 실패합니다.
+   `open-webui-data` 볼륨이 이미 있으면 저장된 DB 값이 우선하므로 **Settings →
+   Admin → Models → Model Defaults → Model Parameters**에서도 같은 값을
+   설정하세요. 대신 **Responses**로 모델 reasoning을 유지하려면
    [OpenWebUI 가이드](docs/openwebui-guide.ko.md#33-openai-reasoning-모델-설정)를
    참고하세요.
 3. **Settings → Admin → Tools → Integrations → External Tool Servers**에서

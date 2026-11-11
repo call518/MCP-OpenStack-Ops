@@ -135,7 +135,9 @@ docker compose logs mcp-server
 가장 빨리 시작하려면 공급자 하나를 고르세요.
 
 - **OpenAI:** **Settings → Admin → Connections**에서 OpenAI API 연결을 추가하고
-  `https://api.openai.com/v1`과 API 키를 입력해 저장합니다.
+  `https://api.openai.com/v1`과 API 키를 입력합니다. Quick Start 기본값을 쓰려면
+  **API Type**을 **Chat Completions**로 설정한 뒤
+  ([3.3](#33-openai-reasoning-모델-설정) 참고) 저장합니다.
   [OpenWebUI OpenAI 가이드](https://docs.openwebui.com/getting-started/quick-start/connect-a-provider/starting-with-openai/)를
   참고하세요.
 - **Docker 호스트의 Ollama:** Compose 설정이 이미 OpenWebUI를
@@ -220,15 +222,26 @@ OpenStack 서버의 도구와 OpenWebUI 기본 도구를 합치면 모델 공급
 
 ### 3.3 OpenAI reasoning 모델 설정
 
-Quick Start 기본값은 `DEFAULT_MODEL_PARAMS={"reasoning_effort":"none"}`입니다.
-이 값은 모든 모델에 적용되고 모델 reasoning을 끄며, 이 호환 모드를 지원하는 모델이
-Chat Completions를 통해 함수 도구를 호출할 수 있게 합니다.
+OpenAI reasoning 모델에서는 연결의 **API Type**과 **Reasoning Effort** 파라미터가
+서로 맞아야 합니다. **API Type**은 **Settings → Admin → Connections → OpenAI 연결
+편집**에서 설정하며, 다음 조합 중 하나를 사용하세요.
 
-GPT-6.1 Terra가 reasoning을 유지하면서 도구를 호출해야 한다면 Responses API를
-사용하세요. 기본값이 아닌 reasoning effort를 명시해야 한다면 먼저 해당 모델이 실제
-사용하는 공급자 연결이 **Responses**인지 확인하세요. Responses와 Chat Completions의
-파라미터 이름은 서로 다릅니다. OpenWebUI 설정을 **Default**로 두면 endpoint 전용
-override를 보내지 않아 이 충돌을 피할 수 있습니다.
+| 구성 | API Type | Reasoning Effort | 결과 |
+| --- | --- | --- | --- |
+| Quick Start 기본값 | **Chat Completions** | `none` (`DEFAULT_MODEL_PARAMS`에서 적용) | 도구 동작, 모델 reasoning 꺼짐 |
+| reasoning과 도구 함께 사용 | **Responses** | 모든 범위에서 **Default** | 도구 동작, 모델이 기본 reasoning effort 사용 |
+
+OpenWebUI 0.13.0에서 다른 조합은 실패합니다.
+
+- **Responses**에 `none`을 포함한 어떤 `reasoning_effort` 값이든 설정: OpenWebUI가
+  Chat Completions 파라미터인 `reasoning_effort`를 그대로 보내고, Responses API가
+  `Unsupported parameter: 'reasoning_effort'`로 거부합니다.
+- **Chat Completions**에 `none`이 아닌 reasoning effort 설정: API가
+  `Function tools with reasoning_effort are not supported`로 요청을 거부합니다.
+
+Quick Start 기본값 `DEFAULT_MODEL_PARAMS={"reasoning_effort":"none"}`은 모든 모델에
+적용되고 모델 reasoning을 끄며, 이 호환 모드를 지원하는 모델이 Chat Completions를
+통해 함수 도구를 호출할 수 있게 합니다.
 
 이 기본값은 다음 중 한 범위에 적용할 수 있습니다.
 
@@ -251,8 +264,9 @@ UI의 **Model Defaults**에서 수정하세요. `ENABLE_PERSISTENT_CONFIG=false`
 기동할 때마다 환경변수가 우선하지만 관리자 UI의 변경 사항은 저장되지 않습니다.
 
 모델 reasoning을 사용하려면 최초 기동 전에 `DEFAULT_MODEL_PARAMS={}`로 바꾸고,
-실제 요청을 **Responses**로 보내는 공급자 연결을 사용하며, **Settings → Admin →
-Models → _모델_ → Advanced Params**의 **Reasoning Effort**를 **Default**로 두세요.
+연결의 **API Type**을 **Responses**로 설정하며, **Settings → Admin → Models →
+Model Defaults**와 **Settings → Admin → Models → _모델_ → Advanced Params**의
+**Reasoning Effort**를 **Default**로 두세요.
 채팅의 **Controls → Advanced Params**와 **Settings → General → Advanced
 Parameters**에서도 `reasoning_effort` 또는 `reasoning` override를 제거한 뒤 새
 채팅을 시작합니다. OpenWebUI는 여러 범위의 파라미터를 합칠 수 있으므로 이전
@@ -297,8 +311,8 @@ OpenWebUI 0.13에서 자주 나오는 오류:
 | --- | --- | --- |
 | `Cannot connect to host localhost` | 관리자 연결에 브라우저/호스트용 URL을 써서, OpenWebUI 컨테이너 안에서 접속하지 못함 | 직접 MCP는 `http://mcp-server:8000/mcp`, MCPO는 `http://mcpo-proxy:8000/mcp-openstack-ops`를 사용 |
 | `tools: array too long` | 외부 도구와 기본 도구 정의가 모델 공급자의 요청 한도를 넘음 | 임계값 `0`으로 Tool Search를 켬 |
-| `Function tools with reasoning_effort are not supported ... /v1/chat/completions` | Chat Completions가 함수 도구와 `none`이 아닌 reasoning effort를 함께 받음 | Responses를 쓰거나, reasoning이 필요 없으면 reasoning effort를 `none`으로 설정 |
-| `Unsupported parameter: reasoning_effort ... moved to reasoning.effort` | OpenWebUI 0.13.0이 Responses 연결로 Chat Completions 파라미터를 보냄 | override를 제거하고 Reasoning Effort를 Default로 설정 |
+| `Function tools with reasoning_effort are not supported ... /v1/chat/completions` | Chat Completions가 함수 도구와 `none`이 아닌 reasoning effort를 함께 받음 | Reasoning Effort를 `none`으로 설정(Quick Start 기본값)하거나, **API Type**을 **Responses**로 바꾸고 Reasoning Effort를 **Default**로 설정 |
+| `Unsupported parameter: reasoning_effort ... moved to reasoning.effort` | OpenWebUI 0.13.0이 **API Type: Responses** 연결로 Chat Completions 파라미터 `reasoning_effort`(`none` 포함)를 보냄 | **API Type**을 **Chat Completions**로 설정(Quick Start 기본값)하거나, **Responses**를 유지하고 모든 범위에서 Reasoning Effort를 **Default**로 설정한 뒤 새 채팅 시작 |
 | MCPO 로그에 `POST http://mcp-server:8000/mcp "404 Not Found"`와 `McpError: Session terminated`, `mcp-server` 로그에 `Rejected request with unknown or expired session ID` | MCP 세션은 실행 중인 `mcp-server` 프로세스 안에만 존재함. `mcp-server`가 재시작된 뒤에도 MCPO는 이전 세션을 유지하고 다시 연결하지 않음. `docker compose restart`는 `mcp-server` health check를 기다리지 않으므로, MCPO가 종료 직전의 이전 프로세스에 연결할 수 있음 | `mcp-server`가 실행 중인 상태에서 `docker compose restart mcpo-proxy`를 실행. 둘 다 재시작하려면 `docker compose restart` 대신 `docker compose up -d --force-recreate mcp-server mcpo-proxy`를 사용. 직접 MCP 클라이언트가 같은 세션 오류를 보고하면 다시 연결 |
 
 ## 5. 필요할 때만 변경 작업 켜기

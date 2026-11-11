@@ -113,20 +113,23 @@ This starts OpenWebUI (`http://localhost:3000`), the MCP server
 **3. Connect OpenWebUI to the MCP server**
 
 1. Open `http://localhost:3000`, create the administrator account, and add a
-   model provider under **Settings → Admin → Connections**.
-2. The Quick Start enables tool calling through Chat Completions by default with
-   this setting already present in `.env.example`:
+   model provider under **Settings → Admin → Connections**. For an OpenAI
+   connection, set **API Type** to **Chat Completions** in the connection
+   dialog before saving it.
+2. The Quick Start calls tools through Chat Completions with model reasoning
+   turned off, using this default already present in `.env.example`:
 
    ```dotenv
    DEFAULT_MODEL_PARAMS={"reasoning_effort":"none"}
    ```
 
-   This applies to every model and disables model reasoning. If the
-   `open-webui-data` volume already exists, set the same value under **Settings
-   → Admin → Models → Model Defaults → Model Parameters** because its saved
-   database value takes precedence. To use reasoning through the Responses API,
-   set `DEFAULT_MODEL_PARAMS={}` before the first start and leave **Reasoning
-   Effort** at **Default**; see the [OpenWebUI guide](docs/openwebui-guide.md#33-configure-openai-reasoning-models).
+   This value requires **API Type: Chat Completions**. With **Responses**,
+   OpenWebUI 0.13.0 still sends `reasoning_effort`, and every request fails with
+   `Unsupported parameter: 'reasoning_effort'`. If the `open-webui-data` volume
+   already exists, set the same value under **Settings → Admin → Models → Model
+   Defaults → Model Parameters** because its saved database value takes
+   precedence. To keep model reasoning through **Responses** instead, see the
+   [OpenWebUI guide](docs/openwebui-guide.md#33-configure-openai-reasoning-models).
 3. Under **Settings → Admin → Tools → Integrations → External Tool Servers**,
    add a connection of type `MCP (Streamable HTTP)` with URL
    `http://mcp-server:8000/mcp` and authentication `None`.
