@@ -207,6 +207,7 @@ To change the SDK version for an older release, see
 | [Security guide](docs/security.md) | Project isolation, read-only default, Bearer authentication |
 | [Multi-user guide](docs/multi-user-guide.md) | Per-user Application Credential authentication (experimental) |
 | [Development guide](docs/development.md) | Tests, live tool checks, adding tools, contributing |
+| [TODO](ToDo.md) | Outstanding implementation and live-validation work |
 | [OpenStack CLI vs MCP tools mapping](#-openstack-cli-vs-mcp-tools-mapping) | Every tool, its CLI equivalent, and its validation status |
 | [Validation evidence](docs/validation.md) | Dates, revisions, conditions and counts of the live and unit-test checks |
 

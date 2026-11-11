@@ -208,6 +208,7 @@ modify operations**를 켜고) 서버를 다시 시작하세요. 이 계정이 �
 | [보안 가이드](docs/security.ko.md) | 프로젝트 격리, 읽기 전용 기본값, Bearer 인증 |
 | [다중 사용자 가이드](docs/multi-user-guide.ko.md) | 사용자별 Application Credential 인증 (실험 기능) |
 | [개발 가이드](docs/development.ko.md) | 테스트, live 도구 점검, 도구 추가, 기여 방법 |
+| [TODO](ToDo.ko.md) | 아직 남은 구현 및 live 검증 작업 |
 | [OpenStack CLI와 MCP 도구 매핑](#-openstack-cli와-mcp-도구-매핑) | 모든 도구와 대응하는 CLI 명령, 검증 상태 |
 | [검증 기록](docs/validation.ko.md) | live 점검과 단위 테스트의 날짜, 리비전, 조건, 결과 수치 |
 
