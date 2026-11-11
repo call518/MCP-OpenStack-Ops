@@ -116,13 +116,27 @@ MCPO(`http://localhost:8080`)가 시작됩니다.
 
 1. `http://localhost:3000`을 열어 관리자 계정을 만들고, **Settings → Admin →
    Connections**에서 모델 공급자를 추가합니다.
-2. **Settings → Admin → Tools → Integrations → External Tool Servers**에서
+2. Quick Start는 `.env.example`에 이미 들어 있는 다음 기본값으로 Chat
+   Completions의 도구 호출을 활성화합니다.
+
+   ```dotenv
+   DEFAULT_MODEL_PARAMS={"reasoning_effort":"none"}
+   ```
+
+   이 값은 모든 모델에 적용되며 모델 reasoning을 끕니다. `open-webui-data` 볼륨이
+   이미 있으면 저장된 DB 값이 우선하므로 **Settings → Admin → Models → Model
+   Defaults → Model Parameters**에서도 같은 값을 설정하세요. Responses API로
+   reasoning을 사용하려면 최초 기동 전에 `DEFAULT_MODEL_PARAMS={}`로 바꾸고
+   **Reasoning Effort**를 **Default**로 두세요. 자세한 내용은
+   [OpenWebUI 가이드](docs/openwebui-guide.ko.md#33-openai-reasoning-모델-설정)를
+   참고하세요.
+3. **Settings → Admin → Tools → Integrations → External Tool Servers**에서
    유형 `MCP (Streamable HTTP)`, URL `http://mcp-server:8000/mcp`, 인증
    `None`으로 연결을 추가합니다.
-3. **Settings → Admin → System → Interface → Chat**에서 **Tool Search**와
+4. **Settings → Admin → System → Interface → Chat**에서 **Tool Search**와
    **Defer Built-in Tools**를 켜고 **Deferral Threshold**를 `0`으로 설정합니다.
    전체 도구 목록이 모델의 제한을 넘지 않게 하기 위함입니다.
-4. 새 채팅에서 **Integrations → Tools**의 연결을 켜고 물어봅니다:
+5. 새 채팅에서 **Integrations → Tools**의 연결을 켜고 물어봅니다:
    `Use mcp-openstack-ops to list the instances in my OpenStack project.`
 
 > **MCPO는 선택 사항입니다.** MCPO는 MCP 도구를 OpenAPI(REST) 서버로 노출하는

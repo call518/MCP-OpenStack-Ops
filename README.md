@@ -114,13 +114,26 @@ This starts OpenWebUI (`http://localhost:3000`), the MCP server
 
 1. Open `http://localhost:3000`, create the administrator account, and add a
    model provider under **Settings → Admin → Connections**.
-2. Under **Settings → Admin → Tools → Integrations → External Tool Servers**,
+2. The Quick Start enables tool calling through Chat Completions by default with
+   this setting already present in `.env.example`:
+
+   ```dotenv
+   DEFAULT_MODEL_PARAMS={"reasoning_effort":"none"}
+   ```
+
+   This applies to every model and disables model reasoning. If the
+   `open-webui-data` volume already exists, set the same value under **Settings
+   → Admin → Models → Model Defaults → Model Parameters** because its saved
+   database value takes precedence. To use reasoning through the Responses API,
+   set `DEFAULT_MODEL_PARAMS={}` before the first start and leave **Reasoning
+   Effort** at **Default**; see the [OpenWebUI guide](docs/openwebui-guide.md#33-configure-openai-reasoning-models).
+3. Under **Settings → Admin → Tools → Integrations → External Tool Servers**,
    add a connection of type `MCP (Streamable HTTP)` with URL
    `http://mcp-server:8000/mcp` and authentication `None`.
-3. Under **Settings → Admin → System → Interface → Chat**, turn on **Tool
+4. Under **Settings → Admin → System → Interface → Chat**, turn on **Tool
    Search** and **Defer Built-in Tools**, and set **Deferral Threshold** to `0`
    so that the full tool list fits the model's limits.
-4. In a new chat, enable the connection under **Integrations → Tools** and ask:
+5. In a new chat, enable the connection under **Integrations → Tools** and ask:
    `Use mcp-openstack-ops to list the instances in my OpenStack project.`
 
 > **MCPO is optional.** MCPO is a proxy that exposes the MCP tools as an

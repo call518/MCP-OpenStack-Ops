@@ -219,23 +219,45 @@ to the model until a matching tool is needed. See the
 
 ### 3.3 Configure OpenAI reasoning models
 
-This step applies only to an OpenAI reasoning model that needs both non-default
-reasoning effort and function tools. In **Settings → Admin → AI → Connections**,
-edit its OpenAI connection and select API type **Responses**. Chat Completions
-does not support function tools together with a non-`none` reasoning effort on
-newer reasoning models.
+The Quick Start defaults to `DEFAULT_MODEL_PARAMS={"reasoning_effort":"none"}`.
+This applies to every model, disables model reasoning, and allows function tools
+through Chat Completions for models that support this compatibility mode.
 
-With OpenWebUI 0.13.0, leave the chat's **Model controls → Advanced Params →
-Reasoning Effort** at **Default**. Selecting **Custom** initializes the field to
-`medium` and sends the Chat Completions parameter `reasoning_effort`, which is
-not valid in a Responses request. Default omits that override and lets the model
-apply its own default effort. To force an explicit Responses value, add this
-custom parameter instead:
+Use the Responses API when GPT-6.1 Terra must retain reasoning while calling
+tools. If you need an explicit non-default reasoning effort, first ensure the
+model's actual provider connection uses **Responses**; parameter names differ
+between Responses and Chat Completions. Keeping the OpenWebUI setting at
+**Default** avoids sending an endpoint-specific override.
 
-```text
-Name: reasoning
-Value: {"effort":"medium"}
-```
+The default can be applied at either of these scopes:
+
+1. **All models from the UI:** open **Settings → Admin → Models → Model
+   Defaults → Model Parameters → Advanced Params**, add
+   `reasoning_effort = none`, and save. A per-model or chat/request value can
+   override this global baseline.
+2. **All models from the environment:** before the first start, add this line
+   to `.env`; `open-webui` receives it through the Compose `env_file` setting.
+
+   ```dotenv
+   DEFAULT_MODEL_PARAMS={"reasoning_effort":"none"}
+   ```
+
+`DEFAULT_MODEL_PARAMS` is persistent configuration. With the default
+`ENABLE_PERSISTENT_CONFIG=true`, OpenWebUI stores its initial value in the
+database and the saved database value wins on later starts. Changing this
+environment variable therefore does not replace a value already stored in the
+`open-webui-data` volume; update **Model Defaults** in the administrator UI
+instead. Setting `ENABLE_PERSISTENT_CONFIG=false` makes environment values win
+on every start, but administrator UI changes are then not persisted.
+
+To use model reasoning instead, set `DEFAULT_MODEL_PARAMS={}` before the first
+start, use a provider connection that actually sends the request through
+**Responses**, and leave **Reasoning Effort** at **Default** under **Settings →
+Admin → Models → _model_ → Advanced Params**. Remove any `reasoning_effort` or
+`reasoning` override from the chat's **Controls → Advanced Params** and
+**Settings → General → Advanced Parameters**, then start a new chat. OpenWebUI
+can merge parameters from these scopes, so an old override can still make the
+request fail.
 
 See the [OpenAI Responses migration guide](https://developers.openai.com/api/docs/guides/migrate-to-responses)
 and the [OpenWebUI Open Responses guide](https://docs.openwebui.com/getting-started/quick-start/connect-a-provider/starting-with-open-responses/).
@@ -277,7 +299,7 @@ Common OpenWebUI 0.13 errors:
 | `Cannot connect to host localhost` | An administrator connection used a browser/host URL from inside the OpenWebUI container | Use `http://mcp-server:8000/mcp` for direct MCP or `http://mcpo-proxy:8000/mcp-openstack-ops` for MCPO |
 | `tools: array too long` | External and built-in tool definitions exceeded the model provider's request limit | Enable Tool Search with threshold `0` |
 | `Function tools with reasoning_effort are not supported ... /v1/chat/completions` | Chat Completions received function tools and a non-`none` reasoning effort | Use Responses, or set reasoning effort to `none` if reasoning is not needed |
-| `Unsupported parameter: reasoning_effort ... moved to reasoning.effort` | OpenWebUI 0.13.0 sent a custom Reasoning Effort through a Responses connection | Set Reasoning Effort to Default; use custom `reasoning={"effort":"medium"}` only when an explicit value is required |
+| `Unsupported parameter: reasoning_effort ... moved to reasoning.effort` | OpenWebUI 0.13.0 sent a Chat Completions parameter through a Responses connection | Remove the override and set Reasoning Effort to Default |
 | MCPO logs `POST http://mcp-server:8000/mcp "404 Not Found"` and `McpError: Session terminated`; `mcp-server` logs `Rejected request with unknown or expired session ID` | MCP sessions exist only in the running `mcp-server` process. After `mcp-server` restarts, MCPO keeps its old session and does not reconnect. `docker compose restart` does not wait for the `mcp-server` health check, so MCPO can connect to the old process just before it stops | With `mcp-server` running, run `docker compose restart mcpo-proxy`. To restart both, use `docker compose up -d --force-recreate mcp-server mcpo-proxy` instead of `docker compose restart`. If a direct MCP client reports the same session error, reconnect it |
 
 ## 5. Enable modifications only when needed
