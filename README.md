@@ -110,13 +110,16 @@ docker compose ps      # wait until mcp-server is healthy
 This starts OpenWebUI (`http://localhost:3000`), the MCP server
 (`http://localhost:8000/mcp`) and MCPO (`http://localhost:8080`).
 
-**3. Connect OpenWebUI to the MCP server**
+**3. Connect a model provider**
 
-1. Open `http://localhost:3000`, create the administrator account, and add a
-   model provider under **Settings → Admin → Connections**. For an OpenAI
-   connection, set **API Type** to **Chat Completions** in the connection
-   dialog before saving it.
-2. The Quick Start calls tools through Chat Completions with model reasoning
+These steps apply to both the direct MCP connection and MCPO.
+
+1. Open `http://localhost:3000` and create the administrator account.
+2. Under **Settings → Admin → Connections**, add an OpenAI connection with URL
+   `https://api.openai.com/v1`, **Auth** `Bearer` with your OpenAI API key, and
+   **API Type** set to **Chat Completions**, then save it. For another provider,
+   see the [OpenWebUI guide](docs/openwebui-guide.md#3-configure-openwebui-013).
+3. The Quick Start calls tools through Chat Completions with model reasoning
    turned off, using this default already present in `.env.example`:
 
    ```dotenv
@@ -130,13 +133,16 @@ This starts OpenWebUI (`http://localhost:3000`), the MCP server
    Defaults → Model Parameters** because its saved database value takes
    precedence. To keep model reasoning through **Responses** instead, see the
    [OpenWebUI guide](docs/openwebui-guide.md#33-configure-openai-reasoning-models).
-3. Under **Settings → Admin → Tools → Integrations → External Tool Servers**,
+
+**4. Connect the MCP server**
+
+1. Under **Settings → Admin → Tools → Integrations → External Tool Servers**,
    add a connection of type `MCP (Streamable HTTP)` with URL
    `http://mcp-server:8000/mcp` and authentication `None`.
-4. Under **Settings → Admin → System → Interface → Chat**, turn on **Tool
+2. Under **Settings → Admin → System → Interface → Chat**, turn on **Tool
    Search** and **Defer Built-in Tools**, and set **Deferral Threshold** to `0`
    so that the full tool list fits the model's limits.
-5. In a new chat, enable the connection under **Integrations → Tools** and ask:
+3. In a new chat, enable the connection under **Integrations → Tools** and ask:
    `Use mcp-openstack-ops to list the instances in my OpenStack project.`
 
 > **MCPO is optional.** MCPO is a proxy that exposes the MCP tools as an

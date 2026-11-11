@@ -112,12 +112,17 @@ docker compose ps      # wait until mcp-server is healthy
 OpenWebUI(`http://localhost:3000`), MCP 서버(`http://localhost:8000/mcp`),
 MCPO(`http://localhost:8080`)가 시작됩니다.
 
-**3. OpenWebUI를 MCP 서버에 연결**
+**3. 모델 공급자 연결**
 
-1. `http://localhost:3000`을 열어 관리자 계정을 만들고, **Settings → Admin →
-   Connections**에서 모델 공급자를 추가합니다. OpenAI 연결이라면 저장하기 전에
-   연결 대화상자의 **API Type**을 **Chat Completions**로 설정하세요.
-2. Quick Start는 `.env.example`에 이미 들어 있는 다음 기본값으로 모델 reasoning을
+이 단계는 MCP 직접 연결과 MCPO 모두에 공통입니다.
+
+1. `http://localhost:3000`을 열어 관리자 계정을 만듭니다.
+2. **Settings → Admin → Connections**에서 OpenAI 연결을 추가합니다. URL은
+   `https://api.openai.com/v1`, **Auth**는 `Bearer`와 OpenAI API 키, **API
+   Type**은 **Chat Completions**로 설정한 뒤 저장합니다. 다른 공급자는
+   [OpenWebUI 가이드](docs/openwebui-guide.ko.md#3-openwebui-013-설정)를
+   참고하세요.
+3. Quick Start는 `.env.example`에 이미 들어 있는 다음 기본값으로 모델 reasoning을
    끄고 Chat Completions를 통해 도구를 호출합니다.
 
    ```dotenv
@@ -132,13 +137,16 @@ MCPO(`http://localhost:8080`)가 시작됩니다.
    설정하세요. 대신 **Responses**로 모델 reasoning을 유지하려면
    [OpenWebUI 가이드](docs/openwebui-guide.ko.md#33-openai-reasoning-모델-설정)를
    참고하세요.
-3. **Settings → Admin → Tools → Integrations → External Tool Servers**에서
+
+**4. MCP 서버 연결**
+
+1. **Settings → Admin → Tools → Integrations → External Tool Servers**에서
    유형 `MCP (Streamable HTTP)`, URL `http://mcp-server:8000/mcp`, 인증
    `None`으로 연결을 추가합니다.
-4. **Settings → Admin → System → Interface → Chat**에서 **Tool Search**와
+2. **Settings → Admin → System → Interface → Chat**에서 **Tool Search**와
    **Defer Built-in Tools**를 켜고 **Deferral Threshold**를 `0`으로 설정합니다.
    전체 도구 목록이 모델의 제한을 넘지 않게 하기 위함입니다.
-5. 새 채팅에서 **Integrations → Tools**의 연결을 켜고 물어봅니다:
+3. 새 채팅에서 **Integrations → Tools**의 연결을 켜고 물어봅니다:
    `Use mcp-openstack-ops to list the instances in my OpenStack project.`
 
 > **MCPO는 선택 사항입니다.** MCPO는 MCP 도구를 OpenAPI(REST) 서버로 노출하는
