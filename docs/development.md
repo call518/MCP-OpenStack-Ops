@@ -213,19 +213,17 @@ async def set_your_custom_resource(resource_name: str, action: str) -> str:
         return f"Error: {str(e)}"
 ```
 
-### 4. Update the prompt template (recommended)
+### 4. Describe the tool and add examples (recommended)
 
-Add your tool description to `src/mcp_openstack_ops/prompt_template.md` for better natural language recognition:
+Clients choose tools from their descriptions, so put the purpose, key
+parameters, and limits in the tool's docstring and parameter descriptions.
+Add example requests for the tool to the
+[usage guide](usage-guide.md#example-queries-by-area) in both languages.
 
-```markdown
-### **Your Custom Analysis Tool**
-
-### X. **get_your_custom_analysis**
-**Purpose**: Brief description of what your tool does
-**Usage**: "Show me your custom analysis" or "Get custom analysis for resource_name"
-**Features**: Data aggregation, resource monitoring, performance metrics
-**Optional**: `target_name` parameter for specific resource analysis
-```
+`src/mcp_openstack_ops/server_instructions.md` holds the server instructions
+that the server sends to clients when they connect. Change it only for rules
+that span several tools, such as call order or scope. Keep it under 4,096
+characters, the length Claude Code keeps; a unit test checks this limit.
 
 ### 5. Test your tool
 

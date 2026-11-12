@@ -213,20 +213,16 @@ async def set_your_custom_resource(resource_name: str, action: str) -> str:
         return f"Error: {str(e)}"
 ```
 
-### 4. 프롬프트 템플릿 갱신(권장)
+### 4. 도구 설명과 예시 추가(권장)
 
-자연어 인식이 잘 되도록 `src/mcp_openstack_ops/prompt_template.md`에 도구 설명을
-추가하세요.
+클라이언트는 도구 설명을 보고 도구를 고릅니다. 그러니 도구의 목적, 주요
+매개변수, 제약을 도구 docstring과 매개변수 설명에 적으세요. 도구의 요청 예시는
+[사용 가이드](usage-guide.ko.md#분야별-요청-예시)에 두 언어 모두 추가하세요.
 
-```markdown
-### **Your Custom Analysis Tool**
-
-### X. **get_your_custom_analysis**
-**Purpose**: Brief description of what your tool does
-**Usage**: "Show me your custom analysis" or "Get custom analysis for resource_name"
-**Features**: Data aggregation, resource monitoring, performance metrics
-**Optional**: `target_name` parameter for specific resource analysis
-```
+`src/mcp_openstack_ops/server_instructions.md`에는 클라이언트가 연결할 때 서버가
+보내는 server instructions가 있습니다. 호출 순서나 범위처럼 여러 도구에 걸친
+규칙이 바뀔 때만 수정하세요. Claude Code가 유지하는 길이인 4,096자 이하로
+유지해야 하며, 단위 테스트가 이 한도를 검사합니다.
 
 ### 5. 도구 테스트
 

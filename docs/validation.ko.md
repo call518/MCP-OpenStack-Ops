@@ -223,3 +223,12 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   연결하지 않음), 정책 거부의 오류 처리, 좁혀진 결과의 경고, 프로젝트 이름을 못 얻을
   때 ID로 대체, 다른 프로젝트 서버의 부트 볼륨 이미지 확인, 프로젝트 요약, 목록과 이름
   조회의 현재 프로젝트 기본 동작을 다룹니다.
+- **로컬 server instructions 테스트 (2026-11-13, `86ac7f6` 기반의 커밋되지 않은 작업
+  트리):** fastmcp 4.1.6과 고정된 openstacksdk 4.22.0에서 `uv run pytest -q`로 실행해
+  526/526 (100%)이며, 실패나 건너뛴 테스트는 없습니다. 이제 서버는
+  `server_instructions.md`를 MCP server instructions로 보내고, `prompt_template_*`
+  prompt 3개는 더 이상 등록하지 않습니다. 새 테스트 3건은 instructions가 4,096자
+  이하인지, 그리고 기존(`initialize`) 프로토콜 모드와 현재(`server/discover`) 프로토콜
+  모드의 in-process FastMCP 클라이언트가 instructions와 빈 prompt 목록을 받는지
+  확인합니다. Claude Code, Claude Desktop, Open WebUI가 instructions를 모델에
+  보여 주는지는 live로 확인하지 않았습니다.

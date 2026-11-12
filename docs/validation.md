@@ -256,3 +256,13 @@ an earlier full summary.
   the narrowed-result warning, project-name fallback to IDs, boot-volume image
   resolution for another project's server, project summaries, and
   current-project-only defaults for listings and name lookups.
+- **Local server-instructions tests (2026-11-13; uncommitted working tree
+  based on `86ac7f6`):** 526/526 (100%) with fastmcp 4.1.6 and the locked
+  openstacksdk 4.22.0, run as `uv run pytest -q`; no failures or skipped
+  tests. The server now sends `server_instructions.md` as MCP server
+  instructions and no longer registers the three `prompt_template_*` prompts.
+  The three new cases check that the instructions stay within 4,096
+  characters and that in-process FastMCP clients in the legacy (`initialize`)
+  and current (`server/discover`) protocol modes receive the instructions and
+  an empty prompt list. Whether Claude Code, Claude Desktop or Open WebUI
+  shows the instructions to the model was not checked live.

@@ -51,7 +51,13 @@ Stop all instances with name containing 'test'
 
 The last request changes resources, so it works only after you enable
 modification tools. Telemetry requests need Ceilometer and Gnocchi in the
-cloud. More examples are in the [usage guide](docs/usage-guide.md).
+cloud.
+
+**More requests to try:** [Example queries by area](docs/usage-guide.md#example-queries-by-area)
+lists copy-ready requests, with the tools each one uses, for cluster status,
+instances, networks, storage, cross-project reads, images, identity, Heat, load
+balancers, allocation and quotas, Gnocchi telemetry, Aodh alarms,
+troubleshooting, security, batch actions, and multi-tool reports.
 
 **Example: cluster status in Claude Desktop**
 
@@ -225,7 +231,7 @@ To change the SDK version for an older release, see
 
 | Guide | Contents |
 | --- | --- |
-| [Usage guide](docs/usage-guide.md) | Example requests, bulk and filtered actions, post-action status, pagination |
+| [Usage guide](docs/usage-guide.md) | [Example queries by area](docs/usage-guide.md#example-queries-by-area), bulk and filtered actions, post-action status, pagination |
 | [OpenWebUI guide](docs/openwebui-guide.md) | Docker Compose stack, direct MCP versus MCPO, OpenWebUI settings, troubleshooting |
 | [Claude Desktop guide](docs/claude-desktop-guide.md) | Extension bundle, `uvx`, source checkout, `mcp-remote`, remote connector |
 | [Claude Code guide](docs/claude-code-guide.md) | Registering the HTTP server in Claude Code |

@@ -28,7 +28,7 @@ This is an **MCP (Model Context Protocol) Server for OpenStack Operations** - a 
 
 - **`src/mcp_openstack_ops/functions.py`** (3000+ lines): Core OpenStack SDK operations with connection caching
 - **`src/mcp_openstack_ops/mcp_main.py`** (1400+ lines): FastMCP tool definitions and conditional safety system
-- **`src/mcp_openstack_ops/prompt_template.md`**: AI assistant behavior guide with tool patterns
+- **`src/mcp_openstack_ops/server_instructions.md`**: MCP server instructions sent to clients at connection (cross-tool rules, under 4,096 characters)
 
 ## Critical Safety System
 The codebase implements a **conditional tool registration pattern** via `ALLOW_MODIFY_OPERATIONS` environment variable:
@@ -78,7 +78,7 @@ OS_HEAT_STACK_CFN_PORT=18888
 ### Adding New OpenStack Services
 1. Add core function to `functions.py` with connection caching pattern
 2. Create MCP tool wrapper in `mcp_main.py` (use `@conditional_tool` for modify operations)
-3. Update `prompt_template.md` with tool patterns and decision flows
+3. Describe the tool in its docstring and add example requests to `docs/usage-guide.md` and `docs/usage-guide.ko.md`
 4. Add environment variables for service ports if needed
 
 ## Connection Management Pattern

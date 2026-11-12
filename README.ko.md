@@ -52,8 +52,13 @@ Stop all instances with name containing 'test'
 ```
 
 마지막 요청은 리소스를 변경하므로 변경 도구를 켠 뒤에만 동작합니다. 텔레메트리
-요청에는 클라우드에 Ceilometer와 Gnocchi가 있어야 합니다. 더 많은 예시는
-[사용 가이드](docs/usage-guide.ko.md)에 있습니다.
+요청에는 클라우드에 Ceilometer와 Gnocchi가 있어야 합니다.
+
+**더 많은 요청 예시:** [분야별 요청 예시](docs/usage-guide.ko.md#분야별-요청-예시)에
+바로 복사해 쓸 수 있는 요청과 각 요청이 쓰는 도구가 정리되어 있습니다. 클러스터
+상태, 인스턴스, 네트워크, 스토리지, cross-project 조회, 이미지, ID 관리, Heat,
+로드밸런서, 할당량과 쿼터, Gnocchi 텔레메트리, Aodh 알람, 문제 해결, 보안, 일괄
+작업, 여러 도구를 조합한 보고서를 다룹니다.
 
 **예시: Claude Desktop에서 본 클러스터 상태**
 
@@ -228,7 +233,7 @@ modify operations**를 켜고) 서버를 다시 시작하세요. 이 계정이 �
 
 | 가이드 | 내용 |
 | --- | --- |
-| [사용 가이드](docs/usage-guide.ko.md) | 요청 예시, 일괄·필터 작업, 작업 후 상태, 페이지 처리 |
+| [사용 가이드](docs/usage-guide.ko.md) | [분야별 요청 예시](docs/usage-guide.ko.md#분야별-요청-예시), 일괄·필터 작업, 작업 후 상태, 페이지 처리 |
 | [OpenWebUI 가이드](docs/openwebui-guide.ko.md) | Docker Compose 스택, 직접 MCP와 MCPO 비교, OpenWebUI 설정, 문제 해결 |
 | [Claude Desktop 가이드](docs/claude-desktop-guide.ko.md) | 확장 번들, `uvx`, 소스 체크아웃, `mcp-remote`, 원격 커넥터 |
 | [Claude Code 가이드](docs/claude-code-guide.ko.md) | Claude Code에 HTTP 서버 등록하기 |
