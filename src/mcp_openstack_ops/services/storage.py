@@ -95,23 +95,49 @@ def _storage_failure(message: str, exc: BaseException) -> Dict[str, Any]:
             'error': unavailable or str(exc)}
 
 
-def get_volume_list() -> List[Dict[str, Any]]:
+def _list_all_projects(list_resources: Any) -> List[Any]:
+    """List with all_projects=True, turning a policy denial into its message."""
+    from ..connection import raise_if_cross_project_denied
+    try:
+        return list(list_resources(all_projects=True))
+    except Exception as e:
+        raise_if_cross_project_denied(e)
+        raise
+
+
+def get_volume_list(all_projects: bool = False) -> List[Dict[str, Any]]:
     """
     Get list of volumes with detailed information for current project.
+    
+    Args:
+        all_projects: List volumes of every project the credential's OpenStack
+            policy allows (requires ALLOW_CROSS_PROJECT_READ=true). Each volume
+            then carries project_id and project_name.
     
     Returns:
         List of volume dictionaries for current project
     """
     try:
         # Import here to avoid circular imports
-        from ..connection import get_openstack_connection, get_current_project_id, validate_resource_ownership
+        from ..connection import (
+            get_current_project_id, get_openstack_connection, get_project_names,
+            require_cross_project_read, validate_resource_ownership,
+        )
+        if all_projects:
+            require_cross_project_read()
         conn = get_openstack_connection()
         current_project_id = get_current_project_id()
         volumes = []
+        project_names: Dict[str, str] = {}
+        if all_projects:
+            listed = _list_all_projects(conn.volume.volumes)
+            project_names = get_project_names(conn)
+        else:
+            listed = conn.volume.volumes()
         
-        for volume in conn.volume.volumes():
-            # Enhanced project validation using utility functions
-            if validate_resource_ownership(volume, "Volume"):
+        for volume in listed:
+            # OpenStack policy already decided which projects are visible.
+            if all_projects or validate_resource_ownership(volume, "Volume"):
                 # Get attachment information
                 attachments = []
                 for attachment in getattr(volume, 'attachments', []):
@@ -132,7 +158,9 @@ def get_volume_list() -> List[Dict[str, Any]]:
                     'encrypted': getattr(volume, 'is_encrypted', False),
                     'multiattach': getattr(volume, 'is_multiattach', False),
                     'availability_zone': getattr(volume, 'availability_zone', 'unknown'),
-                    'project_id': getattr(volume, 'project_id', current_project_id),
+                    # Never default another project's volume to this project.
+                    'project_id': (getattr(volume, 'project_id', None) if all_projects
+                                   else getattr(volume, 'project_id', current_project_id)),
                     'created_at': str(getattr(volume, 'created_at', 'unknown')),
                     'updated_at': str(getattr(volume, 'updated_at', 'unknown')),
                     'description': getattr(volume, 'description', ''),
@@ -143,10 +171,15 @@ def get_volume_list() -> List[Dict[str, Any]]:
                     'attachments': attachments,
                     'attachment_count': len(attachments)
                 })
+                if all_projects:
+                    volumes[-1]['project_name'] = project_names.get(volumes[-1]['project_id'])
         
         logger.info(f"Retrieved {len(volumes)} volumes for project {current_project_id}")
         return volumes
     except Exception as e:
+        from ..connection import CrossProjectReadError
+        if isinstance(e, CrossProjectReadError):
+            raise
         logger.error(f"Failed to get volume list: {e}")
         unavailable = block_storage_unavailable_message(e)
         if unavailable:
@@ -432,24 +465,39 @@ def get_volume_types() -> List[Dict[str, Any]]:
         raise
 
 
-def get_volume_snapshots() -> List[Dict[str, Any]]:
+def get_volume_snapshots(all_projects: bool = False) -> List[Dict[str, Any]]:
     """
     Get list of volume snapshots for current project.
+    
+    Args:
+        all_projects: List snapshots of every project the credential's
+            OpenStack policy allows (requires ALLOW_CROSS_PROJECT_READ=true).
+            Each snapshot then carries project_name.
     
     Returns:
         List of snapshot dictionaries for current project
     """
     try:
         # Import here to avoid circular imports
-        from ..connection import get_openstack_connection
+        from ..connection import (
+            get_openstack_connection, get_project_names, require_cross_project_read,
+        )
+        if all_projects:
+            require_cross_project_read()
         conn = get_openstack_connection()
         current_project_id = conn.current_project_id
         snapshots = []
+        project_names: Dict[str, str] = {}
+        if all_projects:
+            listed = _list_all_projects(conn.volume.snapshots)
+            project_names = get_project_names(conn)
+        else:
+            listed = conn.volume.snapshots()
         
-        for snapshot in conn.volume.snapshots():
+        for snapshot in listed:
             # Filter by current project
             snapshot_project_id = getattr(snapshot, 'project_id', None)
-            if snapshot_project_id == current_project_id:
+            if all_projects or snapshot_project_id == current_project_id:
                 snapshots.append({
                     'id': snapshot.id,
                     'name': getattr(snapshot, 'name', 'unnamed'),
@@ -462,10 +510,15 @@ def get_volume_snapshots() -> List[Dict[str, Any]]:
                     'updated_at': str(getattr(snapshot, 'updated_at', 'unknown')),
                     'metadata': getattr(snapshot, 'metadata', {})
                 })
+                if all_projects:
+                    snapshots[-1]['project_name'] = project_names.get(snapshot_project_id)
         
         logger.info(f"Retrieved {len(snapshots)} snapshots for project {current_project_id}")
         return snapshots
     except Exception as e:
+        from ..connection import CrossProjectReadError
+        if isinstance(e, CrossProjectReadError):
+            raise
         logger.error(f"Failed to get volume snapshots: {e}")
         unavailable = block_storage_unavailable_message(e)
         if unavailable:

@@ -33,6 +33,7 @@ More examples, grouped by area and with the tools each request uses, are in
 - 🖥️ Instance management operations
 - 🌐 Network configuration tasks
 - 💾 Storage management workflows
+- 🗂️ Cross-project reads (opt-in, `ALLOW_CROSS_PROJECT_READ=true`)
 - 🔥 Heat orchestration examples
 - ⚖️ Load balancer operations
 - 🔍 Advanced search patterns

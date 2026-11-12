@@ -50,6 +50,7 @@ Options:
 | **MCP Server Configuration** |
 | `MCP_LOG_LEVEL` | Logging level | `INFO` | Development debugging |
 | `ALLOW_MODIFY_OPERATIONS` | Enable modify operations | `false` | Safety control for state modifications |
+| `ALLOW_CROSS_PROJECT_READ` | Enable `all_projects=true` on supported list tools | `false` | Exposes the feature only; OpenStack policy decides access. See [Cross-project reads](security.md#cross-project-reads) |
 | `FASTMCP_TYPE` | Transport type | `stdio` | Rarely needed to change |
 | `FASTMCP_HOST` | HTTP host address | `127.0.0.1` | For HTTP mode only |
 | `FASTMCP_PORT` | HTTP port number | `8080` | For HTTP mode only |

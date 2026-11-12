@@ -42,6 +42,50 @@ policy.
 
 To use several projects, run one server instance per project; see
 [Multi-project configuration](configuration.md#multi-project-configuration).
+To only read across projects, see [Cross-project reads](#cross-project-reads).
+
+### Cross-project reads
+
+Some list tools accept `all_projects=true`, like the OpenStack CLI's
+`--all-projects`, when the server sets `ALLOW_CROSS_PROJECT_READ=true`
+(default `false`):
+
+| Tool | With `all_projects=true` |
+|---|---|
+| `get_instance_details`, `search_instances`, `get_instances_by_status` | Instances of every visible project, each with `project_id` and `project_name` |
+| `get_volume_list`, `get_volume_snapshots` | Volumes or snapshots of every visible project, each with `project_id` and `project_name` |
+| `get_project_details` | A summary (ID, name, domain, enabled, `is_current`) of every visible project; resource counts stay current-project only |
+
+- **Who may read**: a credential may read across projects only when the target
+  OpenStack service's policy authorizes the all-projects list API for its
+  token. MCP-OpenStack-Ops does not define, store, or check roles or groups
+  for this decision.
+- **What the switch does**: `ALLOW_CROSS_PROJECT_READ` only exposes the
+  parameter's behavior on this server; it grants no permission. In
+  fixed-credential mode, every client of the server reads with the server
+  credential's permissions. In multi-user mode, each request is decided by
+  the caller's Application Credential.
+- **Denials**: a policy denial (HTTP 403) is returned as an error, never as
+  current-project results. Some services narrow an unauthorized request to
+  the caller's project instead; a result that contains only the current
+  project therefore carries a `scope.warning`. Each listing reports
+  `scope.projects_in_result`.
+- **Unchanged**: without `all_projects`, every tool stays current-project only.
+  Modification tools and single-resource lookups by name (for example
+  `get_instance_by_name`) always stay project-scoped.
+
+Cross-project read permission is configured in OpenStack, not in this server:
+
+| Setup | Configuration | Note |
+|---|---|---|
+| A | The `admin` role | Simple, but grants full administration |
+| B | A dedicated role (for example `cross_project_reader`) added to the all-projects list rules in each service's policy | Least privilege, recommended |
+| C | A restricted Application Credential (role subset or access rules) sent in multi-user mode's request headers | Multi-user mode only |
+
+The relevant policy rules include Nova `os_compute_api:servers:detail:get_all_tenants`,
+Keystone `identity:list_projects`, and the Cinder all-tenants rules; check the
+names and defaults on your release, for example with
+`oslopolicy-policy-generator --namespace nova`.
 
 ### Project isolation test
 

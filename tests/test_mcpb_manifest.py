@@ -19,10 +19,12 @@ def test_every_user_config_value_is_passed_and_defined():
 def test_optional_service_settings_have_server_defaults():
     # An empty value would replace the server's own default and break endpoints.
     for key, item in CONFIG.items():
-        if key not in {"os_cacert", "allow_modify_operations"}:
+        if key not in {"os_cacert", "allow_modify_operations",
+                       "allow_cross_project_read"}:
             assert item["required"] or item.get("default"), key
     assert CONFIG["os_password"]["sensitive"] is True
     assert CONFIG["allow_modify_operations"]["default"] is False
+    assert CONFIG["allow_cross_project_read"]["default"] is False
 
 
 def test_titles_name_the_environment_variable_they_set():

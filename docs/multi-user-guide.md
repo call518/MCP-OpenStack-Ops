@@ -24,7 +24,10 @@ disabled, a configured `REMOTE_SECRET_KEY` is ignored.
 
 Application Credentials avoid LDAP passwords
 and already specify a project and delegated roles. Raw Keystone tokens, browser
-login, project switching, and administrator cross-project access are not supported. Use another Application Credential/client entry for another project.
+login, and project switching are not supported. Use another Application Credential/client entry for another project.
+With `ALLOW_CROSS_PROJECT_READ=true`, supported list tools accept `all_projects=true`,
+and each request is allowed or denied by the caller's Application Credential
+and OpenStack policy; see [Cross-project reads](security.md#cross-project-reads).
 
 The HTTP transport is stateless with JSON responses. Every HTTP request creates a
 fresh Keystone authentication and SDK connection; there is no authentication or

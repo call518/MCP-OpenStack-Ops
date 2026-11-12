@@ -12,6 +12,7 @@ from ..mcp_main import (
     logger,
     mcp,
 )
+from ..connection import CrossProjectReadError
 from ..services.compute import search_instances as _search_instances
 
 @mcp.tool()
@@ -20,7 +21,8 @@ async def search_instances(
     search_in: str = "name",
     limit: int = 50,
     offset: int = 0,
-    case_sensitive: bool = False
+    case_sensitive: bool = False,
+    all_projects: bool = False
 ) -> str:
     """
     Search for OpenStack instances based on various criteria with efficient pagination.
@@ -37,6 +39,10 @@ async def search_instances(
         limit: Maximum number of matching instances to return (default: 50, max: 200)
         offset: Number of matching instances to skip for pagination (default: 0)
         case_sensitive: If True, performs case-sensitive search (default: False)
+        all_projects: If True, include every project the credential's OpenStack
+            policy allows (like 'openstack server list --all-projects'). Requires
+            ALLOW_CROSS_PROJECT_READ=true on the server; a disabled or denied
+            request is reported as an error, never as current-project results.
         
     Returns:
         List of matching instances with detailed information and pagination metadata
@@ -51,6 +57,7 @@ async def search_instances(
             offset=offset,
             case_sensitive=case_sensitive,
             with_pagination=True,
+            all_projects=all_projects,
             include_inactive=True  # 모든 인스턴스를 검색하기 위해
         ))
         
@@ -87,9 +94,13 @@ async def search_instances(
             "matching_instances": instances,
             "performance": performance_info
         }
+        if all_projects and isinstance(search_result, dict):
+            result["scope"] = search_result.get("scope")
         
         return json.dumps(result, indent=2, ensure_ascii=False)
         
+    except CrossProjectReadError as error:
+        raise ToolError(f"OpenStack query failed: search_instances - {error}") from None
     except Exception as error:
         logger.error("search_instances failed error_type=%s", type(error).__name__)
         raise ToolError("OpenStack query failed: search_instances") from None

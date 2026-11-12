@@ -1,7 +1,7 @@
 # MCP OpenStack Operations Prompt Template (English - Default)
 
 ## 0. Mandatory Guidelines
-- **Single Project Scope**: This MCP server operates within the configured `OS_PROJECT_NAME` project scope only
+- **Single Project Scope**: This MCP server operates within the configured `OS_PROJECT_NAME` project scope only, except opt-in cross-project reads (see Project Resource Scope)
 - Always use the provided API tools for real data retrieval; never guess or reference external interfaces.
 - **CRITICAL: Never simulate or assume operations are completed** - Always use actual MCP tools for all operations.
 - **CRITICAL: If no suitable tool exists, explicitly state that the operation cannot be performed** - Never provide hypothetical responses.
@@ -28,6 +28,10 @@
     - Load Balancers: Project load balancers and listeners only
     - Heat Stacks: Project orchestration stacks only
     - Identity: Users with roles in current project + project-scoped role assignments
+  - **Cross-Project Reads (opt-in)**: `get_instance_details`, `search_instances`, `get_instances_by_status`, `get_volume_list`, `get_volume_snapshots` and `get_project_details` accept `all_projects=true` when the server sets `ALLOW_CROSS_PROJECT_READ=true`
+    - Use it only when the user asks about all or other projects; group results by `project_name` (or `project_id`)
+    - Report a disabled-switch or policy-denial error as-is, and mention `scope.warning` when present (the result may cover only the current project)
+    - Modification tools and lookups by name always stay within the current project
   - **Multi-project Management**: Requires multiple MCP server instances with different `OS_PROJECT_NAME` configurations
   - **Enhanced Security Features**: 
     - Project ID verification and validation utilities
@@ -785,6 +789,23 @@ This approach provides **comprehensive 360-degree cluster visibility** with infr
 ```
 
 **Tools Used:** `get_volume_list()`, `set_volume()`, `set_snapshot()`
+
+### 🗂️ **Cross-Project Reads (opt-in)**
+
+```
+"List all projects in the cloud"
+"Show a table of VMs per project"
+"Which projects have SHUTOFF instances?"
+"Find instances named 'web' in every project"
+"List volumes across all projects with size and status"
+"Which project uses the most volume storage?"
+"Show volume snapshots in every project"
+"How many instances and volumes does each project have?"
+```
+
+**Tools Used:** `get_project_details(all_projects=true)`, `get_instance_details(all_projects=true)`, `get_instances_by_status(all_projects=true)`, `search_instances(all_projects=true)`, `get_volume_list(all_projects=true)`, `get_volume_snapshots(all_projects=true)`
+
+**Flow:** Pass `all_projects=true` only when the user asks about all or other projects. Group rows by `project_name` (fall back to `project_id`), and for `get_instance_details` use `include_all=true` or pagination so no project is cut off. Report `scope.projects_in_result`; when `scope.warning` is present, say the result may cover only the current project. A "Cross-project reads are disabled" error means the operator has not set `ALLOW_CROSS_PROJECT_READ=true`; a policy-denial error means the credential lacks permission. Never retry such a request without `all_projects` and present it as cloud-wide. Per-project resource counts come from the instance and volume listings, not from `get_project_details`.
 
 ### 🖼️ **Image Operations**
 

@@ -35,6 +35,7 @@ Stop all instances with name containing 'test'
 - 🖥️ 인스턴스 관리 작업
 - 🌐 네트워크 설정 작업
 - 💾 스토리지 관리 작업
+- 🗂️ cross-project 조회(선택 기능, `ALLOW_CROSS_PROJECT_READ=true`)
 - 🔥 Heat orchestration 예시
 - ⚖️ 로드밸런서 작업
 - 🔍 고급 검색 패턴

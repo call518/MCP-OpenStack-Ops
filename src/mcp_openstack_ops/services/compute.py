@@ -12,8 +12,13 @@ from typing import Dict, List, Any, Optional
 logger = logging.getLogger(__name__)
 
 
-def _get_server_image(conn: Any, server: Any) -> Dict[str, str]:
-    """Resolve image references, including volume-backed instance provenance."""
+def _get_server_image(conn: Any, server: Any, *,
+                      check_ownership: bool = True) -> Dict[str, str]:
+    """Resolve image references, including volume-backed instance provenance.
+
+    ``check_ownership`` is False for cross-project reads, where the boot volume
+    belongs to the server's project rather than the caller's.
+    """
     from ..connection import validate_resource_ownership
 
     reference = getattr(server, 'image', None)
@@ -36,7 +41,7 @@ def _get_server_image(conn: Any, server: Any) -> Dict[str, str]:
                 return info
             try:
                 volume = conn.block_storage.get_volume(volume_id)
-                if not validate_resource_ownership(volume, 'Volume'):
+                if check_ownership and not validate_resource_ownership(volume, 'Volume'):
                     return info
                 if str(getattr(volume, 'is_bootable', False)).lower() == 'true':
                     candidates.append(volume.volume_image_metadata or {})
@@ -74,6 +79,7 @@ def get_instance_details(
     *,
     enrich_images: bool = True,
     status_filter: Optional[str] = None,
+    all_projects: bool = False,
 ) -> Dict[str, Any]:
     """
     Get detailed information about OpenStack instances with pagination support.
@@ -83,13 +89,21 @@ def get_instance_details(
         limit: Maximum number of instances to return (default: 50, max: 200)
         offset: Number of instances to skip for pagination (default: 0)
         include_all: If True, return all instances ignoring limit (default: False)
+        all_projects: List instances of every project the credential's
+            OpenStack policy allows (requires ALLOW_CROSS_PROJECT_READ=true)
     
     Returns:
         Dictionary containing instances and metadata
     """
     try:
         # Import here to avoid circular imports
-        from ..connection import get_openstack_connection, get_current_project_id, validate_resource_ownership
+        from ..connection import (
+            cross_project_scope, get_current_project_id, get_openstack_connection,
+            get_project_names, raise_if_cross_project_denied,
+            require_cross_project_read, validate_resource_ownership,
+        )
+        if all_projects:
+            require_cross_project_read()
         conn = get_openstack_connection()
         
         # Validate and sanitize inputs
@@ -104,21 +118,31 @@ def get_instance_details(
         
         # Get all servers with project filtering enabled
         filters = {"status": status_filter.upper()} if status_filter else {}
-        all_servers = list(conn.compute.servers(
-            details=True, all_projects=False, **filters
-        ))
+        try:
+            all_servers = list(conn.compute.servers(
+                details=True, all_projects=all_projects, **filters
+            ))
+        except Exception as e:
+            if all_projects:
+                raise_if_cross_project_denied(e)
+            raise
         
-        # Additional project validation for security
         current_project_id = get_current_project_id()
-        validated_servers = []
-        
-        for server in all_servers:
-            if validate_resource_ownership(server, "Instance"):
-                validated_servers.append(server)
-            else:
-                logger.warning(f"Filtered out instance {getattr(server, 'id', 'unknown')} - not owned by current project")
-        
-        all_servers = validated_servers
+        project_names: Dict[str, str] = {}
+        if all_projects:
+            # OpenStack policy already decided which projects are visible.
+            project_names = get_project_names(conn)
+        else:
+            # Additional project validation for security
+            validated_servers = []
+            
+            for server in all_servers:
+                if validate_resource_ownership(server, "Instance"):
+                    validated_servers.append(server)
+                else:
+                    logger.warning(f"Filtered out instance {getattr(server, 'id', 'unknown')} - not owned by current project")
+            
+            all_servers = validated_servers
         
         if status_filter:
             all_servers = [server for server in all_servers
@@ -168,7 +192,8 @@ def get_instance_details(
                 
                 # Get server image details
                 if enrich_images:
-                    image_info = _get_server_image(conn, server)
+                    image_info = _get_server_image(
+                        conn, server, check_ownership=not all_projects)
                 else:
                     reference = getattr(server, "image", None)
                     image_id = (reference.get("id") if isinstance(reference, dict)
@@ -233,6 +258,10 @@ def get_instance_details(
                     'config_drive': getattr(server, 'config_drive', False),
                     'locked': getattr(server, 'is_locked', False)
                 }
+                if all_projects:
+                    project_id = getattr(server, 'project_id', None)
+                    instance_data['project_id'] = project_id
+                    instance_data['project_name'] = project_names.get(project_id)
                 
                 # Add volume attachment info if available
                 if hasattr(server, 'attached_volumes') or hasattr(server, 'volumes_attached'):
@@ -273,18 +302,27 @@ def get_instance_details(
         
         if instance_names:
             result['filtered_by_names'] = instance_names
+        if all_projects:
+            result['scope'] = cross_project_scope(
+                (getattr(server, 'project_id', None) for server in all_servers),
+                current_project_id,
+            )
             
         return result
         
     except Exception as e:
+        from ..connection import CrossProjectReadError
         logger.error(f"Failed to get instance details: {e}")
-        return {
+        failure = {
             'instances': [],
             'count': 0,
             'total_count': 0,
             'error': str(e),
             'success': False
         }
+        if isinstance(e, CrossProjectReadError):
+            failure['error_type'] = 'cross_project'
+        return failure
 
 
 def get_instance_by_name(instance_name: str) -> Optional[Dict[str, Any]]:
@@ -325,6 +363,13 @@ def get_instance_by_id(instance_id: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+def _raise_cross_project_failure(result: Dict[str, Any]) -> None:
+    """Re-raise a disabled or denied cross-project read with its message."""
+    if result.get('error_type') == 'cross_project':
+        from ..connection import CrossProjectReadError
+        raise CrossProjectReadError(result['error'])
+
+
 def search_instances(
     search_term: str,
     search_fields: Optional[List[str]] = None,
@@ -334,6 +379,7 @@ def search_instances(
     case_sensitive: bool = False,
     *,
     with_pagination: bool = False,
+    all_projects: bool = False,
 ) -> List[Dict[str, Any]] | Dict[str, Any]:
     """
     Search for instances by various fields.
@@ -346,15 +392,19 @@ def search_instances(
         offset: Number of matches to skip
         case_sensitive: Match the original case when True
         with_pagination: Include page metadata for MCP callers
+        all_projects: Search instances of every project the credential's
+            OpenStack policy allows (requires ALLOW_CROSS_PROJECT_READ=true)
         
     Returns:
         Matching instances, optionally with pagination metadata
     """
     try:
         # Import here to avoid circular imports
-        from ..connection import get_openstack_connection
+        from ..connection import get_openstack_connection, require_cross_project_read
+        if all_projects:
+            require_cross_project_read()
         conn = get_openstack_connection()
-        
+
         if search_fields is None:
             search_fields = ['name', 'id']
         
@@ -372,7 +422,9 @@ def search_instances(
             include_all=True,
             enrich_images=needs_images,
             status_filter=None if include_inactive else 'ACTIVE',
+            all_projects=all_projects,
         )
+        _raise_cross_project_failure(all_instances_result)
         if all_instances_result.get('success') is False:
             raise RuntimeError('OpenStack instance search failed')
         all_instances = all_instances_result.get('instances', [])
@@ -426,12 +478,14 @@ def search_instances(
             details = get_instance_details(
                 instance_names=[row['id'] for row in matching_instances],
                 include_all=True,
+                all_projects=all_projects,
             )
+            _raise_cross_project_failure(details)
             if details.get('success') is False:
                 raise RuntimeError('OpenStack instance search failed')
             matching_instances = details['instances']
         if with_pagination:
-            return {
+            page = {
                 'instances': matching_instances,
                 'search_info': {
                     'search_term': search_term,
@@ -443,9 +497,15 @@ def search_instances(
                     'limit': limit, 'offset': offset, 'has_more': has_more,
                 },
             }
+            if all_projects:
+                page['scope'] = all_instances_result.get('scope')
+            return page
         return matching_instances
         
     except Exception as e:
+        from ..connection import CrossProjectReadError
+        if isinstance(e, CrossProjectReadError):
+            raise
         logger.error("Failed to search instances: %s", type(e).__name__)
         raise RuntimeError("OpenStack instance search failed") from None
 
@@ -474,13 +534,15 @@ def find_server_by_name_or_id(name_or_id: str) -> Optional[Any]:
 
 
 def get_instances_by_status(
-    status: str, *, enrich_images: bool = True
+    status: str, *, enrich_images: bool = True, all_projects: bool = False
 ) -> List[Dict[str, Any]]:
     """
     Get instances filtered by status.
     
     Args:
         status: Status to filter by (ACTIVE, SHUTOFF, ERROR, etc.)
+        all_projects: Include instances of every project the credential's
+            OpenStack policy allows (requires ALLOW_CROSS_PROJECT_READ=true)
         
     Returns:
         List of instances with matching status
@@ -496,8 +558,10 @@ def get_instances_by_status(
     status = status.strip()
     try:
         result = get_instance_details(
-            include_all=True, enrich_images=enrich_images, status_filter=status
+            include_all=True, enrich_images=enrich_images, status_filter=status,
+            all_projects=all_projects,
         )
+        _raise_cross_project_failure(result)
         if result.get('success') is False:
             raise RuntimeError('OpenStack instance status query failed')
         instances = result.get('instances', [])
@@ -509,6 +573,9 @@ def get_instances_by_status(
         ]
         
     except Exception as e:
+        from ..connection import CrossProjectReadError
+        if isinstance(e, CrossProjectReadError):
+            raise
         logger.error("Failed to get instances by status: %s", type(e).__name__)
         raise RuntimeError("OpenStack instance status query failed") from None
 

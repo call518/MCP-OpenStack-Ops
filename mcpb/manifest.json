@@ -53,7 +53,8 @@
         "OS_PLACEMENT_PORT": "${user_config.os_placement_port}",
         "OS_HEAT_STACK_PORT": "${user_config.os_heat_stack_port}",
         "OS_HEAT_STACK_CFN_PORT": "${user_config.os_heat_stack_cfn_port}",
-        "ALLOW_MODIFY_OPERATIONS": "${user_config.allow_modify_operations}"
+        "ALLOW_MODIFY_OPERATIONS": "${user_config.allow_modify_operations}",
+        "ALLOW_CROSS_PROJECT_READ": "${user_config.allow_cross_project_read}"
       }
     }
   },
@@ -177,6 +178,13 @@
       "type": "boolean",
       "title": "Allow modify operations (ALLOW_MODIFY_OPERATIONS)",
       "description": "Register set_* tools that create, change, or delete cloud resources",
+      "default": false,
+      "required": false
+    },
+    "allow_cross_project_read": {
+      "type": "boolean",
+      "title": "Allow cross-project reads (ALLOW_CROSS_PROJECT_READ)",
+      "description": "Let supported list tools accept all_projects=true; OpenStack policy still decides whether the account may read other projects",
       "default": false,
       "required": false
     }

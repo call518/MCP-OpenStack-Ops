@@ -19,7 +19,8 @@ async def get_instance_details(
     all_instances: bool = False,
     limit: int = 50,
     offset: int = 0,
-    include_all: bool = False
+    include_all: bool = False,
+    all_projects: bool = False
 ) -> str:
     """
     Provides detailed information and status for OpenStack instances with pagination support.
@@ -36,10 +37,14 @@ async def get_instance_details(
     Args:
         instance_names: Comma-separated list of instance names to query (optional)
         instance_ids: Comma-separated list of instance IDs to query (optional)
-        all_instances: If True, returns all instances (default: False)
+        all_instances: If True, returns all instances of the current project (default: False)
         limit: Maximum number of instances to return (default: 50, max: 200)
         offset: Number of instances to skip for pagination (default: 0)
         include_all: If True, ignore pagination limits (use with caution in large environments)
+        all_projects: If True, include every project the credential's OpenStack
+            policy allows (like 'openstack server list --all-projects'). Requires
+            ALLOW_CROSS_PROJECT_READ=true on the server; a disabled or denied
+            request is reported as an error, never as current-project results.
         
     Returns:
         Instance detailed information in JSON format with instance, network, resource data, and pagination info.
@@ -68,14 +73,16 @@ async def get_instance_details(
                 instance_names=None,
                 limit=limit, 
                 offset=offset, 
-                include_all=include_all
+                include_all=include_all,
+                all_projects=all_projects
             ))
         else:
             details_result = await to_thread.run_sync(partial(_get_instance_details,
                 instance_names=combined_names_ids,
                 limit=limit, 
                 offset=offset, 
-                include_all=include_all
+                include_all=include_all,
+                all_projects=all_projects
             ))
         
         # A failed lookup must not be reported as "0 instances found".
@@ -101,7 +108,8 @@ async def get_instance_details(
             "filter_applied": {
                 "instance_names": names_list,
                 "instance_ids": ids_list,
-                "all_instances": all_instances
+                "all_instances": all_instances,
+                "all_projects": all_projects
             },
             "pagination": {
                 "limit": limit,
@@ -113,6 +121,8 @@ async def get_instance_details(
             "instance_details": instances,
             "performance": performance_info
         }
+        if all_projects and isinstance(details_result, dict):
+            result["scope"] = details_result.get("scope")
         
         return json.dumps(result, indent=2, ensure_ascii=False)
         

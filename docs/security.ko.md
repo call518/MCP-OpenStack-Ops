@@ -39,6 +39,45 @@ MCP-OpenStack-Ops는 `OS_PROJECT_NAME` 환경 변수가 정하는 프로젝트 �
 
 여러 프로젝트를 쓰려면 프로젝트마다 서버 인스턴스를 하나씩 실행하세요.
 [다중 프로젝트 구성](configuration.ko.md#다중-프로젝트-구성)을 참고하세요.
+여러 프로젝트를 조회만 하려면 [cross-project 조회](#cross-project-조회)를 참고하세요.
+
+### cross-project 조회
+
+서버에 `ALLOW_CROSS_PROJECT_READ=true`(기본값 `false`)가 설정되어 있으면, 일부 목록
+도구가 OpenStack CLI의 `--all-projects`처럼 `all_projects=true`를 받습니다.
+
+| 도구 | `all_projects=true`일 때 |
+|---|---|
+| `get_instance_details`, `search_instances`, `get_instances_by_status` | 조회 가능한 모든 프로젝트의 인스턴스. 각 항목에 `project_id`와 `project_name` 포함 |
+| `get_volume_list`, `get_volume_snapshots` | 조회 가능한 모든 프로젝트의 볼륨 또는 스냅샷. 각 항목에 `project_id`와 `project_name` 포함 |
+| `get_project_details` | 조회 가능한 모든 프로젝트의 요약(ID, 이름, 도메인, 활성 여부, `is_current`). 리소스 수는 계속 현재 프로젝트만 제공 |
+
+- **조회 가능한 자격 증명**: 대상 OpenStack 서비스의 정책이 해당 자격 증명의 토큰에
+  전체 프로젝트 목록 API를 허용할 때만 여러 프로젝트를 조회할 수 있습니다.
+  MCP-OpenStack-Ops는 이 판단을 위해 Role이나 Group을 정의·저장·검사하지 않습니다.
+- **스위치의 역할**: `ALLOW_CROSS_PROJECT_READ`는 이 서버에서 파라미터의 동작을 켤 뿐
+  권한을 부여하지 않습니다. 고정 자격 증명 모드에서는 서버에 접속하는 모든 클라이언트가
+  서버 자격 증명의 권한으로 조회합니다. 다중 사용자 모드에서는 요청마다 호출자의
+  Application Credential로 판정됩니다.
+- **거부**: 정책 거부(HTTP 403)는 오류로 반환되며, 현재 프로젝트 결과로 대체되지
+  않습니다. 일부 서비스는 권한 없는 요청을 거부하지 않고 호출자의 프로젝트로 좁힙니다.
+  그래서 결과에 현재 프로젝트만 있으면 `scope.warning`이 붙습니다. 각 목록은
+  `scope.projects_in_result`를 함께 보고합니다.
+- **변경 없음**: `all_projects`가 없으면 모든 도구는 계속 현재 프로젝트만 다룹니다.
+  변경 도구와 이름 기반 단건 조회(예: `get_instance_by_name`)는 항상 프로젝트 범위로
+  제한됩니다.
+
+cross-project 조회 권한은 이 서버가 아니라 OpenStack에서 설정합니다.
+
+| 방식 | 구성 | 비고 |
+|---|---|---|
+| A | `admin` Role | 간단하지만 전체 관리 권한을 줌 |
+| B | 전용 Role(예: `cross_project_reader`)을 각 서비스 정책의 전체 프로젝트 목록 규칙에 추가 | 최소 권한, 권장 |
+| C | 다중 사용자 모드 요청 헤더로 보내는 제한된 Application Credential(Role 일부 또는 access rules) | 다중 사용자 모드 전용 |
+
+관련 정책 규칙에는 Nova `os_compute_api:servers:detail:get_all_tenants`, Keystone
+`identity:list_projects`, Cinder의 all-tenants 규칙이 있습니다. 사용하는 릴리스의 규칙
+이름과 기본값은 예를 들어 `oslopolicy-policy-generator --namespace nova`로 확인하세요.
 
 ### 프로젝트 격리 테스트
 

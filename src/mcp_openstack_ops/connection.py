@@ -190,6 +190,83 @@ def get_current_project_id() -> str:
         raise
 
 
+# =============================================================================
+# CROSS-PROJECT READS (issue #86)
+# =============================================================================
+
+CROSS_PROJECT_READ_DISABLED = (
+    "Cross-project reads are disabled on this server; the operator can enable "
+    "them with ALLOW_CROSS_PROJECT_READ=true"
+)
+CROSS_PROJECT_READ_DENIED = (
+    "OpenStack policy denied the cross-project read for this credential"
+)
+CROSS_PROJECT_NARROWED_WARNING = (
+    "The result contains only the current project; OpenStack policy may have "
+    "narrowed the cross-project read to the current project"
+)
+
+
+class CrossProjectReadError(RuntimeError):
+    """A cross-project read was disabled or denied; the message is safe to show."""
+
+
+def cross_project_read_enabled() -> bool:
+    """Return True when the operator enabled cross-project reads.
+
+    This switch only exposes the feature on this server. Whether a read is
+    allowed is decided by the OpenStack service policy for the caller's token.
+    """
+    return os.environ.get("ALLOW_CROSS_PROJECT_READ", "false").lower() == "true"
+
+
+def require_cross_project_read() -> None:
+    """Raise CrossProjectReadError when cross-project reads are disabled."""
+    if not cross_project_read_enabled():
+        raise CrossProjectReadError(CROSS_PROJECT_READ_DISABLED)
+
+
+def raise_if_cross_project_denied(exc: BaseException) -> None:
+    """Re-raise an OpenStack policy denial as CrossProjectReadError."""
+    from openstack import exceptions as sdk_exceptions
+    if isinstance(exc, CrossProjectReadError):
+        raise exc
+    if isinstance(exc, sdk_exceptions.ForbiddenException):
+        raise CrossProjectReadError(CROSS_PROJECT_READ_DENIED) from None
+
+
+def get_project_names(conn: Any) -> Dict[str, str]:
+    """Map project IDs to names; empty when the credential cannot list projects."""
+    try:
+        return {project.id: project.name for project in conn.identity.projects()}
+    except Exception as e:
+        logger.warning("Could not list project names: %s", type(e).__name__)
+        return {}
+
+
+def cross_project_scope(project_ids: Any, current_project_id: str) -> Dict[str, Any]:
+    """Describe the projects in a cross-project result.
+
+    OpenStack services may silently narrow an unauthorized all-projects request
+    to the caller's project, so a result holding only the current project is
+    flagged instead of being presented as the whole cloud.
+    """
+    projects = sorted({pid for pid in project_ids if pid})
+    scope: Dict[str, Any] = {
+        'all_projects': True,
+        'projects_in_result': len(projects),
+    }
+    if not projects or projects == [current_project_id]:
+        scope['warning'] = CROSS_PROJECT_NARROWED_WARNING
+    return scope
+
+
+def cross_project_items_scope(items: Any) -> Dict[str, Any]:
+    """cross_project_scope for result rows that carry a project_id."""
+    return cross_project_scope((item.get('project_id') for item in items),
+                               get_current_project_id())
+
+
 def validate_resource_ownership(resource: Any, resource_type: str = "resource") -> bool:
     """
     Validate that a resource belongs to the current project or is publicly available.

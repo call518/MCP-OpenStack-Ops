@@ -50,6 +50,7 @@ Options:
 | **MCP 서버 설정** |
 | `MCP_LOG_LEVEL` | 로그 수준 | `INFO` | 개발 시 디버깅 |
 | `ALLOW_MODIFY_OPERATIONS` | 변경 작업 허용 | `false` | 상태 변경에 대한 안전 장치 |
+| `ALLOW_CROSS_PROJECT_READ` | 지원하는 목록 도구에서 `all_projects=true` 허용 | `false` | 기능만 켜며, 허용 여부는 OpenStack 정책이 판단. [cross-project 조회](security.ko.md#cross-project-조회) 참고 |
 | `FASTMCP_TYPE` | 전송 방식 | `stdio` | 바꿀 일이 거의 없음 |
 | `FASTMCP_HOST` | HTTP 호스트 주소 | `127.0.0.1` | HTTP 모드 전용 |
 | `FASTMCP_PORT` | HTTP 포트 번호 | `8080` | HTTP 모드 전용 |

@@ -403,20 +403,60 @@ def set_keypair(keypair_name: str, action: str, **kwargs) -> Dict[str, Any]:
         }
 
 
-def get_project_details(project_name: str = "") -> Dict[str, Any]:
+def _list_project_summaries(conn: Any, project_name: str = "") -> Dict[str, Any]:
+    """Summarize every project the credential's Keystone policy lets it list."""
+    from ..connection import cross_project_scope, raise_if_cross_project_denied
+    current_project_id = conn.current_project_id
+    try:
+        projects = list(conn.identity.projects())
+    except Exception as e:
+        raise_if_cross_project_denied(e)
+        raise
+    summaries = [{
+        'id': project.id,
+        'name': getattr(project, 'name', None),
+        'domain_id': getattr(project, 'domain_id', None),
+        'enabled': getattr(project, 'is_enabled', None),
+        'description': getattr(project, 'description', '') or '',
+        'is_current': project.id == current_project_id,
+    } for project in projects]
+    if project_name:
+        summaries = [row for row in summaries
+                     if project_name in (row['name'], row['id'])]
+    return {
+        'success': True,
+        'total_projects': len(summaries),
+        'projects': summaries,
+        'message': (f'Retrieved {len(summaries)} project summaries; use '
+                    'get_instance_details or get_volume_list with all_projects '
+                    'to see their resources'),
+        'scope': cross_project_scope((row['id'] for row in summaries),
+                                     current_project_id),
+    }
+
+
+def get_project_details(project_name: str = "", all_projects: bool = False) -> Dict[str, Any]:
     """
     Get detailed information about the current project scope.
     
     Args:
-        project_name: Name of specific project (if provided, must match current project)
+        project_name: Name of specific project (if provided, must match current
+            project unless all_projects is True)
+        all_projects: Return a summary of every project the credential's
+            Keystone policy allows (requires ALLOW_CROSS_PROJECT_READ=true)
     
     Returns:
-        Dict containing current project details only
+        Dict containing current project details only, or project summaries
+        when all_projects is True
     """
     try:
         # Import here to avoid circular imports
-        from ..connection import get_openstack_connection
+        from ..connection import get_openstack_connection, require_cross_project_read
+        if all_projects:
+            require_cross_project_read()
         conn = get_openstack_connection()
+        if all_projects:
+            return _list_project_summaries(conn, project_name)
         
         # Get current project information
         current_project_id = conn.current_project_id

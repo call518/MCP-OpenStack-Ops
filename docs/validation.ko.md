@@ -195,3 +195,31 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   실패나 건너뛴 테스트는 없습니다. 새 회귀 테스트 2건은 풀과 헬스 모니터를 Octavia
   GET 응답 형태로 구성하고, 기존 테스트는 풀 목록 조회에 `listener_id` 필터를 보내지
   않는지 확인합니다. 새 회귀 테스트 2건은 이전 코드에서 실패했습니다.
+- **cross-project 조회 대상 점검 (2026-11-13 UTC, 부분 점검, `3882adc` 기반의 커밋되지
+  않은 작업 트리):** issue #86의 `all_projects` 파라미터를 Kolla-Ansible 단일 노드
+  OpenStack Epoxy 클라우드(compute microversion 최대 2.100)에서 openstacksdk 4.22.0,
+  fastmcp 4.1.6으로 실행했습니다. 테스트 프로젝트에는 `member` 사용자 1명과 서버,
+  1 GB 볼륨, 스냅샷이 있었고, 관리자 프로젝트에는 서버 2대와 볼륨 2개, `service`
+  프로젝트에는 Octavia amphora 1대가 있었습니다. `get_instance_details`,
+  `search_instances`, `get_instances_by_status`, `get_volume_list`,
+  `get_volume_snapshots`, `get_project_details` 6개 도구를 고정 자격 증명 모드(프로세스
+  안에서 도구 함수 호출, 관리자와 `member`, 스위치 on/off, 36회)와 다중 사용자
+  모드(HTTP 전용 테스트 설정을 켠 로컬 Streamable HTTP 서버, 사용자별 Application
+  Credential, 14회)에서 호출했습니다. 50회 호출 모두 기대한 결과를 반환했습니다.
+  스위치가 꺼져 있으면 모든 `all_projects=true` 호출이 "Cross-project reads are
+  disabled" 오류를 반환했습니다. 스위치를 켜면 관리자는 세 프로젝트의 서버, 두
+  프로젝트의 볼륨, 다른 프로젝트의 스냅샷, 프로젝트 3개를 각 항목의 프로젝트 이름과
+  함께 나열했습니다. `member`의 요청은 Nova와 Keystone이 거부(HTTP 403)했고 도구는 정책
+  거부 오류를 반환했습니다. Cinder는 거부하지 않고 `member` 자신의 볼륨과 스냅샷만
+  반환했으며, 이 결과에는 `scope.warning`이 붙었습니다. `all_projects`가 없는 호출은
+  계속 현재 프로젝트만 다뤘습니다. 다중 사용자 서버 로그에는 자격 증명 secret이
+  나타나지 않았습니다. 다루지 않은 범위: 방식 B(전용 Role + policy 재정의), 제한된
+  Application Credential(방식 C), 이 클라우드의 정책 규칙 이름과 기본값. 테스트
+  프로젝트, 사용자, Application Credential, 리소스는 추가 점검을 위해 남겨 두었습니다.
+  이 부분 점검은 위의 105개 도구 요약을 갱신하지 않습니다.
+- **로컬 cross-project 조회 테스트 (2026-11-13, 같은 작업 트리):** fastmcp 4.1.6과
+  고정된 openstacksdk 4.22.0에서 `uv run pytest -q`로 실행해 523/523 (100%)이며,
+  실패나 건너뛴 테스트는 없습니다. 새 테스트 23건은 스위치가 꺼져 있을 때(OpenStack에
+  연결하지 않음), 정책 거부의 오류 처리, 좁혀진 결과의 경고, 프로젝트 이름을 못 얻을
+  때 ID로 대체, 다른 프로젝트 서버의 부트 볼륨 이미지 확인, 프로젝트 요약, 목록과 이름
+  조회의 현재 프로젝트 기본 동작을 다룹니다.

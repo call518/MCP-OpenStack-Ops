@@ -223,3 +223,36 @@ an earlier full summary.
   pools and health monitors in the Octavia GET response shape, and existing
   tests now assert that no `listener_id` filter is sent to the pool list. The
   two new regressions failed on the previous code.
+- **Targeted cross-project read check (2026-11-13 UTC; partial; uncommitted
+  working tree based on `3882adc`):** issue #86's `all_projects` parameter was
+  run on a Kolla-Ansible single-node OpenStack Epoxy cloud (compute
+  microversion up to 2.100) with openstacksdk 4.22.0 and fastmcp 4.1.6. A test
+  project held one `member` user with a server, a 1 GB volume and a snapshot;
+  the administrator's project held two servers and two volumes, and the
+  `service` project one Octavia amphora. The six tools
+  `get_instance_details`, `search_instances`, `get_instances_by_status`,
+  `get_volume_list`, `get_volume_snapshots` and `get_project_details` were
+  called in fixed-credential mode (tool functions in process, administrator and
+  `member`, switch on and off; 36 calls) and in multi-user mode (a local
+  Streamable HTTP server with the HTTP-only test override and an Application
+  Credential per user; 14 calls). All 50 calls returned the expected outcome.
+  With the switch off, every `all_projects=true` call returned the
+  "Cross-project reads are disabled" error. With it on, the administrator
+  listed servers of three projects, volumes of two, the other project's
+  snapshot, and three projects, each row with its project name. For `member`,
+  Nova and Keystone denied the request (HTTP 403) and the tools returned the
+  policy-denial error; Cinder instead returned only the member's own volume and
+  snapshot, which carried `scope.warning`. Calls without `all_projects` stayed
+  current-project only. No credential secret appeared in the multi-user server
+  log. Not covered: setup B (a dedicated role with a policy override), a
+  restricted Application Credential (setup C), and the policy rule names and
+  defaults on this cloud. The test project, user, Application Credentials and
+  resources were left for further checks. This partial check does not update
+  the 105-tool summary above.
+- **Local cross-project read tests (2026-11-13; same working tree):** 523/523
+  (100%) with fastmcp 4.1.6 and the locked openstacksdk 4.22.0, run as
+  `uv run pytest -q`; no failures or skipped tests. The 23 new cases cover the
+  disabled switch (no OpenStack connection), policy denial as an error,
+  the narrowed-result warning, project-name fallback to IDs, boot-volume image
+  resolution for another project's server, project summaries, and
+  current-project-only defaults for listings and name lookups.

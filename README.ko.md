@@ -27,7 +27,8 @@ OpenStack 프로젝트를 조회하고 운영할 수 있게 해 줍니다.
 - **기본은 읽기 전용**: 리소스를 만들거나 바꾸거나 지우는 도구는 직접 켜기
   전에는 등록조차 되지 않습니다.
 - **한 번에 하나의 프로젝트**: 서버 하나는 OpenStack 프로젝트 하나 안에서만
-  동작하고, 리소스 소유권을 확인합니다.
+  동작하고, 리소스 소유권을 확인합니다. 운영자가 켜면 일부 목록 도구에서 정책 검사를
+  거친 cross-project 조회를 쓸 수 있습니다.
 - **넓은 범위**: Nova, Neutron, Cinder, Glance, Keystone, Heat, Octavia,
   Gnocchi/Aodh 텔레메트리를 다루는 도구 111개(조회 55개, 관리 56개)를
   제공합니다.
@@ -191,6 +192,9 @@ modify operations**를 켜고) 서버를 다시 시작하세요. 이 계정이 �
   때만 등록됩니다.
 - **서버 하나에 프로젝트 하나.** 리소스는 현재 프로젝트로 필터링되고 소유권이
   확인됩니다. 여러 프로젝트를 관리하려면 프로젝트마다 서버를 하나씩 실행하세요.
+  `ALLOW_CROSS_PROJECT_READ=true`이면 일부 목록 도구가 `all_projects=true`를 받습니다.
+  여러 프로젝트를 조회할 수 있는지는 OpenStack 정책이 판단하고, 변경 도구는 계속
+  프로젝트 범위로 제한됩니다.
 - **HTTP 접근을 보호하세요.** `streamable-http`로 서버를 localhost 밖에
   노출하기 전에 Bearer 토큰 인증(`REMOTE_AUTH_ENABLE=true`)과 HTTPS를 켜세요.
 
@@ -258,6 +262,7 @@ modify operations**를 켜고) 서버를 다시 시작하세요. 이 계정이 �
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
 | `openstack server list` | `get_instance` | ✅ | 서로 다른 reader 프로젝트가 각각 소유한 VM 정확히 10개를 반환함. 제한된 랩 검증만 수행 |
+| `openstack server list --all-projects` | `get_instance_details`, `search_instances`, `get_instances_by_status` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. 허용 여부는 OpenStack 정책이 판단([cross-project 조회](docs/security.ko.md#cross-project-조회)). 항목에 `project_id`와 `project_name` 포함. 2026-11-13 targeted check: 관리자는 세 프로젝트의 서버를 나열했고, `member`는 고정 자격 증명 모드와 다중 사용자 모드 모두에서 Nova 정책 거부 오류를 받음 |
 | `openstack server show` | `get_instance` | ✅ | 자기 프로젝트의 테스트 리소스 조회 완료. 다른 프로젝트의 비공개 ID는 상세 정보를 반환하지 않음. 소유 ID 16개 일괄 조회는 주장하지 않음. 각 인스턴스는 `boot_source`(`image` 또는 `volume`)를 보고함. 요약 모드에서는 볼륨 부팅 인스턴스의 이미지를 unknown으로 표시하고, `detailed=true`이면 부팅 볼륨에서 이미지를 찾음. 2026-11-10 OpenStack 2026.1 점검(3.7.6): 볼륨 부팅 서버는 요약 모드와 상세 모드 모두에서 `volume`, 그 밖에는 `image`. 상세 모드는 부팅 볼륨에서 이미지 이름을 찾음 |
 | `openstack server create` | `set_instance` (action="create") | ✅ | **ENHANCED** - 일괄 생성 지원. 아래 볼륨 옵션을 주지 않으면 이미지를 flavor의 로컬 디스크로 부팅함. 2026-11-10 targeted check: 서버가 ACTIVE에 도달 |
 | `openstack server create --boot-from-volume <size>` | `set_instance` (action="create", `boot_from_volume`, `volume_size`) | ✅ | 루트 디스크를 이미지로 새로 만든 Cinder 볼륨에 둠. 선택적 `volume_type`과 `delete_on_termination`, 일괄 생성 지원. 2026-11-10 targeted check: 한 번의 호출로 만든 서버 3대가 ACTIVE에 도달했고, 각각 `/dev/vda`의 부팅 가능한 10 GB 볼륨을 사용. 2026-11-10 OpenStack 2026.1 점검(3.7.6): `volume_type`을 지정한 1 GB 루트 볼륨. 서버를 삭제하면 루트 볼륨도 삭제되었고, `delete_on_termination=false`이면 유지됨 |
@@ -354,6 +359,7 @@ Cinder가 없는 OpenStack 2026.1에서 live로 확인했습니다([검증](docs
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
 | `openstack volume list` | `get_volume_list` | ✅ | reader마다 소유한 볼륨 정확히 10개. 다른 테스트 프로젝트의 볼륨 ID는 반환하지 않음. `multiattach`와 `source_volid`는 SDK의 `is_multiattach`와 `source_volume_id` 필드를 읽음. 2026-11-10 targeted check: 이 필드들과 함께 나열됨 |
+| `openstack volume list --all-projects` | `get_volume_list` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Cinder는 권한 없는 요청을 거부하지 않고 호출자의 프로젝트로 좁히므로, 현재 프로젝트만 있는 결과에는 `scope.warning`이 붙음. 2026-11-13 targeted check: 관리자는 두 프로젝트의 볼륨을 나열했고, `member`는 경고와 함께 자기 볼륨만 받음 |
 | `openstack volume show` | `get_volume_list` | ✅ | 목록 기반 클라이언트 측 필터링. get_volume_list 전용 필터 인자는 없음 |
 | `openstack volume create/delete` | `set_volume` | ✅ | 볼륨 생성/삭제. 2026-11-10 targeted check: 1 GB 볼륨이 available에 도달했고 볼륨 2개가 삭제됨 |
 | `openstack volume set --size` | `set_volume` (action="extend") | ✅ | 양수 new_size가 size보다 우선하며 size는 대체값으로 남음. 테스트 볼륨이 요청한 크기와 available 상태에 도달. API가 요청을 받은 것만으로는 완료가 아님 |
@@ -361,6 +367,7 @@ Cinder가 없는 OpenStack 2026.1에서 live로 확인했습니다([검증](docs
 | `openstack volume type list` | `get_volume_types` | ✅ | 볼륨 유형 목록. 조회에 실패하면 가짜 `standard` 유형 대신 오류를 반환. 2026-11-10 targeted check: 나열됨 |
 | `openstack volume type create/delete` | `set_volume_types` | ✅ | 볼륨 유형 관리. 보통 관리자 전용 |
 | `openstack volume snapshot list` | `get_volume_snapshots` | ✅ | reader마다 소유한 기본 스냅샷 2개. API 최종 상태 확인 |
+| `openstack volume snapshot list --all-projects` | `get_volume_snapshots` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. 볼륨과 마찬가지로 좁혀진 결과에는 `scope.warning`이 붙음. 2026-11-13 targeted check: 관리자는 다른 프로젝트의 스냅샷을 나열했고, `member`는 경고와 함께 자기 스냅샷만 받음 |
 | `openstack volume snapshot create/delete` | `set_snapshot` | ✅ | member 계정의 명시적 MCP 스냅샷이 available에 도달했고 삭제됨. 작업 후 상태는 알 수 없는 리소스 유형으로 보고하지 않고 스냅샷을 찾아 확인. 복원/I/O는 주장하지 않음. 2026-11-10 targeted check (관리자): available에 도달했고 삭제됨 |
 | `openstack backup list` | `get_volume_backups` | ✅ | reader마다 소유한 available 백업 3개. 기본 백업은 실제 Cinder API로 생성 |
 | `openstack backup create/delete` | `set_volume_backups` | ✅ | 볼륨 백업 관리. 2026-11-10 targeted check: 백업이 available에 도달했고 삭제됨 |
@@ -396,7 +403,7 @@ Cinder가 없는 OpenStack 2026.1에서 live로 확인했습니다([검증](docs
 | `openstack user list` | `get_user_list` | ⚠️ Live unverified | Keystone이 reader를 거부했고 MCP가 명시적 실패를 반환함. 이번에 성공적인 목록 조회는 검증하지 않음 |
 | `openstack user show` | `get_user_list` | ⚠️ Live unverified | 정책 제한이 있는 사용자 목록에 의존. 새 reader에 대해 따로 검증하지 않음 |
 | `openstack user create/delete` | `set_users` | ✅ | 비밀번호는 서버 환경 변수에서 읽음. 역할은 부여하지 않음 |
-| `openstack project list` | `get_project_details` | ✅ | 프로젝트 목록 |
+| `openstack project list` | `get_project_details` (`all_projects=true`) | ✅ | `all_projects`가 없으면 현재 프로젝트와 그 리소스 수만 반환. `all_projects=true`이고 `ALLOW_CROSS_PROJECT_READ=true`이면 Keystone 정책이 허용하는 모든 프로젝트의 요약 반환. 2026-11-13 targeted check: 관리자는 세 프로젝트를 나열했고, `member`는 Keystone 정책 거부 실패를 받음 |
 | `openstack project show` | `get_project_details` (name param) | ✅ | 특정 프로젝트 조회 |
 | `openstack project create/delete` | `set_project` | ✅ | 프로젝트 관리 |
 | `openstack role list` | `get_role_assignments` | ✅ | 역할 목록 |

@@ -42,7 +42,8 @@ not have this file.
    Keystone host, project, user name, and password are required. Ports,
    domains, and region are prefilled with the server defaults. The CA
    certificate is optional. **Allow modify operations** is off, so only read
-   tools are registered.
+   tools are registered. **Allow cross-project reads** is off; see
+   [Cross-project reads](security.md#cross-project-reads) before turning it on.
 
 Claude Desktop stores the password as a sensitive value instead of writing it
 to `claude_desktop_config.json`. The bundle contains the source, `pyproject.toml`,
