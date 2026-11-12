@@ -23,6 +23,19 @@
 | 이후 서비스 | Network, Image, Heat 등 다른 서비스 |
 | 다른 프로젝트 상세 | 현재 프로젝트가 아닌 프로젝트에 대한 `get_project_details` 리소스 수 |
 
+- [ ] **Octavia 관리 리소스 (미결정)**
+
+`all_projects=true`이면 인스턴스 목록에 service 프로젝트의 Octavia amphora VM도
+나옵니다. amphora와 그 포트, 보안 그룹은 운영자가 직접 다루지 않고 Octavia가
+관리합니다. 표시할지 여부는 아직 정하지 않았습니다.
+
+| 항목 | 내용 |
+|---|---|
+| 조회 | `all_projects` 인스턴스 목록에서 amphora를 표시할지 제외할지. 한 가지 안은 기본으로 제외하고, 제외한 개수를 알려 주고, 요청 시 포함하는 방식 |
+| 변경 | 변경 도구가 여러 프로젝트를 지원할 때 amphora와 그 포트, 보안 그룹을 거부할지 |
+| 판별 | 이름 접두사나 service 프로젝트 이름보다 Octavia API(amphora `compute_id`, VRRP·VIP 포트)를 우선. 테스트 클라우드에서 실제 값 확인 |
+| 현재 상태 | 조회 도구는 `openstack server list --all-projects`처럼 amphora를 보여 줌. 변경 도구는 현재 프로젝트만 대상으로 하므로 service 프로젝트의 amphora에는 닿지 않음 |
+
 ## [Issue #73](https://github.com/call518/MCP-OpenStack-Ops/issues/73) 후속 작업
 
 ### 선택적 후속 작업

@@ -23,6 +23,19 @@ records in [validation](docs/validation.md).
 | Later services | Network, Image, Heat, and other services |
 | Other-project details | `get_project_details` resource counts for a project other than the current one |
 
+- [ ] **Octavia-managed resources (undecided)**
+
+With `all_projects=true`, instance lists also show Octavia amphora VMs in the
+service project. Amphorae, and their ports and security groups, are managed by
+Octavia, not by operators directly. Whether to show them is not decided yet.
+
+| Item | Detail |
+|---|---|
+| Listing | Show or exclude amphorae in `all_projects` instance lists; one option is to exclude them by default, report the excluded count, and include them on request |
+| Modification | When modification tools support multiple projects, decide whether to refuse amphorae and their ports and security groups |
+| Identification | Prefer the Octavia API (amphora `compute_id`, VRRP and VIP ports) over name prefixes or the service project name; check the real values on the test cloud |
+| Current state | Read tools show amphorae as `openstack server list --all-projects` does; modification tools reach only the current project, so service-project amphorae are out of reach |
+
 ## [Issue #73](https://github.com/call518/MCP-OpenStack-Ops/issues/73) follow-up
 
 ### Optional follow-ups
