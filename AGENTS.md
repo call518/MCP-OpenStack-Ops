@@ -14,8 +14,9 @@ what the project is, what it can do, the Quick Start, and pointers to details.
   link to it.
 - When behavior, settings, or installation steps change, update the affected
   `docs/` guides as well as README.md, and keep their links and anchors valid.
-  `mcpb/manifest.json` links to `README.md#claude-desktop-integration`; keep that
-  anchor.
+  `mcpb/manifest.json` links to the repository page's `#claude-desktop-integration`
+  anchor; keep `<a id="claude-desktop-integration"></a>` in both README.md and
+  README.ko.md.
 
 ## Keep English and Korean documents in sync
 
@@ -73,7 +74,8 @@ pointer to `docs/validation.md`, not the dated records themselves.
   `docs/validation.md`. Do not create other issue-specific reports, dated test
   results, or evidence JSON in `docs/`, or embed those records in usage guides.
   Report case-specific verification results, limits, failures, and cleanup in
-  chat unless the user explicitly requests a separate artifact. Never expose
+  chat unless the user explicitly requests a separate artifact; put such a
+  requested report in `docs/issues/`, the only place for one. Never expose
   credentials, private endpoints, or sensitive resource data. Dated validation
   summaries belong only in `docs/validation.md`; README.md may link to
   `docs/validation.md` but not to other reports.
@@ -81,3 +83,21 @@ pointer to `docs/validation.md`, not the dated records themselves.
   Status/Notes, source identity, and evidence links in README.md and
   `docs/validation.md` for agreement, and confirm that README.ko.md and
   `docs/validation.ko.md` carry the same information.
+
+## Maintain the MCP server instructions
+
+`src/mcp_openstack_ops/server_instructions.md` is sent to every client in the
+MCP initialize response and enters the model's context as-is.
+
+- Keep only rules that span several tools, such as scope, opt-in switches,
+  result reporting, async semantics, and confirmation. Put tool-specific
+  behavior in the tool's docstring and parameter descriptions.
+- Keep it under 4,096 characters; `tests/test_server_instructions.py` checks
+  the limit. Write short imperative English. The file is English only and is
+  outside the bilingual document rule.
+- Every tool name, parameter, and environment variable it mentions must match
+  the registered tools and settings. When a change renames or removes them, or
+  changes a cross-tool rule, update this file in the same change set.
+- Never include credentials, private endpoints, or environment-specific data.
+- After changing it, run the unit tests and record the result in
+  `docs/validation.md` and its Korean copy, following the rules above.
