@@ -29,16 +29,32 @@ def _can_read_network_subnet(subnet: Any, network: Any, project_id: str) -> bool
     )
 
 
-def get_network_details(network_name: str = "all") -> List[Dict[str, Any]]:
+def _label_project_rows(conn: Any, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Give cross-project rows a real owner ID (or None) and the project name."""
+    from ..connection import get_project_names
+    names = get_project_names(conn)
+    for row in rows:
+        owner = row.get('project_id') or row.get('tenant_id')
+        row['project_id'] = owner if owner and owner != 'unknown' else None
+        row['project_name'] = names.get(row['project_id'])
+    return rows
+
+
+def get_network_details(network_name: str = "all", all_projects: bool = False) -> List[Dict[str, Any]]:
     """
     Get detailed information about networks in current project.
-    
+
     Args:
         network_name: Name of specific network or "all" for all networks
-    
+        all_projects: With network_name "all", list every network Neutron
+            shows this credential (requires ALLOW_CROSS_PROJECT_READ=true)
+
     Returns:
         List of network dictionaries with detailed information for current project
     """
+    if all_projects:
+        from ..connection import require_cross_project_read
+        require_cross_project_read()
     try:
         # Import here to avoid circular imports
         from ..connection import get_openstack_connection, get_current_project_id, validate_resource_ownership
@@ -53,16 +69,17 @@ def get_network_details(network_name: str = "all") -> List[Dict[str, Any]]:
                 network_project = getattr(network, 'project_id', None) or getattr(network, 'tenant_id', None)
                 
                 # Enhanced project validation with utility functions
-                if (getattr(network, 'is_shared', False) or
+                if (all_projects or
+                    getattr(network, 'is_shared', False) or
                     getattr(network, 'is_router_external', False) or
                     validate_resource_ownership(network, "Network")):  # Include shared and external networks
-                    
+
                     # Get subnets for this network with project validation
                     subnets = []
                     for subnet in conn.network.subnets(network_id=network.id):
                         if getattr(subnet, 'network_id', None) == network.id:
                             # Enhanced validation using utility functions
-                            if _can_read_network_subnet(subnet, network, current_project_id):
+                            if all_projects or _can_read_network_subnet(subnet, network, current_project_id):
                                 subnets.append({
                                     'id': subnet.id,
                                     'name': getattr(subnet, 'name', 'unnamed'),
@@ -136,9 +153,11 @@ def get_network_details(network_name: str = "all") -> List[Dict[str, Any]]:
                             'subnet_count': len(subnets)
                         })
                         break
-        
+
+        if all_projects and network_name.lower() == "all":
+            _label_project_rows(conn, networks)
         return networks
-        
+
     except Exception as e:
         logger.error(f"Failed to get network details: {e}")
         raise RuntimeError("OpenStack resource query failed") from None
@@ -298,24 +317,31 @@ def set_networks(action: str, network_name: Optional[str] = None, **kwargs) -> D
         }
 
 
-def get_security_groups() -> List[Dict[str, Any]]:
+def get_security_groups(all_projects: bool = False) -> List[Dict[str, Any]]:
     """
     Get list of security groups with rules for current project.
-    
+
+    Args:
+        all_projects: List every security group Neutron shows this credential
+            (requires ALLOW_CROSS_PROJECT_READ=true)
+
     Returns:
         List of security group dictionaries for current project
     """
+    if all_projects:
+        from ..connection import require_cross_project_read
+        require_cross_project_read()
     try:
         # Import here to avoid circular imports
         from ..connection import get_openstack_connection
         conn = get_openstack_connection()
         current_project_id = conn.current_project_id
         security_groups = []
-        
+
         for sg in conn.network.security_groups():
             # Filter by current project
             sg_project_id = getattr(sg, 'project_id', None) or getattr(sg, 'tenant_id', None)
-            if sg_project_id == current_project_id:
+            if all_projects or sg_project_id == current_project_id:
                 rules = []
                 for rule in getattr(sg, 'security_group_rules', []):
                     rules.append({
@@ -340,7 +366,11 @@ def get_security_groups() -> List[Dict[str, Any]]:
                     'rules': rules,
                     'rule_count': len(rules)
                 })
-        
+                if all_projects:
+                    security_groups[-1]['shared'] = bool(getattr(sg, 'is_shared', False))
+
+        if all_projects:
+            _label_project_rows(conn, security_groups)
         logger.info(f"Retrieved {len(security_groups)} security groups for project {current_project_id}")
         return security_groups
     except Exception as e:
@@ -349,24 +379,31 @@ def get_security_groups() -> List[Dict[str, Any]]:
         raise
 
 
-def get_floating_ips() -> List[Dict[str, Any]]:
+def get_floating_ips(all_projects: bool = False) -> List[Dict[str, Any]]:
     """
     Get list of floating IPs for current project.
-    
+
+    Args:
+        all_projects: List every floating IP Neutron shows this credential
+            (requires ALLOW_CROSS_PROJECT_READ=true)
+
     Returns:
         List of floating IP dictionaries for current project
     """
+    if all_projects:
+        from ..connection import require_cross_project_read
+        require_cross_project_read()
     try:
         # Import here to avoid circular imports
         from ..connection import get_openstack_connection
         conn = get_openstack_connection()
         current_project_id = conn.current_project_id
         floating_ips = []
-        
+
         for fip in conn.network.ips():
             # Filter by current project
             fip_project_id = getattr(fip, 'project_id', None) or getattr(fip, 'tenant_id', None)
-            if fip_project_id == current_project_id:
+            if all_projects or fip_project_id == current_project_id:
                 floating_ips.append({
                     'id': fip.id,
                     'floating_ip_address': getattr(fip, 'floating_ip_address', 'unknown'),
@@ -381,7 +418,9 @@ def get_floating_ips() -> List[Dict[str, Any]]:
                     'updated_at': str(getattr(fip, 'updated_at', 'unknown')),
                     'description': getattr(fip, 'description', '')
                 })
-        
+
+        if all_projects:
+            _label_project_rows(conn, floating_ips)
         logger.info(f"Retrieved {len(floating_ips)} floating IPs for project {current_project_id}")
         return floating_ips
     except Exception as e:
@@ -1063,24 +1102,31 @@ def set_floating_ip_port_forwarding(action: str, **kwargs) -> Dict[str, Any]:
         }
 
 
-def get_routers() -> List[Dict[str, Any]]:
+def get_routers(all_projects: bool = False) -> List[Dict[str, Any]]:
     """
     Get list of routers with detailed information for current project.
-    
+
+    Args:
+        all_projects: List every router Neutron shows this credential
+            (requires ALLOW_CROSS_PROJECT_READ=true)
+
     Returns:
         List of router dictionaries for current project
     """
+    if all_projects:
+        from ..connection import require_cross_project_read
+        require_cross_project_read()
     try:
         # Import here to avoid circular imports
         from ..connection import get_openstack_connection
         conn = get_openstack_connection()
         current_project_id = conn.current_project_id
         routers = []
-        
+
         for router in conn.network.routers():
             # Filter by current project
             router_project_id = getattr(router, 'project_id', None) or getattr(router, 'tenant_id', None)
-            if router_project_id == current_project_id:
+            if all_projects or router_project_id == current_project_id:
                 # Get router interfaces (ports)
                 interfaces = []
                 try:
@@ -1111,7 +1157,9 @@ def get_routers() -> List[Dict[str, Any]]:
                     'interfaces': interfaces,
                     'interface_count': len(interfaces)
                 })
-        
+
+        if all_projects:
+            _label_project_rows(conn, routers)
         logger.info(f"Retrieved {len(routers)} routers for project {current_project_id}")
         return routers
     except Exception as e:

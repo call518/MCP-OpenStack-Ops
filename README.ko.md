@@ -332,6 +332,7 @@ Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인�
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
 | `openstack network list` | `get_network_details` | ✅ | reader마다 소유한 비공개 네트워크 2개와 정책상 보이는 공유 외부 네트워크 1개. 다른 테스트 프로젝트의 비공개 네트워크는 반환하지 않음 |
+| `openstack network list` (관리자, 모든 프로젝트) | `get_network_details` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Neutron에는 전체 프로젝트 옵션이 없고 목록 요청을 거부하지 않으며 자격 증명이 볼 수 있는 것을 반환하므로, 다른 프로젝트의 비공유 리소스가 없는 결과에는 `scope.warning`이 붙음. 기본 `network_name`에서만 사용. 다른 프로젝트의 공유·외부 네트워크는 판단에 포함하지 않음. 2026-11-13 targeted check: 관리자는 세 프로젝트의 네트워크를 나열했고, `member`는 경고와 함께 자기 네트워크와 공유 외부 네트워크를 받음 |
 | `openstack network show` | `get_network_details` (network_name) | ✅ | 다른 프로젝트 ID 조회가 실패하는 것을 확인. 일치하는 이름이 없으면 명시적 오류를 반환(이전에는 빈 성공). 2026-11-10 targeted check (관리자): 이름 조회는 네트워크를 반환했고 없는 이름은 오류를 반환. reader 역할로 두 프로젝트에서 성공 조회하는 것은 아직 확인하지 않음 |
 | `openstack network create` | `set_networks` (action="create") | ✅ | 기본 mtu=0이면 해당 필드를 보내지 않음. 백엔드 MTU 1450 확인. 명시한 1400은 두 member 프로젝트 모두에서 유지 |
 | `openstack network delete` | `set_networks` (action="delete") | ✅ | 기본 MTU와 지정 MTU 테스트 네트워크를 실제 TCP MCP로 삭제했고 API에서 사라진 것을 확인 |
@@ -339,8 +340,10 @@ Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인�
 | `openstack subnet list` | `get_network_details` (includes subnets) | ✅ | 소유 네트워크와 공유 외부 네트워크의 서브넷을 반환. 테스트 reader마다 보이는 서브넷 3개 |
 | `openstack subnet create/delete` | `set_subnets` | ✅ | member 계정의 TCP MCP로 서브넷을 만들고 재조회. 삭제 후 두 프로젝트 모두에서 상위 네트워크를 제거할 수 있었음 |
 | `openstack router list` | `get_routers` | ⚠️ Live unverified | 이번에는 복합 오류 요청의 일부로만 호출되었고, reader 결과를 따로 확인하지 않음 |
+| `openstack router list` (관리자, 모든 프로젝트) | `get_routers` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Neutron에는 전체 프로젝트 옵션이 없고 목록 요청을 거부하지 않으며 자격 증명이 볼 수 있는 것을 반환하므로, 다른 프로젝트의 비공유 리소스가 없는 결과에는 `scope.warning`이 붙음. 2026-11-13 targeted check: 관리자는 두 프로젝트의 라우터를 나열했고, `member`는 경고와 함께 자기 라우터만 받음 |
 | `openstack router create/delete` | `set_routers` | ✅ | 프로젝트 소유 라우터. 연결된 interface는 자동으로 제거하지 않음 |
 | `openstack floating ip list` | `get_floating_ips` | ✅ | Floating IP 목록. 조회에 실패하면 가짜 주소 대신 오류를 반환. 2026-11-10 targeted check: 나열됨 |
+| `openstack floating ip list` (관리자, 모든 프로젝트) | `get_floating_ips` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Neutron에는 전체 프로젝트 옵션이 없고 목록 요청을 거부하지 않으며 자격 증명이 볼 수 있는 것을 반환하므로, 다른 프로젝트의 비공유 리소스가 없는 결과에는 `scope.warning`이 붙음. 2026-11-13 targeted check: 관리자는 두 프로젝트의 floating IP를 나열했고, `member`는 경고와 함께 자기 것만 받음 |
 | `openstack floating ip create` | `set_floating_ip` (action="create") | ✅ | Floating IP 생성. `description`, `port_id`, `floating_ip_address`를 전달(이전에는 버려짐). 2026-11-10 targeted check: description과 함께 생성됨. 생성 시 `port_id`와 `floating_ip_address`는 live 테스트하지 않음 |
 | `openstack floating ip delete` | `set_floating_ip` (action="delete") | ✅ | Floating IP 삭제. 2026-11-10 targeted check: 반납됨 |
 | `openstack floating ip set` | `set_floating_ip` (action="set") | ✅ | Floating IP 속성 설정 |
@@ -353,6 +356,7 @@ Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인�
 | `openstack floating ip port forwarding set` | `set_floating_ip_port_forwarding` (action="set") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼의 port-forwarding endpoint가 HTTP 404를 반환 |
 | `openstack floating ip port forwarding show` | `set_floating_ip_port_forwarding` (action="show") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼의 port-forwarding endpoint가 HTTP 404를 반환 |
 | `openstack security group list` | `get_security_groups` | ✅ | 범위가 제한된 reader 목록 조회 완료. default와 테스트 그룹이 보임. 조회에 실패하면 가짜 `default` 그룹 대신 오류를 반환 |
+| `openstack security group list --all-projects` | `get_security_groups` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Neutron에는 전체 프로젝트 옵션이 없고 목록 요청을 거부하지 않으며 자격 증명이 볼 수 있는 것을 반환하므로, 다른 프로젝트의 비공유 리소스가 없는 결과에는 `scope.warning`이 붙음. 항목에 `shared` 포함. 2026-11-13 targeted check: 관리자는 `service` 프로젝트의 Octavia 그룹을 포함해 세 프로젝트의 그룹을 나열했고, `member`는 경고와 함께 자기 그룹만 받음 |
 | `openstack security group create/delete` | `set_security_groups` | ✅ | 프로젝트 소유 보안 그룹 |
 | `openstack security group rule create/delete` | `set_security_group_rules` | ⚠️ Live unverified | 프로젝트 소유 그룹에 대해 구현됨. 생성 시 명시적인 CIDR 또는 프로젝트 소유 원격 그룹이 필요하며, 삭제 시 규칙이 선택한 그룹 소속인지 확인. 이번 변경에서는 live 테스트하지 않음 |
 | `openstack port list` | `set_network_ports` (action="list") | ⚠️ Live unverified | 구현된 list action은 변경 도구가 등록되어야 사용 가능. 이번에 실행하지 않음 |

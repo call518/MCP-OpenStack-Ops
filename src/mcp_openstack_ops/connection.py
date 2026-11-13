@@ -205,6 +205,11 @@ CROSS_PROJECT_NARROWED_WARNING = (
     "The result contains only the current project; OpenStack policy may have "
     "narrowed the cross-project read to the current project"
 )
+NEUTRON_NARROWED_WARNING = (
+    "Apart from shared or external resources, the result contains only the "
+    "current project; OpenStack policy may have narrowed the cross-project "
+    "read to what this credential can see"
+)
 
 
 class CrossProjectReadError(RuntimeError):
@@ -265,6 +270,25 @@ def cross_project_items_scope(items: Any) -> Dict[str, Any]:
     """cross_project_scope for result rows that carry a project_id."""
     return cross_project_scope((item.get('project_id') for item in items),
                                get_current_project_id())
+
+
+def neutron_items_scope(items: Any) -> Dict[str, Any]:
+    """cross_project_scope for Neutron rows.
+
+    Neutron has no all-projects flag and never denies a list: it returns what
+    the credential can see, which includes other projects' shared and external
+    resources. Only another project's unshared resource shows the read crossed
+    projects; without one the result is flagged as possibly narrowed.
+    """
+    items = list(items)
+    current_project_id = get_current_project_id()
+    scope = cross_project_scope((item.get('project_id') for item in items),
+                                current_project_id)
+    if not any(item.get('project_id') not in (None, current_project_id)
+               and not item.get('shared') and not item.get('external')
+               for item in items):
+        scope['warning'] = NEUTRON_NARROWED_WARNING
+    return scope
 
 
 def validate_resource_ownership(resource: Any, resource_type: str = "resource") -> bool:

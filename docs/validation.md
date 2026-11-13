@@ -313,3 +313,31 @@ an earlier full summary.
   the change. Five further cases cover another project's details by name and
   by ID, an ambiguous name, a Nova policy denial and a narrowed Cinder result.
   The server instructions changed and stay within 4,096 characters.
+- **Targeted Neutron cross-project read check (2026-11-13 UTC; partial;
+  uncommitted working tree based on `83b5d9a`):** `get_network_details`,
+  `get_routers`, `get_security_groups` and `get_floating_ips` gained
+  `all_projects`. Tool functions were called in process in fixed-credential
+  mode on the same cloud as the administrator and as `member`. Without
+  `all_projects`, the output of the changed code and of `83b5d9a` was identical
+  for both users (8 calls each; security group rules compared by ID, because
+  Neutron does not keep their order). With the switch off, every
+  `all_projects=true` call returned the "Cross-project reads are disabled"
+  error. With it on, the administrator listed networks and security groups of
+  three projects, including Octavia's groups in the `service` project, with no
+  warning. Routers and floating IPs first came only from the administrator's
+  project and carried `scope.warning`; after one router and one floating IP
+  were added to the test project, both lists showed two projects with no
+  warning. `member` received its own resources and, for networks, the shared
+  external network of another project; every result carried `scope.warning`,
+  and rows fell back to project IDs because the member cannot list projects.
+  All 32 calls with the changed code returned the expected outcome. The test
+  router and floating IP were left for further checks. This partial check does
+  not update the 105-tool summary above.
+- **Local Neutron cross-project read tests (2026-11-13; same working tree):**
+  550/550 (100%) with fastmcp 4.1.6 and the locked openstacksdk 4.22.0, run as
+  `uv run pytest -q`; no failures or skipped tests. Four new cases pin the
+  calls and rows without `all_projects` and passed before the change. Fourteen
+  further cases cover the disabled switch, other projects' rows and names,
+  unknown owners, the shared-resource rule for the warning, and the tool
+  responses. An existing test caught that the network tool had changed its
+  default call to the service, which was then restored.

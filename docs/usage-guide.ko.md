@@ -95,9 +95,10 @@ Stop all instances with name containing 'test'
 "Show volume snapshots in every project"
 "How many instances and volumes does each project have?"
 "Show the resource counts of project 'dev'"
+"List networks and floating IPs of every project"
 ```
 
-**사용 도구:** `get_project_details(all_projects=true)`, `get_instance_details(all_projects=true)`, `get_instances_by_status(all_projects=true)`, `search_instances(all_projects=true)`, `get_volume_list(all_projects=true)`, `get_volume_snapshots(all_projects=true)`
+**사용 도구:** `get_project_details(all_projects=true)`, `get_instance_details(all_projects=true)`, `get_instances_by_status(all_projects=true)`, `search_instances(all_projects=true)`, `get_volume_list(all_projects=true)`, `get_volume_snapshots(all_projects=true)`, `get_network_details(all_projects=true)`, `get_routers(all_projects=true)`, `get_security_groups(all_projects=true)`, `get_floating_ips(all_projects=true)`
 
 **흐름:** 사용자가 전체 프로젝트나 다른 프로젝트에 대해 물을 때만 `all_projects=true`를 넘깁니다. 행은 `project_name`(없으면 `project_id`)으로 묶고, `get_instance_details`에는 `include_all=true`나 페이지 처리를 써서 어떤 프로젝트도 잘리지 않게 합니다. `scope.projects_in_result`를 보고하고, `scope.warning`이 있으면 결과가 현재 프로젝트만 다룰 수 있다고 알립니다. "Cross-project reads are disabled" 오류는 운영자가 `ALLOW_CROSS_PROJECT_READ=true`를 설정하지 않았다는 뜻이고, 정책 거부 오류는 자격 증명에 권한이 없다는 뜻입니다. 이런 요청을 `all_projects` 없이 다시 시도한 결과를 클라우드 전체 결과처럼 제시하지 마세요. 한 프로젝트의 리소스 수는 그 프로젝트의 이름이나 ID와 `all_projects=true`로 `get_project_details`를 호출해 얻습니다. 이름이 여러 프로젝트와 일치하면 ID로 다시 호출합니다.
 

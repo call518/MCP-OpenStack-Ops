@@ -19,7 +19,7 @@ records in [validation](docs/validation.md).
 |---|---|
 | Setup B validation | Add a dedicated role to the Nova and Keystone policy rules and confirm it reads across projects without `admin`; Cinder has no separate rule |
 | Setup C with Cinder | Confirm volume tools with a GET-only access-rule credential after Cinder's `[keystone_authtoken] service_type` is set to a catalog type; changes the cloud, so run it with setup B |
-| Later services | Network, Image, Heat, and other services |
+| Later services | Done for Neutron. Remaining: `get_volume_backups`, `get_volume_groups`, `get_server_groups`, `get_image_detail_list`, `get_heat_stacks`, `get_load_balancer_list` |
 
 - [ ] **Octavia-managed resources (undecided)**
 
