@@ -43,9 +43,9 @@ def test_bundle_runs_the_stdio_entry_point_with_uv():
 
 
 def test_bundle_icon_is_a_png_copied_by_the_build_script():
-    # scripts/build-mcpb.sh copies img/logo-openstack.png to the bundle's icon.png.
+    # scripts/build-mcpb.sh copies img/icon-openstack.png to the bundle's icon.png.
     assert MANIFEST["icon"] == "icon.png"
-    source = ROOT / "img" / "logo-openstack.png"
+    source = ROOT / "img" / "icon-openstack.png"
     assert source.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
     build = (ROOT / "scripts" / "build-mcpb.sh").read_text()
-    assert '"$ROOT/img/logo-openstack.png" "$STAGE/icon.png"' in build
+    assert '"$ROOT/img/icon-openstack.png" "$STAGE/icon.png"' in build

@@ -13,7 +13,7 @@ trap 'rm -rf "$STAGE"' EXIT
 
 cp "$ROOT/mcpb/server.py" "$ROOT/pyproject.toml" "$ROOT/uv.lock" \
    "$ROOT/README.md" "$ROOT/LICENSE" "$STAGE/"
-cp "$ROOT/img/logo-openstack.png" "$STAGE/icon.png"
+cp "$ROOT/img/icon-openstack.png" "$STAGE/icon.png"
 mkdir -p "$STAGE/src"
 cp -R "$ROOT/src/mcp_openstack_ops" "$STAGE/src/"
 find "$STAGE/src" -name '__pycache__' -type d -prune -exec rm -rf {} +
