@@ -36,6 +36,27 @@
 | 판별 | 이름 접두사나 service 프로젝트 이름보다 Octavia API(amphora `compute_id`, VRRP·VIP 포트)를 우선. 테스트 클라우드에서 실제 값 확인 |
 | 현재 상태 | 조회 도구는 `openstack server list --all-projects`처럼 amphora를 보여 줌. 변경 도구는 현재 프로젝트만 대상으로 하므로 service 프로젝트의 amphora에는 닿지 않음 |
 
+## 단일 계정 모드의 Application Credential
+
+- [ ] **단일 계정 모드에서 Application Credential 받기 (보류, 미결정)**
+
+단일 계정 모드(MCPB, stdio, `--multi-user` 없는 HTTP)는 `OS_USERNAME`과
+`OS_PASSWORD`만 받습니다. Application Credential은 다중 사용자 모드에서 요청
+헤더로만 쓸 수 있습니다. `OS_APPLICATION_CREDENTIAL_ID`와
+`OS_APPLICATION_CREDENTIAL_SECRET`을 추가해도 바뀌는 것은 Keystone 인증 단계뿐이고,
+엔드포인트, 캐시, 도구는 그대로입니다. 사용자가 다른 계정으로 접속했다고 착각할
+위험이 이점보다 클 수 있어 보류합니다. 결정된 것은 없습니다.
+
+| 항목 | 내용 |
+|---|---|
+| 두 세트를 모두 설정 | 미결정: 시작 시 오류, 경고와 함께 Application Credential 우선, `OS_AUTH_TYPE`으로 선택 중 하나. 로컬 확인 결과 `auth_type`이 없으면 openstacksdk는 password 인증을 고르고 Application Credential을 경고 없이 무시함 |
+| scope 변수 | 프로젝트는 credential이 정함. `OS_PROJECT_NAME`과 도메인 변수를 보내면 안 됨. 로컬 확인 결과 Application Credential 플러그인은 이를 scope 파라미터로 유지함. 이에 대한 Keystone 응답은 live 미검증 |
+| 일부만 입력 | ID나 secret 중 하나만 있으면 password 인증으로 넘어가지 않고 실패해야 함 |
+| 프로젝트 조회 | `get_current_project_id`의 `OS_PROJECT_NAME` fallback을 건너뛰고 토큰의 프로젝트 사용 |
+| 제한된 credential | Role 일부나 access rules 때문에 일부 도구가 정책 거부(HTTP 403)를 반환할 수 있음. 매핑 Notes에 명시 |
+| 만료 | 만료되거나 삭제된 credential을 명확히 보고. 재인증으로 복구되지 않음 |
+| MCPB | `os_username`, `os_password`, `os_project_name`이 `required: true`이므로 optional로 바꾸고 조합 검증은 서버가 맡아야 함 |
+
 ## [Issue #73](https://github.com/call518/MCP-OpenStack-Ops/issues/73) 후속 작업
 
 ### 선택적 후속 작업

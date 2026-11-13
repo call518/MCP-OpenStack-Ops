@@ -17,6 +17,11 @@ what the project is, what it can do, the Quick Start, and pointers to details.
   `mcpb/manifest.json` links to the repository page's `#claude-desktop-integration`
   anchor; keep `<a id="claude-desktop-integration"></a>` in both README.md and
   README.ko.md.
+- Whenever authentication methods, auth settings, or client support change,
+  update the **Authentication support by client** table in `docs/security.md`
+  (status date, source revision, rows, Status, Notes) and README.md's short
+  pointer section, in both languages. Mark paths without a live check as
+  **Live unverified**.
 
 ## Keep English and Korean documents in sync
 

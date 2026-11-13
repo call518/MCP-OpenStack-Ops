@@ -2,10 +2,37 @@
 
 # 보안, 격리, 안전 장치
 
-이 가이드는 서버가 볼 수 있고 바꿀 수 있는 범위를 어떻게 제한하는지 설명합니다.
-프로젝트 격리, 변경 도구의 읽기 전용 기본값, HTTP 접근을 위한 Bearer 토큰 인증을
-다룹니다. 사용자별 OpenStack 계정은 [다중 사용자 가이드](multi-user-guide.ko.md)를
-참고하세요.
+이 가이드는 서버가 OpenStack에 인증하는 방식과, 볼 수 있고 바꿀 수 있는 범위를
+어떻게 제한하는지 설명합니다. 클라이언트별 인증 지원 현황, 프로젝트 격리, 변경
+도구의 읽기 전용 기본값, HTTP 접근을 위한 Bearer 토큰 인증을 다룹니다. 사용자별
+OpenStack 계정은 [다중 사용자 가이드](multi-user-guide.ko.md)를 참고하세요.
+
+## 클라이언트별 인증 지원 현황
+
+서버 배포 하나는 OpenStack에 다음 두 방식 중 하나로만 인증합니다.
+
+- **Password** (단일 계정 모드, 기본값): 서버가 자신의 환경에서 `OS_USERNAME`,
+  `OS_PASSWORD`, `OS_PROJECT_NAME`을 읽습니다. 그 서버의 모든 클라이언트가 이 계정
+  하나로 동작합니다.
+- **Application Credential** (다중 사용자 모드, `MCP_MULTI_USER=true` 또는
+  `--multi-user`, `streamable-http` 전용): 요청마다
+  `X-OpenStack-Application-Credential-ID`와
+  `X-OpenStack-Application-Credential-Secret` 헤더를 보냅니다. 사용자와 프로젝트는
+  credential이 정하고, 서버의 `OS_*` 계정은 쓰지 않습니다.
+  [다중 사용자 가이드](multi-user-guide.ko.md)를 참고하세요.
+
+단일 계정 모드는 Application Credential을 받지 않으며,
+`OS_APPLICATION_CREDENTIAL_*` 변수도 없습니다. 이 사항은 [TODO](../ToDo.ko.md)에
+미결정 항목으로 기록되어 있습니다.
+
+2026-11-13 기준 현황 (소스 `54cb03a`):
+
+| 클라이언트 | Password | Application Credential | 비고 |
+|---|---|---|---|
+| Claude Desktop, 확장 번들 (`.mcpb`) | ✅ | ❌ Not implemented | 번들은 서버를 stdio로 실행하고 credential 입력 항목이 없음. 다중 사용자 모드는 `streamable-http`가 필요함 |
+| OpenWebUI, Docker Compose | ✅ | ⚠️ Live unverified | Password: 모든 OpenWebUI 사용자가 OpenStack 계정 하나를 씀. Application Credential: 헤더에 사용자 한 명의 credential만 담긴 개인용 또는 소유자 제한 연결에서만 사용. 공유 연결 하나로는 사용하지 않음. [클라이언트 호환성](multi-user-guide.ko.md#클라이언트-호환성) 참고 |
+| Claude Code CLI | ✅ | ✅ | 서버는 `streamable-http`로 실행. Password: 계정은 서버 환경에만 있고 Claude Code는 Bearer 토큰만 보냄. Application Credential: 버전 2.1.312로 실제 HTTPS MCP 서버에 등록해 테스트함 |
+| Claude Code IDE 확장 | ⚠️ Live unverified | ⚠️ Live unverified | CLI와 같은 등록 방식이며 별도로 테스트하지 않음 |
 
 ## 프로젝트 격리
 

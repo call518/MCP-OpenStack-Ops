@@ -206,6 +206,15 @@ modify operations**를 켜고) 서버를 다시 시작하세요. 이 계정이 �
 자세한 내용: [보안 가이드](docs/security.ko.md),
 [다중 사용자 가이드](docs/multi-user-guide.ko.md).
 
+## 클라이언트별 인증 지원 현황
+
+서버는 OpenStack에 계정 하나의 password(기본값)나 사용자별 Application
+Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인증합니다. 지원
+여부는 클라이언트마다 다르며, 예를 들어 Claude Desktop 확장 번들은 password만
+지원합니다.
+[클라이언트별 인증 지원 현황](docs/security.ko.md#클라이언트별-인증-지원-현황)을
+참고하세요.
+
 ## 호환성
 
 > ⚠️ **호환성 안내**: 이 MCP 서버는 **OpenStack Epoxy(2025.1)**를 주 대상 환경으로 개발하고 최적화했습니다. 대부분의 API가 버전 간에 동일하므로 최근 OpenStack 릴리스(Dalmatian, Caracal, Bobcat 등)와도 대체로 호환됩니다. 구 버전 릴리스와 완전히 호환되려면 일부 API endpoint를 조정해야 할 수 있습니다.
@@ -238,7 +247,7 @@ modify operations**를 켜고) 서버를 다시 시작하세요. 이 계정이 �
 | [Claude Desktop 가이드](docs/claude-desktop-guide.ko.md) | 확장 번들, `uvx`, 소스 체크아웃, `mcp-remote`, 원격 커넥터 |
 | [Claude Code 가이드](docs/claude-code-guide.ko.md) | Claude Code에 HTTP 서버 등록하기 |
 | [설정 가이드](docs/configuration.ko.md) | 명령줄 옵션, 환경 변수, endpoint, HTTPS, 여러 프로젝트, SDK 버전 |
-| [보안 가이드](docs/security.ko.md) | 프로젝트 격리, 읽기 전용 기본값, Bearer 인증 |
+| [보안 가이드](docs/security.ko.md) | 클라이언트별 인증 지원 현황, 프로젝트 격리, 읽기 전용 기본값, Bearer 인증 |
 | [다중 사용자 가이드](docs/multi-user-guide.ko.md) | 사용자별 Application Credential 인증 (실험 기능) |
 | [개발 가이드](docs/development.ko.md) | 테스트, live 도구 점검, 도구 추가, 기여 방법 |
 | [TODO](ToDo.ko.md) | 아직 남은 구현 및 live 검증 작업 |

@@ -205,6 +205,14 @@ what the account may do.
 Details: [security guide](docs/security.md) and
 [multi-user guide](docs/multi-user-guide.md).
 
+## Authentication support by client
+
+Each server authenticates to OpenStack with either one account's password (the
+default) or per-user Application Credentials (multi-user mode, `streamable-http`
+only). Support differs by client; for example, the Claude Desktop extension
+bundle supports only the password. See
+[Authentication support by client](docs/security.md#authentication-support-by-client).
+
 ## Compatibility
 
 > ⚠️ **Compatibility Notice**: This MCP server is developed and optimized for **OpenStack Epoxy (2025.1)** as the primary target environment. However, it is compatible with most modern OpenStack releases (Dalmatian, Caracal, Bobcat, etc.) as the majority of APIs remain consistent across versions. Only a few specific API endpoints may require adaptation for full compatibility with older releases.
@@ -236,7 +244,7 @@ To change the SDK version for an older release, see
 | [Claude Desktop guide](docs/claude-desktop-guide.md) | Extension bundle, `uvx`, source checkout, `mcp-remote`, remote connector |
 | [Claude Code guide](docs/claude-code-guide.md) | Registering the HTTP server in Claude Code |
 | [Configuration guide](docs/configuration.md) | Command-line options, environment variables, endpoints, HTTPS, multiple projects, SDK version |
-| [Security guide](docs/security.md) | Project isolation, read-only default, Bearer authentication |
+| [Security guide](docs/security.md) | Authentication support by client, project isolation, read-only default, Bearer authentication |
 | [Multi-user guide](docs/multi-user-guide.md) | Per-user Application Credential authentication (experimental) |
 | [Development guide](docs/development.md) | Tests, live tool checks, adding tools, contributing |
 | [TODO](ToDo.md) | Outstanding implementation and live-validation work |
