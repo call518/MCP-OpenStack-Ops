@@ -266,3 +266,30 @@ an earlier full summary.
   and current (`server/discover`) protocol modes receive the instructions and
   an empty prompt list. Whether Claude Code, Claude Desktop or Open WebUI
   shows the instructions to the model was not checked live.
+- **Targeted cross-project policy and setup C check (2026-11-13 UTC; partial;
+  source `cb2ae87`, no code change):** on the same Kolla-Ansible cloud, the
+  default Nova, Cinder and Keystone policies were read on the controller with
+  `oslopolicy-policy-generator`; no policy override was present. The rules are
+  listed under [Cross-project reads](security.md#cross-project-reads). Two
+  Application Credentials of the administrator were then used through a local
+  multi-user Streamable HTTP server (HTTP-only test override,
+  `ALLOW_CROSS_PROJECT_READ=true`, `ALLOW_MODIFY_OPERATIONS=true`):
+  - Roles limited to `reader`: `get_instance_details`, `search_instances`,
+    `get_instances_by_status` and `get_project_details` with `all_projects=true`
+    returned the policy-denial error, and `get_volume_list` and
+    `get_volume_snapshots` returned the current project only with
+    `scope.warning`. The project-scoped `get_instance_details` call succeeded.
+    A `set_volume` create probe also succeeded, because Cinder 2025.1 defaults
+    `enforce_new_defaults` to `false`; the probe volume was deleted.
+  - The `admin` role with access rules that allow only `GET` on compute,
+    identity, image, network and `volume`: the three instance tools and
+    `get_project_details` read across three projects, and a `set_keypair`
+    create probe was rejected with HTTP 401; no keypair was created. Cinder
+    rejected every request with HTTP 401, including reads, because Kolla-Ansible
+    sets Cinder's `[keystone_authtoken] service_type` to `volume`, which is not a
+    catalog service type. A first credential with the rule service
+    `block-storage` failed the same way and was replaced.
+
+  Not covered: setup B, and setup C on Cinder after its `service_type` is
+  changed. The two credentials were left for further checks. This partial check
+  does not update the 105-tool summary above.

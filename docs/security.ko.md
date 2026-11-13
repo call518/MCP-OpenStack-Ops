@@ -116,6 +116,19 @@ Cinder는 전체 프로젝트 목록을 `context_is_admin`에 묶어 두므로, 
 규칙은 따로 부여할 수 있습니다. 사용하는 릴리스의 규칙 이름과 기본값은 예를 들어
 `oslopolicy-policy-generator --namespace nova`로 확인하세요.
 
+방식 C의 제한은 OpenStack이 적용하므로, 먼저 다음 서비스 설정을 확인하세요.
+
+- **Role 일부만 위임**: Role을 줄인 credential은 각 서비스 정책이 실제로 검사하는
+  권한만 잃습니다. Cinder 2025.1은 `[oslo_policy] enforce_new_defaults`의 기본값이
+  `false`라서 예전(deprecated) 규칙이 함께 적용되고, `reader`만 가진 credential도
+  볼륨을 만들 수 있습니다. 조회 전용으로 위임하려면 Cinder에서 `true`로 설정하세요.
+- **Access rules**: 규칙으로 credential을 `GET`으로만 제한하면, 여러 프로젝트를
+  조회할 수 있지만 리소스는 바꿀 수 없습니다. 각 규칙의 `service`는 대상 서비스의
+  `[keystone_authtoken] service_type`과 같아야 하고, 그 값은 카탈로그에 있는 서비스
+  타입이어야 합니다. 그렇지 않으면 서비스가 access rules가 있는 토큰을 모두
+  거부합니다(HTTP 401). Kolla-Ansible은 Cinder의 값을 카탈로그에 없는 `volume`으로
+  설정하므로, 이런 credential로는 볼륨 도구가 실패합니다.
+
 ### 프로젝트 격리 테스트
 
 클라우드에서 프로젝트 격리를 확인하려면, 대상 프로젝트의 `OS_*` 변수로 포함된

@@ -125,6 +125,21 @@ Nova and Keystone rules can be granted on their own. Check the names and
 defaults on your release, for example with
 `oslopolicy-policy-generator --namespace nova`.
 
+For setup C, OpenStack enforces the restriction, so check these service
+settings first:
+
+- **Role subset**: a credential with fewer roles loses only what each service's
+  policy enforces. Cinder 2025.1 sets `[oslo_policy] enforce_new_defaults` to
+  `false` by default, so the deprecated rules still apply and a `reader`-only
+  credential can create volumes. For read-only delegation, set it to `true` in
+  Cinder.
+- **Access rules**: rules can limit a credential to `GET`, so it can read
+  across projects but cannot change resources. Each rule's `service` must match
+  the target service's `[keystone_authtoken] service_type`, and that value must
+  be a service type in the catalog. Otherwise the service rejects every token
+  with access rules (HTTP 401). Kolla-Ansible sets Cinder's value to `volume`,
+  which is not in the catalog, so volume tools fail with such a credential.
+
 ### Project isolation test
 
 To check project isolation against your cloud, run the included test with the

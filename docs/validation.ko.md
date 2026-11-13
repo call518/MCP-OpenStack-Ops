@@ -232,3 +232,27 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   모드의 in-process FastMCP 클라이언트가 instructions와 빈 prompt 목록을 받는지
   확인합니다. Claude Code, Claude Desktop, Open WebUI가 instructions를 모델에
   보여 주는지는 live로 확인하지 않았습니다.
+- **cross-project 정책·방식 C 대상 점검 (2026-11-13 UTC, 부분 점검, 소스 `cb2ae87`,
+  코드 변경 없음):** 같은 Kolla-Ansible 클라우드의 컨트롤러에서
+  `oslopolicy-policy-generator`로 Nova, Cinder, Keystone의 기본 정책을 읽었고, 정책
+  override는 없었습니다. 규칙은 [cross-project 조회](security.ko.md#cross-project-조회)에
+  정리했습니다. 이어서 관리자의 Application Credential 두 개를 로컬 다중 사용자
+  Streamable HTTP 서버(HTTP 전용 테스트 override, `ALLOW_CROSS_PROJECT_READ=true`,
+  `ALLOW_MODIFY_OPERATIONS=true`)로 사용했습니다.
+  - Role을 `reader`로 제한: `all_projects=true`로 호출한 `get_instance_details`,
+    `search_instances`, `get_instances_by_status`, `get_project_details`는 정책 거부
+    오류를 반환했고, `get_volume_list`와 `get_volume_snapshots`는 `scope.warning`과
+    함께 현재 프로젝트만 반환했습니다. 프로젝트 범위의 `get_instance_details` 호출은
+    성공했습니다. `set_volume` 생성 시험도 성공했는데, Cinder 2025.1의
+    `enforce_new_defaults` 기본값이 `false`이기 때문입니다. 시험 볼륨은 삭제했습니다.
+  - `admin` Role에 compute, identity, image, network, `volume`의 `GET`만 허용하는
+    access rules: 인스턴스 도구 3개와 `get_project_details`는 세 프로젝트를
+    조회했고, `set_keypair` 생성 시험은 HTTP 401로 거부되어 키페어가 만들어지지
+    않았습니다. Cinder는 조회를 포함한 모든 요청을 HTTP 401로 거부했습니다.
+    Kolla-Ansible이 Cinder의 `[keystone_authtoken] service_type`을 카탈로그에 없는
+    `volume`으로 설정하기 때문입니다. 규칙 서비스를 `block-storage`로 만든 첫
+    credential도 같은 이유로 실패해 교체했습니다.
+
+  다루지 않은 것: 방식 B, 그리고 `service_type`을 바꾼 뒤의 Cinder 방식 C. 두
+  credential은 추가 점검을 위해 남겨 두었습니다. 이 부분 점검은 위의 105개 도구
+  요약을 갱신하지 않습니다.

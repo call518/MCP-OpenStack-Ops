@@ -18,7 +18,7 @@ records in [validation](docs/validation.md).
 | Item | Detail |
 |---|---|
 | Setup B validation | Add a dedicated role to the Nova and Keystone policy rules and confirm it reads across projects without `admin`; Cinder has no separate rule |
-| Setup C validation | Confirm a restricted Application Credential (role subset or access rules) in multi-user mode |
+| Setup C with Cinder | Confirm volume tools with a GET-only access-rule credential after Cinder's `[keystone_authtoken] service_type` is set to a catalog type; changes the cloud, so run it with setup B |
 | Later services | Network, Image, Heat, and other services |
 | Other-project details | `get_project_details` resource counts for a project other than the current one |
 
