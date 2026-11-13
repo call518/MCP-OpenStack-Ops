@@ -1,7 +1,7 @@
 {
   "manifest_version": "0.4",
   "name": "mcp-openstack-ops",
-  "display_name": "OpenStack Ops",
+  "display_name": "MCP-OpenStack-Ops",
   "version": "0.0.0",
   "description": "Operate and monitor an OpenStack cloud with one fixed OpenStack account.",
   "long_description": "Runs the MCP-OpenStack-Ops server locally over stdio. Claude Desktop installs Python and the locked dependencies with uv. Modify tools stay disabled unless 'Allow modify operations' is enabled.",
