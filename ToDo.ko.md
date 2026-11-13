@@ -17,8 +17,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 정책 규칙 이름 | 테스트 클라우드에서 Nova, Cinder, Keystone의 전체 프로젝트 규칙 이름과 기본값 확인 |
-| 방식 B 검증 | 전용 Role을 해당 정책 규칙에 추가하고, `admin` 없이 여러 프로젝트를 조회하는지 확인 |
+| 방식 B 검증 | 전용 Role을 Nova와 Keystone 정책 규칙에 추가하고, `admin` 없이 여러 프로젝트를 조회하는지 확인. Cinder는 별도 규칙이 없음 |
 | 방식 C 검증 | 다중 사용자 모드에서 제한된 Application Credential(Role 일부 또는 access rules) 확인 |
 | 이후 서비스 | Network, Image, Heat 등 다른 서비스 |
 | 다른 프로젝트 상세 | 현재 프로젝트가 아닌 프로젝트에 대한 `get_project_details` 리소스 수 |

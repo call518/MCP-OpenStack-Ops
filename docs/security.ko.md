@@ -99,12 +99,22 @@ cross-project 조회 권한은 이 서버가 아니라 OpenStack에서 설정합
 | 방식 | 구성 | 비고 |
 |---|---|---|
 | A | `admin` Role | 간단하지만 전체 관리 권한을 줌 |
-| B | 전용 Role(예: `cross_project_reader`)을 각 서비스 정책의 전체 프로젝트 목록 규칙에 추가 | 최소 권한, 권장 |
+| B | 전용 Role(예: `cross_project_reader`)을 각 서비스 정책의 전체 프로젝트 목록 규칙에 추가 | Nova와 Keystone은 최소 권한. Cinder는 별도 규칙이 없음(아래 참고) |
 | C | 다중 사용자 모드 요청 헤더로 보내는 제한된 Application Credential(Role 일부 또는 access rules) | 다중 사용자 모드 전용 |
 
-관련 정책 규칙에는 Nova `os_compute_api:servers:detail:get_all_tenants`, Keystone
-`identity:list_projects`, Cinder의 all-tenants 규칙이 있습니다. 사용하는 릴리스의 규칙
-이름과 기본값은 예를 들어 `oslopolicy-policy-generator --namespace nova`로 확인하세요.
+cross-project 조회를 판단하는 정책 규칙과 OpenStack 2025.1(Epoxy)의 기본값은 다음과
+같습니다.
+
+| 서비스 | 요청 | 정책 규칙과 기본값 | 권한이 없을 때 |
+|---|---|---|---|
+| Nova | 전체 프로젝트 서버 목록 | `os_compute_api:servers:detail:get_all_tenants`, `os_compute_api:servers:index:get_all_tenants`: `rule:context_is_admin` (`role:admin`) | HTTP 403 |
+| Cinder | 전체 프로젝트 볼륨·스냅샷 목록 | 전용 규칙 없음. `context_is_admin`(`role:admin`)을 통과할 때만 `all_tenants`를 적용 | 호출자 프로젝트로 조용히 좁혀짐 |
+| Keystone | 프로젝트 목록 | `identity:list_projects`: `rule:admin_required`, system 범위 reader, 또는 자기 도메인의 domain reader | HTTP 403 |
+
+Cinder는 전체 프로젝트 목록을 `context_is_admin`에 묶어 두므로, 전용 Role은 Cinder
+관리자가 되지 않고는 여러 프로젝트의 볼륨을 조회할 수 없습니다. Nova와 Keystone
+규칙은 따로 부여할 수 있습니다. 사용하는 릴리스의 규칙 이름과 기본값은 예를 들어
+`oslopolicy-policy-generator --namespace nova`로 확인하세요.
 
 ### 프로젝트 격리 테스트
 

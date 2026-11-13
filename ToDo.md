@@ -17,8 +17,7 @@ records in [validation](docs/validation.md).
 
 | Item | Detail |
 |---|---|
-| Policy rule names | Check the actual Nova, Cinder and Keystone all-projects rule names and defaults on the test cloud |
-| Setup B validation | Add a dedicated role to those policy rules and confirm it reads across projects without `admin` |
+| Setup B validation | Add a dedicated role to the Nova and Keystone policy rules and confirm it reads across projects without `admin`; Cinder has no separate rule |
 | Setup C validation | Confirm a restricted Application Credential (role subset or access rules) in multi-user mode |
 | Later services | Network, Image, Heat, and other services |
 | Other-project details | `get_project_details` resource counts for a project other than the current one |

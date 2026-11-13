@@ -107,12 +107,22 @@ Cross-project read permission is configured in OpenStack, not in this server:
 | Setup | Configuration | Note |
 |---|---|---|
 | A | The `admin` role | Simple, but grants full administration |
-| B | A dedicated role (for example `cross_project_reader`) added to the all-projects list rules in each service's policy | Least privilege, recommended |
+| B | A dedicated role (for example `cross_project_reader`) added to the all-projects list rules in each service's policy | Least privilege for Nova and Keystone; Cinder has no separate rule (see below) |
 | C | A restricted Application Credential (role subset or access rules) sent in multi-user mode's request headers | Multi-user mode only |
 
-The relevant policy rules include Nova `os_compute_api:servers:detail:get_all_tenants`,
-Keystone `identity:list_projects`, and the Cinder all-tenants rules; check the
-names and defaults on your release, for example with
+The policy rules that decide cross-project reads, with their defaults on
+OpenStack 2025.1 (Epoxy):
+
+| Service | Request | Policy rule and default | Without permission |
+|---|---|---|---|
+| Nova | Server list for all projects | `os_compute_api:servers:detail:get_all_tenants` and `os_compute_api:servers:index:get_all_tenants`: `rule:context_is_admin` (`role:admin`) | HTTP 403 |
+| Cinder | Volume and snapshot lists for all projects | No dedicated rule. Cinder honors `all_tenants` only when `context_is_admin` (`role:admin`) passes | Silently narrowed to the caller's project |
+| Keystone | Project list | `identity:list_projects`: `rule:admin_required`, a system-scoped reader, or a domain reader for its own domain | HTTP 403 |
+
+Because Cinder ties all-projects lists to `context_is_admin`, a dedicated role
+cannot read volumes across projects without becoming a Cinder administrator.
+Nova and Keystone rules can be granted on their own. Check the names and
+defaults on your release, for example with
 `oslopolicy-policy-generator --namespace nova`.
 
 ### Project isolation test
