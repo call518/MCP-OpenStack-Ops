@@ -18,10 +18,12 @@ async def get_project_details(project_name: str = "", all_projects: bool = False
             Without all_projects only the current project is available.
         all_projects: If True, return a summary (id, name, domain, enabled) of
             every project the credential's Keystone policy allows (like
-            'openstack project list'), optionally filtered by project_name.
-            Use get_instance_details or get_volume_list with all_projects for
-            their resources. Requires ALLOW_CROSS_PROJECT_READ=true on the
-            server; a disabled or denied request is reported as a failure.
+            'openstack project list'). With a project_name or ID that matches
+            exactly one project, return that project's details and resource
+            counts instead, even for another project; a name shared by several
+            projects returns their summaries, so retry with the ID. Requires
+            ALLOW_CROSS_PROJECT_READ=true on the server; a disabled or denied
+            request is reported as a failure.
     
     Returns:
         JSON string containing project information including details, roles, and quotas

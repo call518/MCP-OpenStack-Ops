@@ -418,7 +418,7 @@ Cinder가 없는 OpenStack 2026.1에서 live로 확인했습니다([검증](docs
 | `openstack user show` | `get_user_list` | ⚠️ Live unverified | 정책 제한이 있는 사용자 목록에 의존. 새 reader에 대해 따로 검증하지 않음 |
 | `openstack user create/delete` | `set_users` | ✅ | 비밀번호는 서버 환경 변수에서 읽음. 역할은 부여하지 않음 |
 | `openstack project list` | `get_project_details` (`all_projects=true`) | ✅ | `all_projects`가 없으면 현재 프로젝트와 그 리소스 수만 반환. `all_projects=true`이고 `ALLOW_CROSS_PROJECT_READ=true`이면 Keystone 정책이 허용하는 모든 프로젝트의 요약 반환. 2026-11-13 targeted check: 관리자는 세 프로젝트를 나열했고, `member`는 Keystone 정책 거부 실패를 받음 |
-| `openstack project show` | `get_project_details` (name param) | ✅ | 특정 프로젝트 조회 |
+| `openstack project show` | `get_project_details` (name param) | ✅ | `all_projects`가 없으면 현재 프로젝트만. `all_projects=true`이고 이름이나 ID가 한 프로젝트와 일치하면 다른 프로젝트를 포함해 그 프로젝트의 상세와 리소스 수 반환. 2026-11-13 targeted check: 관리자가 본 다른 두 프로젝트의 수가 API로 직접 센 값과 일치했고, `member`는 Keystone 정책 거부 실패를 받음 |
 | `openstack project create/delete` | `set_project` | ✅ | 프로젝트 관리 |
 | `openstack role list` | `get_role_assignments` | ✅ | 역할 목록 |
 | `openstack role assignment list` | `get_role_assignments` | ✅ | 조회에 실패하면 가짜 할당 대신 오류를 반환. 2026-11-10 targeted check: 관리자로 나열됨. 이전 회차에서는 reader 역할이 Keystone 정책에 의해 거부됨 |

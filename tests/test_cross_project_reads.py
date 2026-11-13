@@ -271,12 +271,66 @@ def test_project_summaries_list_every_visible_project(conn, enabled):
     assert result['scope'] == {'all_projects': True, 'projects_in_result': 2}
 
 
-def test_project_summaries_filter_by_name_or_id(conn, enabled):
-    by_name = identity.get_project_details('beta', all_projects=True)
-    by_id = identity.get_project_details(OTHER, all_projects=True)
+def test_ambiguous_project_name_returns_summaries(conn, enabled):
+    conn.identity.projects.return_value = [
+        _project(CURRENT, 'alpha'), _project(OTHER, 'beta'),
+        _project('project-c', 'beta')]
 
-    assert [row['id'] for row in by_name['projects']] == [OTHER]
-    assert [row['id'] for row in by_id['projects']] == [OTHER]
+    result = identity.get_project_details('beta', all_projects=True)
+
+    assert [row['id'] for row in result['projects']] == [OTHER, 'project-c']
+    assert 'resources' not in result['projects'][0]
+    conn.identity.get_project.assert_not_called()
+
+
+@pytest.mark.parametrize('name', ['beta', OTHER])
+def test_other_project_details_by_name_or_id(conn, enabled, name):
+    _details_conn(conn)
+    conn.identity.get_project.return_value = _project(OTHER, 'beta')
+    conn.compute.servers.return_value = [_server('a', CURRENT), _server('b', OTHER)]
+    conn.volume.volumes.return_value = [_volume('v-a', CURRENT),
+                                        _volume('v-b', OTHER)]
+    conn.volume.snapshots.return_value = [SimpleNamespace(id='s-b', project_id=OTHER)]
+
+    result = identity.get_project_details(name, all_projects=True)
+
+    conn.identity.get_project.assert_called_once_with(OTHER)
+    conn.compute.servers.assert_called_once_with(all_projects=True)
+    conn.volume.volumes.assert_called_once_with(all_projects=True)
+    conn.volume.snapshots.assert_called_once_with(all_projects=True)
+    detail = result['projects'][0]
+    assert (detail['id'], detail['is_current']) == (OTHER, False)
+    assert detail['resources']['compute']['instances'] == 1
+    assert detail['resources']['volume']['volumes'] == 1
+    assert detail['resources']['volume']['snapshots'] == 1
+    assert 'warning' not in detail['resources']['volume']
+    assert 'note' in detail['resources']['network']
+    assert result['scope'] == {'all_projects': True, 'projects_in_result': 1}
+
+
+def test_other_project_details_report_compute_denial(conn, enabled):
+    _details_conn(conn)
+    conn.identity.get_project.return_value = _project(OTHER, 'beta')
+    conn.compute.servers.side_effect = _forbidden()
+
+    result = identity.get_project_details('beta', all_projects=True)
+
+    assert result == {'success': False,
+                      'message': connection.CROSS_PROJECT_READ_DENIED}
+
+
+def test_other_project_details_warn_when_volumes_narrowed(conn, enabled):
+    _details_conn(conn)
+    conn.identity.get_project.return_value = _project(OTHER, 'beta')
+    conn.compute.servers.return_value = []
+    conn.volume.volumes.return_value = [_volume('v-a', CURRENT)]
+    conn.volume.snapshots.return_value = []
+
+    result = identity.get_project_details('beta', all_projects=True)
+
+    volume = result['projects'][0]['resources']['volume']
+    assert volume['volumes'] == 0
+    assert volume['warning'] == connection.CROSS_PROJECT_NARROWED_WARNING
 
 
 def test_project_summaries_report_policy_denial(conn, enabled):
@@ -295,3 +349,29 @@ def test_other_project_details_stay_unavailable_without_all_projects(conn, enabl
 
     assert result['success'] is False
     assert 'not accessible' in result['message']
+
+
+def _details_conn(conn):
+    conn.network = Mock()
+    for attr in ('ips', 'networks', 'ports', 'routers'):
+        getattr(conn.network, attr).return_value = []
+    conn.identity.role_assignments.return_value = []
+    return conn
+
+
+def test_current_project_details_list_without_all_projects(conn, enabled):
+    _details_conn(conn)
+    conn.identity.get_project.return_value = _project(CURRENT, 'alpha')
+    conn.compute.servers.return_value = [_server('a', CURRENT)]
+    conn.volume.volumes.return_value = [_volume('v-a', CURRENT)]
+    conn.volume.snapshots.return_value = []
+
+    result = identity.get_project_details('alpha')
+
+    conn.compute.servers.assert_called_once_with()
+    conn.volume.volumes.assert_called_once_with()
+    conn.volume.snapshots.assert_called_once_with()
+    resources = result['projects'][0]['resources']
+    assert resources['compute']['instances'] == 1
+    assert resources['volume']['volumes'] == 1
+    assert result['scope'] == 'single-project'

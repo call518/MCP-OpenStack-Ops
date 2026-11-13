@@ -293,3 +293,23 @@ an earlier full summary.
   Not covered: setup B, and setup C on Cinder after its `service_type` is
   changed. The two credentials were left for further checks. This partial check
   does not update the 105-tool summary above.
+- **Targeted other-project details check (2026-11-13 UTC; partial; uncommitted
+  working tree based on `babe32b`):** `get_project_details` with
+  `all_projects=true` and one project's name now returns that project's
+  details. Tool functions were called in process in fixed-credential mode on
+  the same cloud. As the administrator, the details of the test project and the
+  `service` project (instances, vCPUs, RAM, volumes, size, snapshots, networks,
+  ports, routers, floating IPs) matched counts read directly with
+  openstacksdk, and the administrator's own project matched the call without
+  `all_projects`. As `member`, every `all_projects` call returned the Keystone
+  policy-denial failure, and the call without `all_projects` returned the
+  member's project. All 9 calls returned the expected outcome. Not covered: a
+  credential that can list projects but not read Nova or Cinder across
+  projects. This partial check does not update the 105-tool summary above.
+- **Local other-project details tests (2026-11-13; same working tree):**
+  532/532 (100%) with fastmcp 4.1.6 and the locked openstacksdk 4.22.0, run as
+  `uv run pytest -q`; no failures or skipped tests. A new case pins the calls
+  without `all_projects` for the current project's details, and passed before
+  the change. Five further cases cover another project's details by name and
+  by ID, an ambiguous name, a Nova policy denial and a narrowed Cinder result.
+  The server instructions changed and stay within 4,096 characters.

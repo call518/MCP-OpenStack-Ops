@@ -93,11 +93,12 @@ the ones the client typically calls.
 "Which project uses the most volume storage?"
 "Show volume snapshots in every project"
 "How many instances and volumes does each project have?"
+"Show the resource counts of project 'dev'"
 ```
 
 **Tools used:** `get_project_details(all_projects=true)`, `get_instance_details(all_projects=true)`, `get_instances_by_status(all_projects=true)`, `search_instances(all_projects=true)`, `get_volume_list(all_projects=true)`, `get_volume_snapshots(all_projects=true)`
 
-**Flow:** Pass `all_projects=true` only when the user asks about all or other projects. Group rows by `project_name` (fall back to `project_id`), and for `get_instance_details` use `include_all=true` or pagination so no project is cut off. Report `scope.projects_in_result`; when `scope.warning` is present, say the result may cover only the current project. A "Cross-project reads are disabled" error means the operator has not set `ALLOW_CROSS_PROJECT_READ=true`; a policy-denial error means the credential lacks permission. Never retry such a request without `all_projects` and present it as cloud-wide. Per-project resource counts come from the instance and volume listings, not from `get_project_details`.
+**Flow:** Pass `all_projects=true` only when the user asks about all or other projects. Group rows by `project_name` (fall back to `project_id`), and for `get_instance_details` use `include_all=true` or pagination so no project is cut off. Report `scope.projects_in_result`; when `scope.warning` is present, say the result may cover only the current project. A "Cross-project reads are disabled" error means the operator has not set `ALLOW_CROSS_PROJECT_READ=true`; a policy-denial error means the credential lacks permission. Never retry such a request without `all_projects` and present it as cloud-wide. For one project's resource counts, call `get_project_details` with that project's name or ID and `all_projects=true`; if the name matches several projects, retry with the ID.
 
 ### 🖼️ Image operations
 

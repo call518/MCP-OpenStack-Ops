@@ -416,7 +416,7 @@ unchanged since.
 | `openstack user show` | `get_user_list` | ⚠️ Live unverified | Depends on policy-limited user listing; not independently validated for the new readers |
 | `openstack user create/delete` | `set_users` | ✅ | Password from a server environment variable; no role grants |
 | `openstack project list` | `get_project_details` (`all_projects=true`) | ✅ | Without `all_projects`, only the current project with its resource counts. With `all_projects=true` and `ALLOW_CROSS_PROJECT_READ=true`, a summary of every project Keystone policy allows. 2026-11-13 targeted check: administrator listed three projects; a `member` received an explicit Keystone policy-denial failure |
-| `openstack project show` | `get_project_details` (name param) | ✅ | Specific project query |
+| `openstack project show` | `get_project_details` (name param) | ✅ | Without `all_projects`, only the current project. With `all_projects=true` and a name or ID that matches one project, that project's details and resource counts, including another project's. 2026-11-13 targeted check: administrator's counts for two other projects matched direct API counts; a `member` received the Keystone policy-denial failure |
 | `openstack project create/delete` | `set_project` | ✅ | Project management |
 | `openstack role list` | `get_role_assignments` | ✅ | Role listing |
 | `openstack role assignment list` | `get_role_assignments` | ✅ | A failed query returns an error instead of a placeholder assignment. 2026-11-10 targeted check: listed as administrator; reader roles were denied by Keystone policy in an earlier round |

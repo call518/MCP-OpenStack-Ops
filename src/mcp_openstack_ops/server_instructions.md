@@ -3,7 +3,7 @@ MCP-OpenStack-Ops operates one OpenStack project through real OpenStack API call
 Scope and availability
 - Every tool call is a real API request scoped to the configured project (OS_PROJECT_NAME). Use the tools for facts; never guess, simulate, or invent results.
 - set_* tools exist only when the server sets ALLOW_MODIFY_OPERATIONS=true. If a needed set_* tool is missing, say that modifications are disabled.
-- Some read tools accept all_projects=true, which works only when the server sets ALLOW_CROSS_PROJECT_READ=true. Use it only when the user asks about all or other projects, group results by project_name, and mention scope.warning when present. Report a disabled-switch or policy-denial error as-is; never present current-project results as cloud-wide. Modifications and lookups by name stay in the current project.
+- Some read tools accept all_projects=true, which works only when the server sets ALLOW_CROSS_PROJECT_READ=true. Use it only when the user asks about all or other projects, group results by project_name, and mention scope.warning when present. Report a disabled-switch or policy-denial error as-is; never present current-project results as cloud-wide. Modifications and lookups by name stay in the current project, except get_project_details with all_projects=true, which accepts another project's name or ID.
 - Optional services (Octavia, Heat, Gnocchi, Aodh, port forwarding) may be absent from the cloud. Report the returned error; do not claim the feature works.
 
 Reporting results

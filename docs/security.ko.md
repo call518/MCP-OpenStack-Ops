@@ -77,7 +77,7 @@ MCP-OpenStack-Ops는 `OS_PROJECT_NAME` 환경 변수가 정하는 프로젝트 �
 |---|---|
 | `get_instance_details`, `search_instances`, `get_instances_by_status` | 조회 가능한 모든 프로젝트의 인스턴스. 각 항목에 `project_id`와 `project_name` 포함 |
 | `get_volume_list`, `get_volume_snapshots` | 조회 가능한 모든 프로젝트의 볼륨 또는 스냅샷. 각 항목에 `project_id`와 `project_name` 포함 |
-| `get_project_details` | 조회 가능한 모든 프로젝트의 요약(ID, 이름, 도메인, 활성 여부, `is_current`). 리소스 수는 계속 현재 프로젝트만 제공 |
+| `get_project_details` | 조회 가능한 모든 프로젝트의 요약(ID, 이름, 도메인, 활성 여부, `is_current`). `project_name`이나 ID가 한 프로젝트와 일치하면 그 프로젝트의 상세와 리소스 수. 네트워크 수는 자격 증명이 볼 수 있는 리소스만 포함 |
 
 - **조회 가능한 자격 증명**: 대상 OpenStack 서비스의 정책이 해당 자격 증명의 토큰에
   전체 프로젝트 목록 API를 허용할 때만 여러 프로젝트를 조회할 수 있습니다.
@@ -92,7 +92,8 @@ MCP-OpenStack-Ops는 `OS_PROJECT_NAME` 환경 변수가 정하는 프로젝트 �
   `scope.projects_in_result`를 함께 보고합니다.
 - **변경 없음**: `all_projects`가 없으면 모든 도구는 계속 현재 프로젝트만 다룹니다.
   변경 도구와 이름 기반 단건 조회(예: `get_instance_by_name`)는 항상 프로젝트 범위로
-  제한됩니다.
+  제한됩니다. 다른 프로젝트의 이름이나 ID를 받는 것은 `all_projects=true`인
+  `get_project_details`뿐입니다.
 
 cross-project 조회 권한은 이 서버가 아니라 OpenStack에서 설정합니다.
 

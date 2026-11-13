@@ -456,8 +456,11 @@ def get_project_details(project_name: str = "", all_projects: bool = False) -> D
             require_cross_project_read()
         conn = get_openstack_connection()
         if all_projects:
-            return _list_project_summaries(conn, project_name)
-        
+            summary = _list_project_summaries(conn, project_name)
+            if not project_name or summary['total_projects'] != 1:
+                return summary
+            return _get_other_project_details(conn, summary['projects'][0])
+
         # Get current project information
         current_project_id = conn.current_project_id
         current_project = conn.identity.get_project(current_project_id)
@@ -497,17 +500,38 @@ def get_project_details(project_name: str = "", all_projects: bool = False) -> D
         }
 
 
-def _get_single_project_details(conn, project) -> Dict[str, Any]:
+def _get_other_project_details(conn, summary: Dict[str, Any]) -> Dict[str, Any]:
+    """Return one visible project's details, including another project's."""
+    project = conn.identity.get_project(summary['id'])
+    detail = _get_single_project_details(conn, project, all_projects=True)
+    detail['is_current'] = summary['is_current']
+    return {
+        'success': True,
+        'total_projects': 1,
+        'projects': [detail],
+        'message': f'Retrieved details for project: {project.name}',
+        'scope': {'all_projects': True, 'projects_in_result': 1},
+    }
+
+
+def _get_single_project_details(conn, project, all_projects: bool = False) -> Dict[str, Any]:
     """
     Helper function to get detailed information for a single project.
-    
+
     Args:
         conn: OpenStack connection
         project: Project object
-    
+        all_projects: List compute and volume resources across projects so
+            another project's resources are counted
+
     Returns:
         Dict containing single project details
     """
+    from ..connection import (
+        CROSS_PROJECT_NARROWED_WARNING, CrossProjectReadError,
+        cross_project_scope, raise_if_cross_project_denied,
+    )
+    scope_kwargs = {'all_projects': True} if all_projects else {}
     try:
         # Get project users and roles
         users = []
@@ -537,8 +561,8 @@ def _get_single_project_details(conn, project) -> Dict[str, Any]:
         
         try:
             # Get all resources and filter by project
-            all_instances = list(conn.compute.servers())
-            all_volumes = list(conn.volume.volumes())
+            all_instances = list(conn.compute.servers(**scope_kwargs))
+            all_volumes = list(conn.volume.volumes(**scope_kwargs))
             all_floating_ips = list(conn.network.ips())
             all_networks = list(conn.network.networks()) 
             all_ports = list(conn.network.ports())
@@ -572,13 +596,19 @@ def _get_single_project_details(conn, project) -> Dict[str, Any]:
             # Calculate volume resources
             resources['volume']['volumes'] = len(project_volumes)
             resources['volume']['total_size_gb'] = sum(getattr(vol, 'size', 0) for vol in project_volumes)
-            
+            if all_projects and 'warning' in cross_project_scope(
+                    (getattr(vol, 'project_id', None) for vol in all_volumes),
+                    conn.current_project_id):
+                resources['volume']['warning'] = CROSS_PROJECT_NARROWED_WARNING
+
             # Try to get snapshots (may need special handling)
             try:
-                all_snapshots = list(conn.volume.snapshots())
+                all_snapshots = list(conn.volume.snapshots(**scope_kwargs))
                 project_snapshots = [snap for snap in all_snapshots if getattr(snap, 'project_id', None) == project.id]
                 resources['volume']['snapshots'] = len(project_snapshots)
-            except Exception:
+            except Exception as snapshot_e:
+                if all_projects:
+                    raise_if_cross_project_denied(snapshot_e)
                 resources['volume']['snapshots'] = 0
             
             # Network resources
@@ -586,8 +616,13 @@ def _get_single_project_details(conn, project) -> Dict[str, Any]:
             resources['network']['floating_ips'] = len(project_floating_ips)
             resources['network']['ports'] = len(project_ports)
             resources['network']['routers'] = len(project_routers)
-            
+            if all_projects:
+                resources['network']['note'] = (
+                    'Counts include only network resources this credential can see')
+
         except Exception as e:
+            if all_projects:
+                raise_if_cross_project_denied(e)
             logger.warning(f"Could not retrieve project resources: {e}")
         
         return {
@@ -604,7 +639,9 @@ def _get_single_project_details(conn, project) -> Dict[str, Any]:
             'user_count': len(users),
             'resources': resources
         }
-        
+
+    except CrossProjectReadError:
+        raise
     except Exception as e:
         logger.error(f"Failed to get single project details: {e}")
         return {

@@ -82,7 +82,7 @@ Some list tools accept `all_projects=true`, like the OpenStack CLI's
 |---|---|
 | `get_instance_details`, `search_instances`, `get_instances_by_status` | Instances of every visible project, each with `project_id` and `project_name` |
 | `get_volume_list`, `get_volume_snapshots` | Volumes or snapshots of every visible project, each with `project_id` and `project_name` |
-| `get_project_details` | A summary (ID, name, domain, enabled, `is_current`) of every visible project; resource counts stay current-project only |
+| `get_project_details` | A summary (ID, name, domain, enabled, `is_current`) of every visible project. With a `project_name` or ID that matches one project, that project's details and resource counts; network counts include only resources the credential can see |
 
 - **Who may read**: a credential may read across projects only when the target
   OpenStack service's policy authorizes the all-projects list API for its
@@ -100,7 +100,8 @@ Some list tools accept `all_projects=true`, like the OpenStack CLI's
   `scope.projects_in_result`.
 - **Unchanged**: without `all_projects`, every tool stays current-project only.
   Modification tools and single-resource lookups by name (for example
-  `get_instance_by_name`) always stay project-scoped.
+  `get_instance_by_name`) always stay project-scoped. Only `get_project_details`
+  with `all_projects=true` accepts another project's name or ID.
 
 Cross-project read permission is configured in OpenStack, not in this server:
 
