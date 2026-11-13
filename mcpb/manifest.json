@@ -17,6 +17,7 @@
   "documentation": "https://github.com/call518/MCP-OpenStack-Ops#claude-desktop-integration",
   "support": "https://github.com/call518/MCP-OpenStack-Ops/issues",
   "license": "MIT",
+  "icon": "icon.png",
   "keywords": [
     "openstack",
     "cloud",
