@@ -2,7 +2,7 @@
 
 # TODO
 
-Last reviewed: 2026-11-13
+Last reviewed: 2026-11-15
 
 This file tracks only outstanding work. Completed items are removed.
 
@@ -49,7 +49,39 @@ the wrong account is in use may outweigh the benefit. Nothing is decided.
 | Expiry | Report an expired or deleted credential clearly; reauthentication cannot recover it |
 | MCPB | `os_username`, `os_password`, and `os_project_name` are `required: true`; they would become optional and the server would validate the combination |
 
+## Service status reporting
+
+- [ ] **Report real service state in `get_service_status`**
+  - Glance and Heat rows are not service records: they come from a list probe,
+    with `host: unknown` and `updated_at` set to the server's local time, while
+    Nova, Neutron and Cinder rows carry UTC heartbeats.
+  - heat-engine, Octavia and Aodh are not reported. In a 2026-11-14 lab
+    failure, heat-engine lost its database connection while `heat-api` was
+    reported as up.
+  - `running_services` counts the probe rows as running.
+
 ## [Issue #73](https://github.com/call518/MCP-OpenStack-Ops/issues/73) follow-up
+
+### Validation follow-ups
+
+These were listed as unconfirmed when #73 was closed.
+
+- [ ] **Concurrent isolation of project-scoped credentials**
+  - Isolation between two project-scoped Application Credentials was checked
+    only in our lab with two disposable projects, not in a real deployment.
+- [ ] **Credential revocation timing**
+  - Revocation was observed once in our lab: the next request after deletion
+    was rejected. No revocation bound has been measured.
+- [ ] **Unreachable OpenStack service**
+  - Check the reported error and that the server recovers once the service
+    is reachable again.
+- [ ] **End-to-end HTTPS**
+  - The MCP side used HTTPS, but the test cloud's OpenStack APIs were
+    HTTP-only behind temporary TLS proxies.
+- [ ] **Cluster-status findings reported on 2026-10-28**
+  - Permission-denied service checks, availability-zone field handling, and
+    the floating-IP pool capacity calculation. The code changed afterwards
+    (2026-10-30 and 2026-11-08); a live recheck is still pending.
 
 ### Optional follow-ups
 

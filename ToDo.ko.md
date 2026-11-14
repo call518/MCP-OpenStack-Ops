@@ -2,7 +2,7 @@
 
 # TODO
 
-마지막 검토: 2026-11-13
+마지막 검토: 2026-11-15
 
 이 문서는 아직 남은 작업만 관리합니다. 완료된 항목은 제거합니다.
 
@@ -47,7 +47,36 @@ cross-project 조회는 `ALLOW_CROSS_PROJECT_READ`로 켜는 16개 조회 도구
 | 만료 | 만료되거나 삭제된 credential을 명확히 보고. 재인증으로 복구되지 않음 |
 | MCPB | `os_username`, `os_password`, `os_project_name`이 `required: true`이므로 optional로 바꾸고 조합 검증은 서버가 맡아야 함 |
 
+## 서비스 상태 보고
+
+- [ ] **`get_service_status`가 실제 서비스 상태를 보고하도록 개선**
+  - Glance와 Heat 행은 서비스 레코드가 아닙니다. 목록 조회 성공 여부로 만든 행이라
+    `host`가 `unknown`이고 `updated_at`은 서버의 로컬 시각입니다. Nova, Neutron,
+    Cinder 행은 UTC heartbeat를 씁니다.
+  - heat-engine, Octavia, Aodh는 보고하지 않습니다. 2026-11-14 랩 장애에서
+    heat-engine이 데이터베이스 연결을 잃었는데도 `heat-api`는 up으로 보고됐습니다.
+  - `running_services`가 조회 결과로 만든 행도 실행 중으로 셉니다.
+
 ## [Issue #73](https://github.com/call518/MCP-OpenStack-Ops/issues/73) 후속 작업
+
+### 검증 후속 작업
+
+#73을 닫을 때 확인되지 않은 것으로 남긴 항목입니다.
+
+- [ ] **프로젝트 범위 자격 증명의 동시 격리**
+  - 프로젝트 범위 Application Credential 두 개의 격리는 일회용 프로젝트 두 개로 랩에서만
+    확인했고, 실제 배포 환경에서는 확인하지 않았습니다.
+- [ ] **자격 증명 폐기 반영 시간**
+  - 랩에서 한 번 확인했습니다. 삭제 후 다음 요청이 거부됐습니다. 반영 시간의 상한은
+    측정하지 않았습니다.
+- [ ] **OpenStack 서비스에 연결할 수 없을 때**
+  - 보고되는 오류와, 서비스에 다시 연결되면 서버가 정상으로 돌아오는지 확인합니다.
+- [ ] **종단 간 HTTPS**
+  - MCP 구간은 HTTPS였지만, 테스트 클라우드의 OpenStack API는 임시 TLS 프록시 뒤의
+    HTTP였습니다.
+- [ ] **2026-10-28에 보고된 클러스터 상태 문제**
+  - 권한 거부된 서비스 점검, availability zone 필드 처리, floating IP 풀 용량 계산.
+    이후 코드가 바뀌었지만(2026-10-30, 2026-11-08) live 재확인은 하지 않았습니다.
 
 ### 선택적 후속 작업
 
