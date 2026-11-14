@@ -464,3 +464,23 @@ an earlier full summary.
   `get_heat_stack_details` passing `nested_depth`. No live stack was created,
   updated or validated with this code, so these paths remain **Live
   unverified**.
+- **Targeted Heat autoscaling check (2026-11-15; partial; release 3.9.1,
+  source `4125321`):** on the single-node Kolla test cloud (QEMU TCG), an MCP
+  client built an Octavia load balancer with an `OS::Heat::AutoScalingGroup`
+  (min 2, max 4) whose members (a server and a pool member) came from a nested
+  template passed in `files`, without `OS::Heat::Stack`, plus Aodh CPU alarms
+  (5-minute granularity, 4 evaluation periods, 1200-second cooldown). In an
+  earlier attempt with the same release, `set_heat_stack` `validate` accepted
+  a template with its nested member template in `files`. The stack deployed
+  with two members. With `stress-ng` holding both members at 100% CPU, alarms
+  added a third and then a fourth member about 20 to 30 minutes apart; the
+  user confirmed all four were ONLINE and the floating IP answered from each in
+  turn. After `stress-ng` stopped, members were removed one at a time down to
+  two; afterwards the stack status was complete, `timeout_mins` read back 90,
+  and the pool held only the two remaining members, both ONLINE. The scaling
+  previously failed with HTTP 403 when members were `OS::Heat::Stack`
+  resources (trust redelegation). Results were observed by
+  the user and are not backed by saved command output. Not checked: stack
+  events for failures, `environment`, `update` with `existing=true`, and
+  `nested_depth`; these stay **Live unverified**. This partial check does not
+  update the 105-tool summary above.

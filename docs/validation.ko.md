@@ -402,3 +402,18 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   `/validate`에 보내는지, 잘못된 `files`를 거부하는지, `get_heat_stack_details`가
   `nested_depth`를 넘기는지를 다룹니다. 이 코드로 live 스택을 생성·수정·검증하지
   않았으므로 이 경로는 **Live unverified**로 남습니다.
+- **Heat 오토스케일링 대상 점검 (2026-11-15, 부분 점검, 릴리스 3.9.1, 소스
+  `4125321`):** 단일 노드 Kolla 테스트 클라우드(QEMU TCG)에서 MCP 클라이언트가
+  Octavia 로드밸런서와 `OS::Heat::AutoScalingGroup`(최소 2, 최대 4)을 만들었습니다.
+  멤버(서버와 pool member)는 `OS::Heat::Stack` 없이 `files`로 넘긴 중첩 템플릿으로
+  만들었고, Aodh CPU 알람(5분 단위, 평가 4회, cooldown 1200초)을 붙였습니다. 같은
+  릴리스로 한 앞선 시도에서 `set_heat_stack`의 `validate`가 `files`에 중첩 멤버
+  템플릿을 넣은 템플릿을 통과시켰습니다. 스택은 멤버 2대로 배포되었습니다.
+  `stress-ng`로 두 멤버의 CPU를 100%로 유지하자 알람이 약 20~30분 간격으로 3번째와
+  4번째 멤버를 추가했고, 사용자가 4대 모두 ONLINE이며 floating IP가 각 멤버에서
+  돌아가며 응답하는 것을 확인했습니다. `stress-ng`를 멈춘 뒤 멤버가 1대씩 줄어 2대가
+  되었습니다. 그 뒤 스택 상태는 complete였고, `timeout_mins`는 90으로 조회되었으며, pool에는
+  남은 멤버 2개만 ONLINE으로 있었습니다. 이전에 멤버가 `OS::Heat::Stack` 리소스였을 때는 확장이 HTTP 403(trust
+  재위임)으로 실패했습니다. 결과는 사용자가 관찰한 것이며 저장된 명령 출력은 없습니다.
+  확인하지 않은 것: 스택 이벤트의 실패 여부, `environment`, `existing=true`인 `update`, `nested_depth`. 이 항목은 **Live
+  unverified**로 남습니다. 이 부분 점검은 위의 105개 도구 요약을 갱신하지 않습니다.
