@@ -276,7 +276,9 @@ rejected without the prefix or with a wrong key. Option 4 in multi-user mode
 was checked on 2026-11-14 in Claude Desktop on Windows with `mcp-remote@0.15.2`
 against the Docker Compose server: a member's Application Credential listed only
 its own project, and with cross-project reads enabled it listed the projects its
-role allowed; the server log held no credential. A wrong secret was not tried.
+role allowed; the server log held no credential. A secret with a wrong first
+character was rejected. A change only in the last character was accepted,
+because Keystone's default bcrypt hashing ignores characters after the 72nd.
 The remote custom connector path is unverified.
 
 See the [Claude Desktop local MCP guide](https://modelcontextprotocol.io/docs/develop/connect-local-servers),

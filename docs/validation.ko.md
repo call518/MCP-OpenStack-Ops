@@ -384,6 +384,11 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   VM을 묻자 Claude는 테스트 프로젝트의 서버만 나열했습니다. 모든 프로젝트의 VM을 묻자
   세 프로젝트의 서버를 나열했고, 모든 프로젝트의 볼륨을 묻자 member의 볼륨만 나열하며
   좁혀진 결과 경고를 전했습니다. 서버 로그에는 실패 없는 도구 호출 4건이 기록됐고,
-  credential ID와 secret은 없었습니다. 다루지 않은 것: 틀리거나 빠진 secret, credential
-  헤더와 Bearer 인증의 동시 사용, HTTPS. 이 부분 점검은 위의 105개 도구 요약을 갱신하지
+  credential ID와 secret은 없었습니다. secret의 첫 글자를 바꾸자 Claude Desktop의 도구
+  호출이 인증 오류로 실패했습니다. 마지막 글자만 바꿨을 때는 호출이 성공했습니다.
+  Keystone을 직접 확인해 보니 73번째 글자부터는 어떻게 바꿔도 통과했고, 71번째와
+  72번째 글자를 바꾸면 거부되었습니다. Keystone의 기본 `password_hash_algorithm`이
+  bcrypt이고, bcrypt가 86글자 secret의 앞 72바이트만 쓰기 때문입니다. 이는 Keystone의
+  동작이며, 서버는 secret을 바꾸지 않고 그대로 전달합니다. 다루지 않은 것: secret 헤더가
+  빠진 경우, credential 헤더와 Bearer 인증의 동시 사용, HTTPS. 이 부분 점검은 위의 105개 도구 요약을 갱신하지
   않습니다.

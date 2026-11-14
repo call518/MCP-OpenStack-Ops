@@ -442,6 +442,13 @@ an earlier full summary.
   of three projects; asked for volumes of every project, it listed only the
   member's volume and reported the narrowed-result warning. The server log
   recorded 4 tool calls with no failure and contained neither the credential ID
-  nor the secret. Not covered: a wrong or missing secret, Bearer authentication
-  together with the credential headers, and HTTPS. This partial check does not
+  nor the secret. With the first character of the secret changed, Claude
+  Desktop's tool calls failed with an authentication error. With only the last
+  character changed, the calls succeeded: a direct Keystone check showed that
+  any change from the 73rd character on is accepted, because Keystone's default
+  `password_hash_algorithm` is bcrypt, which uses only the first 72 bytes of the
+  86-character secret; changes at the 71st and 72nd characters were rejected.
+  This is Keystone behavior; the server passes the secret through unchanged.
+  Not covered: a missing secret header, Bearer authentication together with the
+  credential headers, and HTTPS. This partial check does not
   update the 105-tool summary above.

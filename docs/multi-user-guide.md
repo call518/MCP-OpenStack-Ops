@@ -347,7 +347,10 @@ versions, service versions, and results without posting secrets or resource data
 5. Omit, invalidate, or duplicate either credential header. No tool must execute,
    even if the server has valid legacy credentials configured in its environment.
    When shared Bearer authentication is enabled, also omit or invalidate its header
-   and verify that Keystone authentication is not attempted.
+   and verify that Keystone authentication is not attempted. To invalidate a
+   secret, change one of its first 72 characters: Keystone hashes secrets with
+   bcrypt by default, which ignores everything after the 72nd byte, so a change
+   only at the end of the 86-character secret is still accepted.
 6. Confirm write tools are absent by default, including for administrators. Only
    in a disposable environment, explicitly enable writes and verify a credential
    delegated only `reader` cannot modify resources under the cloud's actual policy.

@@ -264,7 +264,9 @@ MCP 클라이언트에서 확인했습니다. 방법 2는 PyPI에서 내려받�
 모드의 방법 4는 2026-11-14에 Windows의 Claude Desktop에서 `mcp-remote@0.15.2`로 Docker
 Compose 서버에 연결해 확인했습니다. member의 Application Credential은 자기 프로젝트만
 조회했고, cross-project 조회를 켜면 그 Role이 허용하는 프로젝트를 조회했으며, 서버
-로그에는 credential이 남지 않았습니다. 틀린 secret은 시험하지 않았습니다. 원격 사용자
+로그에는 credential이 남지 않았습니다. 첫 글자가 틀린 secret은 거부되었습니다. 마지막
+글자만 바꾼 secret은 통과했는데, Keystone의 기본 bcrypt 해시가 72번째 이후 글자를
+무시하기 때문입니다. 원격 사용자
 지정 커넥터 경로는 검증하지 않았습니다.
 
 [Claude Desktop 로컬 MCP 가이드](https://modelcontextprotocol.io/docs/develop/connect-local-servers),
