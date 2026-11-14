@@ -186,6 +186,7 @@ what the account may do.
 - ✅ **Server Insight & Audit Trail**: Dedicated tools expose server events, hypervisor details, availability zones, quotas, and resource ownership to speed diagnostics.
 - ✅ **Load Balancer Management**: Octavia tools cover listeners, pools, members, health monitors, flavors, quotas, and amphora operations with the same safety gates.
 - ✅ **Connection & Deployment Flexibility**: Connection caching, configurable service endpoints, Docker packaging, a Claude Desktop extension, and both `stdio`/`streamable-http` transports support proxy/bastion and multi-project setups.
+- 🧭 **Advanced: Cross-Project Reads**: Administrators can ask about every project at once ("List VMs per project"), and operators can give read-only, cloud-wide views to non-admin teams through OpenStack policy. Off by default; see the [cross-project reads guide](docs/cross-project-guide.md).
 
 ## Safety and security
 

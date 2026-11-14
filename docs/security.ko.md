@@ -74,6 +74,8 @@ OpenStack CLI의 `--all-projects`처럼 여러 프로젝트를 조회하는 것�
 위한 선택 기능이며 기본으로 꺼져 있습니다(`ALLOW_CROSS_PROJECT_READ=false`). 켜면 일부
 목록 도구가 `all_projects=true`를 받습니다. 여러 프로젝트를 조회할 수 있는지는 이
 서버가 아니라 OpenStack 정책이 판단하며, 변경 도구는 계속 프로젝트 범위로 제한됩니다.
+고정 자격 증명 모드에서는 서버에 접속하는 모든 클라이언트가 서버 계정의 권한으로
+조회하므로, 함께 쓰는 클라이언트 뒤의 관리자 계정에는 켜지 마세요.
 [cross-project 조회 가이드](cross-project-guide.ko.md)를 참고하세요.
 
 ### 프로젝트 격리 테스트

@@ -8,17 +8,58 @@ set up. Cross-project reads are an optional feature for administrators and
 operators who need a view across projects, like the OpenStack CLI's
 `--all-projects`. The feature is off by default.
 
+## Two ways to use it
+
+The deciding question is whose permission reads across projects:
+
+| | 1. An administrator uses it directly | 2. Read access is delegated |
+|---|---|---|
+| Who | The cloud administrator | People who must not get `admin`, such as an operations (NOC) team or auditors |
+| Goal | Run the usual `--all-projects` queries in natural language | Show the whole cloud without granting administration |
+| Credential | An account with the `admin` role (setup A) | A dedicated role (setup B) or a restricted Application Credential (setup C) |
+| OpenStack configuration | Almost none; only Heat stack lists need one policy rule | Required: a role and policy overrides, or Cinder settings |
+| What can be read | Everything | Only what the policies allow; Cinder lists and server groups cannot be delegated to a role |
+| Typical use | Most cases | Organizations that separate duties |
+
+If you are case 1, use an administrator account and follow
+[Enable it](#enable-it); you can skip the setup details below. Case 2 needs an
+OpenStack administrator to prepare setup B or C first.
+
+### Who sees the results: server mode
+
+- **Fixed-credential mode** (one account in `.env`): with the switch on,
+  **every client of the server** reads across projects with that account's
+  permissions. Do not turn it on for an administrator account behind a shared
+  client such as a team OpenWebUI; anyone who can chat could list the whole
+  cloud. Case 1 fits a server only the administrator uses, such as Claude
+  Desktop.
+- **Multi-user mode**: each request uses the caller's own Application
+  Credential, so each person sees only what their permissions allow. Use it
+  when several people share one server for case 2. See the
+  [multi-user guide](multi-user-guide.md).
+
 ## Enable it
 
-1. Choose who may read across projects (setup A, B or C) in
-   [Choose a setup](#choose-a-setup).
-2. Configure OpenStack for that setup, as listed in
-   [Required OpenStack configuration](#required-openstack-configuration).
-3. Turn the feature on in this server: set `ALLOW_CROSS_PROJECT_READ=true`
+**Case 1 (administrator):**
+
+1. Connect the server with an account that has the `admin` role.
+2. Turn the feature on: set `ALLOW_CROSS_PROJECT_READ=true`
    ([configuration](configuration.md)), or check **Allow cross-project reads**
    in the Claude Desktop extension settings.
-4. Ask for all projects in a request, for example "List VMs per project". The
-   client then passes `all_projects=true` to a supported tool.
+3. Optional: to list Heat stacks across projects, add the Heat policy rule in
+   [step 2](#required-openstack-configuration) of the OpenStack configuration.
+
+**Case 2 (delegated read access):**
+
+1. Choose setup B or C in [Choose a setup](#choose-a-setup).
+2. Have an OpenStack administrator apply the
+   [required OpenStack configuration](#required-openstack-configuration) for it.
+3. Give each user an account with the dedicated role (setup B), or an
+   Application Credential for multi-user mode (setup C).
+4. Turn the feature on with `ALLOW_CROSS_PROJECT_READ=true`.
+
+Then ask for all projects in a request, for example "List VMs per project".
+The client passes `all_projects=true` to a supported tool.
 
 ## Supported tools
 
@@ -62,7 +103,8 @@ Some list tools accept `all_projects=true`, like the OpenStack CLI's
 ## Choose a setup
 
 Cross-project read permission is configured in OpenStack, not in this server.
-Choose one of these setups; the next section lists what each one requires:
+Setup A serves case 1; setups B and C are two ways to implement case 2. The
+next section lists what each one requires:
 
 | Setup | Who reads across projects | Note |
 |---|---|---|

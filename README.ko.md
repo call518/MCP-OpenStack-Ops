@@ -189,6 +189,7 @@ modify operations**를 켜고) 서버를 다시 시작하세요. 이 계정이 �
 - ✅ **서버 정보와 감사 기록**: 전용 도구로 서버 이벤트, 하이퍼바이저 상세, 가용 영역, quota, 리소스 소유권을 확인해 진단을 빠르게 합니다.
 - ✅ **로드밸런서 관리**: Octavia 도구는 리스너, 풀, 멤버, 헬스 모니터, flavor, quota, amphora 작업을 같은 안전 장치 아래에서 다룹니다.
 - ✅ **연결과 배포의 유연성**: 연결 캐시, 설정 가능한 서비스 endpoint, Docker 패키지, Claude Desktop 확장, `stdio`/`streamable-http` 전송 방식을 지원해 프록시/배스천과 다중 프로젝트 구성에 대응합니다.
+- 🧭 **고급: cross-project 조회**: 관리자는 모든 프로젝트를 한 번에 물어볼 수 있고("List VMs per project"), 운영자는 OpenStack 정책으로 admin이 아닌 팀에 클라우드 전체 조회 권한만 줄 수 있습니다. 기본으로 꺼져 있습니다. [cross-project 조회 가이드](docs/cross-project-guide.ko.md)를 참고하세요.
 
 ## 안전과 보안
 

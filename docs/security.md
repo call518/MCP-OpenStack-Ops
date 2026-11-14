@@ -78,8 +78,10 @@ Reading across projects, like the OpenStack CLI's `--all-projects`, is an
 optional feature for administrators and operators, off by default
 (`ALLOW_CROSS_PROJECT_READ=false`). When it is on, some list tools accept
 `all_projects=true`; OpenStack policy, not this server, decides who may read
-across projects, and modification tools stay project-scoped. See the
-[cross-project reads guide](cross-project-guide.md).
+across projects, and modification tools stay project-scoped. In
+fixed-credential mode every client of the server reads with the server
+account's permissions, so do not enable it for an administrator account behind
+a shared client. See the [cross-project reads guide](cross-project-guide.md).
 
 ### Project isolation test
 

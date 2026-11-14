@@ -7,16 +7,54 @@
 됩니다. cross-project 조회는 OpenStack CLI의 `--all-projects`처럼 여러 프로젝트를
 한 번에 봐야 하는 관리자와 운영자를 위한 선택 기능이며, 기본으로 꺼져 있습니다.
 
+## 두 가지 사용 방식
+
+기준은 누구의 권한으로 여러 프로젝트를 조회하느냐입니다.
+
+| | 1. 관리자가 직접 사용 | 2. 조회 권한만 위임 |
+|---|---|---|
+| 사용자 | 클라우드 관리자 | 운영(NOC)팀이나 감사 담당처럼 `admin`을 주면 안 되는 사람 |
+| 목적 | 평소 하던 `--all-projects` 조회를 자연어로 | 관리 권한 없이 클라우드 전체 현황을 보여 줌 |
+| 자격 증명 | `admin` Role 계정(방식 A) | 전용 Role(방식 B) 또는 제한된 Application Credential(방식 C) |
+| OpenStack 설정 | 거의 없음. Heat 스택 조회에만 정책 규칙 하나 필요 | 필요함. Role과 정책 override, 또는 Cinder 설정 |
+| 조회 범위 | 전부 | 정책이 허용한 것만. Cinder 목록과 서버 그룹은 Role에 위임할 수 없음 |
+| 일반적인 경우 | 대부분 | 직무를 분리하는 조직 |
+
+1번이라면 관리자 계정으로 [켜는 순서](#켜는-순서)만 따르면 되고, 아래 방식 설명은
+건너뛰어도 됩니다. 2번은 먼저 OpenStack 관리자가 방식 B나 C를 준비해야 합니다.
+
+### 결과를 누가 보는가: 서버 모드
+
+- **고정 자격 증명 모드**(`.env`의 계정 하나): 스위치를 켜면 **서버에 접속하는 모든
+  클라이언트**가 그 계정의 권한으로 여러 프로젝트를 조회합니다. 팀 OpenWebUI처럼 함께
+  쓰는 클라이언트 뒤에 관리자 계정으로 이 기능을 켜지 마세요. 채팅할 수 있는 누구나
+  클라우드 전체를 조회할 수 있습니다. 1번은 Claude Desktop처럼 관리자만 쓰는 서버에
+  맞습니다.
+- **다중 사용자 모드**: 요청마다 호출자 본인의 Application Credential을 쓰므로, 각자
+  자기 권한이 허용하는 것만 봅니다. 여러 사람이 한 서버를 함께 쓰면서 2번을 하려면 이
+  모드를 쓰세요. [다중 사용자 가이드](multi-user-guide.ko.md)를 참고하세요.
+
 ## 켜는 순서
 
-1. [방식 선택](#방식-선택)에서 여러 프로젝트를 조회할 주체(방식 A, B, C)를 고릅니다.
-2. [방식별 OpenStack 필수 설정](#방식별-openstack-필수-설정)에 따라 그 방식에 맞게
-   OpenStack을 설정합니다.
-3. 이 서버에서 기능을 켭니다. `ALLOW_CROSS_PROJECT_READ=true`를 설정하거나
-   ([설정](configuration.ko.md)), Claude Desktop 확장 설정에서 **Allow cross-project
-   reads**를 켭니다.
-4. 요청에서 모든 프로젝트를 물어봅니다. 예: "List VMs per project". 그러면
-   클라이언트가 지원 도구에 `all_projects=true`를 넘깁니다.
+**1번(관리자):**
+
+1. `admin` Role을 가진 계정으로 서버를 연결합니다.
+2. 기능을 켭니다. `ALLOW_CROSS_PROJECT_READ=true`를 설정하거나([설정](configuration.ko.md)),
+   Claude Desktop 확장 설정에서 **Allow cross-project reads**를 켭니다.
+3. 선택: 여러 프로젝트의 Heat 스택을 조회하려면 OpenStack 설정
+   [2단계](#방식별-openstack-필수-설정)의 Heat 정책 규칙을 추가합니다.
+
+**2번(조회 권한 위임):**
+
+1. [방식 선택](#방식-선택)에서 방식 B나 C를 고릅니다.
+2. OpenStack 관리자가 그 방식의 [OpenStack 필수 설정](#방식별-openstack-필수-설정)을
+   적용합니다.
+3. 사용자마다 전용 Role을 가진 계정(방식 B)이나 다중 사용자 모드용 Application
+   Credential(방식 C)을 줍니다.
+4. `ALLOW_CROSS_PROJECT_READ=true`로 기능을 켭니다.
+
+그다음 요청에서 모든 프로젝트를 물어봅니다. 예: "List VMs per project". 그러면
+클라이언트가 지원 도구에 `all_projects=true`를 넘깁니다.
 
 ## 지원 도구
 
@@ -55,8 +93,9 @@
 
 ## 방식 선택
 
-cross-project 조회 권한은 이 서버가 아니라 OpenStack에서 설정합니다. 다음 방식 중
-하나를 고르고, 각 방식에 필요한 설정은 다음 절을 참고하세요.
+cross-project 조회 권한은 이 서버가 아니라 OpenStack에서 설정합니다. 방식 A는
+1번을 위한 것이고, 방식 B와 C는 2번을 구현하는 두 가지 방법입니다. 각 방식에 필요한
+설정은 다음 절을 참고하세요.
 
 | 방식 | 여러 프로젝트를 조회하는 주체 | 비고 |
 |---|---|---|
