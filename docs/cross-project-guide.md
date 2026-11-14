@@ -36,7 +36,8 @@ OpenStack administrator to prepare setup B or C first.
 - **Multi-user mode**: each request uses the caller's own Application
   Credential, so each person sees only what their permissions allow. Use it
   when several people share one server for case 2. See the
-  [multi-user guide](multi-user-guide.md).
+  [multi-user guide](multi-user-guide.md); Claude Desktop sends the headers
+  through [`mcp-remote`](claude-desktop-guide.md#multi-user-mode-each-users-application-credential).
 
 ## Enable it
 

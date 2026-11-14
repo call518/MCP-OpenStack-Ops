@@ -208,7 +208,8 @@ Details: [security guide](docs/security.md) and
 Each server authenticates to OpenStack with either one account's password (the
 default) or per-user Application Credentials (multi-user mode, `streamable-http`
 only). Support differs by client; for example, the Claude Desktop extension
-bundle supports only the password. See
+bundle supports only the password, while Claude Desktop with `mcp-remote` in
+`claude_desktop_config.json` supports both. See
 [Authentication support by client](docs/security.md#authentication-support-by-client).
 
 ## Compatibility

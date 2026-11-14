@@ -430,3 +430,18 @@ an earlier full summary.
   user, then 3 again after the extra resources; setup C: 7 reads and 2 probes). The overrides, role and
   test resources were left in place. This partial check does not update the
   105-tool summary above.
+- **Targeted Claude Desktop multi-user check through `mcp-remote` (2026-11-14
+  UTC; partial; source `6f9157f`, no code change):** the Docker Compose
+  `mcp-server` ran with `MCP_MULTI_USER=true`, the HTTP-only test override and
+  `ALLOW_CROSS_PROJECT_READ=true`, without Bearer authentication. Claude Desktop
+  on Windows started `mcp-remote@0.15.2` from `claude_desktop_config.json`,
+  passing the test `member` user's new Application Credential (roles `member`
+  and `cross_project_reader`) as the two `X-OpenStack-Application-Credential-*`
+  headers through `env` values. Asked for its project's VMs, Claude listed only
+  the test project's server. Asked for VMs of every project, it listed servers
+  of three projects; asked for volumes of every project, it listed only the
+  member's volume and reported the narrowed-result warning. The server log
+  recorded 4 tool calls with no failure and contained neither the credential ID
+  nor the secret. Not covered: a wrong or missing secret, Bearer authentication
+  together with the credential headers, and HTTPS. This partial check does not
+  update the 105-tool summary above.

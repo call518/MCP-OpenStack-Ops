@@ -12,7 +12,7 @@
 | [1. 데스크톱 확장(`.mcpb`) (권장)](#방법-1-데스크톱-확장mcpb-권장) | 릴리스 버전을 한 번에 설치 | 확장을 지원하는 Claude Desktop |
 | [2. `uvx`로 PyPI 패키지 실행](#방법-2-uvx로-pypi-패키지-실행) | `claude_desktop_config.json`에서 릴리스된 서버를 실행 | uv |
 | [3. `uv`로 소스 체크아웃 실행](#방법-3-uv로-소스-체크아웃-실행) | 릴리스되지 않았거나 수정한 소스를 실행 | Git, uv |
-| [4. `npx`로 기존 Docker HTTP 서버 사용](#방법-4-npx로-기존-docker-http-서버-사용) | 실행 중인 Docker Compose `mcp-server`를 재사용 | Node.js 18+ |
+| [4. `npx`로 기존 Docker HTTP 서버 사용](#방법-4-npx로-기존-docker-http-서버-사용) | 실행 중인 Docker Compose `mcp-server`나 다른 Streamable HTTP 서버를 사용. [다중 사용자 모드](#다중-사용자-모드-사용자별-application-credential) 포함 | Node.js 18+ |
 
 방법 1~3에서는 Claude Desktop이 그 컴퓨터에서 로컬 MCP 서버를 시작하며, 그
 컴퓨터가 OpenStack API에 네트워크로 접근할 수 있어야 합니다. 방법 4에서는 Claude
@@ -197,6 +197,43 @@ Claude Desktop은 `claude_desktop_config.json`의 로컬 명령을 실행할 뿐
 공개하세요. 어떤 OpenStack 계정을 쓸지, `set_*` 도구를 등록할지는 서버 자신의
 `.env`가 결정합니다.
 
+### 다중 사용자 모드: 사용자별 Application Credential
+
+서버가 다중 사용자 모드(`MCP_MULTI_USER=true`)로 동작하면, 각 사용자가 자기
+OpenStack Application Credential을 헤더 두 개로 더 보냅니다. 이 값은 사용자마다 자기
+`claude_desktop_config.json`에 두므로, Claude Desktop은 서버 계정이 아니라 그 사용자의
+OpenStack 권한으로 동작합니다.
+
+```json
+{
+  "mcpServers": {
+    "OpenStack-npx": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote@0.15.2", "https://mcp.example.com/mcp",
+               "--transport", "http-only",
+               "--header", "X-OpenStack-Application-Credential-ID:${OS_AC_ID}",
+               "--header", "X-OpenStack-Application-Credential-Secret:${OS_AC_SECRET}"],
+      "env": {
+        "OS_AC_ID": "<APPLICATION_CREDENTIAL_ID>",
+        "OS_AC_SECRET": "<APPLICATION_CREDENTIAL_SECRET>"
+      }
+    }
+  }
+}
+```
+
+서버가 Bearer 인증도 요구하면 위 예제의 `"--header", "Authorization:${REMOTE_SECRET_KEY}"`
+인자와 `REMOTE_SECRET_KEY` 값을 추가하세요. Application Credential은 그것을 쓸 사용자
+본인으로 만듭니다(`openstack application credential create`). 사용자와 프로젝트는 이
+credential이 결정합니다. 다중 사용자 모드는 OpenStack과의 연결에 HTTPS가 필요합니다.
+서버 설정과 credential 관리는 [다중 사용자 가이드](multi-user-guide.ko.md)를
+참고하세요. 서버에 `ALLOW_CROSS_PROJECT_READ=true`가 설정되어 있으면 cross-project
+조회도 그 사용자 본인의 권한으로 판단됩니다.
+[cross-project 조회 가이드](cross-project-guide.ko.md)를 참고하세요.
+
+이 방식은 헤더를 사용자 컴퓨터에서 `mcp-remote`로 보냅니다. 사용자 지정 요청 헤더가
+제한된 베타인 [원격 사용자 지정 커넥터](#원격-사용자-지정-커넥터)와는 다른 경로입니다.
+
 ## 원격 사용자 지정 커넥터
 
 이것은 `claude_desktop_config.json` 방식이 아닙니다. 원격 커넥터는
@@ -223,7 +260,11 @@ connector**에서 추가합니다. Claude는 사용자 컴퓨터가 아니라 An
 릴리스에는 릴리스 workflow가 번들을 첨부했습니다. 방법 2~4는 같은 명령, 인자, 환경으로
 MCP 클라이언트에서 확인했습니다. 방법 2는 PyPI에서 내려받은 것이 아니라 로컬
 체크아웃을 `uvx`로 설치해서 확인했습니다. 서버 인증을 켠 상태에서 방법 4는
-`Bearer ` 값으로 연결되었고, 접두사가 없거나 키가 틀리면 거부되었습니다. 원격 사용자
+`Bearer ` 값으로 연결되었고, 접두사가 없거나 키가 틀리면 거부되었습니다. 다중 사용자
+모드의 방법 4는 2026-11-14에 Windows의 Claude Desktop에서 `mcp-remote@0.15.2`로 Docker
+Compose 서버에 연결해 확인했습니다. member의 Application Credential은 자기 프로젝트만
+조회했고, cross-project 조회를 켜면 그 Role이 허용하는 프로젝트를 조회했으며, 서버
+로그에는 credential이 남지 않았습니다. 틀린 secret은 시험하지 않았습니다. 원격 사용자
 지정 커넥터 경로는 검증하지 않았습니다.
 
 [Claude Desktop 로컬 MCP 가이드](https://modelcontextprotocol.io/docs/develop/connect-local-servers),

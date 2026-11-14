@@ -374,3 +374,16 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   기대한 결과였습니다(방식 B: 사용자마다 도구 8개, 리소스 추가 뒤 3개 재호출. 방식 C:
   조회 7건과 시험 2건). override, Role, 테스트 리소스는 그대로 두었습니다. 이 부분
   점검은 위의 105개 도구 요약을 갱신하지 않습니다.
+- **`mcp-remote`를 통한 Claude Desktop 다중 사용자 대상 점검 (2026-11-14 UTC, 부분 점검,
+  소스 `6f9157f`, 코드 변경 없음):** Docker Compose `mcp-server`를
+  `MCP_MULTI_USER=true`, HTTP 전용 테스트 override, `ALLOW_CROSS_PROJECT_READ=true`로,
+  Bearer 인증 없이 실행했습니다. Windows의 Claude Desktop이
+  `claude_desktop_config.json`에서 `mcp-remote@0.15.2`를 시작하고, 테스트 `member`
+  사용자의 새 Application Credential(Role `member`, `cross_project_reader`)을 `env` 값을
+  통해 `X-OpenStack-Application-Credential-*` 헤더 두 개로 보냈습니다. 자기 프로젝트의
+  VM을 묻자 Claude는 테스트 프로젝트의 서버만 나열했습니다. 모든 프로젝트의 VM을 묻자
+  세 프로젝트의 서버를 나열했고, 모든 프로젝트의 볼륨을 묻자 member의 볼륨만 나열하며
+  좁혀진 결과 경고를 전했습니다. 서버 로그에는 실패 없는 도구 호출 4건이 기록됐고,
+  credential ID와 secret은 없었습니다. 다루지 않은 것: 틀리거나 빠진 secret, credential
+  헤더와 Bearer 인증의 동시 사용, HTTPS. 이 부분 점검은 위의 105개 도구 요약을 갱신하지
+  않습니다.

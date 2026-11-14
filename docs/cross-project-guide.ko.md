@@ -32,7 +32,9 @@
   맞습니다.
 - **다중 사용자 모드**: 요청마다 호출자 본인의 Application Credential을 쓰므로, 각자
   자기 권한이 허용하는 것만 봅니다. 여러 사람이 한 서버를 함께 쓰면서 2번을 하려면 이
-  모드를 쓰세요. [다중 사용자 가이드](multi-user-guide.ko.md)를 참고하세요.
+  모드를 쓰세요. [다중 사용자 가이드](multi-user-guide.ko.md)를 참고하세요. Claude Desktop은
+  [`mcp-remote`](claude-desktop-guide.ko.md#다중-사용자-모드-사용자별-application-credential)로
+  헤더를 보냅니다.
 
 ## 켜는 순서
 

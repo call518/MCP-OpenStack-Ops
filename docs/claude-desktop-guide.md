@@ -12,7 +12,7 @@ Options 2-4 add a server entry to `claude_desktop_config.json`. The README
 | [1. Desktop extension (`.mcpb`) (recommended)](#option-1-desktop-extension-mcpb-recommended) | Install a released version in one step | Claude Desktop with extension support |
 | [2. PyPI package with `uvx`](#option-2-pypi-package-with-uvx) | Run the released server from `claude_desktop_config.json` | uv |
 | [3. Source checkout with `uv`](#option-3-source-checkout-with-uv) | Run unreleased or modified source | Git, uv |
-| [4. Existing Docker HTTP server with `npx`](#option-4-existing-docker-http-server-with-npx) | Reuse the running Docker Compose `mcp-server` | Node.js 18+ |
+| [4. Existing Docker HTTP server with `npx`](#option-4-existing-docker-http-server-with-npx) | Reuse the running Docker Compose `mcp-server`, or any Streamable HTTP server, including [multi-user mode](#multi-user-mode-each-users-application-credential) | Node.js 18+ |
 
 In options 1-3, Claude Desktop starts a local MCP server on that computer,
 which needs network access to the OpenStack APIs. In option 4, Claude Desktop
@@ -205,6 +205,45 @@ because Claude Desktop on Windows does not escape spaces in `args`. If server au
 host, publish the server over HTTPS. The server's own `.env` decides the
 OpenStack account and whether `set_*` tools are registered.
 
+### Multi-user mode: each user's Application Credential
+
+When the server runs in multi-user mode (`MCP_MULTI_USER=true`), each user sends
+their own OpenStack Application Credential as two more headers. Each user keeps
+these values in their own `claude_desktop_config.json`, so Claude Desktop acts
+with that user's OpenStack permissions, not the server's account:
+
+```json
+{
+  "mcpServers": {
+    "OpenStack-npx": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote@0.15.2", "https://mcp.example.com/mcp",
+               "--transport", "http-only",
+               "--header", "X-OpenStack-Application-Credential-ID:${OS_AC_ID}",
+               "--header", "X-OpenStack-Application-Credential-Secret:${OS_AC_SECRET}"],
+      "env": {
+        "OS_AC_ID": "<APPLICATION_CREDENTIAL_ID>",
+        "OS_AC_SECRET": "<APPLICATION_CREDENTIAL_SECRET>"
+      }
+    }
+  }
+}
+```
+
+If the server also requires Bearer authentication, add the
+`"--header", "Authorization:${REMOTE_SECRET_KEY}"` arguments and the
+`REMOTE_SECRET_KEY` value from the example above. Create the Application
+Credential as the user who will use it (`openstack application credential
+create`); it decides the user and project. Multi-user mode needs HTTPS to
+OpenStack; see the [multi-user guide](multi-user-guide.md) for server settings
+and credential handling. With `ALLOW_CROSS_PROJECT_READ=true` on the server,
+cross-project reads are decided by that user's own permissions; see the
+[cross-project reads guide](cross-project-guide.md).
+
+This path sends the headers from your computer through `mcp-remote`. It is
+different from a [remote custom connector](#remote-custom-connector), whose
+custom request headers are a limited beta.
+
 ## Remote custom connector
 
 This is not a `claude_desktop_config.json` option. Remote connectors are added in Claude **Customize > Connectors > Add custom
@@ -233,8 +272,12 @@ Options 2-4 were checked with an MCP client using the same command, arguments,
 and environment. Option 2 was checked by installing the package from a local
 checkout with `uvx`, not by downloading it from PyPI. With server
 authentication enabled, option 4 connected with the `Bearer ` value and was
-rejected without the prefix or with a wrong key. The remote custom connector
-path is unverified.
+rejected without the prefix or with a wrong key. Option 4 in multi-user mode
+was checked on 2026-11-14 in Claude Desktop on Windows with `mcp-remote@0.15.2`
+against the Docker Compose server: a member's Application Credential listed only
+its own project, and with cross-project reads enabled it listed the projects its
+role allowed; the server log held no credential. A wrong secret was not tried.
+The remote custom connector path is unverified.
 
 See the [Claude Desktop local MCP guide](https://modelcontextprotocol.io/docs/develop/connect-local-servers),
 [desktop extensions (MCPB)](https://claude.com/docs/connectors/building/mcpb),

@@ -58,8 +58,9 @@ the wrong account is in use may outweigh the benefit. Nothing is decided.
     headers when browser-based onboarding is required.
   - This is not required for the existing Application Credential flow.
 
-- [ ] **Claude Desktop per-user custom-header validation**
-  - Verify that an individual connector can send each user's Application
+- [ ] **Claude Desktop remote connector per-user header validation**
+  - `mcp-remote` in each user's `claude_desktop_config.json` was checked on
+    2026-11-14. Remaining: verify that a remote custom connector can send each user's Application
     Credential headers without sharing them through an organization-level
     connector.
   - Record client version, header restrictions, and the live result without

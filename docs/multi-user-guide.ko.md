@@ -181,7 +181,8 @@ export OS_AUTH_PROTOCOL=http
 | --- | --- |
 | Claude Code CLI | 버전 2.1.312를 등록하고 실제 HTTPS MCP 서버로 테스트함 |
 | Claude Code IDE 통합 | 따로 테스트하지 않음 |
-| Claude Desktop 개인 커넥터 | 요청 헤더 기능을 쓸 수 있고 각자 소유한 자격 증명 설정이 가능할 때만 조건부로 가능. 검증하지 않음 |
+| Claude Desktop, 사용자마다 자기 `claude_desktop_config.json`의 `mcp-remote` | 2026-11-14에 Windows에서 `mcp-remote@0.15.2`로 테스트함. 각 사용자의 컴퓨터에는 자기 credential만 있음. [Claude Desktop 방법 4](claude-desktop-guide.ko.md#다중-사용자-모드-사용자별-application-credential) 참고 |
+| Claude Desktop 원격 사용자 지정 커넥터 | 요청 헤더 기능을 쓸 수 있고 각자 소유한 자격 증명 설정이 가능할 때만 조건부로 가능. 검증하지 않음 |
 | Claude Desktop 조직 공유 고정 헤더 | 사용자별 계정에는 맞지 않음. 한 사람의 자격 증명을 공유하지 말 것 |
 | OpenWebUI 기본 MCP, 비공개 또는 소유자 전용 연결 | 사용자 지정 헤더에 그 사용자의 Application Credential만 담으면 호환. 검증하지 않음 |
 | OpenWebUI 기본 MCP, 여러 사용자가 공유하는 연결 하나 | 맞지 않음. 고정된 사용자 지정 헤더 때문에 모든 UI 사용자가 같은 OpenStack 계정을 쓰게 됨 |
@@ -301,8 +302,11 @@ OpenStack 계정을 물려받게 됩니다. 로컬 파일에는 재사용 가능
 Claude Desktop의 원격 커넥터 헤더는 제한된 베타 기능입니다. 사용자 지정 헤더 이름에는
 Anthropic의 승인이 필요할 수 있고, 조직 단위 고정 자격 증명은 커넥터를 쓰는 모든
 사람에게 공유될 수 있습니다. 사용자별 접근을 조직 전체 자격 증명으로 대신하지 마세요.
-사용자마다 독립적으로 헤더를 설정할 수 없다면 이 단계에서 Desktop은 아직 지원되지
-않습니다. OAuth 흐름은 별도의 설계 결정이며, 공유 자격 증명으로 조용히 대체하는 방식이
+Claude Desktop에서 사용자별 헤더를 쓰려면 대신 사용자마다 자기
+`claude_desktop_config.json`에서 `mcp-remote`를 쓰세요. 헤더를 그 사용자의 컴퓨터에서
+보내며, 그 컴퓨터에 Node.js 18 이상이 필요합니다.
+[Claude Desktop 방법 4](claude-desktop-guide.ko.md#다중-사용자-모드-사용자별-application-credential)를
+참고하세요. OAuth 흐름은 별도의 설계 결정이며, 공유 자격 증명으로 조용히 대체하는 방식이
 아닙니다.
 
 이 브랜치를 설계하면서 확인한 자료:
@@ -340,7 +344,8 @@ Anthropic의 승인이 필요할 수 있고, 조직 단위 고정 자격 증명�
    자격 증명 ID/secret이나 Keystone 토큰은 없는지 확인합니다. HTTP 200은 전달되었다는
    뜻이지, OpenStack 작업이 성공했다는 뜻은 아닙니다.
 9. 새 플래그 없이 기존 stdio 배포와 단일 계정 HTTP 배포를 다시 실행합니다.
-10. 개인별 헤더 설정을 독립적으로 할 수 있을 때만 Desktop을 테스트합니다. 키를 공유하지
+10. Claude Desktop은 `mcp-remote`와 사용자별 자기 설정으로 테스트합니다. 원격 사용자 지정
+    커넥터는 개인별 헤더 설정을 독립적으로 할 수 있을 때만 테스트합니다. 키를 공유하지
     말고, UI나 헤더 승인 제한으로 쓸 수 없다면 그대로 보고합니다.
 
 자동 점검(실제 OpenStack 호출 없음):

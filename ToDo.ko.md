@@ -56,8 +56,9 @@ cross-project 조회는 `ALLOW_CROSS_PROJECT_READ`로 켜는 16개 조회 도구
     인증 방식을 제공합니다.
   - 기존 Application Credential 방식에는 필수가 아닙니다.
 
-- [ ] **Claude Desktop 사용자별 커스텀 헤더 검증**
-  - 개인 커넥터가 조직 단위 커넥터를 통해 자격 증명을 공유하지 않고, 각 사용자의
+- [ ] **Claude Desktop 원격 커넥터의 사용자별 헤더 검증**
+  - 사용자별 `claude_desktop_config.json`의 `mcp-remote` 경로는 2026-11-14에
+    확인했습니다. 남은 것: 원격 사용자 지정 커넥터가 조직 단위 커넥터를 통해 자격 증명을 공유하지 않고, 각 사용자의
     Application Credential 헤더를 보낼 수 있는지 확인합니다.
   - 자격 증명을 노출하지 않고 클라이언트 버전, 헤더 제한과 live 결과를 기록합니다.
 

@@ -26,11 +26,12 @@ Single-account mode does not accept an Application Credential; there are no
 `OS_APPLICATION_CREDENTIAL_*` variables. This is tracked as an undecided item in
 the [TODO](../ToDo.md).
 
-Status as of 2026-11-13 (source `54cb03a`):
+Status as of 2026-11-14 (source `6f9157f`):
 
 | Client | Password | Application Credential | Notes |
 |---|---|---|---|
 | Claude Desktop, extension bundle (`.mcpb`) | ✅ | ❌ Not implemented | The bundle runs the server over stdio and has no credential fields; multi-user mode requires `streamable-http` |
+| Claude Desktop, `claude_desktop_config.json` with `mcp-remote` | ✅ | ✅ | The server runs over `streamable-http`; `mcp-remote` on the user's computer sends the headers. Password: checked with an MCP client running the same `mcp-remote` command. Application Credential: tested on 2026-11-14 with `mcp-remote@0.15.2` in Claude Desktop on Windows against the Docker Compose server over HTTP (test override). See [Claude Desktop option 4](claude-desktop-guide.md#multi-user-mode-each-users-application-credential) |
 | OpenWebUI, Docker Compose | ✅ | ⚠️ Live unverified | Password: one OpenStack account for every OpenWebUI user. Application Credential: only for a private or owner-restricted connection whose headers hold one user's credential; never one shared connection. See [Client compatibility](multi-user-guide.md#client-compatibility) |
 | Claude Code CLI | ✅ | ✅ | The server runs over `streamable-http`. Password: the account stays in the server's environment and Claude Code sends only the Bearer token. Application Credential: version 2.1.312 registered and tested against a real HTTPS MCP server |
 | Claude Code IDE extension | ⚠️ Live unverified | ⚠️ Live unverified | Same registration as the CLI; not separately tested |

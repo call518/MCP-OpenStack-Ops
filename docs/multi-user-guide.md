@@ -189,7 +189,8 @@ production. Redirects remain disabled in both modes.
 | --- | --- |
 | Claude Code CLI | Version 2.1.312 registered and tested against a real HTTPS MCP server |
 | Claude Code IDE integration | Not separately tested |
-| Claude Desktop individual connector | Conditional on request-header availability and an independently owned credential configuration; unverified |
+| Claude Desktop, `mcp-remote` in each user's `claude_desktop_config.json` | Tested on 2026-11-14 on Windows with `mcp-remote@0.15.2`; each user's own computer holds only their credential. See [Claude Desktop option 4](claude-desktop-guide.md#multi-user-mode-each-users-application-credential) |
+| Claude Desktop remote custom connector | Conditional on request-header availability and an independently owned credential configuration; unverified |
 | Claude Desktop organization-shared fixed headers | Not suitable for per-user identities; do not share one person's credential |
 | OpenWebUI native MCP, private or owner-restricted connection | Compatible when its custom headers contain only that user's Application Credential; unverified |
 | OpenWebUI native MCP, one shared connection for multiple users | Not suitable: its fixed custom headers would give every UI user the same OpenStack identity |
@@ -314,9 +315,12 @@ the client machine.
 Claude Desktop's remote connector headers are a limited beta. Custom header names
 may require Anthropic approval, and organization-level fixed credentials can be
 shared by everyone using a connector. Do not substitute an organization-wide
-credential for per-user access. If independent per-user header configuration is
-unavailable, Desktop is not yet supported for this phase; an OAuth flow would be
-a separate design decision, not a silent fallback to shared credentials.
+credential for per-user access. For per-user headers in Claude Desktop, use
+`mcp-remote` from each user's `claude_desktop_config.json` instead; it sends the
+headers from that user's computer and needs Node.js 18 or later there. See
+[Claude Desktop option 4](claude-desktop-guide.md#multi-user-mode-each-users-application-credential).
+An OAuth flow would be a separate design decision, not a silent fallback to
+shared credentials.
 
 Sources checked while designing this branch:
 
@@ -353,8 +357,10 @@ versions, service versions, and results without posting secrets or resource data
    completion without credential ID/secret or Keystone tokens. HTTP 200 indicates
    delivery, not necessarily success of the OpenStack operation.
 9. Re-run a legacy stdio and single-account HTTP deployment without the new flag.
-10. Test Desktop only if independent personal header configuration is available;
-    report unavailable UI/header approval restrictions rather than sharing a key.
+10. Test Claude Desktop with `mcp-remote` and each user's own configuration. Test
+    the remote custom connector only if independent personal header
+    configuration is available; report unavailable UI/header approval
+    restrictions rather than sharing a key.
 
 Automated checks (no real OpenStack calls):
 

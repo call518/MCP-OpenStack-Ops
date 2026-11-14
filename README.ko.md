@@ -210,6 +210,7 @@ modify operations**를 켜고) 서버를 다시 시작하세요. 이 계정이 �
 서버는 OpenStack에 계정 하나의 password(기본값)나 사용자별 Application
 Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인증합니다. 지원
 여부는 클라이언트마다 다르며, 예를 들어 Claude Desktop 확장 번들은 password만
+지원하고, `claude_desktop_config.json`에서 `mcp-remote`를 쓰는 Claude Desktop은 둘 다
 지원합니다.
 [클라이언트별 인증 지원 현황](docs/security.ko.md#클라이언트별-인증-지원-현황)을
 참고하세요.
