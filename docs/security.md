@@ -149,7 +149,8 @@ ALLOW_MODIFY_OPERATIONS=false
 - Floating IP operations (create, delete, associate, disassociate)
 - Snapshot management (create, delete)
 - Image management (create, delete, update)
-- Heat stack operations (create, delete, update)
+- Heat stack operations (create, delete, update, and template validate, which
+  shares the `set_heat_stack` tool)
 
 **Always Available (Read-Only Operations):**
 - Cluster status and monitoring

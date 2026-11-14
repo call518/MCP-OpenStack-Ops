@@ -10,29 +10,58 @@ from ..mcp_main import (
 )
 
 @conditional_tool
-async def set_heat_stack(stack_names: str, action: str, template: str = "", parameters: str = "") -> str:
+async def set_heat_stack(stack_names: str, action: str, template: str = "",
+                         parameters: str = "", files: str = "", environment: str = "",
+                         timeout_mins: int = 0, existing: bool = False) -> str:
     """
-    Manage Heat orchestration stacks (create, delete, update).
+    Manage Heat orchestration stacks (create, delete, update, validate).
     Supports both single stack and bulk operations.
-    
+
     Functions:
+    - Validate a template, with its files and environment, before create/update
     - Create new stacks from Heat templates
     - Delete existing stacks
     - Update stack configurations and parameters
-    - Handle complex infrastructure deployments
     - Bulk operations: Apply action to multiple stacks at once
-    
+
     Use when user requests Heat stack management, infrastructure orchestration, or template deployment tasks.
-    
+
+    Template rules:
+    - A template that uses another template as a resource type (provider or
+      nested template, e.g. type: member.yaml, or a resource_registry entry)
+      needs that template's content in files, keyed by the same name.
+    - Do not use OS::Heat::Stack as the member of OS::Heat::AutoScalingGroup
+      or ResourceGroup. Scaling triggered by an Aodh alarm runs with a trust,
+      and creating a top-level stack from a trust fails with HTTP 403 because
+      Keystone forbids trust redelegation. Use a nested template in files.
+    - create, update and delete are asynchronous; confirm the final state
+      with get_heat_stacks or get_heat_stack_details.
+
     Args:
         stack_names: Name(s) of stacks to manage. Support formats:
-                    - Single: "stack1" 
+                    - Single: "stack1"
                     - Multiple: "stack1,stack2,stack3" or "stack1, stack2, stack3"
                     - List format: '["stack1", "stack2", "stack3"]'
-        action: Action to perform (create, delete, update)
-        template: Heat template content for create/update actions (optional)
+                    For validate the name is only a label.
+        action: Action to perform (create, delete, update, validate)
+        template: Heat template content (YAML or JSON). Required for create,
+            validate, and update unless existing is true.
         parameters: Stack parameters in JSON format (optional)
-        
+        files: JSON object mapping each referenced file name to its content,
+            like 'openstack stack create -t' collects (optional). Content only;
+            the server does not read local paths or URLs.
+        environment: Environment content (JSON, or YAML text) with
+            parameters, parameter_defaults or resource_registry (optional)
+        timeout_mins: Stack timeout in minutes for create/update; 0 keeps
+            Heat's default (create) or the current value (update with existing)
+        existing: For update only. False (default) replaces the stack
+            definition like 'openstack stack update': parameters, files and
+            environment that are not passed revert to template defaults or are
+            dropped, which can replace resources. True keeps the stored
+            template, parameters, files and environment and changes only what
+            is passed, like 'openstack stack update --existing'. Use true to
+            change a subset, for example one parameter.
+
     Returns:
         Result of stack management operation in JSON format.
         For bulk operations, returns summary of successes and failures.
@@ -79,7 +108,35 @@ async def set_heat_stack(stack_names: str, action: str, template: str = "", para
                     "error": "Invalid JSON format for parameters",
                     "message": "Parameters must be valid JSON format"
                 }, indent=2, ensure_ascii=False)
-        
+
+        if files.strip():
+            try:
+                files_map = json.loads(files.strip())
+            except json.JSONDecodeError:
+                files_map = None
+            if not isinstance(files_map, dict) or not all(
+                    isinstance(v, str) for v in files_map.values()):
+                return json.dumps({
+                    "timestamp": datetime.now().isoformat(),
+                    "error": "Invalid files format",
+                    "message": "files must be a JSON object of file name to content string"
+                }, indent=2, ensure_ascii=False)
+            kwargs['files'] = files_map
+
+        if environment.strip():
+            try:
+                kwargs['environment'] = json.loads(environment.strip())
+            except json.JSONDecodeError:
+                # Heat parses a YAML environment string itself.
+                kwargs['environment'] = environment.strip()
+
+        if timeout_mins < 0:
+            return "Error: timeout_mins must be 0 or greater"
+        if timeout_mins:
+            kwargs['timeout_mins'] = timeout_mins
+        if existing:
+            kwargs['existing'] = True
+
         # Handle single stack (backward compatibility)
         if len(name_list) == 1:
             logger.info(f"Managing stack '{name_list[0]}' with action '{action}'")
@@ -92,7 +149,9 @@ async def set_heat_stack(stack_names: str, action: str, template: str = "", para
                     "Action": action,
                     "Stack Name": name_list[0],
                     "Template": "Provided" if template.strip() else "Not provided",
-                    "Parameters": "Provided" if parameters.strip() else "Not provided"
+                    "Parameters": "Provided" if parameters.strip() else "Not provided",
+                    "Files": ", ".join(kwargs.get('files', {})) or "Not provided",
+                    "Environment": "Provided" if environment.strip() else "Not provided"
                 }
             )
         

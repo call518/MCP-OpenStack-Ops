@@ -437,12 +437,14 @@ Cinder가 없는 OpenStack 2026.1에서 live로 확인했습니다([검증](docs
 |---------------------|---------|------|------|
 | `openstack stack list` | `get_heat_stacks` | ✅ | 스택의 프로젝트 ID나 Heat self link가 현재 프로젝트와 일치해야 하며, 알 수 없거나 다른 프로젝트 소유인 스택은 제외. 자기 프로젝트와 다른 프로젝트의 테스트 스택으로 확인. `owner`는 SDK의 `owner_id` 필드를 읽고, 조회에 실패하면 가짜 스택 대신 오류를 반환. 2026-11-10 targeted check: 소유한 테스트 스택이 나열됨 |
 | `openstack stack show` | `get_heat_stacks` | ✅ Partial | 반환된 목록에서 대상을 골라야 하며 이름/필터 파라미터는 없음. 리소스/이벤트/템플릿/출력 조회는 get_heat_stack_details 사용 |
-| `openstack stack create` | `set_heat_stack` (action="create") | ✅ | 스택 생성. 2026-11-10 targeted check: CREATE_COMPLETE에 도달 |
+| `openstack stack create` | `set_heat_stack` (action="create") | ✅ | 스택 생성. 2026-11-10 targeted check: CREATE_COMPLETE에 도달. `files`(provider/중첩 템플릿용, 파일 이름과 내용의 JSON 객체), `environment`, `timeout_mins`는 ⚠️ Live unverified(2026-11-15 추가, 단위 테스트만). 서버는 `files`를 위해 로컬 경로나 URL을 읽지 않음. AutoScalingGroup 멤버를 `OS::Heat::Stack`으로 만들면 Aodh 알람에 의한 확장이 실패함(Keystone이 trust 재위임을 금지). `files`에 넣은 중첩 템플릿을 사용 |
 | `openstack stack delete` | `set_heat_stack` (action="delete") | ✅ | 다른 프로젝트 스택의 삭제는 거부. 소유권 변경 후 소유 스택 삭제 완료. 2026-11-10 targeted check: 삭제됨 |
-| `openstack stack update` | `set_heat_stack` (action="update") | ✅ | 스택 소유권이 일치해야 함. 결과는 SDK의 `status` 필드를 읽음(이전에는 Heat가 update를 받아들인 뒤에도 도구가 실패로 보고). 2026-11-10 targeted check: 소유 스택 update가 접수된 것으로 보고되었고 UPDATE_COMPLETE에 도달 |
-| `openstack stack suspend/resume` | — | ❌ Not implemented | set_heat_stack은 create, delete, update만 지원 |
-| `openstack stack resource list` | `get_heat_stack_details` (section="resources") | ✅ | 실제 Heat 리소스 |
-| `openstack stack event list` | `get_heat_stack_details` (section="events") | ✅ | 소유권 변경 후 소유 스택의 이벤트를 조회 |
+| `openstack stack update` | `set_heat_stack` (action="update") | ✅ | 스택 소유권이 일치해야 함. 기본 `PUT`은 스택 정의를 교체하므로 넘기지 않은 파라미터는 템플릿 기본값으로 돌아감. 결과는 SDK의 `status` 필드를 읽음(이전에는 Heat가 update를 받아들인 뒤에도 도구가 실패로 보고). 2026-11-10 targeted check: 소유 스택 update가 접수된 것으로 보고되었고 UPDATE_COMPLETE에 도달. `files`, `environment`, `timeout_mins`는 ⚠️ Live unverified(2026-11-15 추가) |
+| `openstack stack update --existing` | `set_heat_stack` (action="update", `existing=true`) | ⚠️ Live unverified | 저장된 템플릿, 파라미터, files, environment를 유지하고 넘긴 필드만 바꾸는 `PATCH`. 템플릿은 선택 사항. 2026-11-15 추가, 단위 테스트만 |
+| `openstack stack suspend/resume` | — | ❌ Not implemented | set_heat_stack은 create, delete, update, validate만 지원 |
+| `openstack orchestration template validate` | `set_heat_stack` (action="validate") | ⚠️ Live unverified | 템플릿을 `files`, `environment`와 함께 Heat의 `/validate`로 보냄. 스택 이름은 표시용일 뿐임. 2026-11-15 추가, 단위 테스트만 |
+| `openstack stack resource list` | `get_heat_stack_details` (section="resources") | ✅ | 실제 Heat 리소스. `nested_depth`(`-n`에 해당)는 ⚠️ Live unverified(2026-11-15 추가) |
+| `openstack stack event list` | `get_heat_stack_details` (section="events") | ✅ | 소유권 변경 후 소유 스택의 이벤트를 조회. `nested_depth`는 ⚠️ Live unverified(2026-11-15 추가) |
 | `openstack stack template show` | `get_heat_stack_details` (section="template") | ✅ | 소유권 변경 후 소유 스택의 템플릿을 조회 |
 | `openstack stack output list` | `get_heat_stack_details` (section="outputs") | ✅ | 소유권 변경 후 소유 스택의 출력을 조회 |
 

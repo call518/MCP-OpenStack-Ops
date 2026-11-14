@@ -160,15 +160,25 @@ def get_heat_stacks(all_projects: bool = False) -> List[Dict[str, Any]]:
         raise
 
 
+def _heat_stack_body(kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    """Optional Heat stack fields that the caller supplied."""
+    body = {}
+    for key in ('template', 'parameters', 'files', 'environment', 'timeout_mins'):
+        if kwargs.get(key):
+            body[key] = kwargs[key]
+    return body
+
+
 def set_heat_stack(stack_name: str, action: str, **kwargs) -> Dict[str, Any]:
     """
-    Manage Heat stacks (create, delete, update).
-    
+    Manage Heat stacks (create, delete, update, validate).
+
     Args:
         stack_name: Name of the stack
-        action: Action to perform (create, delete, update, abandon)
-        **kwargs: Additional parameters (template, parameters)
-    
+        action: Action to perform (create, delete, update, validate)
+        **kwargs: Additional parameters (template, parameters, files,
+            environment, timeout_mins, existing)
+
     Returns:
         Result of the stack operation
     """
@@ -176,22 +186,32 @@ def set_heat_stack(stack_name: str, action: str, **kwargs) -> Dict[str, Any]:
         # Import here to avoid circular imports
         from ..connection import get_openstack_connection
         conn = get_openstack_connection()
-        
+
+        if action.lower() == 'validate':
+            body = _heat_stack_body(kwargs)
+            if not body.get('template'):
+                return {
+                    'success': False,
+                    'message': 'template parameter is required for validate action'
+                }
+            body.pop('timeout_mins', None)
+            # The SDK's validate_template cannot send files.
+            response = conn.orchestration.post('/validate', json=body, raise_exc=True)
+            return {
+                'success': True,
+                'message': 'Heat template is valid',
+                'validation': response.json()
+            }
+
         if action.lower() == 'create':
-            template = kwargs.get('template')
-            if not template:
+            body = _heat_stack_body(kwargs)
+            if not body.get('template'):
                 return {
                     'success': False,
                     'message': 'template parameter is required for create action'
                 }
-                
-            stack = conn.orchestration.create_stack(
-                name=stack_name,
-                template=template,
-                parameters=kwargs.get('parameters', {}),
-                timeout=kwargs.get('timeout', 60),
-                tags=kwargs.get('tags', '')
-            )
+
+            stack = conn.orchestration.create_stack(name=stack_name, **body)
             return {
                 'success': True,
                 'message': f'Stack "{stack_name}" creation started',
@@ -229,18 +249,30 @@ def set_heat_stack(stack_name: str, action: str, **kwargs) -> Dict[str, Any]:
                     'message': f'Heat stack "{stack_name}" not found or not accessible in current project'
                 }
                 
-            template = kwargs.get('template')
-            if not template:
+            body = _heat_stack_body(kwargs)
+            if kwargs.get('existing'):
+                # PATCH keeps the stored template, parameters, files and
+                # environment; only the supplied fields change.
+                from urllib.parse import quote
+                path = ('/stacks/' + quote(stack.name, safe='') + '/'
+                        + quote(stack.id, safe=''))
+                conn.orchestration.patch(path, json=body, raise_exc=True)
+                return {
+                    'success': True,
+                    'message': f'Heat stack "{stack_name}" update (existing) accepted',
+                    'stack': {'id': stack.id, 'name': stack.name}
+                }
+
+            if not body.get('template'):
                 return {
                     'success': False,
-                    'message': 'template parameter is required for update action'
+                    'message': 'template parameter is required for update action '
+                               'unless existing is true'
                 }
-                
-            updated_stack = conn.orchestration.update_stack(
-                stack,
-                template=template,
-                parameters=kwargs.get('parameters', {})
-            )
+            # PUT replaces the stack definition: omitted parameters revert to
+            # template defaults and omitted files/environment are dropped.
+            body.setdefault('parameters', {})
+            updated_stack = conn.orchestration.update_stack(stack, **body)
             return {
                 'success': True,
                 'message': f'Heat stack "{stack_name}" update started',
@@ -253,7 +285,7 @@ def set_heat_stack(stack_name: str, action: str, **kwargs) -> Dict[str, Any]:
         else:
             return {
                 'success': False,
-                'message': f'Unknown action "{action}". Supported: create, delete, update'
+                'message': f'Unknown action "{action}". Supported: create, delete, update, validate'
             }
             
     except Exception as e:
@@ -264,9 +296,12 @@ def set_heat_stack(stack_name: str, action: str, **kwargs) -> Dict[str, Any]:
             'error': str(e)
         }
 
-def get_heat_stack_details(stack_name: str, section: str = 'resources') -> Dict[str,
-    Any]:
-    """Read resources, events, the template or resolved outputs for a Heat stack."""
+def get_heat_stack_details(stack_name: str, section: str = 'resources',
+                           nested_depth: int = 0) -> Dict[str, Any]:
+    """Read resources, events, the template or resolved outputs for a Heat stack.
+
+    nested_depth includes resources or events of nested stacks that deep.
+    """
     from ..connection import get_openstack_connection
 
     try:
@@ -279,10 +314,13 @@ def get_heat_stack_details(stack_name: str, section: str = 'resources') -> Dict[
         stack = api.find_stack(stack_name, ignore_missing=False)
         if not _heat_stack_is_owned(stack, conn.current_project_id):
             raise ValueError('Heat stack is not accessible in the current project')
+        if nested_depth < 0:
+            raise ValueError('nested_depth must be 0 or greater')
+        query = {'nested_depth': nested_depth} if nested_depth else {}
         if section == 'resources':
-            data = [r.to_dict() for r in api.resources(stack)]
+            data = [r.to_dict() for r in api.resources(stack, **query)]
         elif section == 'events':
-            data = [e.to_dict() for e in api.stack_events(stack)]
+            data = [e.to_dict() for e in api.stack_events(stack, **query)]
         elif section == 'template':
             # Return the original template document, including vendor/CFN keys.
             from urllib.parse import quote

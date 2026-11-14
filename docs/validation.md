@@ -452,3 +452,15 @@ an earlier full summary.
   Not covered: a missing secret header, Bearer authentication together with the
   credential headers, and HTTPS. This partial check does not
   update the 105-tool summary above.
+- **Local Heat stack input tests (2026-11-15; uncommitted working tree based on
+  `3dcc6b2`):** 582/582 (100%) with fastmcp 4.1.6 and the locked openstacksdk
+  4.22.0, run as `uv run pytest -q`; no failures or skipped tests. Seven
+  new or changed cases cover the `set_heat_stack` `files`, `environment` and
+  `timeout_mins` inputs reaching the SDK request body (the old `timeout`
+  keyword was dropped by the SDK), empty tags left out of the request, `update`
+  with `existing=true` sent as a `PATCH` of only the supplied fields, the
+  default `update` `PUT` with files, `validate` posting the template, files and
+  environment to `/validate`, rejection of malformed `files`, and
+  `get_heat_stack_details` passing `nested_depth`. No live stack was created,
+  updated or validated with this code, so these paths remain **Live
+  unverified**.

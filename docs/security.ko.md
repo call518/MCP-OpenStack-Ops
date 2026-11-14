@@ -144,7 +144,8 @@ ALLOW_MODIFY_OPERATIONS=false
 - Floating IP 작업(create, delete, associate, disassociate)
 - 스냅샷 관리(create, delete)
 - 이미지 관리(create, delete, update)
-- Heat 스택 작업(create, delete, update)
+- Heat 스택 작업(create, delete, update, 그리고 같은 `set_heat_stack` 도구에 있는 템플릿
+  validate)
 
 **항상 사용 가능(읽기 전용 작업):**
 - 클러스터 상태와 모니터링

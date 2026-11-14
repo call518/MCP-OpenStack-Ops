@@ -392,3 +392,13 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   동작이며, 서버는 secret을 바꾸지 않고 그대로 전달합니다. 다루지 않은 것: secret 헤더가
   빠진 경우, credential 헤더와 Bearer 인증의 동시 사용, HTTPS. 이 부분 점검은 위의 105개 도구 요약을 갱신하지
   않습니다.
+- **로컬 Heat 스택 입력 테스트 (2026-11-15, `3dcc6b2` 기반의 커밋되지 않은 작업
+  트리):** fastmcp 4.1.6과 고정된 openstacksdk 4.22.0에서 `uv run pytest -q`로 실행해
+  582/582 (100%)이며, 실패나 건너뛴 테스트는 없습니다. 새로 추가하거나 바꾼 7건은
+  `set_heat_stack`의 `files`, `environment`, `timeout_mins` 입력이 SDK 요청 본문에
+  들어가는지(이전의 `timeout` 키워드는 SDK가 버렸음), 빈 tags를 요청에서 빼는지,
+  `existing=true`인 `update`가 넘긴 필드만 `PATCH`로 보내는지, 기본 `update`가
+  files와 함께 `PUT`으로 가는지, `validate`가 템플릿·files·environment를
+  `/validate`에 보내는지, 잘못된 `files`를 거부하는지, `get_heat_stack_details`가
+  `nested_depth`를 넘기는지를 다룹니다. 이 코드로 live 스택을 생성·수정·검증하지
+  않았으므로 이 경로는 **Live unverified**로 남습니다.

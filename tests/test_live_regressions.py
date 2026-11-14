@@ -76,7 +76,8 @@ async def test_heat_scalar_name_parses_json_template(monkeypatch):
     service.assert_called_once_with('stack-a', 'create', template=template)
 
 
-def test_heat_create_uses_api_string_tags_and_sdk_status(conn):
+def test_heat_create_omits_empty_tags_and_reads_sdk_status(conn):
+    # tags=[] made Heat return HTTP 400 and tags='' was stored as [""].
     conn.orchestration.create_stack.return_value = Stack(
         id='stack-a', stack_name='stack-a', stack_status='CREATE_IN_PROGRESS'
     )
@@ -84,8 +85,96 @@ def test_heat_create_uses_api_string_tags_and_sdk_status(conn):
         'stack-a', 'create', template={'resources': {}}
     )
     assert result['success'], result
-    assert conn.orchestration.create_stack.call_args.kwargs['tags'] == ''
+    kwargs = conn.orchestration.create_stack.call_args.kwargs
+    assert 'tags' not in kwargs and 'timeout' not in kwargs
     assert result['stack']['status'] == 'CREATE_IN_PROGRESS'
+
+
+def test_heat_create_sends_timeout_files_and_environment(conn):
+    conn.orchestration.create_stack.return_value = Stack(id='s', stack_name='web')
+    files = {'member.yaml': 'heat_template_version: 2018-08-31'}
+    env = {'resource_registry': {'My::Member': 'member.yaml'}}
+    orchestration.set_heat_stack('web', 'create', template='t: 1',
+                                 parameters={'image': 'img'}, files=files,
+                                 environment=env, timeout_mins=90)
+    conn.orchestration.create_stack.assert_called_once_with(
+        name='web', template='t: 1', parameters={'image': 'img'}, files=files,
+        environment=env, timeout_mins=90)
+    # The SDK must put these fields in the request body.
+    body = Stack(name='web', files=files, environment=env, timeout_mins=90)._body.dirty
+    assert body['files'] == files and body['timeout_mins'] == 90
+
+
+def _owned_stack():
+    return Stack(id='stack-a', stack_name='app', links=[{'rel': 'self',
+        'href': 'https://heat/v1/project-a/stacks/app/stack-a'}])
+
+
+def test_heat_update_existing_patches_only_supplied_fields(conn):
+    conn.orchestration.stacks.return_value = [_owned_stack()]
+    result = orchestration.set_heat_stack('app', 'update', existing=True,
+                                          parameters={'image': 'v2'})
+    assert result['success'], result
+    conn.orchestration.patch.assert_called_once_with(
+        '/stacks/app/stack-a', json={'parameters': {'image': 'v2'}}, raise_exc=True)
+    conn.orchestration.update_stack.assert_not_called()
+
+
+def test_heat_update_replace_sends_files_and_requires_template(conn):
+    stack = _owned_stack()
+    conn.orchestration.stacks.return_value = [stack]
+    conn.orchestration.update_stack.return_value = stack
+    assert not orchestration.set_heat_stack('app', 'update')['success']
+    files = {'member.yaml': 'x'}
+    orchestration.set_heat_stack('app', 'update', template='t: 1', files=files,
+                                 timeout_mins=90)
+    conn.orchestration.update_stack.assert_called_once_with(
+        stack, template='t: 1', files=files, timeout_mins=90, parameters={})
+    conn.orchestration.patch.assert_not_called()
+
+
+def test_heat_validate_posts_template_files_and_environment(conn):
+    conn.orchestration.post.return_value = Mock(json=Mock(return_value={'Parameters': {}}))
+    files = {'member.yaml': 'x'}
+    result = orchestration.set_heat_stack('check', 'validate', template='t: 1',
+                                          files=files, environment='e: 1',
+                                          timeout_mins=90)
+    assert result['success'] and result['validation'] == {'Parameters': {}}
+    conn.orchestration.post.assert_called_once_with(
+        '/validate', json={'template': 't: 1', 'files': files, 'environment': 'e: 1'},
+        raise_exc=True)
+    assert not orchestration.set_heat_stack('check', 'validate')['success']
+
+
+@pytest.mark.asyncio
+async def test_heat_tool_parses_files_environment_and_options(monkeypatch):
+    module = importlib.import_module('mcp_openstack_ops.tools.set_heat_stack')
+    service = Mock(return_value={'success': True})
+    monkeypatch.setattr(module, '_set_heat_stack', service)
+    await invoke('set_heat_stack', action='update', stack_names='app',
+                 files='{"member.yaml": "x"}', environment='parameter_defaults: {}',
+                 timeout_mins=90, existing=True)
+    service.assert_called_once_with('app', 'update', files={'member.yaml': 'x'},
+                                    environment='parameter_defaults: {}',
+                                    timeout_mins=90, existing=True)
+    for bad in ('["member.yaml"]', '{"member.yaml": 1}', 'member.yaml'):
+        result = await invoke('set_heat_stack', action='create', stack_names='app',
+                              template='t: 1', files=bad)
+        assert 'Invalid files format' in result
+    assert service.call_count == 1
+
+
+def test_heat_details_pass_nested_depth(conn):
+    conn.orchestration.find_stack.return_value = _owned_stack()
+    conn.orchestration.resources.return_value = []
+    conn.orchestration.stack_events.return_value = []
+    assert orchestration.get_heat_stack_details('app', 'resources', nested_depth=2)['success']
+    conn.orchestration.resources.assert_called_once_with(
+        conn.orchestration.find_stack.return_value, nested_depth=2)
+    assert orchestration.get_heat_stack_details('app', 'events')['success']
+    conn.orchestration.stack_events.assert_called_once_with(
+        conn.orchestration.find_stack.return_value)
+    assert not orchestration.get_heat_stack_details('app', 'events', nested_depth=-1)['success']
 
 
 def test_heat_list_requires_matching_owner_from_self_link(conn):
