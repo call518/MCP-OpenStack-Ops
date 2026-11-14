@@ -78,13 +78,20 @@ def get_image_list() -> List[Dict[str, Any]]:
         ]
 
 
-def get_image_detail_list() -> List[Dict[str, Any]]:
+def get_image_detail_list(all_projects: bool = False) -> List[Dict[str, Any]]:
     """
     Get detailed list of images accessible by current project.
-    
+
+    Args:
+        all_projects: Return every image Glance shows this credential, including
+            other projects' private images (requires ALLOW_CROSS_PROJECT_READ=true)
+
     Returns:
         List of detailed image information dictionaries for current project
     """
+    if all_projects:
+        from ..connection import require_cross_project_read
+        require_cross_project_read()
     try:
         # Import here to avoid circular imports
         from ..connection import get_openstack_connection
@@ -113,7 +120,9 @@ def get_image_detail_list() -> List[Dict[str, Any]]:
                 include_image = True
             elif owner == current_project_id:  # Catch-all for project-owned images
                 include_image = True
-                
+            # Glance policy already decided which images are visible.
+            include_image = include_image or all_projects
+
             if include_image:
                 images.append({
                     'id': image.id,
@@ -132,7 +141,15 @@ def get_image_detail_list() -> List[Dict[str, Any]]:
                     'checksum': getattr(image, 'checksum', None),
                     'properties': getattr(image, 'properties', {})
                 })
-        
+
+        if all_projects:
+            from ..connection import get_project_names
+            names = get_project_names(conn)
+            for row in images:
+                row['project_id'] = row['owner']
+                row['project_name'] = names.get(row['owner'])
+                # Neutron's narrowing rule treats these as visible to everyone.
+                row['shared'] = row['visibility'] in ('public', 'community', 'shared')
         logger.info(f"Retrieved {len(images)} detailed images for project {current_project_id}")
         return images
         

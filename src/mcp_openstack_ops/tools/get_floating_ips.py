@@ -2,7 +2,7 @@
 
 import json
 from datetime import datetime
-from ..connection import neutron_items_scope
+from ..connection import shared_items_scope
 from ..functions import get_floating_ips as _get_floating_ips
 from ..mcp_main import (
     logger,
@@ -42,7 +42,7 @@ async def get_floating_ips(all_projects: bool = False) -> str:
             "floating_ips": floating_ips
         }
         if all_projects:
-            result["scope"] = neutron_items_scope(floating_ips)
+            result["scope"] = shared_items_scope(floating_ips)
 
         return json.dumps(result, indent=2, ensure_ascii=False)
         

@@ -16,18 +16,29 @@ from .pools import resource_ref_ids
 logger = logging.getLogger(__name__)
 
 
-def get_load_balancer_list(limit: int = 50, offset: int = 0, include_all: bool = False) -> Dict[str, Any]:
+def get_load_balancer_list(limit: int = 50, offset: int = 0, include_all: bool = False,
+                           all_projects: bool = False) -> Dict[str, Any]:
     """
     Get list of load balancers with comprehensive details for current project.
-    
+
     Args:
         limit: Maximum number of load balancers to return (1-200, default: 50)
         offset: Number of load balancers to skip (default: 0)
         include_all: If True, return all load balancers (ignores limit/offset)
-    
+        all_projects: Keep every load balancer Octavia returns; its
+            get_all-global policy decides whether that spans projects
+            (requires ALLOW_CROSS_PROJECT_READ=true)
+
     Returns:
         Dictionary containing load balancers list with details for current project
     """
+    from ...connection import (
+        CROSS_PROJECT_READ_DISABLED, cross_project_read_enabled, cross_project_scope,
+        get_project_names,
+    )
+    if all_projects and not cross_project_read_enabled():
+        return {'success': False, 'message': CROSS_PROJECT_READ_DISABLED,
+                'error': CROSS_PROJECT_READ_DISABLED}
     try:
         conn = get_openstack_connection()
         current_project_id = conn.current_project_id
@@ -42,7 +53,7 @@ def get_load_balancer_list(limit: int = 50, offset: int = 0, include_all: bool =
         # Get all load balancers and filter by current project
         all_lbs = []
         for lb in conn.load_balancer.load_balancers():
-            if getattr(lb, 'project_id', None) == current_project_id:
+            if all_projects or getattr(lb, 'project_id', None) == current_project_id:
                 all_lbs.append(lb)
         
         # Apply pagination
@@ -122,7 +133,14 @@ def get_load_balancer_list(limit: int = 50, offset: int = 0, include_all: bool =
         if not include_all:
             result['summary']['total_available'] = len(all_lbs)
             result['summary']['has_more'] = (offset + limit) < len(all_lbs)
-        
+        if all_projects:
+            names = get_project_names(conn)
+            for row in lb_details:
+                row['project_name'] = names.get(row.get('project_id'))
+            # Scope covers every listed project, not just this page.
+            result['scope'] = cross_project_scope(
+                (getattr(lb, 'project_id', None) for lb in all_lbs), current_project_id)
+
         logger.info(f"Successfully retrieved {len(lb_details)} load balancers for project {current_project_id} in {processing_time:.2f}s")
         return result
         

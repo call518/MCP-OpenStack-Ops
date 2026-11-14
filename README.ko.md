@@ -406,6 +406,7 @@ Cinder가 없는 OpenStack 2026.1에서 live로 확인했습니다([검증](docs
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
 | `openstack image list` | `get_image_detail_list` | ✅ | 이미지 목록. 조회에 실패하면 빈 목록 대신 오류를 반환. 2026-11-10 targeted check: 나열됨 |
+| `openstack image list` (관리자, 모든 프로젝트) | `get_image_detail_list` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Glance에는 전체 프로젝트 옵션이 없고 다른 프로젝트의 private 이미지는 관리자에게만 보이며, public 이미지는 모두에게 보임. 다른 프로젝트의 비공개 이미지가 없는 결과에는 `scope.warning`이 붙음. 2026-11-14 targeted check: 관리자는 세 프로젝트의 이미지를 나열했고, `member`는 경고와 함께 자기 이미지와 public 이미지를 받음 |
 | `openstack image show` | `get_image_detail_list` (filtering) | ✅ | 특정 이미지 조회 |
 | `openstack image create` | `set_image` (action="create") | ✅ | min_disk, min_ram, properties를 지원하는 이미지 생성 |
 | `openstack image delete` | `set_image` (action="delete") | ✅ | 이미지 삭제 |
@@ -445,6 +446,7 @@ Cinder가 없는 OpenStack 2026.1에서 live로 확인했습니다([검증](docs
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
 | `openstack stack list` | `get_heat_stacks` | ✅ | 스택의 프로젝트 ID나 Heat self link가 현재 프로젝트와 일치해야 하며, 알 수 없거나 다른 프로젝트 소유인 스택은 제외. 자기 프로젝트와 다른 프로젝트의 테스트 스택으로 확인. `owner`는 SDK의 `owner_id` 필드를 읽고, 조회에 실패하면 가짜 스택 대신 오류를 반환. 2026-11-10 targeted check: 소유한 테스트 스택이 나열됨 |
+| `openstack stack list --all-projects` | `get_heat_stacks` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Heat의 `global_tenant` 쿼리를 보냄. Heat의 기본 `stacks:global_index` 정책이 `deny_everybody`이므로, 운영자가 그 정책을 바꾸지 않으면 관리자도 정책 거부 오류를 받음. 2026-11-14 targeted check: 관리자와 `member` 모두 정책 거부 오류를 받음 |
 | `openstack stack show` | `get_heat_stacks` | ✅ Partial | 반환된 목록에서 대상을 골라야 하며 이름/필터 파라미터는 없음. 리소스/이벤트/템플릿/출력 조회는 get_heat_stack_details 사용 |
 | `openstack stack create` | `set_heat_stack` (action="create") | ✅ | 스택 생성. 2026-11-10 targeted check: CREATE_COMPLETE에 도달 |
 | `openstack stack delete` | `set_heat_stack` (action="delete") | ✅ | 다른 프로젝트 스택의 삭제는 거부. 소유권 변경 후 소유 스택 삭제 완료. 2026-11-10 targeted check: 삭제됨 |
@@ -466,6 +468,7 @@ Octavia 도구는 openstacksdk의 속성 이름(`is_admin_state_up`, `is_enabled
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
 | `openstack loadbalancer list` | `get_load_balancer_list` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 페이지 처리를 지원하는 로드밸런서 목록 |
+| `openstack loadbalancer list` (관리자, 모든 프로젝트) | `get_load_balancer_list` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Octavia는 권한 없는 요청을 호출자 프로젝트로 좁히므로, 현재 프로젝트만 있는 결과에는 `result.scope.warning`이 붙음. scope는 모든 페이지를 기준으로 함. 2026-11-14 targeted check: 관리자는 두 프로젝트의 로드밸런서를 나열했고, `member`는 경고와 함께 자기 것만 받음 |
 | `openstack loadbalancer show` | `get_load_balancer_details` | ✅ | 2026-11-12 Octavia 대상 읽기 점검 통과. 로드밸런서 상세 정보. 풀은 각 풀의 `listeners` 참조로 리스너에 연결 |
 | `openstack loadbalancer create` | `set_load_balancer` (action="create") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서 생성 |
 | `openstack loadbalancer delete` | `set_load_balancer` (action="delete") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서 삭제 |

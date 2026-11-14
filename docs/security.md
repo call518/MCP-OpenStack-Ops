@@ -84,6 +84,9 @@ Some list tools accept `all_projects=true`, like the OpenStack CLI's
 | `get_volume_list`, `get_volume_snapshots` | Volumes or snapshots of every visible project, each with `project_id` and `project_name` |
 | `get_volume_backups`, `get_volume_groups` | Backups or generic volume groups of every visible project. Cinder shows their owner project only to administrators; when no row has an owner, `scope.warning` says the scope cannot be told |
 | `get_server_groups` | Server groups of every visible project, each with `project_id` and `project_name` |
+| `get_image_detail_list` | Every image Glance shows the credential, including other projects' private images for administrators. Public, community and shared images do not count toward the scope check, as for Neutron |
+| `get_heat_stacks` | Stacks of every project through Heat's `global_tenant` query. Heat's default `stacks:global_index` policy denies it to everyone, administrators included |
+| `get_load_balancer_list` | Load balancers of every visible project, each with `project_id` and `project_name`; `result.scope` covers every page |
 | `get_network_details`, `get_routers`, `get_security_groups`, `get_floating_ips` | Networks, routers, security groups or floating IPs that Neutron shows the credential, each with `project_id` and `project_name`. Neutron never denies a list and shows other projects' shared and external resources to everyone, so `scope.warning` appears unless another project's unshared resource is in the result |
 | `get_project_details` | A summary (ID, name, domain, enabled, `is_current`) of every visible project. With a `project_name` or ID that matches one project, that project's details and resource counts; network counts include only resources the credential can see |
 
@@ -122,6 +125,10 @@ OpenStack 2025.1 (Epoxy):
 | Nova | Server list for all projects | `os_compute_api:servers:detail:get_all_tenants` and `os_compute_api:servers:index:get_all_tenants`: `rule:context_is_admin` (`role:admin`) | HTTP 403 |
 | Cinder | Volume and snapshot lists for all projects | No dedicated rule. Cinder honors `all_tenants` only when `context_is_admin` (`role:admin`) passes | Silently narrowed to the caller's project |
 | Keystone | Project list | `identity:list_projects`: `rule:admin_required`, a system-scoped reader, or a domain reader for its own domain | HTTP 403 |
+| Neutron | Network, router, security group and floating IP lists | No all-projects flag; each resource's read policy decides what is listed, and other projects' shared and external resources are visible to everyone | Narrowed to what the credential can see |
+| Glance | Image list | `get_images`: `rule:context_is_admin` or a project reader; administrators see other projects' private images | Narrowed to own, public and shared images |
+| Heat | Stack list for all projects | `stacks:global_index`: `rule:deny_everybody` | HTTP 403, administrators included |
+| Octavia | Load balancer list for all projects | `os_load-balancer_api:loadbalancer:get_all-global`: `rule:load-balancer:read-global` (`role:admin`) | Narrowed to the caller's project |
 
 Because Cinder ties all-projects lists to `context_is_admin`, a dedicated role
 cannot read volumes across projects without becoming a Cinder administrator.

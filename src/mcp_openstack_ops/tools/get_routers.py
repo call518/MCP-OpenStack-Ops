@@ -3,7 +3,7 @@
 from fastmcp.exceptions import ToolError
 import json
 from datetime import datetime
-from ..connection import CrossProjectReadError, neutron_items_scope
+from ..connection import CrossProjectReadError, shared_items_scope
 from ..functions import get_routers as _get_routers
 from ..mcp_main import (
     logger,
@@ -41,7 +41,7 @@ async def get_routers(all_projects: bool = False) -> str:
             "routers": routers
         }
         if all_projects:
-            result["scope"] = neutron_items_scope(routers)
+            result["scope"] = shared_items_scope(routers)
         return json.dumps(result, indent=2, ensure_ascii=False)
     except CrossProjectReadError as error:
         raise ToolError(f"OpenStack query failed: get_routers - {error}") from None

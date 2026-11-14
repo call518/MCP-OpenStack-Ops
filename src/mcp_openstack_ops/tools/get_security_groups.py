@@ -6,7 +6,7 @@ from anyio import to_thread
 
 import json
 from datetime import datetime
-from ..connection import neutron_items_scope
+from ..connection import shared_items_scope
 from ..functions import get_security_groups as _get_security_groups
 from ..mcp_main import (
     logger,
@@ -48,7 +48,7 @@ async def get_security_groups(all_projects: bool = False) -> str:
         }
         if all_projects:
             result["scope"] = await to_thread.run_sync(
-                partial(neutron_items_scope, security_groups))
+                partial(shared_items_scope, security_groups))
 
         return json.dumps(result, indent=2, ensure_ascii=False)
         

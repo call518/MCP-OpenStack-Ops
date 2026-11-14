@@ -40,13 +40,71 @@ def _find_owned_heat_stack(conn: Any, name_or_id: str) -> Any:
     return None
 
 
-def get_heat_stacks() -> List[Dict[str, Any]]:
+def _heat_stack_project(stack: Dict[str, Any]) -> Any:
+    """Owner project of a raw Heat stack: the field, else its self link."""
+    if stack.get('project'):
+        return stack['project']
+    for link in stack.get('links') or []:
+        if isinstance(link, dict) and link.get('rel') == 'self':
+            parts = urlsplit(link.get('href', '')).path.strip('/').split('/')
+            for index, part in enumerate(parts):
+                if part == 'stacks' and index >= 2 and parts[index - 2] == 'v1':
+                    return parts[index - 1]
+    return None
+
+
+def _get_global_heat_stacks() -> List[Dict[str, Any]]:
+    """List stacks of every project with Heat's global_tenant query.
+
+    The SDK has no parameter for it. Heat's stacks:global_index policy decides
+    access and defaults to deny_everybody, so a denial is the usual result.
+    """
+    from ..connection import (
+        get_openstack_connection, get_project_names, raise_if_cross_project_denied,
+        require_cross_project_read,
+    )
+    require_cross_project_read()
+    conn = get_openstack_connection()
+    try:
+        # The proxy returns error responses unless asked to raise.
+        response = conn.orchestration.get('/stacks?global_tenant=True', raise_exc=True)
+    except Exception as e:
+        raise_if_cross_project_denied(e)
+        raise
+    names = get_project_names(conn)
+    stacks = []
+    for stack in response.json().get('stacks', []):
+        project_id = _heat_stack_project(stack)
+        stacks.append({
+            'id': stack.get('id'),
+            'name': stack.get('stack_name'),
+            'status': stack.get('stack_status'),
+            'stack_status': stack.get('stack_status'),
+            'stack_status_reason': stack.get('stack_status_reason', ''),
+            'creation_time': str(stack.get('creation_time', 'unknown')),
+            'updated_time': str(stack.get('updated_time', 'unknown')),
+            'description': stack.get('description', ''),
+            'tags': stack.get('tags') or [],
+            'owner': stack.get('stack_owner') or 'unknown',
+            'project_id': project_id,
+            'project_name': names.get(project_id),
+        })
+    return stacks
+
+
+def get_heat_stacks(all_projects: bool = False) -> List[Dict[str, Any]]:
     """
     Get list of Heat stacks for current project.
-    
+
+    Args:
+        all_projects: List stacks of every project with Heat's global_tenant
+            query (requires ALLOW_CROSS_PROJECT_READ=true and Heat policy)
+
     Returns:
         List of stack dictionaries for current project
     """
+    if all_projects:
+        return _get_global_heat_stacks()
     try:
         # Import here to avoid circular imports
         from ..connection import get_openstack_connection

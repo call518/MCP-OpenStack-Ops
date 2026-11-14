@@ -323,3 +323,32 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   호출과 결과를 고정하며 변경 전에도 통과했습니다. 추가 12건은 비활성 스위치, 다른
   프로젝트의 행, 정책 거부, 좁혀진 결과와 소유자가 숨겨진 경우의 경고, microversion
   3.58로 읽는 그룹 소유자를 다룹니다.
+- **이미지, Heat, 로드밸런서 cross-project 조회 대상 점검 (2026-11-14 UTC, 부분 점검,
+  `cc45211` 기반의 커밋되지 않은 작업 트리):** `get_image_detail_list`,
+  `get_heat_stacks`, `get_load_balancer_list`에 `all_projects`를 추가했습니다. 먼저
+  컨트롤러에서 Glance, Heat, Octavia의 기본 목록 정책을 읽었습니다. Glance는 다른
+  프로젝트의 private 이미지를 관리자에게만 보여 주고, Heat의 `stacks:global_index`는
+  `rule:deny_everybody`이며, Octavia의 `loadbalancer:get_all-global`은 `role:admin`이
+  필요합니다. `member` 사용자가 테스트 프로젝트에 private 이미지, Heat 스택,
+  로드밸런서를 만들었습니다. 로드밸런서는 Octavia worker가 관리망으로 새 amphora에
+  접속하지 못해 `ERROR`로 끝났지만, 이 점검에는 목록에 나오는 것으로 충분했습니다.
+  고정 자격 증명 모드로 도구 함수를 프로세스 안에서 호출했습니다. `all_projects` 없이
+  호출한 결과는 두 사용자 모두 변경된 코드와 `cc45211`이 같았습니다(각 3건. 매번
+  바뀌는 시간 필드는 제외). 스위치가 꺼져 있으면 모든 `all_projects=true` 호출이
+  "Cross-project reads are disabled" 오류를 반환했습니다. 켜져 있을 때 관리자는 세
+  프로젝트의 이미지와 두 프로젝트의 로드밸런서를 경고 없이 나열했습니다. `member`는
+  자기 이미지와 public 이미지, 그리고 자기 로드밸런서만 받았고 각각
+  `scope.warning`이 붙었습니다. 두 사용자 모두 Heat에서 정책 거부 오류를 받았습니다.
+  첫 실행에서는 대신 빈 스택 목록이 나왔습니다. SDK proxy는 `raise_exc=True`를
+  넘기지 않으면 직접 보낸 요청의 오류 응답을 그대로 반환하고, keystoneauth의
+  `Forbidden`은 거부로 인식되지 않았기 때문입니다. 둘 다 고쳤고 볼륨 그룹 소유자 요청에도
+  적용했습니다. 최종 코드로 호출한 18건 모두 기대한 결과였습니다. 실패한
+  로드밸런서와 그 amphora를 포함한 테스트 리소스는 그대로 두었습니다. 이 부분 점검은
+  위의 105개 도구 요약을 갱신하지 않습니다.
+- **로컬 이미지, Heat, 로드밸런서 테스트 (2026-11-14, 같은 작업 트리):** fastmcp
+  4.1.6과 고정된 openstacksdk 4.22.0에서 `uv run pytest -q`로 실행해 576/576
+  (100%)이며, 실패나 건너뛴 테스트는 없습니다. 새 테스트 3건은 `all_projects` 없는
+  호출과 결과를 고정하며 변경 전에도 통과했습니다. 추가 8건은 비활성 스위치, 다른
+  프로젝트의 행, 범위 판단에서의 public 이미지, Heat의 `global_tenant` 요청과
+  keystoneauth `Forbidden`을 통한 거부, 페이지 전체 기준의 로드밸런서 scope, 좁혀진
+  결과의 경고를 다룹니다.

@@ -113,7 +113,7 @@ def test_all_projects_network_list_keeps_other_projects(conn, enabled):
     assert set(rows) == {'own', 'private-b', 'ext'}
     assert rows['private-b']['project_name'] == 'beta'
     assert [s['id'] for s in rows['private-b']['subnets']] == ['sub-b']
-    scope = connection.neutron_items_scope(rows.values())
+    scope = connection.shared_items_scope(rows.values())
     assert scope == {'all_projects': True, 'projects_in_result': 2}
 
 
@@ -123,10 +123,10 @@ def test_only_shared_other_project_networks_carry_warning(conn, enabled):
         _net('shared-b', OTHER, shared=True)]
 
     rows = network.get_network_details(all_projects=True)
-    scope = connection.neutron_items_scope(rows)
+    scope = connection.shared_items_scope(rows)
 
     assert scope['projects_in_result'] == 2
-    assert scope['warning'] == connection.NEUTRON_NARROWED_WARNING
+    assert scope['warning'] == connection.SHARED_NARROWED_WARNING
 
 
 @pytest.mark.parametrize('service, attr', [
@@ -144,15 +144,15 @@ def test_all_projects_owned_lists_keep_other_projects(conn, enabled, service, at
     getattr(conn.network, attr).assert_called_once_with()
     assert rows['b']['project_name'] == 'beta'
     assert rows['x']['project_id'] is None
-    assert 'warning' not in connection.neutron_items_scope(rows.values())
+    assert 'warning' not in connection.shared_items_scope(rows.values())
 
 
 def test_current_project_only_owned_list_carries_warning(conn, enabled):
     conn.network.routers.return_value = [_owned('a', CURRENT)]
 
-    scope = connection.neutron_items_scope(network.get_routers(all_projects=True))
+    scope = connection.shared_items_scope(network.get_routers(all_projects=True))
 
-    assert scope['warning'] == connection.NEUTRON_NARROWED_WARNING
+    assert scope['warning'] == connection.SHARED_NARROWED_WARNING
 
 
 def test_shared_security_group_does_not_prove_cross_project_read(conn, enabled):
@@ -163,8 +163,8 @@ def test_shared_security_group_does_not_prove_cross_project_read(conn, enabled):
     rows = network.get_security_groups(all_projects=True)
 
     assert rows[1]['shared'] is True
-    assert connection.neutron_items_scope(rows)['warning'] == (
-        connection.NEUTRON_NARROWED_WARNING)
+    assert connection.shared_items_scope(rows)['warning'] == (
+        connection.SHARED_NARROWED_WARNING)
 
 
 @pytest.mark.asyncio

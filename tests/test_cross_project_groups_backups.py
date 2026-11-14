@@ -186,6 +186,6 @@ async def test_group_owners_come_from_newer_microversion(conn, enabled):
     reply = json.loads(await _tool('get_volume_groups')(all_projects=True))
 
     conn.block_storage.get.assert_called_once_with(
-        '/groups/detail?all_tenants=1', microversion='3.58')
+        '/groups/detail?all_tenants=1', microversion='3.58', raise_exc=True)
     assert reply['groups'][0]['project_name'] == 'beta'
     assert reply['scope'] == {'all_projects': True, 'projects_in_result': 1}

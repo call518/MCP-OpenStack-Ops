@@ -371,3 +371,36 @@ an earlier full summary.
   change. Twelve further cases cover the disabled switch, other projects' rows,
   policy denial, the narrowed and hidden-owner warnings, and group owners read
   at microversion 3.58.
+- **Targeted image, Heat and load balancer cross-project read check
+  (2026-11-14 UTC; partial; uncommitted working tree based on `cc45211`):**
+  `get_image_detail_list`, `get_heat_stacks` and `get_load_balancer_list`
+  gained `all_projects`. The default Glance, Heat and Octavia list policies were
+  read on the controller first: Glance shows other projects' private images
+  only to administrators, Heat's `stacks:global_index` is `rule:deny_everybody`,
+  and Octavia's `loadbalancer:get_all-global` requires `role:admin`. The
+  `member` user created a private image, a Heat stack and a load balancer in
+  the test project. The load balancer ended in `ERROR` because the Octavia
+  worker could not reach the new amphora on the management network; its listing
+  was still enough for this check. Tool functions were called in process in
+  fixed-credential mode. Without `all_projects`, the output of the changed code
+  and of `cc45211` was identical for both users (3 calls each; volatile timing
+  fields removed). With the switch off, every `all_projects=true` call returned
+  the "Cross-project reads are disabled" error. With it on, the administrator
+  listed images of three projects and load balancers of two projects with no
+  warning. `member` received its own and public images, and only its own load
+  balancer, each with `scope.warning`. Both users received the policy-denial
+  error from Heat. The first run returned an empty stack list instead: the
+  SDK proxy returns error responses from raw requests unless `raise_exc=True`
+  is passed, and keystoneauth's `Forbidden` was not recognized as a denial.
+  Both were fixed, also for the volume group owner request. All 18 calls with
+  the final code returned the expected outcome. The test resources, including
+  the failed load balancer and its amphora, were left in place. This partial
+  check does not update the 105-tool summary above.
+- **Local image, Heat and load balancer tests (2026-11-14; same working tree):**
+  576/576 (100%) with fastmcp 4.1.6 and the locked openstacksdk 4.22.0, run as
+  `uv run pytest -q`; no failures or skipped tests. Three new cases pin the
+  calls and output without `all_projects` and passed before the change. Eight
+  further cases cover the disabled switch, other projects' rows, public images
+  in the scope check, Heat's `global_tenant` request and its denial through
+  keystoneauth's `Forbidden`, load balancer scope across pages, and the
+  narrowed warning.

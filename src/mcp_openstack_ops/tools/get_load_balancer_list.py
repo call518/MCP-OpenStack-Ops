@@ -12,7 +12,8 @@ from ..mcp_main import (
 async def get_load_balancer_list(
     limit: int = 50,
     offset: int = 0,
-    include_all: bool = False
+    include_all: bool = False,
+    all_projects: bool = False
 ) -> str:
     """
     Retrieve comprehensive list of OpenStack load balancers with detailed information.
@@ -34,16 +35,25 @@ async def get_load_balancer_list(
         limit: Maximum load balancers to return (1-200, default: 50)
         offset: Number of load balancers to skip for pagination (default: 0)  
         include_all: Return all load balancers ignoring limit/offset (default: False)
+        all_projects: If True, include every project the credential's Octavia
+            policy allows (like 'openstack loadbalancer list' as an
+            administrator); rows carry project_id and project_name. Requires
+            ALLOW_CROSS_PROJECT_READ=true on the server. Octavia narrows an
+            unauthorized request to the current project, so check
+            result.scope.warning.
         
     Returns:
         JSON string containing load balancer details with summary statistics
     """
     try:
         logger.info(f"Getting load balancer list (limit={limit}, offset={offset}, include_all={include_all})")
+        # The default call keeps its original arguments.
+        cross_project = {'all_projects': True} if all_projects else {}
         result = _get_load_balancer_list(
             limit=limit,
-            offset=offset, 
-            include_all=include_all
+            offset=offset,
+            include_all=include_all,
+            **cross_project
         )
         
         response = {

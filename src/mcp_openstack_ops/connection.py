@@ -205,7 +205,7 @@ CROSS_PROJECT_NARROWED_WARNING = (
     "The result contains only the current project; OpenStack policy may have "
     "narrowed the cross-project read to the current project"
 )
-NEUTRON_NARROWED_WARNING = (
+SHARED_NARROWED_WARNING = (
     "Apart from shared or external resources, the result contains only the "
     "current project; OpenStack policy may have narrowed the cross-project "
     "read to what this credential can see"
@@ -233,10 +233,13 @@ def require_cross_project_read() -> None:
 
 def raise_if_cross_project_denied(exc: BaseException) -> None:
     """Re-raise an OpenStack policy denial as CrossProjectReadError."""
+    from keystoneauth1 import exceptions as ksa_exceptions
     from openstack import exceptions as sdk_exceptions
     if isinstance(exc, CrossProjectReadError):
         raise exc
-    if isinstance(exc, sdk_exceptions.ForbiddenException):
+    # Raw proxy requests raise keystoneauth's Forbidden, not the SDK's.
+    if isinstance(exc, (sdk_exceptions.ForbiddenException,
+                        ksa_exceptions.Forbidden)):
         raise CrossProjectReadError(CROSS_PROJECT_READ_DENIED) from None
 
 
@@ -272,13 +275,14 @@ def cross_project_items_scope(items: Any) -> Dict[str, Any]:
                                get_current_project_id())
 
 
-def neutron_items_scope(items: Any) -> Dict[str, Any]:
-    """cross_project_scope for Neutron rows.
+def shared_items_scope(items: Any) -> Dict[str, Any]:
+    """cross_project_scope for services that show shared resources to everyone.
 
-    Neutron has no all-projects flag and never denies a list: it returns what
-    the credential can see, which includes other projects' shared and external
-    resources. Only another project's unshared resource shows the read crossed
-    projects; without one the result is flagged as possibly narrowed.
+    Neutron and Glance have no all-projects flag and never deny a list: they
+    return what the credential can see, which includes other projects' shared,
+    external or public resources. Only another project's unshared resource
+    shows the read crossed projects; without one the result is flagged as
+    possibly narrowed.
     """
     items = list(items)
     current_project_id = get_current_project_id()
@@ -287,7 +291,7 @@ def neutron_items_scope(items: Any) -> Dict[str, Any]:
     if not any(item.get('project_id') not in (None, current_project_id)
                and not item.get('shared') and not item.get('external')
                for item in items):
-        scope['warning'] = NEUTRON_NARROWED_WARNING
+        scope['warning'] = SHARED_NARROWED_WARNING
     return scope
 
 

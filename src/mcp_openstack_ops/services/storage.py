@@ -134,7 +134,8 @@ def _cross_project_list(conn: Any, list_resources: Any, key: str,
 def _group_owners(api: Any) -> Dict[str, str]:
     """Map group IDs to owner projects; Cinder returns them from 3.58 on."""
     try:
-        response = api.get('/groups/detail?all_tenants=1', microversion='3.58')
+        response = api.get('/groups/detail?all_tenants=1', microversion='3.58',
+                           raise_exc=True)
         return {group['id']: group['project_id']
                 for group in response.json().get('groups', [])
                 if group.get('project_id')}
