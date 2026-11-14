@@ -10,7 +10,7 @@
 
 cross-project 조회는 `ALLOW_CROSS_PROJECT_READ`로 켜는 16개 조회 도구에
 구현되었고, 허용 여부는 OpenStack 정책이 판단하며, 방식 A, B, C를 라이브로
-확인했습니다. [cross-project 조회](docs/security.ko.md#cross-project-조회)와
+확인했습니다. [cross-project 조회 가이드](docs/cross-project-guide.ko.md)와
 [검증 기록](docs/validation.ko.md)의 2026-11-13, 2026-11-14 항목을 참고하세요.
 
 - [ ] **Octavia 관리 리소스 (미결정)**

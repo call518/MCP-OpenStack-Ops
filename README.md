@@ -27,8 +27,7 @@ instances are stopped?" into OpenStack API calls and returns the results.
 - **Read-only by default**: tools that create, change or delete resources are
   not even registered unless you enable them.
 - **One project at a time**: each server works inside one OpenStack project and
-  checks resource ownership. Operators can opt in to policy-checked
-  cross-project reads for some list tools.
+  checks resource ownership.
 - **Broad coverage**: 111 tools (55 read-only, 56 management) for Nova,
   Neutron, Cinder, Glance, Keystone, Heat, Octavia, and Gnocchi/Aodh telemetry.
 
@@ -55,8 +54,7 @@ cloud.
 
 **More requests to try:** [Example queries by area](docs/usage-guide.md#example-queries-by-area)
 lists copy-ready requests, with the tools each one uses, for cluster status,
-instances, networks, storage, cross-project reads, images, identity, Heat, load
-balancers, allocation and quotas, Gnocchi telemetry, Aodh alarms,
+instances, networks, storage, images, identity, Heat, load balancers, allocation and quotas, Gnocchi telemetry, Aodh alarms,
 troubleshooting, security, batch actions, and multi-tool reports.
 
 **Example: cluster status in Claude Desktop**
@@ -195,9 +193,8 @@ what the account may do.
   `ALLOW_MODIFY_OPERATIONS=true`.
 - **One project per server.** Resources are filtered by the current project
   and checked for ownership; run one server per project to manage several.
-  With `ALLOW_CROSS_PROJECT_READ=true`, some list tools accept
-  `all_projects=true`; OpenStack policy decides who may read across projects,
-  and modification tools stay project-scoped.
+  Reading across projects is an advanced, opt-in feature; see the
+  [cross-project reads guide](docs/cross-project-guide.md).
 - **Protect HTTP access.** Over `streamable-http`, enable Bearer token
   authentication (`REMOTE_AUTH_ENABLE=true`) and HTTPS before exposing the
   server beyond localhost.
@@ -246,6 +243,7 @@ To change the SDK version for an older release, see
 | [Configuration guide](docs/configuration.md) | Command-line options, environment variables, endpoints, HTTPS, multiple projects, SDK version |
 | [Security guide](docs/security.md) | Authentication support by client, project isolation, read-only default, Bearer authentication |
 | [Multi-user guide](docs/multi-user-guide.md) | Per-user Application Credential authentication (experimental) |
+| [Cross-project reads guide](docs/cross-project-guide.md) | Advanced, opt-in: reading across projects, setups, required OpenStack policy |
 | [Development guide](docs/development.md) | Tests, live tool checks, adding tools, contributing |
 | [TODO](ToDo.md) | Outstanding implementation and live-validation work |
 | [OpenStack CLI vs MCP tools mapping](#-openstack-cli-vs-mcp-tools-mapping) | Every tool, its CLI equivalent, and its validation status |
@@ -273,7 +271,6 @@ unit-test results behind the Status values below are recorded in
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
 | `openstack server list` | `get_instance` | ✅ | Separate reader projects each returned exactly ten owned VMs; bounded lab validation only |
-| `openstack server list --all-projects` | `get_instance_details`, `search_instances`, `get_instances_by_status` (`all_projects=true`) | ✅ | Requires `ALLOW_CROSS_PROJECT_READ=true`; OpenStack policy decides access ([cross-project reads](docs/security.md#cross-project-reads)). Rows carry `project_id` and `project_name`. 2026-11-13 targeted check: administrator listed three projects' servers; a `member` received an explicit Nova policy-denial error in fixed-credential and multi-user modes |
 | `openstack server show` | `get_instance` | ✅ | Own fixture queries completed; foreign private ID returned no details; no 16-owned-ID batch claim. Each instance reports `boot_source` (`image` or `volume`); summary mode shows a volume-backed instance's image as unknown, and `detailed=true` resolves it from the boot volume. 2026-11-10 OpenStack 2026.1 check (3.7.6): `volume` for volume-backed servers in summary and detailed modes, `image` otherwise; detailed mode resolved the image name from the boot volume |
 | `openstack server create` | `set_instance` (action="create") | ✅ | **ENHANCED** - Bulk creation support. Boots the image on the flavor's local disk unless a volume option below is given. 2026-11-10 targeted check: a server reached ACTIVE |
 | `openstack server create --boot-from-volume <size>` | `set_instance` (action="create", `boot_from_volume`, `volume_size`) | ✅ | Root disk on a new Cinder volume created from the image; optional `volume_type` and `delete_on_termination`; bulk creation supported. 2026-11-10 targeted check: three servers created in one call reached ACTIVE, each on a bootable 10 GB volume at `/dev/vda`. 2026-11-10 OpenStack 2026.1 check (3.7.6): 1 GB root volumes with `volume_type`; the root volume was deleted with the server, and kept with `delete_on_termination=false` |
@@ -316,7 +313,6 @@ unit-test results behind the Status values below are recorded in
 | `openstack server dump create` | `set_server_dump` | ❌ Unsupported | Returns an explicit unsupported result; no dump is created |
 | `openstack server event list` | `get_server_events` | ✅ | Pass the server name or UUID via `instance_name`, not `server_id`. The action list has no completion time; set `include_event_details=true` to fetch per-action event results and derive the latest finish time. Detailed lookup is capped at 10 actions. Event visibility follows Nova policy |
 | `openstack server group list` | `get_server_groups` | ✅ | Server group listing. Reads `member_ids` and, from compute microversion 2.64, `policy` instead of `policies`; a listing failure is reported instead of an empty list. 2026-11-10 targeted check: listed with its policy |
-| `openstack server group list --all-projects` | `get_server_groups` (`all_projects=true`) | ✅ | Requires `ALLOW_CROSS_PROJECT_READ=true`; OpenStack policy decides access. Rows carry `project_id` and `project_name`. 2026-11-14 targeted check: administrator listed another project's server group; a `member` received only its own with `scope.warning` |
 | `openstack server group create/delete` | `set_server_group` | ✅ | Server group management. 2026-11-10 targeted check: create and show reported the policy and members, then the group was deleted |
 | `openstack flavor list` | `set_flavor` (action="list") | ✅ | Requires modification tools to be enabled for registration |
 | `openstack flavor create/delete` | `set_flavor` | ✅ | Flavor management |
@@ -330,7 +326,6 @@ unit-test results behind the Status values below are recorded in
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
 | `openstack network list` | `get_network_details` | ✅ | Two owned private networks plus one policy-visible shared external network per reader; no other test project private networks |
-| `openstack network list` (administrator, every project) | `get_network_details` (`all_projects=true`) | ✅ | Requires `ALLOW_CROSS_PROJECT_READ=true`. Neutron has no all-projects flag and never denies a list; it returns what the credential can see, so a result without another project's unshared resource carries `scope.warning`. Only with the default `network_name`; other projects' shared and external networks do not count. 2026-11-13 targeted check: administrator listed three projects' networks; a `member` received its own and the shared external network with the warning |
 | `openstack network show` | `get_network_details` (network_name) | ✅ | Foreign-ID negative checked. A name that matches nothing returns an explicit error (previously an empty success). 2026-11-10 targeted check (administrator): named lookup returned the network and a missing name returned the error; a dual-project positive lookup by reader roles is still not asserted |
 | `openstack network create` | `set_networks` (action="create") | ✅ | Default mtu=0 omits the wire field: backend MTU 1450 verified; explicit 1400 retained in both member projects |
 | `openstack network delete` | `set_networks` (action="delete") | ✅ | Both default/explicit-MTU test networks removed through actual TCP MCP, API absence confirmed |
@@ -338,10 +333,8 @@ unit-test results behind the Status values below are recorded in
 | `openstack subnet list` | `get_network_details` (includes subnets) | ✅ | Owned and shared external network subnets returned; three visible subnets per test reader |
 | `openstack subnet create/delete` | `set_subnets` | ✅ | Member TCP MCP subnet create read back; deletion allowed parent network removal in both projects |
 | `openstack router list` | `get_routers` | ⚠️ Live unverified | Only part of composite error requests in this round; no independent reader result attribution |
-| `openstack router list` (administrator, every project) | `get_routers` (`all_projects=true`) | ✅ | Requires `ALLOW_CROSS_PROJECT_READ=true`. Neutron has no all-projects flag and never denies a list; it returns what the credential can see, so a result without another project's unshared resource carries `scope.warning`. 2026-11-13 targeted check: administrator listed routers of two projects; a `member` received only its own router with the warning |
 | `openstack router create/delete` | `set_routers` | ✅ | Project-owned routers; attached interfaces are not removed automatically |
 | `openstack floating ip list` | `get_floating_ips` | ✅ | Floating IP listing. A failed query returns an error instead of a placeholder address. 2026-11-10 targeted check: listed |
-| `openstack floating ip list` (administrator, every project) | `get_floating_ips` (`all_projects=true`) | ✅ | Requires `ALLOW_CROSS_PROJECT_READ=true`. Neutron has no all-projects flag and never denies a list; it returns what the credential can see, so a result without another project's unshared resource carries `scope.warning`. 2026-11-13 targeted check: administrator listed floating IPs of two projects; a `member` received only its own with the warning |
 | `openstack floating ip create` | `set_floating_ip` (action="create") | ✅ | Floating IP creation. `description`, `port_id` and `floating_ip_address` are forwarded (previously dropped). 2026-11-10 targeted check: created with its description; `port_id` and `floating_ip_address` on create were not live-tested |
 | `openstack floating ip delete` | `set_floating_ip` (action="delete") | ✅ | Floating IP deletion. 2026-11-10 targeted check: released |
 | `openstack floating ip set` | `set_floating_ip` (action="set") | ✅ | Floating IP property setting |
@@ -354,7 +347,6 @@ unit-test results behind the Status values below are recorded in
 | `openstack floating ip port forwarding set` | `set_floating_ip_port_forwarding` (action="set") | ⚠️ Live unverified | Implemented; test platform port-forwarding endpoint returns HTTP 404 |
 | `openstack floating ip port forwarding show` | `set_floating_ip_port_forwarding` (action="show") | ⚠️ Live unverified | Implemented; test platform port-forwarding endpoint returns HTTP 404 |
 | `openstack security group list` | `get_security_groups` | ✅ | Scoped reader list completed; default and test groups visible. A failed query returns an error instead of a placeholder `default` group |
-| `openstack security group list --all-projects` | `get_security_groups` (`all_projects=true`) | ✅ | Requires `ALLOW_CROSS_PROJECT_READ=true`. Neutron has no all-projects flag and never denies a list; it returns what the credential can see, so a result without another project's unshared resource carries `scope.warning`. Rows carry `shared`. 2026-11-13 targeted check: administrator listed three projects' groups, including Octavia's in the `service` project; a `member` received only its own with the warning |
 | `openstack security group create/delete` | `set_security_groups` | ✅ | Project-owned security groups |
 | `openstack security group rule create/delete` | `set_security_group_rules` | ⚠️ Live unverified | Implemented for project-owned groups. Create requires an explicit CIDR or project-owned remote group; delete verifies the rule belongs to the selected group. Not live-tested in this change |
 | `openstack port list` | `set_network_ports` (action="list") | ⚠️ Live unverified | Implemented list action requires modification-tool registration; not exercised in this round |
@@ -376,7 +368,6 @@ unchanged since.
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
 | `openstack volume list` | `get_volume_list` | ✅ | Exactly ten owned volumes per reader; no other test project volume IDs returned. `multiattach` and `source_volid` read the SDK `is_multiattach` and `source_volume_id` fields. 2026-11-10 targeted check: listed with those fields |
-| `openstack volume list --all-projects` | `get_volume_list` (`all_projects=true`) | ✅ | Requires `ALLOW_CROSS_PROJECT_READ=true`. Cinder narrows an unauthorized request to the caller's project instead of denying it, so a current-project-only result carries `scope.warning`. 2026-11-13 targeted check: administrator listed two projects' volumes; a `member` received only its own volume with the warning |
 | `openstack volume show` | `get_volume_list` | ✅ | Listing-based client filtering; no dedicated get_volume_list filter argument |
 | `openstack volume create/delete` | `set_volume` | ✅ | Volume creation/deletion. 2026-11-10 targeted check: a 1 GB volume reached available and two volumes were deleted |
 | `openstack volume set --size` | `set_volume` (action="extend") | ✅ | Positive new_size takes precedence over size; size remains a fallback. A test volume reached the requested size and available state; API acceptance alone is not completion |
@@ -384,17 +375,14 @@ unchanged since.
 | `openstack volume type list` | `get_volume_types` | ✅ | Volume type listing. A failed query returns an error instead of a placeholder `standard` type. 2026-11-10 targeted check: listed |
 | `openstack volume type create/delete` | `set_volume_types` | ✅ | Volume type management; usually admin-only |
 | `openstack volume snapshot list` | `get_volume_snapshots` | ✅ | Two owned base snapshots per reader; API final states checked |
-| `openstack volume snapshot list --all-projects` | `get_volume_snapshots` (`all_projects=true`) | ✅ | Requires `ALLOW_CROSS_PROJECT_READ=true`; narrowed results carry `scope.warning` as for volumes. 2026-11-13 targeted check: administrator listed another project's snapshot; a `member` received only its own snapshot with the warning |
 | `openstack volume snapshot create/delete` | `set_snapshot` | ✅ | Explicit member MCP snapshots reached available and were deleted. Post-action status resolves snapshots instead of reporting an unknown resource type; no restore/I/O claim. 2026-11-10 targeted check (administrator): reached available and was deleted |
 | `openstack backup list` | `get_volume_backups` | ✅ | Three owned available backups per reader; base backup creation used real Cinder APIs |
-| `openstack volume backup list --all-projects` | `get_volume_backups` (`all_projects=true`) | ✅ | Requires `ALLOW_CROSS_PROJECT_READ=true`. Cinder narrows an unauthorized request to the caller's project and shows owner projects only to administrators, so a result without visible owners carries its own `scope.warning`. 2026-11-14 targeted check: administrator listed another project's backup with its project; a `member` received its own backup without an owner and the warning |
 | `openstack backup create/delete` | `set_volume_backups` | ✅ | Volume backup management. 2026-11-10 targeted check: a backup reached available and was deleted |
 | `openstack volume backup restore` | `set_volume_backups` (action="restore") | ✅ | Restores to a new volume named by `volume_name`, or to `volume_id`. Works with both the `volume_id=` and the `volume=` (openstacksdk 4.14+) restore signatures. 2026-11-10 targeted check (openstacksdk 4.22.0): restored to a new volume that reached available; restoring into an existing volume was not tested |
 | `openstack volume transfer request list` | `get_volume_transfers` | ✅ | Request listing only; authorization keys are excluded |
 | `openstack server volume list` | `get_server_volumes` | ✅ | Server volume listing. A server that does not exist returns an explicit error (previously an empty success). 2026-11-10 targeted check: listed the attached volume; a missing server returned the error |
 | `openstack server add/remove volume` | `set_server_volume` / `set_volume` (action="attach"/"detach") | ✅ | Both paths reached in-use then available in both member projects; foreign endpoints rejected; guest I/O not tested |
 | `openstack volume group list` | `get_volume_groups` | ✅ | Requires Cinder generic groups (API >= 3.13) |
-| `openstack volume group list --all-projects` | `get_volume_groups` (`all_projects=true`) | ✅ | Requires `ALLOW_CROSS_PROJECT_READ=true`. Cinder narrows an unauthorized request to the caller's project and shows owner projects only to administrators, so a result without visible owners carries its own `scope.warning`. Owners are read at microversion 3.58. 2026-11-14 targeted check: administrator listed another project's group with its project; a `member` received its own group without an owner and the warning |
 | `openstack volume group create` | `set_volume_groups` | ✅ | Create/list/show/delete; create requires group_type and volume_types |
 | `openstack volume qos list` | `get_volume_qos` | ✅ | Cinder QoS specifications; subject to cloud policy |
 | `openstack volume qos create` | `set_volume_qos` | ✅ | Create/list/show/set/delete specifications; no automatic type association |
@@ -404,7 +392,6 @@ unchanged since.
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
 | `openstack image list` | `get_image_detail_list` | ✅ | Image listing. A failed query returns an error instead of an empty list. 2026-11-10 targeted check: listed |
-| `openstack image list` (administrator, every project) | `get_image_detail_list` (`all_projects=true`) | ✅ | Requires `ALLOW_CROSS_PROJECT_READ=true`. Glance has no all-projects flag and returns other projects' private images only to administrators, while public images are visible to everyone; a result without another project's non-public image carries `scope.warning`. 2026-11-14 targeted check: administrator listed images of three projects; a `member` received its own and public images with the warning |
 | `openstack image show` | `get_image_detail_list` (filtering) | ✅ | Specific image query |
 | `openstack image create` | `set_image` (action="create") | ✅ | Enhanced image creation with min_disk, min_ram, properties |
 | `openstack image delete` | `set_image` (action="delete") | ✅ | Image deletion |
@@ -444,7 +431,6 @@ unchanged since.
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
 | `openstack stack list` | `get_heat_stacks` | ✅ | The stack's project ID or Heat self link must match the current project; unknown and foreign owners are excluded. Own and foreign test stacks were checked. `owner` reads the SDK `owner_id` field, and a failed query returns an error instead of a placeholder stack. 2026-11-10 targeted check: an owned test stack was listed |
-| `openstack stack list --all-projects` | `get_heat_stacks` (`all_projects=true`) | ✅ | Requires `ALLOW_CROSS_PROJECT_READ=true`; sends Heat's `global_tenant` query. Heat's default `stacks:global_index` policy is `deny_everybody`, so the request returns a policy-denial error even for administrators unless the operator changes that policy. 2026-11-14 targeted check: administrator and `member` both received the policy-denial error; after `stacks:global_index` was allowed for a dedicated role, a `member` with that role listed stacks of two projects |
 | `openstack stack show` | `get_heat_stacks` | ✅ Partial | Select the target from the returned list; no name/filter parameter. Resource/event/template/output queries use get_heat_stack_details |
 | `openstack stack create` | `set_heat_stack` (action="create") | ✅ | Stack creation. 2026-11-10 targeted check: reached CREATE_COMPLETE |
 | `openstack stack delete` | `set_heat_stack` (action="delete") | ✅ | Foreign-project deletion rejected; owned stack deletion completed after the ownership change. 2026-11-10 targeted check: deleted |
@@ -467,7 +453,6 @@ Octavia was not available in any live test cloud.
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
 | `openstack loadbalancer list` | `get_load_balancer_list` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer listing with pagination |
-| `openstack loadbalancer list` (administrator, every project) | `get_load_balancer_list` (`all_projects=true`) | ✅ | Requires `ALLOW_CROSS_PROJECT_READ=true`. Octavia narrows an unauthorized request to the caller's project, so a current-project-only result carries `result.scope.warning`; the scope covers every page. 2026-11-14 targeted check: administrator listed load balancers of two projects; a `member` received only its own with the warning |
 | `openstack loadbalancer show` | `get_load_balancer_details` | ✅ | 2026-11-12 targeted Octavia read check passed. Load balancer detailed information; pools are matched to listeners from each pool's `listeners` references |
 | `openstack loadbalancer create` | `set_load_balancer` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer creation |
 | `openstack loadbalancer delete` | `set_load_balancer` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer deletion |
@@ -595,6 +580,29 @@ not available in this cloud" (checked live on OpenStack 2026.1).
 | `openstack usage show` | `get_usage_statistics` | ✅ | Current-project Nova simple tenant usage; not monetary charges |
 | `openstack limits show` | `get_quota` (includes limits) | ✅ | Limits query |
 | Resource allocations | `get_resource_monitoring` | ⚠️ Live unverified | Reader physical-capacity policy restrictions; allocations are separate from capacity; no live utilization |
+
+### 10. 🗂️ **Cross-project reads (advanced, opt-in)**
+
+Off by default and not needed for single-project use. These rows apply only
+when the server sets `ALLOW_CROSS_PROJECT_READ=true` and OpenStack policy lets
+the credential read across projects; see the
+[cross-project reads guide](docs/cross-project-guide.md).
+
+| OpenStack CLI Command | MCP Tool | Status | Notes |
+|---------------------|---------|------|------|
+| `openstack server list --all-projects` | `get_instance_details`, `search_instances`, `get_instances_by_status` (`all_projects=true`) | ✅ | Requires `ALLOW_CROSS_PROJECT_READ=true`; OpenStack policy decides access ([cross-project reads guide](docs/cross-project-guide.md)). Rows carry `project_id` and `project_name`. 2026-11-13 targeted check: administrator listed three projects' servers; a `member` received an explicit Nova policy-denial error in fixed-credential and multi-user modes |
+| `openstack server group list --all-projects` | `get_server_groups` (`all_projects=true`) | ✅ | Requires `ALLOW_CROSS_PROJECT_READ=true`; OpenStack policy decides access. Rows carry `project_id` and `project_name`. 2026-11-14 targeted check: administrator listed another project's server group; a `member` received only its own with `scope.warning` |
+| `openstack network list` (administrator, every project) | `get_network_details` (`all_projects=true`) | ✅ | Requires `ALLOW_CROSS_PROJECT_READ=true`. Neutron has no all-projects flag and never denies a list; it returns what the credential can see, so a result without another project's unshared resource carries `scope.warning`. Only with the default `network_name`; other projects' shared and external networks do not count. 2026-11-13 targeted check: administrator listed three projects' networks; a `member` received its own and the shared external network with the warning |
+| `openstack router list` (administrator, every project) | `get_routers` (`all_projects=true`) | ✅ | Requires `ALLOW_CROSS_PROJECT_READ=true`. Neutron has no all-projects flag and never denies a list; it returns what the credential can see, so a result without another project's unshared resource carries `scope.warning`. 2026-11-13 targeted check: administrator listed routers of two projects; a `member` received only its own router with the warning |
+| `openstack floating ip list` (administrator, every project) | `get_floating_ips` (`all_projects=true`) | ✅ | Requires `ALLOW_CROSS_PROJECT_READ=true`. Neutron has no all-projects flag and never denies a list; it returns what the credential can see, so a result without another project's unshared resource carries `scope.warning`. 2026-11-13 targeted check: administrator listed floating IPs of two projects; a `member` received only its own with the warning |
+| `openstack security group list --all-projects` | `get_security_groups` (`all_projects=true`) | ✅ | Requires `ALLOW_CROSS_PROJECT_READ=true`. Neutron has no all-projects flag and never denies a list; it returns what the credential can see, so a result without another project's unshared resource carries `scope.warning`. Rows carry `shared`. 2026-11-13 targeted check: administrator listed three projects' groups, including Octavia's in the `service` project; a `member` received only its own with the warning |
+| `openstack volume list --all-projects` | `get_volume_list` (`all_projects=true`) | ✅ | Requires `ALLOW_CROSS_PROJECT_READ=true`. Cinder narrows an unauthorized request to the caller's project instead of denying it, so a current-project-only result carries `scope.warning`. 2026-11-13 targeted check: administrator listed two projects' volumes; a `member` received only its own volume with the warning |
+| `openstack volume snapshot list --all-projects` | `get_volume_snapshots` (`all_projects=true`) | ✅ | Requires `ALLOW_CROSS_PROJECT_READ=true`; narrowed results carry `scope.warning` as for volumes. 2026-11-13 targeted check: administrator listed another project's snapshot; a `member` received only its own snapshot with the warning |
+| `openstack volume backup list --all-projects` | `get_volume_backups` (`all_projects=true`) | ✅ | Requires `ALLOW_CROSS_PROJECT_READ=true`. Cinder narrows an unauthorized request to the caller's project and shows owner projects only to administrators, so a result without visible owners carries its own `scope.warning`. 2026-11-14 targeted check: administrator listed another project's backup with its project; a `member` received its own backup without an owner and the warning |
+| `openstack volume group list --all-projects` | `get_volume_groups` (`all_projects=true`) | ✅ | Requires `ALLOW_CROSS_PROJECT_READ=true`. Cinder narrows an unauthorized request to the caller's project and shows owner projects only to administrators, so a result without visible owners carries its own `scope.warning`. Owners are read at microversion 3.58. 2026-11-14 targeted check: administrator listed another project's group with its project; a `member` received its own group without an owner and the warning |
+| `openstack image list` (administrator, every project) | `get_image_detail_list` (`all_projects=true`) | ✅ | Requires `ALLOW_CROSS_PROJECT_READ=true`. Glance has no all-projects flag and returns other projects' private images only to administrators, while public images are visible to everyone; a result without another project's non-public image carries `scope.warning`. 2026-11-14 targeted check: administrator listed images of three projects; a `member` received its own and public images with the warning |
+| `openstack stack list --all-projects` | `get_heat_stacks` (`all_projects=true`) | ✅ | Requires `ALLOW_CROSS_PROJECT_READ=true`; sends Heat's `global_tenant` query. Heat's default `stacks:global_index` policy is `deny_everybody`, so the request returns a policy-denial error even for administrators unless the operator changes that policy. 2026-11-14 targeted check: administrator and `member` both received the policy-denial error; after `stacks:global_index` was allowed for a dedicated role, a `member` with that role listed stacks of two projects |
+| `openstack loadbalancer list` (administrator, every project) | `get_load_balancer_list` (`all_projects=true`) | ✅ | Requires `ALLOW_CROSS_PROJECT_READ=true`. Octavia narrows an unauthorized request to the caller's project, so a current-project-only result carries `result.scope.warning`; the scope covers every page. 2026-11-14 targeted check: administrator listed load balancers of two projects; a `member` received only its own with the warning |
 
 ---
 

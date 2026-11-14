@@ -11,7 +11,7 @@ This file tracks only outstanding work. Completed items are removed.
 Cross-project reads are implemented for 16 read tools, gated by
 `ALLOW_CROSS_PROJECT_READ`, with OpenStack policy deciding access, and setups
 A, B and C were checked live. See
-[Cross-project reads](docs/security.md#cross-project-reads) and the 2026-11-13
+[cross-project reads guide](docs/cross-project-guide.md) and the 2026-11-13
 and 2026-11-14 records in [validation](docs/validation.md).
 
 - [ ] **Octavia-managed resources (undecided)**

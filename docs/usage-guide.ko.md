@@ -83,7 +83,10 @@ Stop all instances with name containing 'test'
 
 **사용 도구:** `get_volume_list()`, `set_volume()`, `set_snapshot()`
 
-### 🗂️ cross-project 조회(선택 기능)
+### 🗂️ cross-project 조회(고급, 선택 기능)
+
+기본으로 꺼져 있습니다. 이 요청에는 `ALLOW_CROSS_PROJECT_READ=true`와 OpenStack
+권한이 필요합니다. [cross-project 조회 가이드](cross-project-guide.ko.md)를 참고하세요.
 
 ```
 "List all projects in the cloud"

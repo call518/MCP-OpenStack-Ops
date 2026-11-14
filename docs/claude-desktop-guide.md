@@ -43,7 +43,7 @@ not have this file.
    domains, and region are prefilled with the server defaults. The CA
    certificate is optional. **Allow modify operations** is off, so only read
    tools are registered. **Allow cross-project reads** is off; see
-   [Cross-project reads](security.md#cross-project-reads) before turning it on.
+   [cross-project reads guide](cross-project-guide.md) before turning it on.
 
 Claude Desktop stores the password as a sensitive value instead of writing it
 to `claude_desktop_config.json`. The bundle contains the source, `pyproject.toml`,

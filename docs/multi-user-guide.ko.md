@@ -25,7 +25,7 @@ Application Credential은 LDAP 비밀번호를 쓰지 않으며, 프로젝트와
 지원하지 않습니다. 다른 프로젝트에는 별도의 Application Credential과 클라이언트 항목을
 쓰세요. `ALLOW_CROSS_PROJECT_READ=true`이면 지원하는 목록 도구가 `all_projects=true`를
 받고, 요청마다 호출자의 Application Credential과 OpenStack 정책에 따라 허용 또는
-거부됩니다. [cross-project 조회](security.ko.md#cross-project-조회)를 참고하세요.
+거부됩니다. [cross-project 조회 가이드](cross-project-guide.ko.md)를 참고하세요.
 
 HTTP 전송은 상태를 유지하지 않으며(stateless) JSON으로 응답합니다. HTTP 요청마다
 Keystone 인증과 SDK 연결을 새로 만들며, 요청 사이에 인증이나 연결 캐시는 없습니다.

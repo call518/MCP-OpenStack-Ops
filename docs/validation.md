@@ -270,7 +270,7 @@ an earlier full summary.
   source `cb2ae87`, no code change):** on the same Kolla-Ansible cloud, the
   default Nova, Cinder and Keystone policies were read on the controller with
   `oslopolicy-policy-generator`; no policy override was present. The rules are
-  listed under [Cross-project reads](security.md#cross-project-reads). Two
+  listed under [cross-project reads guide](cross-project-guide.md#reference-policy-rules-and-delegation). Two
   Application Credentials of the administrator were then used through a local
   multi-user Streamable HTTP server (HTTP-only test override,
   `ALLOW_CROSS_PROJECT_READ=true`, `ALLOW_MODIFY_OPERATIONS=true`):

@@ -82,7 +82,10 @@ the ones the client typically calls.
 
 **Tools used:** `get_volume_list()`, `set_volume()`, `set_snapshot()`
 
-### 🗂️ Cross-project reads (opt-in)
+### 🗂️ Cross-project reads (advanced, opt-in)
+
+Off by default. These requests need `ALLOW_CROSS_PROJECT_READ=true` and
+OpenStack permissions; see the [cross-project reads guide](cross-project-guide.md).
 
 ```
 "List all projects in the cloud"

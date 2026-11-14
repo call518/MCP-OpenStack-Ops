@@ -41,7 +41,7 @@ Desktop이 `mcp-remote` 브리지만 시작합니다. MCP 서버는 같은 컴�
    Keystone 호스트, 프로젝트, 사용자 이름, 비밀번호는 필수입니다. 포트, 도메인,
    리전은 서버 기본값이 미리 들어 있습니다. CA 인증서는 선택입니다. **Allow modify
    operations**가 꺼져 있으므로 조회 도구만 등록됩니다. **Allow cross-project
-   reads**도 꺼져 있습니다. 켜기 전에 [cross-project 조회](security.ko.md#cross-project-조회)를
+   reads**도 꺼져 있습니다. 켜기 전에 [cross-project 조회 가이드](cross-project-guide.ko.md)를
    참고하세요.
 
 Claude Desktop은 비밀번호를 `claude_desktop_config.json`에 쓰지 않고 민감한 값으로

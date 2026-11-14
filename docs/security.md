@@ -70,118 +70,16 @@ policy.
 
 To use several projects, run one server instance per project; see
 [Multi-project configuration](configuration.md#multi-project-configuration).
-To only read across projects, see [Cross-project reads](#cross-project-reads).
+To only read across projects, see the [cross-project reads guide](cross-project-guide.md).
 
-### Cross-project reads
+### Cross-project reads (advanced)
 
-Some list tools accept `all_projects=true`, like the OpenStack CLI's
-`--all-projects`, when the server sets `ALLOW_CROSS_PROJECT_READ=true`
-(default `false`):
-
-| Tool | With `all_projects=true` |
-|---|---|
-| `get_instance_details`, `search_instances`, `get_instances_by_status` | Instances of every visible project, each with `project_id` and `project_name` |
-| `get_volume_list`, `get_volume_snapshots` | Volumes or snapshots of every visible project, each with `project_id` and `project_name` |
-| `get_volume_backups`, `get_volume_groups` | Backups or generic volume groups of every visible project. Cinder shows their owner project only to administrators; when no row has an owner, `scope.warning` says the scope cannot be told |
-| `get_server_groups` | Server groups of every visible project, each with `project_id` and `project_name` |
-| `get_image_detail_list` | Every image Glance shows the credential, including other projects' private images for administrators. Public, community and shared images do not count toward the scope check, as for Neutron |
-| `get_heat_stacks` | Stacks of every project through Heat's `global_tenant` query. Heat's default `stacks:global_index` policy denies it to everyone, administrators included |
-| `get_load_balancer_list` | Load balancers of every visible project, each with `project_id` and `project_name`; `result.scope` covers every page |
-| `get_network_details`, `get_routers`, `get_security_groups`, `get_floating_ips` | Networks, routers, security groups or floating IPs that Neutron shows the credential, each with `project_id` and `project_name`. Neutron never denies a list and shows other projects' shared and external resources to everyone, so `scope.warning` appears unless another project's unshared resource is in the result |
-| `get_project_details` | A summary (ID, name, domain, enabled, `is_current`) of every visible project. With a `project_name` or ID that matches one project, that project's details and resource counts; network counts include only resources the credential can see |
-
-- **Who may read**: a credential may read across projects only when the target
-  OpenStack service's policy authorizes the all-projects list API for its
-  token. MCP-OpenStack-Ops does not define, store, or check roles or groups
-  for this decision.
-- **What the switch does**: `ALLOW_CROSS_PROJECT_READ` only exposes the
-  parameter's behavior on this server; it grants no permission. In
-  fixed-credential mode, every client of the server reads with the server
-  credential's permissions. In multi-user mode, each request is decided by
-  the caller's Application Credential.
-- **Denials**: a policy denial (HTTP 403) is returned as an error, never as
-  current-project results. Some services narrow an unauthorized request to
-  the caller's project instead; a result that contains only the current
-  project therefore carries a `scope.warning`. Each listing reports
-  `scope.projects_in_result`.
-- **Unchanged**: without `all_projects`, every tool stays current-project only.
-  Modification tools and single-resource lookups by name (for example
-  `get_instance_by_name`) always stay project-scoped. Only `get_project_details`
-  with `all_projects=true` accepts another project's name or ID.
-
-Cross-project read permission is configured in OpenStack, not in this server:
-
-| Setup | Configuration | Note |
-|---|---|---|
-| A | The `admin` role | Simple, but grants full administration |
-| B | A dedicated role (for example `cross_project_reader`) added to the all-projects list rules in each service's policy | Least privilege for Nova servers, Keystone and Heat; services that check `context_is_admin` in code cannot be delegated (see below) |
-| C | A restricted Application Credential (role subset or access rules) sent in multi-user mode's request headers | Multi-user mode only |
-
-The policy rules that decide cross-project reads, with their defaults on
-OpenStack 2025.1 (Epoxy):
-
-| Service | Request | Policy rule and default | Without permission |
-|---|---|---|---|
-| Nova | Server list for all projects | `os_compute_api:servers:detail:get_all_tenants` and `os_compute_api:servers:index:get_all_tenants`: `rule:context_is_admin` (`role:admin`) | HTTP 403 |
-| Cinder | Volume and snapshot lists for all projects | No dedicated rule. Cinder honors `all_tenants` only when `context_is_admin` (`role:admin`) passes | Silently narrowed to the caller's project |
-| Keystone | Project list | `identity:list_projects`: `rule:admin_required`, a system-scoped reader, or a domain reader for its own domain | HTTP 403 |
-| Neutron | Network, router, security group and floating IP lists | No all-projects flag; each resource's read policy decides what is listed, and other projects' shared and external resources are visible to everyone | Narrowed to what the credential can see |
-| Glance | Image list | `get_images`: `rule:context_is_admin` or a project reader; administrators see other projects' private images | Narrowed to own, public and shared images |
-| Heat | Stack list for all projects | `stacks:global_index`: `rule:deny_everybody` | HTTP 403, administrators included |
-| Octavia | Load balancer list for all projects | `os_load-balancer_api:loadbalancer:get_all-global`: `rule:load-balancer:read-global` (`role:admin`) | Narrowed to the caller's project |
-
-For setup B, a dedicated role works only where a policy rule alone decides the
-request. On 2025.1:
-
-| Request | Delegable to a dedicated role | Why |
-|---|---|---|
-| Nova server list | Yes | The `get_all_tenants` rules decide |
-| Keystone project list | Yes | `identity:list_projects` decides |
-| Heat stack list | Yes | `stacks:global_index` decides |
-| Nova server group list | No | Nova checks `context_is_admin` in code before its `os-server-groups:index:all_projects` rule |
-| Cinder volume, snapshot, backup and group lists | No | Cinder checks `context_is_admin` in code |
-| Glance private images, Octavia load balancers | Through those services' admin rules only | Their list policies grant other projects' resources to administrators |
-
-Example policy overrides for a role named `cross_project_reader` (with
-Kolla-Ansible, in `/etc/kolla/config/<service>/policy.yaml`, then
-`kolla-ansible reconfigure -t <service>`):
-
-```yaml
-# nova
-"os_compute_api:servers:detail:get_all_tenants": "rule:context_is_admin or role:cross_project_reader"
-"os_compute_api:servers:index:get_all_tenants": "rule:context_is_admin or role:cross_project_reader"
-# keystone (the default rule plus the role)
-"identity:list_projects": "(rule:admin_required) or (role:reader and system_scope:all) or (role:reader and domain_id:%(target.domain_id)s) or role:cross_project_reader"
-# heat
-"stacks:global_index": "rule:context_is_admin or role:cross_project_reader"
-```
-
-Check the names and defaults on your release, for example with
-`oslopolicy-policy-generator --namespace nova`.
-
-For setup C, OpenStack enforces the restriction, so check these service
-settings first:
-
-- **Role subset**: a credential with fewer roles loses only what each service's
-  policy enforces. Cinder 2025.1 sets `[oslo_policy] enforce_new_defaults` to
-  `false` by default, so the deprecated rules still apply and a `reader`-only
-  credential can create volumes. For read-only delegation, set it to `true` in
-  Cinder.
-- **Access rules**: rules can limit a credential to `GET`, so it can read
-  across projects but cannot change resources. Each rule's `service` must match
-  the target service's `[keystone_authtoken] service_type`, and that value must
-  be a service type in the catalog. Otherwise the service rejects every token
-  with access rules (HTTP 401). Kolla-Ansible sets Cinder's value to `volume`,
-  which is not in the catalog, so volume tools fail with such a credential
-  until Cinder uses a catalog type, for example in
-  `/etc/kolla/config/cinder.conf`:
-
-  ```ini
-  [keystone_authtoken]
-  service_type = block-storage
-  ```
-
-  Rules for volume tools then use `block-storage` as their `service`.
+Reading across projects, like the OpenStack CLI's `--all-projects`, is an
+optional feature for administrators and operators, off by default
+(`ALLOW_CROSS_PROJECT_READ=false`). When it is on, some list tools accept
+`all_projects=true`; OpenStack policy, not this server, decides who may read
+across projects, and modification tools stay project-scoped. See the
+[cross-project reads guide](cross-project-guide.md).
 
 ### Project isolation test
 

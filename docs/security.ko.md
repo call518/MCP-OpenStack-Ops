@@ -66,110 +66,15 @@ MCP-OpenStack-Ops는 `OS_PROJECT_NAME` 환경 변수가 정하는 프로젝트 �
 
 여러 프로젝트를 쓰려면 프로젝트마다 서버 인스턴스를 하나씩 실행하세요.
 [다중 프로젝트 구성](configuration.ko.md#다중-프로젝트-구성)을 참고하세요.
-여러 프로젝트를 조회만 하려면 [cross-project 조회](#cross-project-조회)를 참고하세요.
+여러 프로젝트를 조회만 하려면 [cross-project 조회 가이드](cross-project-guide.ko.md)를 참고하세요.
 
-### cross-project 조회
+### cross-project 조회 (고급)
 
-서버에 `ALLOW_CROSS_PROJECT_READ=true`(기본값 `false`)가 설정되어 있으면, 일부 목록
-도구가 OpenStack CLI의 `--all-projects`처럼 `all_projects=true`를 받습니다.
-
-| 도구 | `all_projects=true`일 때 |
-|---|---|
-| `get_instance_details`, `search_instances`, `get_instances_by_status` | 조회 가능한 모든 프로젝트의 인스턴스. 각 항목에 `project_id`와 `project_name` 포함 |
-| `get_volume_list`, `get_volume_snapshots` | 조회 가능한 모든 프로젝트의 볼륨 또는 스냅샷. 각 항목에 `project_id`와 `project_name` 포함 |
-| `get_volume_backups`, `get_volume_groups` | 조회 가능한 모든 프로젝트의 백업 또는 generic 볼륨 그룹. Cinder는 소유 프로젝트를 관리자에게만 보여 주므로, 소유자가 있는 항목이 하나도 없으면 범위를 알 수 없다는 `scope.warning`이 붙음 |
-| `get_server_groups` | 조회 가능한 모든 프로젝트의 서버 그룹. 각 항목에 `project_id`와 `project_name` 포함 |
-| `get_image_detail_list` | Glance가 자격 증명에 보여 주는 모든 이미지. 관리자에게는 다른 프로젝트의 private 이미지도 포함. Neutron처럼 public, community, shared 이미지는 범위 판단에 포함하지 않음 |
-| `get_heat_stacks` | Heat의 `global_tenant` 쿼리로 모든 프로젝트의 스택. Heat의 기본 `stacks:global_index` 정책은 관리자를 포함한 모두에게 이를 거부함 |
-| `get_load_balancer_list` | 조회 가능한 모든 프로젝트의 로드밸런서. 각 항목에 `project_id`와 `project_name` 포함. `result.scope`는 모든 페이지를 기준으로 함 |
-| `get_network_details`, `get_routers`, `get_security_groups`, `get_floating_ips` | Neutron이 자격 증명에 보여 주는 네트워크, 라우터, 보안 그룹 또는 floating IP. 각 항목에 `project_id`와 `project_name` 포함. Neutron은 목록 요청을 거부하지 않고 다른 프로젝트의 공유·외부 리소스를 모두에게 보여 주므로, 결과에 다른 프로젝트의 비공유 리소스가 없으면 `scope.warning`이 붙음 |
-| `get_project_details` | 조회 가능한 모든 프로젝트의 요약(ID, 이름, 도메인, 활성 여부, `is_current`). `project_name`이나 ID가 한 프로젝트와 일치하면 그 프로젝트의 상세와 리소스 수. 네트워크 수는 자격 증명이 볼 수 있는 리소스만 포함 |
-
-- **조회 가능한 자격 증명**: 대상 OpenStack 서비스의 정책이 해당 자격 증명의 토큰에
-  전체 프로젝트 목록 API를 허용할 때만 여러 프로젝트를 조회할 수 있습니다.
-  MCP-OpenStack-Ops는 이 판단을 위해 Role이나 Group을 정의·저장·검사하지 않습니다.
-- **스위치의 역할**: `ALLOW_CROSS_PROJECT_READ`는 이 서버에서 파라미터의 동작을 켤 뿐
-  권한을 부여하지 않습니다. 고정 자격 증명 모드에서는 서버에 접속하는 모든 클라이언트가
-  서버 자격 증명의 권한으로 조회합니다. 다중 사용자 모드에서는 요청마다 호출자의
-  Application Credential로 판정됩니다.
-- **거부**: 정책 거부(HTTP 403)는 오류로 반환되며, 현재 프로젝트 결과로 대체되지
-  않습니다. 일부 서비스는 권한 없는 요청을 거부하지 않고 호출자의 프로젝트로 좁힙니다.
-  그래서 결과에 현재 프로젝트만 있으면 `scope.warning`이 붙습니다. 각 목록은
-  `scope.projects_in_result`를 함께 보고합니다.
-- **변경 없음**: `all_projects`가 없으면 모든 도구는 계속 현재 프로젝트만 다룹니다.
-  변경 도구와 이름 기반 단건 조회(예: `get_instance_by_name`)는 항상 프로젝트 범위로
-  제한됩니다. 다른 프로젝트의 이름이나 ID를 받는 것은 `all_projects=true`인
-  `get_project_details`뿐입니다.
-
-cross-project 조회 권한은 이 서버가 아니라 OpenStack에서 설정합니다.
-
-| 방식 | 구성 | 비고 |
-|---|---|---|
-| A | `admin` Role | 간단하지만 전체 관리 권한을 줌 |
-| B | 전용 Role(예: `cross_project_reader`)을 각 서비스 정책의 전체 프로젝트 목록 규칙에 추가 | Nova 서버, Keystone, Heat는 최소 권한. 코드에서 `context_is_admin`을 검사하는 서비스는 위임 불가(아래 참고) |
-| C | 다중 사용자 모드 요청 헤더로 보내는 제한된 Application Credential(Role 일부 또는 access rules) | 다중 사용자 모드 전용 |
-
-cross-project 조회를 판단하는 정책 규칙과 OpenStack 2025.1(Epoxy)의 기본값은 다음과
-같습니다.
-
-| 서비스 | 요청 | 정책 규칙과 기본값 | 권한이 없을 때 |
-|---|---|---|---|
-| Nova | 전체 프로젝트 서버 목록 | `os_compute_api:servers:detail:get_all_tenants`, `os_compute_api:servers:index:get_all_tenants`: `rule:context_is_admin` (`role:admin`) | HTTP 403 |
-| Cinder | 전체 프로젝트 볼륨·스냅샷 목록 | 전용 규칙 없음. `context_is_admin`(`role:admin`)을 통과할 때만 `all_tenants`를 적용 | 호출자 프로젝트로 조용히 좁혀짐 |
-| Keystone | 프로젝트 목록 | `identity:list_projects`: `rule:admin_required`, system 범위 reader, 또는 자기 도메인의 domain reader | HTTP 403 |
-| Neutron | 네트워크, 라우터, 보안 그룹, floating IP 목록 | 전체 프로젝트 옵션 없음. 각 리소스의 조회 정책이 목록을 결정하고, 다른 프로젝트의 공유·외부 리소스는 모두에게 보임 | 자격 증명이 볼 수 있는 것으로 좁혀짐 |
-| Glance | 이미지 목록 | `get_images`: `rule:context_is_admin` 또는 프로젝트 reader. 관리자는 다른 프로젝트의 private 이미지도 봄 | 자기 이미지와 public·shared 이미지로 좁혀짐 |
-| Heat | 전체 프로젝트 스택 목록 | `stacks:global_index`: `rule:deny_everybody` | HTTP 403, 관리자 포함 |
-| Octavia | 전체 프로젝트 로드밸런서 목록 | `os_load-balancer_api:loadbalancer:get_all-global`: `rule:load-balancer:read-global` (`role:admin`) | 호출자 프로젝트로 좁혀짐 |
-
-방식 B의 전용 Role은 정책 규칙만으로 요청이 결정되는 곳에서만 동작합니다. 2025.1
-기준은 다음과 같습니다.
-
-| 요청 | 전용 Role로 위임 | 이유 |
-|---|---|---|
-| Nova 서버 목록 | 가능 | `get_all_tenants` 규칙이 결정 |
-| Keystone 프로젝트 목록 | 가능 | `identity:list_projects`가 결정 |
-| Heat 스택 목록 | 가능 | `stacks:global_index`가 결정 |
-| Nova 서버 그룹 목록 | 불가 | Nova가 `os-server-groups:index:all_projects` 규칙보다 먼저 코드에서 `context_is_admin`을 검사 |
-| Cinder 볼륨, 스냅샷, 백업, 그룹 목록 | 불가 | Cinder가 코드에서 `context_is_admin`을 검사 |
-| Glance private 이미지, Octavia 로드밸런서 | 해당 서비스의 관리자 규칙으로만 | 목록 정책이 다른 프로젝트의 리소스를 관리자에게 허용 |
-
-`cross_project_reader`라는 Role에 대한 정책 override 예입니다(Kolla-Ansible에서는
-`/etc/kolla/config/<서비스>/policy.yaml`에 두고 `kolla-ansible reconfigure -t <서비스>`).
-
-```yaml
-# nova
-"os_compute_api:servers:detail:get_all_tenants": "rule:context_is_admin or role:cross_project_reader"
-"os_compute_api:servers:index:get_all_tenants": "rule:context_is_admin or role:cross_project_reader"
-# keystone (the default rule plus the role)
-"identity:list_projects": "(rule:admin_required) or (role:reader and system_scope:all) or (role:reader and domain_id:%(target.domain_id)s) or role:cross_project_reader"
-# heat
-"stacks:global_index": "rule:context_is_admin or role:cross_project_reader"
-```
-
-사용하는 릴리스의 규칙 이름과 기본값은 예를 들어
-`oslopolicy-policy-generator --namespace nova`로 확인하세요.
-
-방식 C의 제한은 OpenStack이 적용하므로, 먼저 다음 서비스 설정을 확인하세요.
-
-- **Role 일부만 위임**: Role을 줄인 credential은 각 서비스 정책이 실제로 검사하는
-  권한만 잃습니다. Cinder 2025.1은 `[oslo_policy] enforce_new_defaults`의 기본값이
-  `false`라서 예전(deprecated) 규칙이 함께 적용되고, `reader`만 가진 credential도
-  볼륨을 만들 수 있습니다. 조회 전용으로 위임하려면 Cinder에서 `true`로 설정하세요.
-- **Access rules**: 규칙으로 credential을 `GET`으로만 제한하면, 여러 프로젝트를
-  조회할 수 있지만 리소스는 바꿀 수 없습니다. 각 규칙의 `service`는 대상 서비스의
-  `[keystone_authtoken] service_type`과 같아야 하고, 그 값은 카탈로그에 있는 서비스
-  타입이어야 합니다. 그렇지 않으면 서비스가 access rules가 있는 토큰을 모두
-  거부합니다(HTTP 401). Kolla-Ansible은 Cinder의 값을 카탈로그에 없는 `volume`으로
-  설정하므로, Cinder가 카탈로그 타입을 쓰기 전까지는 이런 credential로 볼륨 도구가
-  실패합니다. 예를 들어 `/etc/kolla/config/cinder.conf`에 다음을 둡니다.
-
-  ```ini
-  [keystone_authtoken]
-  service_type = block-storage
-  ```
-
-  그러면 볼륨 도구용 규칙의 `service`는 `block-storage`를 씁니다.
+OpenStack CLI의 `--all-projects`처럼 여러 프로젝트를 조회하는 것은 관리자와 운영자를
+위한 선택 기능이며 기본으로 꺼져 있습니다(`ALLOW_CROSS_PROJECT_READ=false`). 켜면 일부
+목록 도구가 `all_projects=true`를 받습니다. 여러 프로젝트를 조회할 수 있는지는 이
+서버가 아니라 OpenStack 정책이 판단하며, 변경 도구는 계속 프로젝트 범위로 제한됩니다.
+[cross-project 조회 가이드](cross-project-guide.ko.md)를 참고하세요.
 
 ### 프로젝트 격리 테스트
 

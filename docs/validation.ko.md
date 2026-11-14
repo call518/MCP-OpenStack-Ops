@@ -235,7 +235,7 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
 - **cross-project 정책·방식 C 대상 점검 (2026-11-13 UTC, 부분 점검, 소스 `cb2ae87`,
   코드 변경 없음):** 같은 Kolla-Ansible 클라우드의 컨트롤러에서
   `oslopolicy-policy-generator`로 Nova, Cinder, Keystone의 기본 정책을 읽었고, 정책
-  override는 없었습니다. 규칙은 [cross-project 조회](security.ko.md#cross-project-조회)에
+  override는 없었습니다. 규칙은 [cross-project 조회 가이드](cross-project-guide.ko.md#참고-정책-규칙과-위임-가능-여부)에
   정리했습니다. 이어서 관리자의 Application Credential 두 개를 로컬 다중 사용자
   Streamable HTTP 서버(HTTP 전용 테스트 override, `ALLOW_CROSS_PROJECT_READ=true`,
   `ALLOW_MODIFY_OPERATIONS=true`)로 사용했습니다.

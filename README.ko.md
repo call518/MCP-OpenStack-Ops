@@ -27,8 +27,7 @@ OpenStack 프로젝트를 조회하고 운영할 수 있게 해 줍니다.
 - **기본은 읽기 전용**: 리소스를 만들거나 바꾸거나 지우는 도구는 직접 켜기
   전에는 등록조차 되지 않습니다.
 - **한 번에 하나의 프로젝트**: 서버 하나는 OpenStack 프로젝트 하나 안에서만
-  동작하고, 리소스 소유권을 확인합니다. 운영자가 켜면 일부 목록 도구에서 정책 검사를
-  거친 cross-project 조회를 쓸 수 있습니다.
+  동작하고, 리소스 소유권을 확인합니다.
 - **넓은 범위**: Nova, Neutron, Cinder, Glance, Keystone, Heat, Octavia,
   Gnocchi/Aodh 텔레메트리를 다루는 도구 111개(조회 55개, 관리 56개)를
   제공합니다.
@@ -56,7 +55,7 @@ Stop all instances with name containing 'test'
 
 **더 많은 요청 예시:** [분야별 요청 예시](docs/usage-guide.ko.md#분야별-요청-예시)에
 바로 복사해 쓸 수 있는 요청과 각 요청이 쓰는 도구가 정리되어 있습니다. 클러스터
-상태, 인스턴스, 네트워크, 스토리지, cross-project 조회, 이미지, ID 관리, Heat,
+상태, 인스턴스, 네트워크, 스토리지, 이미지, ID 관리, Heat,
 로드밸런서, 할당량과 쿼터, Gnocchi 텔레메트리, Aodh 알람, 문제 해결, 보안, 일괄
 작업, 여러 도구를 조합한 보고서를 다룹니다.
 
@@ -197,9 +196,8 @@ modify operations**를 켜고) 서버를 다시 시작하세요. 이 계정이 �
   때만 등록됩니다.
 - **서버 하나에 프로젝트 하나.** 리소스는 현재 프로젝트로 필터링되고 소유권이
   확인됩니다. 여러 프로젝트를 관리하려면 프로젝트마다 서버를 하나씩 실행하세요.
-  `ALLOW_CROSS_PROJECT_READ=true`이면 일부 목록 도구가 `all_projects=true`를 받습니다.
-  여러 프로젝트를 조회할 수 있는지는 OpenStack 정책이 판단하고, 변경 도구는 계속
-  프로젝트 범위로 제한됩니다.
+  여러 프로젝트를 한 번에 조회하는 것은 고급 선택 기능입니다.
+  [cross-project 조회 가이드](docs/cross-project-guide.ko.md)를 참고하세요.
 - **HTTP 접근을 보호하세요.** `streamable-http`로 서버를 localhost 밖에
   노출하기 전에 Bearer 토큰 인증(`REMOTE_AUTH_ENABLE=true`)과 HTTPS를 켜세요.
 
@@ -249,6 +247,7 @@ Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인�
 | [설정 가이드](docs/configuration.ko.md) | 명령줄 옵션, 환경 변수, endpoint, HTTPS, 여러 프로젝트, SDK 버전 |
 | [보안 가이드](docs/security.ko.md) | 클라이언트별 인증 지원 현황, 프로젝트 격리, 읽기 전용 기본값, Bearer 인증 |
 | [다중 사용자 가이드](docs/multi-user-guide.ko.md) | 사용자별 Application Credential 인증 (실험 기능) |
+| [cross-project 조회 가이드](docs/cross-project-guide.ko.md) | 고급 선택 기능: 여러 프로젝트 조회, 방식, 필요한 OpenStack 정책 |
 | [개발 가이드](docs/development.ko.md) | 테스트, live 도구 점검, 도구 추가, 기여 방법 |
 | [TODO](ToDo.ko.md) | 아직 남은 구현 및 live 검증 작업 |
 | [OpenStack CLI와 MCP 도구 매핑](#-openstack-cli와-mcp-도구-매핑) | 모든 도구와 대응하는 CLI 명령, 검증 상태 |
@@ -276,7 +275,6 @@ Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인�
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
 | `openstack server list` | `get_instance` | ✅ | 서로 다른 reader 프로젝트가 각각 소유한 VM 정확히 10개를 반환함. 제한된 랩 검증만 수행 |
-| `openstack server list --all-projects` | `get_instance_details`, `search_instances`, `get_instances_by_status` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. 허용 여부는 OpenStack 정책이 판단([cross-project 조회](docs/security.ko.md#cross-project-조회)). 항목에 `project_id`와 `project_name` 포함. 2026-11-13 targeted check: 관리자는 세 프로젝트의 서버를 나열했고, `member`는 고정 자격 증명 모드와 다중 사용자 모드 모두에서 Nova 정책 거부 오류를 받음 |
 | `openstack server show` | `get_instance` | ✅ | 자기 프로젝트의 테스트 리소스 조회 완료. 다른 프로젝트의 비공개 ID는 상세 정보를 반환하지 않음. 소유 ID 16개 일괄 조회는 주장하지 않음. 각 인스턴스는 `boot_source`(`image` 또는 `volume`)를 보고함. 요약 모드에서는 볼륨 부팅 인스턴스의 이미지를 unknown으로 표시하고, `detailed=true`이면 부팅 볼륨에서 이미지를 찾음. 2026-11-10 OpenStack 2026.1 점검(3.7.6): 볼륨 부팅 서버는 요약 모드와 상세 모드 모두에서 `volume`, 그 밖에는 `image`. 상세 모드는 부팅 볼륨에서 이미지 이름을 찾음 |
 | `openstack server create` | `set_instance` (action="create") | ✅ | **ENHANCED** - 일괄 생성 지원. 아래 볼륨 옵션을 주지 않으면 이미지를 flavor의 로컬 디스크로 부팅함. 2026-11-10 targeted check: 서버가 ACTIVE에 도달 |
 | `openstack server create --boot-from-volume <size>` | `set_instance` (action="create", `boot_from_volume`, `volume_size`) | ✅ | 루트 디스크를 이미지로 새로 만든 Cinder 볼륨에 둠. 선택적 `volume_type`과 `delete_on_termination`, 일괄 생성 지원. 2026-11-10 targeted check: 한 번의 호출로 만든 서버 3대가 ACTIVE에 도달했고, 각각 `/dev/vda`의 부팅 가능한 10 GB 볼륨을 사용. 2026-11-10 OpenStack 2026.1 점검(3.7.6): `volume_type`을 지정한 1 GB 루트 볼륨. 서버를 삭제하면 루트 볼륨도 삭제되었고, `delete_on_termination=false`이면 유지됨 |
@@ -319,7 +317,6 @@ Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인�
 | `openstack server dump create` | `set_server_dump` | ❌ Unsupported | 지원하지 않음을 명시적으로 반환하며 dump는 만들지 않음 |
 | `openstack server event list` | `get_server_events` | ✅ | 서버 이름이나 UUID를 `server_id`가 아닌 `instance_name`으로 전달. action 목록에는 완료 시각이 없으므로, `include_event_details=true`로 action별 이벤트 결과를 가져와 마지막 완료 시각을 계산. 상세 조회는 최대 10개 action. 이벤트 노출 범위는 Nova 정책을 따름 |
 | `openstack server group list` | `get_server_groups` | ✅ | 서버 그룹 목록. `member_ids`를 읽고, compute microversion 2.64부터는 `policies` 대신 `policy`를 읽음. 목록 조회 실패를 빈 목록 대신 오류로 보고. 2026-11-10 targeted check: policy와 함께 나열됨 |
-| `openstack server group list --all-projects` | `get_server_groups` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. 허용 여부는 OpenStack 정책이 판단. 항목에 `project_id`와 `project_name` 포함. 2026-11-14 targeted check: 관리자는 다른 프로젝트의 서버 그룹을 나열했고, `member`는 `scope.warning`과 함께 자기 그룹만 받음 |
 | `openstack server group create/delete` | `set_server_group` | ✅ | 서버 그룹 관리. 2026-11-10 targeted check: create와 show에서 policy와 member가 보고되었고, 이후 그룹이 삭제됨 |
 | `openstack flavor list` | `set_flavor` (action="list") | ✅ | 등록되려면 변경 도구를 켜야 함 |
 | `openstack flavor create/delete` | `set_flavor` | ✅ | Flavor 관리 |
@@ -333,7 +330,6 @@ Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인�
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
 | `openstack network list` | `get_network_details` | ✅ | reader마다 소유한 비공개 네트워크 2개와 정책상 보이는 공유 외부 네트워크 1개. 다른 테스트 프로젝트의 비공개 네트워크는 반환하지 않음 |
-| `openstack network list` (관리자, 모든 프로젝트) | `get_network_details` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Neutron에는 전체 프로젝트 옵션이 없고 목록 요청을 거부하지 않으며 자격 증명이 볼 수 있는 것을 반환하므로, 다른 프로젝트의 비공유 리소스가 없는 결과에는 `scope.warning`이 붙음. 기본 `network_name`에서만 사용. 다른 프로젝트의 공유·외부 네트워크는 판단에 포함하지 않음. 2026-11-13 targeted check: 관리자는 세 프로젝트의 네트워크를 나열했고, `member`는 경고와 함께 자기 네트워크와 공유 외부 네트워크를 받음 |
 | `openstack network show` | `get_network_details` (network_name) | ✅ | 다른 프로젝트 ID 조회가 실패하는 것을 확인. 일치하는 이름이 없으면 명시적 오류를 반환(이전에는 빈 성공). 2026-11-10 targeted check (관리자): 이름 조회는 네트워크를 반환했고 없는 이름은 오류를 반환. reader 역할로 두 프로젝트에서 성공 조회하는 것은 아직 확인하지 않음 |
 | `openstack network create` | `set_networks` (action="create") | ✅ | 기본 mtu=0이면 해당 필드를 보내지 않음. 백엔드 MTU 1450 확인. 명시한 1400은 두 member 프로젝트 모두에서 유지 |
 | `openstack network delete` | `set_networks` (action="delete") | ✅ | 기본 MTU와 지정 MTU 테스트 네트워크를 실제 TCP MCP로 삭제했고 API에서 사라진 것을 확인 |
@@ -341,10 +337,8 @@ Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인�
 | `openstack subnet list` | `get_network_details` (includes subnets) | ✅ | 소유 네트워크와 공유 외부 네트워크의 서브넷을 반환. 테스트 reader마다 보이는 서브넷 3개 |
 | `openstack subnet create/delete` | `set_subnets` | ✅ | member 계정의 TCP MCP로 서브넷을 만들고 재조회. 삭제 후 두 프로젝트 모두에서 상위 네트워크를 제거할 수 있었음 |
 | `openstack router list` | `get_routers` | ⚠️ Live unverified | 이번에는 복합 오류 요청의 일부로만 호출되었고, reader 결과를 따로 확인하지 않음 |
-| `openstack router list` (관리자, 모든 프로젝트) | `get_routers` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Neutron에는 전체 프로젝트 옵션이 없고 목록 요청을 거부하지 않으며 자격 증명이 볼 수 있는 것을 반환하므로, 다른 프로젝트의 비공유 리소스가 없는 결과에는 `scope.warning`이 붙음. 2026-11-13 targeted check: 관리자는 두 프로젝트의 라우터를 나열했고, `member`는 경고와 함께 자기 라우터만 받음 |
 | `openstack router create/delete` | `set_routers` | ✅ | 프로젝트 소유 라우터. 연결된 interface는 자동으로 제거하지 않음 |
 | `openstack floating ip list` | `get_floating_ips` | ✅ | Floating IP 목록. 조회에 실패하면 가짜 주소 대신 오류를 반환. 2026-11-10 targeted check: 나열됨 |
-| `openstack floating ip list` (관리자, 모든 프로젝트) | `get_floating_ips` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Neutron에는 전체 프로젝트 옵션이 없고 목록 요청을 거부하지 않으며 자격 증명이 볼 수 있는 것을 반환하므로, 다른 프로젝트의 비공유 리소스가 없는 결과에는 `scope.warning`이 붙음. 2026-11-13 targeted check: 관리자는 두 프로젝트의 floating IP를 나열했고, `member`는 경고와 함께 자기 것만 받음 |
 | `openstack floating ip create` | `set_floating_ip` (action="create") | ✅ | Floating IP 생성. `description`, `port_id`, `floating_ip_address`를 전달(이전에는 버려짐). 2026-11-10 targeted check: description과 함께 생성됨. 생성 시 `port_id`와 `floating_ip_address`는 live 테스트하지 않음 |
 | `openstack floating ip delete` | `set_floating_ip` (action="delete") | ✅ | Floating IP 삭제. 2026-11-10 targeted check: 반납됨 |
 | `openstack floating ip set` | `set_floating_ip` (action="set") | ✅ | Floating IP 속성 설정 |
@@ -357,7 +351,6 @@ Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인�
 | `openstack floating ip port forwarding set` | `set_floating_ip_port_forwarding` (action="set") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼의 port-forwarding endpoint가 HTTP 404를 반환 |
 | `openstack floating ip port forwarding show` | `set_floating_ip_port_forwarding` (action="show") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼의 port-forwarding endpoint가 HTTP 404를 반환 |
 | `openstack security group list` | `get_security_groups` | ✅ | 범위가 제한된 reader 목록 조회 완료. default와 테스트 그룹이 보임. 조회에 실패하면 가짜 `default` 그룹 대신 오류를 반환 |
-| `openstack security group list --all-projects` | `get_security_groups` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Neutron에는 전체 프로젝트 옵션이 없고 목록 요청을 거부하지 않으며 자격 증명이 볼 수 있는 것을 반환하므로, 다른 프로젝트의 비공유 리소스가 없는 결과에는 `scope.warning`이 붙음. 항목에 `shared` 포함. 2026-11-13 targeted check: 관리자는 `service` 프로젝트의 Octavia 그룹을 포함해 세 프로젝트의 그룹을 나열했고, `member`는 경고와 함께 자기 그룹만 받음 |
 | `openstack security group create/delete` | `set_security_groups` | ✅ | 프로젝트 소유 보안 그룹 |
 | `openstack security group rule create/delete` | `set_security_group_rules` | ⚠️ Live unverified | 프로젝트 소유 그룹에 대해 구현됨. 생성 시 명시적인 CIDR 또는 프로젝트 소유 원격 그룹이 필요하며, 삭제 시 규칙이 선택한 그룹 소속인지 확인. 이번 변경에서는 live 테스트하지 않음 |
 | `openstack port list` | `set_network_ports` (action="list") | ⚠️ Live unverified | 구현된 list action은 변경 도구가 등록되어야 사용 가능. 이번에 실행하지 않음 |
@@ -378,7 +371,6 @@ Cinder가 없는 OpenStack 2026.1에서 live로 확인했습니다([검증](docs
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
 | `openstack volume list` | `get_volume_list` | ✅ | reader마다 소유한 볼륨 정확히 10개. 다른 테스트 프로젝트의 볼륨 ID는 반환하지 않음. `multiattach`와 `source_volid`는 SDK의 `is_multiattach`와 `source_volume_id` 필드를 읽음. 2026-11-10 targeted check: 이 필드들과 함께 나열됨 |
-| `openstack volume list --all-projects` | `get_volume_list` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Cinder는 권한 없는 요청을 거부하지 않고 호출자의 프로젝트로 좁히므로, 현재 프로젝트만 있는 결과에는 `scope.warning`이 붙음. 2026-11-13 targeted check: 관리자는 두 프로젝트의 볼륨을 나열했고, `member`는 경고와 함께 자기 볼륨만 받음 |
 | `openstack volume show` | `get_volume_list` | ✅ | 목록 기반 클라이언트 측 필터링. get_volume_list 전용 필터 인자는 없음 |
 | `openstack volume create/delete` | `set_volume` | ✅ | 볼륨 생성/삭제. 2026-11-10 targeted check: 1 GB 볼륨이 available에 도달했고 볼륨 2개가 삭제됨 |
 | `openstack volume set --size` | `set_volume` (action="extend") | ✅ | 양수 new_size가 size보다 우선하며 size는 대체값으로 남음. 테스트 볼륨이 요청한 크기와 available 상태에 도달. API가 요청을 받은 것만으로는 완료가 아님 |
@@ -386,17 +378,14 @@ Cinder가 없는 OpenStack 2026.1에서 live로 확인했습니다([검증](docs
 | `openstack volume type list` | `get_volume_types` | ✅ | 볼륨 유형 목록. 조회에 실패하면 가짜 `standard` 유형 대신 오류를 반환. 2026-11-10 targeted check: 나열됨 |
 | `openstack volume type create/delete` | `set_volume_types` | ✅ | 볼륨 유형 관리. 보통 관리자 전용 |
 | `openstack volume snapshot list` | `get_volume_snapshots` | ✅ | reader마다 소유한 기본 스냅샷 2개. API 최종 상태 확인 |
-| `openstack volume snapshot list --all-projects` | `get_volume_snapshots` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. 볼륨과 마찬가지로 좁혀진 결과에는 `scope.warning`이 붙음. 2026-11-13 targeted check: 관리자는 다른 프로젝트의 스냅샷을 나열했고, `member`는 경고와 함께 자기 스냅샷만 받음 |
 | `openstack volume snapshot create/delete` | `set_snapshot` | ✅ | member 계정의 명시적 MCP 스냅샷이 available에 도달했고 삭제됨. 작업 후 상태는 알 수 없는 리소스 유형으로 보고하지 않고 스냅샷을 찾아 확인. 복원/I/O는 주장하지 않음. 2026-11-10 targeted check (관리자): available에 도달했고 삭제됨 |
 | `openstack backup list` | `get_volume_backups` | ✅ | reader마다 소유한 available 백업 3개. 기본 백업은 실제 Cinder API로 생성 |
-| `openstack volume backup list --all-projects` | `get_volume_backups` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Cinder는 권한 없는 요청을 호출자 프로젝트로 좁히고 소유 프로젝트를 관리자에게만 보여 주므로, 소유자가 보이지 않는 결과에는 별도의 `scope.warning`이 붙음. 2026-11-14 targeted check: 관리자는 다른 프로젝트의 백업을 프로젝트와 함께 나열했고, `member`는 소유자 없이 경고와 함께 자기 백업을 받음 |
 | `openstack backup create/delete` | `set_volume_backups` | ✅ | 볼륨 백업 관리. 2026-11-10 targeted check: 백업이 available에 도달했고 삭제됨 |
 | `openstack volume backup restore` | `set_volume_backups` (action="restore") | ✅ | `volume_name`으로 이름을 지정한 새 볼륨이나 `volume_id`로 복원. `volume_id=`와 `volume=`(openstacksdk 4.14+) 두 restore 시그니처 모두에서 동작. 2026-11-10 targeted check (openstacksdk 4.22.0): 새 볼륨으로 복원되어 available에 도달. 기존 볼륨으로의 복원은 테스트하지 않음 |
 | `openstack volume transfer request list` | `get_volume_transfers` | ✅ | 요청 목록만 제공하며 인증 키는 제외 |
 | `openstack server volume list` | `get_server_volumes` | ✅ | 서버 볼륨 목록. 존재하지 않는 서버는 명시적 오류를 반환(이전에는 빈 성공). 2026-11-10 targeted check: 연결된 볼륨이 나열되었고 없는 서버는 오류를 반환 |
 | `openstack server add/remove volume` | `set_server_volume` / `set_volume` (action="attach"/"detach") | ✅ | 두 경로 모두 두 member 프로젝트에서 in-use를 거쳐 available에 도달. 다른 프로젝트 대상은 거부. 게스트 I/O는 테스트하지 않음 |
 | `openstack volume group list` | `get_volume_groups` | ✅ | Cinder generic group(API >= 3.13) 필요 |
-| `openstack volume group list --all-projects` | `get_volume_groups` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Cinder는 권한 없는 요청을 호출자 프로젝트로 좁히고 소유 프로젝트를 관리자에게만 보여 주므로, 소유자가 보이지 않는 결과에는 별도의 `scope.warning`이 붙음. 소유자는 microversion 3.58로 읽음. 2026-11-14 targeted check: 관리자는 다른 프로젝트의 그룹을 프로젝트와 함께 나열했고, `member`는 소유자 없이 경고와 함께 자기 그룹을 받음 |
 | `openstack volume group create` | `set_volume_groups` | ✅ | Create/list/show/delete. 생성에는 group_type과 volume_types 필요 |
 | `openstack volume qos list` | `get_volume_qos` | ✅ | Cinder QoS 사양. 클라우드 정책을 따름 |
 | `openstack volume qos create` | `set_volume_qos` | ✅ | 사양 Create/list/show/set/delete. 유형 자동 연결은 없음 |
@@ -406,7 +395,6 @@ Cinder가 없는 OpenStack 2026.1에서 live로 확인했습니다([검증](docs
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
 | `openstack image list` | `get_image_detail_list` | ✅ | 이미지 목록. 조회에 실패하면 빈 목록 대신 오류를 반환. 2026-11-10 targeted check: 나열됨 |
-| `openstack image list` (관리자, 모든 프로젝트) | `get_image_detail_list` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Glance에는 전체 프로젝트 옵션이 없고 다른 프로젝트의 private 이미지는 관리자에게만 보이며, public 이미지는 모두에게 보임. 다른 프로젝트의 비공개 이미지가 없는 결과에는 `scope.warning`이 붙음. 2026-11-14 targeted check: 관리자는 세 프로젝트의 이미지를 나열했고, `member`는 경고와 함께 자기 이미지와 public 이미지를 받음 |
 | `openstack image show` | `get_image_detail_list` (filtering) | ✅ | 특정 이미지 조회 |
 | `openstack image create` | `set_image` (action="create") | ✅ | min_disk, min_ram, properties를 지원하는 이미지 생성 |
 | `openstack image delete` | `set_image` (action="delete") | ✅ | 이미지 삭제 |
@@ -446,7 +434,6 @@ Cinder가 없는 OpenStack 2026.1에서 live로 확인했습니다([검증](docs
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
 | `openstack stack list` | `get_heat_stacks` | ✅ | 스택의 프로젝트 ID나 Heat self link가 현재 프로젝트와 일치해야 하며, 알 수 없거나 다른 프로젝트 소유인 스택은 제외. 자기 프로젝트와 다른 프로젝트의 테스트 스택으로 확인. `owner`는 SDK의 `owner_id` 필드를 읽고, 조회에 실패하면 가짜 스택 대신 오류를 반환. 2026-11-10 targeted check: 소유한 테스트 스택이 나열됨 |
-| `openstack stack list --all-projects` | `get_heat_stacks` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Heat의 `global_tenant` 쿼리를 보냄. Heat의 기본 `stacks:global_index` 정책이 `deny_everybody`이므로, 운영자가 그 정책을 바꾸지 않으면 관리자도 정책 거부 오류를 받음. 2026-11-14 targeted check: 관리자와 `member` 모두 정책 거부 오류를 받았고, `stacks:global_index`를 전용 Role에 허용한 뒤에는 그 Role을 가진 `member`가 두 프로젝트의 스택을 나열함 |
 | `openstack stack show` | `get_heat_stacks` | ✅ Partial | 반환된 목록에서 대상을 골라야 하며 이름/필터 파라미터는 없음. 리소스/이벤트/템플릿/출력 조회는 get_heat_stack_details 사용 |
 | `openstack stack create` | `set_heat_stack` (action="create") | ✅ | 스택 생성. 2026-11-10 targeted check: CREATE_COMPLETE에 도달 |
 | `openstack stack delete` | `set_heat_stack` (action="delete") | ✅ | 다른 프로젝트 스택의 삭제는 거부. 소유권 변경 후 소유 스택 삭제 완료. 2026-11-10 targeted check: 삭제됨 |
@@ -468,7 +455,6 @@ Octavia 도구는 openstacksdk의 속성 이름(`is_admin_state_up`, `is_enabled
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
 | `openstack loadbalancer list` | `get_load_balancer_list` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 페이지 처리를 지원하는 로드밸런서 목록 |
-| `openstack loadbalancer list` (관리자, 모든 프로젝트) | `get_load_balancer_list` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Octavia는 권한 없는 요청을 호출자 프로젝트로 좁히므로, 현재 프로젝트만 있는 결과에는 `result.scope.warning`이 붙음. scope는 모든 페이지를 기준으로 함. 2026-11-14 targeted check: 관리자는 두 프로젝트의 로드밸런서를 나열했고, `member`는 경고와 함께 자기 것만 받음 |
 | `openstack loadbalancer show` | `get_load_balancer_details` | ✅ | 2026-11-12 Octavia 대상 읽기 점검 통과. 로드밸런서 상세 정보. 풀은 각 풀의 `listeners` 참조로 리스너에 연결 |
 | `openstack loadbalancer create` | `set_load_balancer` (action="create") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서 생성 |
 | `openstack loadbalancer delete` | `set_load_balancer` (action="delete") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서 삭제 |
@@ -595,6 +581,29 @@ Octavia 도구는 openstacksdk의 속성 이름(`is_admin_state_up`, `is_enabled
 | `openstack usage show` | `get_usage_statistics` | ✅ | 현재 프로젝트의 Nova simple tenant usage. 금액 청구가 아님 |
 | `openstack limits show` | `get_quota` (includes limits) | ✅ | 한도 조회 |
 | Resource allocations | `get_resource_monitoring` | ⚠️ Live unverified | reader에게는 물리 용량 정책 제한이 있음. 할당량과 용량은 별도이며 실시간 사용률은 없음 |
+
+### 10. 🗂️ **cross-project 조회 (고급, 선택 기능)**
+
+기본으로 꺼져 있으며 프로젝트 하나만 쓸 때는 필요 없습니다. 아래 행은 서버에
+`ALLOW_CROSS_PROJECT_READ=true`가 설정되어 있고 OpenStack 정책이 자격 증명의 여러
+프로젝트 조회를 허용할 때만 해당합니다.
+[cross-project 조회 가이드](docs/cross-project-guide.ko.md)를 참고하세요.
+
+| OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
+|---------------------|---------|------|------|
+| `openstack server list --all-projects` | `get_instance_details`, `search_instances`, `get_instances_by_status` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. 허용 여부는 OpenStack 정책이 판단([cross-project 조회 가이드](docs/cross-project-guide.ko.md)). 항목에 `project_id`와 `project_name` 포함. 2026-11-13 targeted check: 관리자는 세 프로젝트의 서버를 나열했고, `member`는 고정 자격 증명 모드와 다중 사용자 모드 모두에서 Nova 정책 거부 오류를 받음 |
+| `openstack server group list --all-projects` | `get_server_groups` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. 허용 여부는 OpenStack 정책이 판단. 항목에 `project_id`와 `project_name` 포함. 2026-11-14 targeted check: 관리자는 다른 프로젝트의 서버 그룹을 나열했고, `member`는 `scope.warning`과 함께 자기 그룹만 받음 |
+| `openstack network list` (관리자, 모든 프로젝트) | `get_network_details` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Neutron에는 전체 프로젝트 옵션이 없고 목록 요청을 거부하지 않으며 자격 증명이 볼 수 있는 것을 반환하므로, 다른 프로젝트의 비공유 리소스가 없는 결과에는 `scope.warning`이 붙음. 기본 `network_name`에서만 사용. 다른 프로젝트의 공유·외부 네트워크는 판단에 포함하지 않음. 2026-11-13 targeted check: 관리자는 세 프로젝트의 네트워크를 나열했고, `member`는 경고와 함께 자기 네트워크와 공유 외부 네트워크를 받음 |
+| `openstack router list` (관리자, 모든 프로젝트) | `get_routers` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Neutron에는 전체 프로젝트 옵션이 없고 목록 요청을 거부하지 않으며 자격 증명이 볼 수 있는 것을 반환하므로, 다른 프로젝트의 비공유 리소스가 없는 결과에는 `scope.warning`이 붙음. 2026-11-13 targeted check: 관리자는 두 프로젝트의 라우터를 나열했고, `member`는 경고와 함께 자기 라우터만 받음 |
+| `openstack floating ip list` (관리자, 모든 프로젝트) | `get_floating_ips` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Neutron에는 전체 프로젝트 옵션이 없고 목록 요청을 거부하지 않으며 자격 증명이 볼 수 있는 것을 반환하므로, 다른 프로젝트의 비공유 리소스가 없는 결과에는 `scope.warning`이 붙음. 2026-11-13 targeted check: 관리자는 두 프로젝트의 floating IP를 나열했고, `member`는 경고와 함께 자기 것만 받음 |
+| `openstack security group list --all-projects` | `get_security_groups` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Neutron에는 전체 프로젝트 옵션이 없고 목록 요청을 거부하지 않으며 자격 증명이 볼 수 있는 것을 반환하므로, 다른 프로젝트의 비공유 리소스가 없는 결과에는 `scope.warning`이 붙음. 항목에 `shared` 포함. 2026-11-13 targeted check: 관리자는 `service` 프로젝트의 Octavia 그룹을 포함해 세 프로젝트의 그룹을 나열했고, `member`는 경고와 함께 자기 그룹만 받음 |
+| `openstack volume list --all-projects` | `get_volume_list` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Cinder는 권한 없는 요청을 거부하지 않고 호출자의 프로젝트로 좁히므로, 현재 프로젝트만 있는 결과에는 `scope.warning`이 붙음. 2026-11-13 targeted check: 관리자는 두 프로젝트의 볼륨을 나열했고, `member`는 경고와 함께 자기 볼륨만 받음 |
+| `openstack volume snapshot list --all-projects` | `get_volume_snapshots` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. 볼륨과 마찬가지로 좁혀진 결과에는 `scope.warning`이 붙음. 2026-11-13 targeted check: 관리자는 다른 프로젝트의 스냅샷을 나열했고, `member`는 경고와 함께 자기 스냅샷만 받음 |
+| `openstack volume backup list --all-projects` | `get_volume_backups` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Cinder는 권한 없는 요청을 호출자 프로젝트로 좁히고 소유 프로젝트를 관리자에게만 보여 주므로, 소유자가 보이지 않는 결과에는 별도의 `scope.warning`이 붙음. 2026-11-14 targeted check: 관리자는 다른 프로젝트의 백업을 프로젝트와 함께 나열했고, `member`는 소유자 없이 경고와 함께 자기 백업을 받음 |
+| `openstack volume group list --all-projects` | `get_volume_groups` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Cinder는 권한 없는 요청을 호출자 프로젝트로 좁히고 소유 프로젝트를 관리자에게만 보여 주므로, 소유자가 보이지 않는 결과에는 별도의 `scope.warning`이 붙음. 소유자는 microversion 3.58로 읽음. 2026-11-14 targeted check: 관리자는 다른 프로젝트의 그룹을 프로젝트와 함께 나열했고, `member`는 소유자 없이 경고와 함께 자기 그룹을 받음 |
+| `openstack image list` (관리자, 모든 프로젝트) | `get_image_detail_list` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Glance에는 전체 프로젝트 옵션이 없고 다른 프로젝트의 private 이미지는 관리자에게만 보이며, public 이미지는 모두에게 보임. 다른 프로젝트의 비공개 이미지가 없는 결과에는 `scope.warning`이 붙음. 2026-11-14 targeted check: 관리자는 세 프로젝트의 이미지를 나열했고, `member`는 경고와 함께 자기 이미지와 public 이미지를 받음 |
+| `openstack stack list --all-projects` | `get_heat_stacks` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Heat의 `global_tenant` 쿼리를 보냄. Heat의 기본 `stacks:global_index` 정책이 `deny_everybody`이므로, 운영자가 그 정책을 바꾸지 않으면 관리자도 정책 거부 오류를 받음. 2026-11-14 targeted check: 관리자와 `member` 모두 정책 거부 오류를 받았고, `stacks:global_index`를 전용 Role에 허용한 뒤에는 그 Role을 가진 `member`가 두 프로젝트의 스택을 나열함 |
+| `openstack loadbalancer list` (관리자, 모든 프로젝트) | `get_load_balancer_list` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Octavia는 권한 없는 요청을 호출자 프로젝트로 좁히므로, 현재 프로젝트만 있는 결과에는 `result.scope.warning`이 붙음. scope는 모든 페이지를 기준으로 함. 2026-11-14 targeted check: 관리자는 두 프로젝트의 로드밸런서를 나열했고, `member`는 경고와 함께 자기 것만 받음 |
 
 ---
 
