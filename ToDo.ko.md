@@ -8,18 +8,10 @@
 
 ## [Issue #86](https://github.com/call518/MCP-OpenStack-Ops/issues/86) cross-project 조회
 
-1단계는 구현되었습니다. `ALLOW_CROSS_PROJECT_READ`로 켜는 6개 목록 도구의
-`all_projects=true`이며, 허용 여부는 OpenStack 정책이 판단합니다.
-[cross-project 조회](docs/security.ko.md#cross-project-조회)와
-[검증 기록](docs/validation.ko.md)의 2026-11-13 항목을 참고하세요.
-
-- [ ] **남은 cross-project 조회 작업**
-
-| 항목 | 내용 |
-|---|---|
-| 방식 B 검증 | 전용 Role을 Nova와 Keystone 정책 규칙에 추가하고, `admin` 없이 여러 프로젝트를 조회하는지 확인. Cinder는 별도 규칙이 없음 |
-| 방식 C의 Cinder | Cinder의 `[keystone_authtoken] service_type`을 카탈로그 타입으로 바꾼 뒤, GET 전용 access rules credential로 볼륨 도구 확인. 클라우드 설정을 바꾸므로 방식 B와 함께 진행 |
-| Heat 정책 | `all_projects`를 쓰는 `get_heat_stacks`는 구현됐지만 Heat의 기본 `stacks:global_index`가 `deny_everybody`임. 방식 B와 함께 이를 허용한 뒤 조회 성공을 확인 |
+cross-project 조회는 `ALLOW_CROSS_PROJECT_READ`로 켜는 16개 조회 도구에
+구현되었고, 허용 여부는 OpenStack 정책이 판단하며, 방식 A, B, C를 라이브로
+확인했습니다. [cross-project 조회](docs/security.ko.md#cross-project-조회)와
+[검증 기록](docs/validation.ko.md)의 2026-11-13, 2026-11-14 항목을 참고하세요.
 
 - [ ] **Octavia 관리 리소스 (미결정)**
 

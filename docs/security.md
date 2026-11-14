@@ -114,7 +114,7 @@ Cross-project read permission is configured in OpenStack, not in this server:
 | Setup | Configuration | Note |
 |---|---|---|
 | A | The `admin` role | Simple, but grants full administration |
-| B | A dedicated role (for example `cross_project_reader`) added to the all-projects list rules in each service's policy | Least privilege for Nova and Keystone; Cinder has no separate rule (see below) |
+| B | A dedicated role (for example `cross_project_reader`) added to the all-projects list rules in each service's policy | Least privilege for Nova servers, Keystone and Heat; services that check `context_is_admin` in code cannot be delegated (see below) |
 | C | A restricted Application Credential (role subset or access rules) sent in multi-user mode's request headers | Multi-user mode only |
 
 The policy rules that decide cross-project reads, with their defaults on
@@ -130,10 +130,33 @@ OpenStack 2025.1 (Epoxy):
 | Heat | Stack list for all projects | `stacks:global_index`: `rule:deny_everybody` | HTTP 403, administrators included |
 | Octavia | Load balancer list for all projects | `os_load-balancer_api:loadbalancer:get_all-global`: `rule:load-balancer:read-global` (`role:admin`) | Narrowed to the caller's project |
 
-Because Cinder ties all-projects lists to `context_is_admin`, a dedicated role
-cannot read volumes across projects without becoming a Cinder administrator.
-Nova and Keystone rules can be granted on their own. Check the names and
-defaults on your release, for example with
+For setup B, a dedicated role works only where a policy rule alone decides the
+request. On 2025.1:
+
+| Request | Delegable to a dedicated role | Why |
+|---|---|---|
+| Nova server list | Yes | The `get_all_tenants` rules decide |
+| Keystone project list | Yes | `identity:list_projects` decides |
+| Heat stack list | Yes | `stacks:global_index` decides |
+| Nova server group list | No | Nova checks `context_is_admin` in code before its `os-server-groups:index:all_projects` rule |
+| Cinder volume, snapshot, backup and group lists | No | Cinder checks `context_is_admin` in code |
+| Glance private images, Octavia load balancers | Through those services' admin rules only | Their list policies grant other projects' resources to administrators |
+
+Example policy overrides for a role named `cross_project_reader` (with
+Kolla-Ansible, in `/etc/kolla/config/<service>/policy.yaml`, then
+`kolla-ansible reconfigure -t <service>`):
+
+```yaml
+# nova
+"os_compute_api:servers:detail:get_all_tenants": "rule:context_is_admin or role:cross_project_reader"
+"os_compute_api:servers:index:get_all_tenants": "rule:context_is_admin or role:cross_project_reader"
+# keystone (the default rule plus the role)
+"identity:list_projects": "(rule:admin_required) or (role:reader and system_scope:all) or (role:reader and domain_id:%(target.domain_id)s) or role:cross_project_reader"
+# heat
+"stacks:global_index": "rule:context_is_admin or role:cross_project_reader"
+```
+
+Check the names and defaults on your release, for example with
 `oslopolicy-policy-generator --namespace nova`.
 
 For setup C, OpenStack enforces the restriction, so check these service
@@ -149,7 +172,16 @@ settings first:
   the target service's `[keystone_authtoken] service_type`, and that value must
   be a service type in the catalog. Otherwise the service rejects every token
   with access rules (HTTP 401). Kolla-Ansible sets Cinder's value to `volume`,
-  which is not in the catalog, so volume tools fail with such a credential.
+  which is not in the catalog, so volume tools fail with such a credential
+  until Cinder uses a catalog type, for example in
+  `/etc/kolla/config/cinder.conf`:
+
+  ```ini
+  [keystone_authtoken]
+  service_type = block-storage
+  ```
+
+  Rules for volume tools then use `block-storage` as their `service`.
 
 ### Project isolation test
 

@@ -404,3 +404,29 @@ an earlier full summary.
   in the scope check, Heat's `global_tenant` request and its denial through
   keystoneauth's `Forbidden`, load balancer scope across pages, and the
   narrowed warning.
+- **Targeted setup B and setup C check with policy overrides (2026-11-14 UTC;
+  partial; source `4dfd71f`, no code change):** the test cloud was changed with
+  Kolla-Ansible: policy overrides for Nova (`servers:*:get_all_tenants`),
+  Keystone (`identity:list_projects`) and Heat (`stacks:global_index`) that add
+  a new `cross_project_reader` role, and Cinder's `[keystone_authtoken]
+  service_type` set to `block-storage`; then
+  `kolla-ansible reconfigure -t nova,keystone,heat,cinder` (no failed task).
+  The `member` user received the role in the test project. Tool functions were
+  called in process in fixed-credential mode with `all_projects=true`, after an
+  administrator-owned server group and Heat stack were added. With the role,
+  `member` listed servers of three projects, every project, and Heat stacks of
+  two projects with no warning. Server groups, volumes, networks, images and
+  load balancers stayed narrowed to what the member can see, with
+  `scope.warning`: Nova checks `context_is_admin` in code before its
+  `os-server-groups:index:all_projects` rule, so the override added for it had
+  no effect and was removed with a second `kolla-ansible reconfigure -t nova`.
+  The administrator's results matched. Setup C was then repeated through a
+  local multi-user Streamable HTTP server with a new Application Credential
+  holding the `admin` role and `GET`-only access rules whose volume rule names
+  `block-storage`: all six phase-1 tools read across projects, including
+  volumes of two projects and the other project's snapshot, while `set_volume`
+  and `set_keypair` create probes were rejected with HTTP 401 and created
+  nothing. Every call returned the expected outcome (setup B: 8 tools for each
+  user, then 3 again after the extra resources; setup C: 7 reads and 2 probes). The overrides, role and
+  test resources were left in place. This partial check does not update the
+  105-tool summary above.

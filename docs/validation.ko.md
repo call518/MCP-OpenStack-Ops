@@ -352,3 +352,25 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   프로젝트의 행, 범위 판단에서의 public 이미지, Heat의 `global_tenant` 요청과
   keystoneauth `Forbidden`을 통한 거부, 페이지 전체 기준의 로드밸런서 scope, 좁혀진
   결과의 경고를 다룹니다.
+- **정책 override를 적용한 방식 B·C 대상 점검 (2026-11-14 UTC, 부분 점검, 소스
+  `4dfd71f`, 코드 변경 없음):** Kolla-Ansible로 테스트 클라우드를 바꿨습니다. 새
+  `cross_project_reader` Role을 추가하는 Nova(`servers:*:get_all_tenants`),
+  Keystone(`identity:list_projects`), Heat(`stacks:global_index`) 정책 override와,
+  Cinder의 `[keystone_authtoken] service_type`을 `block-storage`로 바꾸는 설정을 넣고
+  `kolla-ansible reconfigure -t nova,keystone,heat,cinder`를 실행했습니다(실패 task
+  없음). `member` 사용자에게 테스트 프로젝트에서 이 Role을 부여했습니다. 관리자 소유의
+  서버 그룹과 Heat 스택을 추가한 뒤, 고정 자격 증명 모드로 `all_projects=true`를 넣어
+  도구 함수를 프로세스 안에서 호출했습니다. Role을 받은 `member`는 세 프로젝트의 서버,
+  모든 프로젝트, 두 프로젝트의 Heat 스택을 경고 없이 나열했습니다. 서버 그룹, 볼륨,
+  네트워크, 이미지, 로드밸런서는 member가 볼 수 있는 범위로 좁혀진 채
+  `scope.warning`이 붙었습니다. Nova는 `os-server-groups:index:all_projects` 규칙보다
+  먼저 코드에서 `context_is_admin`을 검사하므로 이를 위해 넣은 override는 효과가 없었고,
+  두 번째 `kolla-ansible reconfigure -t nova`로 제거했습니다. 관리자의 결과는
+  일치했습니다. 이어서 `admin` Role과 `GET` 전용 access rules(볼륨 규칙의 서비스는
+  `block-storage`)를 가진 새 Application Credential로 로컬 다중 사용자 Streamable HTTP
+  서버에서 방식 C를 다시 확인했습니다. 1단계 도구 6개 모두 여러 프로젝트를
+  조회했고(두 프로젝트의 볼륨과 다른 프로젝트의 스냅샷 포함), `set_volume`과
+  `set_keypair` 생성 시험은 HTTP 401로 거부되어 아무것도 만들지 않았습니다. 모든 호출이
+  기대한 결과였습니다(방식 B: 사용자마다 도구 8개, 리소스 추가 뒤 3개 재호출. 방식 C:
+  조회 7건과 시험 2건). override, Role, 테스트 리소스는 그대로 두었습니다. 이 부분
+  점검은 위의 105개 도구 요약을 갱신하지 않습니다.

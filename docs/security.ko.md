@@ -106,7 +106,7 @@ cross-project 조회 권한은 이 서버가 아니라 OpenStack에서 설정합
 | 방식 | 구성 | 비고 |
 |---|---|---|
 | A | `admin` Role | 간단하지만 전체 관리 권한을 줌 |
-| B | 전용 Role(예: `cross_project_reader`)을 각 서비스 정책의 전체 프로젝트 목록 규칙에 추가 | Nova와 Keystone은 최소 권한. Cinder는 별도 규칙이 없음(아래 참고) |
+| B | 전용 Role(예: `cross_project_reader`)을 각 서비스 정책의 전체 프로젝트 목록 규칙에 추가 | Nova 서버, Keystone, Heat는 최소 권한. 코드에서 `context_is_admin`을 검사하는 서비스는 위임 불가(아래 참고) |
 | C | 다중 사용자 모드 요청 헤더로 보내는 제한된 Application Credential(Role 일부 또는 access rules) | 다중 사용자 모드 전용 |
 
 cross-project 조회를 판단하는 정책 규칙과 OpenStack 2025.1(Epoxy)의 기본값은 다음과
@@ -122,9 +122,32 @@ cross-project 조회를 판단하는 정책 규칙과 OpenStack 2025.1(Epoxy)의
 | Heat | 전체 프로젝트 스택 목록 | `stacks:global_index`: `rule:deny_everybody` | HTTP 403, 관리자 포함 |
 | Octavia | 전체 프로젝트 로드밸런서 목록 | `os_load-balancer_api:loadbalancer:get_all-global`: `rule:load-balancer:read-global` (`role:admin`) | 호출자 프로젝트로 좁혀짐 |
 
-Cinder는 전체 프로젝트 목록을 `context_is_admin`에 묶어 두므로, 전용 Role은 Cinder
-관리자가 되지 않고는 여러 프로젝트의 볼륨을 조회할 수 없습니다. Nova와 Keystone
-규칙은 따로 부여할 수 있습니다. 사용하는 릴리스의 규칙 이름과 기본값은 예를 들어
+방식 B의 전용 Role은 정책 규칙만으로 요청이 결정되는 곳에서만 동작합니다. 2025.1
+기준은 다음과 같습니다.
+
+| 요청 | 전용 Role로 위임 | 이유 |
+|---|---|---|
+| Nova 서버 목록 | 가능 | `get_all_tenants` 규칙이 결정 |
+| Keystone 프로젝트 목록 | 가능 | `identity:list_projects`가 결정 |
+| Heat 스택 목록 | 가능 | `stacks:global_index`가 결정 |
+| Nova 서버 그룹 목록 | 불가 | Nova가 `os-server-groups:index:all_projects` 규칙보다 먼저 코드에서 `context_is_admin`을 검사 |
+| Cinder 볼륨, 스냅샷, 백업, 그룹 목록 | 불가 | Cinder가 코드에서 `context_is_admin`을 검사 |
+| Glance private 이미지, Octavia 로드밸런서 | 해당 서비스의 관리자 규칙으로만 | 목록 정책이 다른 프로젝트의 리소스를 관리자에게 허용 |
+
+`cross_project_reader`라는 Role에 대한 정책 override 예입니다(Kolla-Ansible에서는
+`/etc/kolla/config/<서비스>/policy.yaml`에 두고 `kolla-ansible reconfigure -t <서비스>`).
+
+```yaml
+# nova
+"os_compute_api:servers:detail:get_all_tenants": "rule:context_is_admin or role:cross_project_reader"
+"os_compute_api:servers:index:get_all_tenants": "rule:context_is_admin or role:cross_project_reader"
+# keystone (the default rule plus the role)
+"identity:list_projects": "(rule:admin_required) or (role:reader and system_scope:all) or (role:reader and domain_id:%(target.domain_id)s) or role:cross_project_reader"
+# heat
+"stacks:global_index": "rule:context_is_admin or role:cross_project_reader"
+```
+
+사용하는 릴리스의 규칙 이름과 기본값은 예를 들어
 `oslopolicy-policy-generator --namespace nova`로 확인하세요.
 
 방식 C의 제한은 OpenStack이 적용하므로, 먼저 다음 서비스 설정을 확인하세요.
@@ -138,7 +161,15 @@ Cinder는 전체 프로젝트 목록을 `context_is_admin`에 묶어 두므로, 
   `[keystone_authtoken] service_type`과 같아야 하고, 그 값은 카탈로그에 있는 서비스
   타입이어야 합니다. 그렇지 않으면 서비스가 access rules가 있는 토큰을 모두
   거부합니다(HTTP 401). Kolla-Ansible은 Cinder의 값을 카탈로그에 없는 `volume`으로
-  설정하므로, 이런 credential로는 볼륨 도구가 실패합니다.
+  설정하므로, Cinder가 카탈로그 타입을 쓰기 전까지는 이런 credential로 볼륨 도구가
+  실패합니다. 예를 들어 `/etc/kolla/config/cinder.conf`에 다음을 둡니다.
+
+  ```ini
+  [keystone_authtoken]
+  service_type = block-storage
+  ```
+
+  그러면 볼륨 도구용 규칙의 `service`는 `block-storage`를 씁니다.
 
 ### 프로젝트 격리 테스트
 

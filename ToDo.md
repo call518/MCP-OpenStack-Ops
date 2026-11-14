@@ -8,18 +8,11 @@ This file tracks only outstanding work. Completed items are removed.
 
 ## [Issue #86](https://github.com/call518/MCP-OpenStack-Ops/issues/86) Cross-project reads
 
-The first phase is implemented: `all_projects=true` on six list tools, gated by
-`ALLOW_CROSS_PROJECT_READ`, with OpenStack policy deciding access. See
+Cross-project reads are implemented for 16 read tools, gated by
+`ALLOW_CROSS_PROJECT_READ`, with OpenStack policy deciding access, and setups
+A, B and C were checked live. See
 [Cross-project reads](docs/security.md#cross-project-reads) and the 2026-11-13
-records in [validation](docs/validation.md).
-
-- [ ] **Remaining cross-project read work**
-
-| Item | Detail |
-|---|---|
-| Setup B validation | Add a dedicated role to the Nova and Keystone policy rules and confirm it reads across projects without `admin`; Cinder has no separate rule |
-| Setup C with Cinder | Confirm volume tools with a GET-only access-rule credential after Cinder's `[keystone_authtoken] service_type` is set to a catalog type; changes the cloud, so run it with setup B |
-| Heat policy | `get_heat_stacks` with `all_projects` is implemented, but Heat's default `stacks:global_index` is `deny_everybody`; confirm a successful listing after allowing it, with setup B |
+and 2026-11-14 records in [validation](docs/validation.md).
 
 - [ ] **Octavia-managed resources (undecided)**
 

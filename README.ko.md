@@ -446,7 +446,7 @@ Cinder가 없는 OpenStack 2026.1에서 live로 확인했습니다([검증](docs
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
 | `openstack stack list` | `get_heat_stacks` | ✅ | 스택의 프로젝트 ID나 Heat self link가 현재 프로젝트와 일치해야 하며, 알 수 없거나 다른 프로젝트 소유인 스택은 제외. 자기 프로젝트와 다른 프로젝트의 테스트 스택으로 확인. `owner`는 SDK의 `owner_id` 필드를 읽고, 조회에 실패하면 가짜 스택 대신 오류를 반환. 2026-11-10 targeted check: 소유한 테스트 스택이 나열됨 |
-| `openstack stack list --all-projects` | `get_heat_stacks` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Heat의 `global_tenant` 쿼리를 보냄. Heat의 기본 `stacks:global_index` 정책이 `deny_everybody`이므로, 운영자가 그 정책을 바꾸지 않으면 관리자도 정책 거부 오류를 받음. 2026-11-14 targeted check: 관리자와 `member` 모두 정책 거부 오류를 받음 |
+| `openstack stack list --all-projects` | `get_heat_stacks` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Heat의 `global_tenant` 쿼리를 보냄. Heat의 기본 `stacks:global_index` 정책이 `deny_everybody`이므로, 운영자가 그 정책을 바꾸지 않으면 관리자도 정책 거부 오류를 받음. 2026-11-14 targeted check: 관리자와 `member` 모두 정책 거부 오류를 받았고, `stacks:global_index`를 전용 Role에 허용한 뒤에는 그 Role을 가진 `member`가 두 프로젝트의 스택을 나열함 |
 | `openstack stack show` | `get_heat_stacks` | ✅ Partial | 반환된 목록에서 대상을 골라야 하며 이름/필터 파라미터는 없음. 리소스/이벤트/템플릿/출력 조회는 get_heat_stack_details 사용 |
 | `openstack stack create` | `set_heat_stack` (action="create") | ✅ | 스택 생성. 2026-11-10 targeted check: CREATE_COMPLETE에 도달 |
 | `openstack stack delete` | `set_heat_stack` (action="delete") | ✅ | 다른 프로젝트 스택의 삭제는 거부. 소유권 변경 후 소유 스택 삭제 완료. 2026-11-10 targeted check: 삭제됨 |
