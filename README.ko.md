@@ -319,6 +319,7 @@ Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인�
 | `openstack server dump create` | `set_server_dump` | ❌ Unsupported | 지원하지 않음을 명시적으로 반환하며 dump는 만들지 않음 |
 | `openstack server event list` | `get_server_events` | ✅ | 서버 이름이나 UUID를 `server_id`가 아닌 `instance_name`으로 전달. action 목록에는 완료 시각이 없으므로, `include_event_details=true`로 action별 이벤트 결과를 가져와 마지막 완료 시각을 계산. 상세 조회는 최대 10개 action. 이벤트 노출 범위는 Nova 정책을 따름 |
 | `openstack server group list` | `get_server_groups` | ✅ | 서버 그룹 목록. `member_ids`를 읽고, compute microversion 2.64부터는 `policies` 대신 `policy`를 읽음. 목록 조회 실패를 빈 목록 대신 오류로 보고. 2026-11-10 targeted check: policy와 함께 나열됨 |
+| `openstack server group list --all-projects` | `get_server_groups` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. 허용 여부는 OpenStack 정책이 판단. 항목에 `project_id`와 `project_name` 포함. 2026-11-14 targeted check: 관리자는 다른 프로젝트의 서버 그룹을 나열했고, `member`는 `scope.warning`과 함께 자기 그룹만 받음 |
 | `openstack server group create/delete` | `set_server_group` | ✅ | 서버 그룹 관리. 2026-11-10 targeted check: create와 show에서 policy와 member가 보고되었고, 이후 그룹이 삭제됨 |
 | `openstack flavor list` | `set_flavor` (action="list") | ✅ | 등록되려면 변경 도구를 켜야 함 |
 | `openstack flavor create/delete` | `set_flavor` | ✅ | Flavor 관리 |
@@ -388,12 +389,14 @@ Cinder가 없는 OpenStack 2026.1에서 live로 확인했습니다([검증](docs
 | `openstack volume snapshot list --all-projects` | `get_volume_snapshots` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. 볼륨과 마찬가지로 좁혀진 결과에는 `scope.warning`이 붙음. 2026-11-13 targeted check: 관리자는 다른 프로젝트의 스냅샷을 나열했고, `member`는 경고와 함께 자기 스냅샷만 받음 |
 | `openstack volume snapshot create/delete` | `set_snapshot` | ✅ | member 계정의 명시적 MCP 스냅샷이 available에 도달했고 삭제됨. 작업 후 상태는 알 수 없는 리소스 유형으로 보고하지 않고 스냅샷을 찾아 확인. 복원/I/O는 주장하지 않음. 2026-11-10 targeted check (관리자): available에 도달했고 삭제됨 |
 | `openstack backup list` | `get_volume_backups` | ✅ | reader마다 소유한 available 백업 3개. 기본 백업은 실제 Cinder API로 생성 |
+| `openstack volume backup list --all-projects` | `get_volume_backups` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Cinder는 권한 없는 요청을 호출자 프로젝트로 좁히고 소유 프로젝트를 관리자에게만 보여 주므로, 소유자가 보이지 않는 결과에는 별도의 `scope.warning`이 붙음. 2026-11-14 targeted check: 관리자는 다른 프로젝트의 백업을 프로젝트와 함께 나열했고, `member`는 소유자 없이 경고와 함께 자기 백업을 받음 |
 | `openstack backup create/delete` | `set_volume_backups` | ✅ | 볼륨 백업 관리. 2026-11-10 targeted check: 백업이 available에 도달했고 삭제됨 |
 | `openstack volume backup restore` | `set_volume_backups` (action="restore") | ✅ | `volume_name`으로 이름을 지정한 새 볼륨이나 `volume_id`로 복원. `volume_id=`와 `volume=`(openstacksdk 4.14+) 두 restore 시그니처 모두에서 동작. 2026-11-10 targeted check (openstacksdk 4.22.0): 새 볼륨으로 복원되어 available에 도달. 기존 볼륨으로의 복원은 테스트하지 않음 |
 | `openstack volume transfer request list` | `get_volume_transfers` | ✅ | 요청 목록만 제공하며 인증 키는 제외 |
 | `openstack server volume list` | `get_server_volumes` | ✅ | 서버 볼륨 목록. 존재하지 않는 서버는 명시적 오류를 반환(이전에는 빈 성공). 2026-11-10 targeted check: 연결된 볼륨이 나열되었고 없는 서버는 오류를 반환 |
 | `openstack server add/remove volume` | `set_server_volume` / `set_volume` (action="attach"/"detach") | ✅ | 두 경로 모두 두 member 프로젝트에서 in-use를 거쳐 available에 도달. 다른 프로젝트 대상은 거부. 게스트 I/O는 테스트하지 않음 |
 | `openstack volume group list` | `get_volume_groups` | ✅ | Cinder generic group(API >= 3.13) 필요 |
+| `openstack volume group list --all-projects` | `get_volume_groups` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Cinder는 권한 없는 요청을 호출자 프로젝트로 좁히고 소유 프로젝트를 관리자에게만 보여 주므로, 소유자가 보이지 않는 결과에는 별도의 `scope.warning`이 붙음. 소유자는 microversion 3.58로 읽음. 2026-11-14 targeted check: 관리자는 다른 프로젝트의 그룹을 프로젝트와 함께 나열했고, `member`는 소유자 없이 경고와 함께 자기 그룹을 받음 |
 | `openstack volume group create` | `set_volume_groups` | ✅ | Create/list/show/delete. 생성에는 group_type과 volume_types 필요 |
 | `openstack volume qos list` | `get_volume_qos` | ✅ | Cinder QoS 사양. 클라우드 정책을 따름 |
 | `openstack volume qos create` | `set_volume_qos` | ✅ | 사양 Create/list/show/set/delete. 유형 자동 연결은 없음 |

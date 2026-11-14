@@ -341,3 +341,33 @@ an earlier full summary.
   unknown owners, the shared-resource rule for the warning, and the tool
   responses. An existing test caught that the network tool had changed its
   default call to the service, which was then restored.
+- **Targeted backup, volume group and server group cross-project read check
+  (2026-11-14 UTC; partial; uncommitted working tree based on `e9cd4ac`):**
+  `get_volume_backups`, `get_volume_groups` and `get_server_groups` gained
+  `all_projects`. The `member` user created a server group, a backup of its
+  volume and a generic volume group in the test project; the administrator
+  created a public group type for it, because Cinder reserves the built-in
+  `default_cgsnapshot_type` for consistency-group migration. Tool functions
+  were called in process in fixed-credential mode. Without `all_projects`, the
+  output of the changed code and of `e9cd4ac` was identical for both users (3
+  calls each). With the switch off, every `all_projects=true` call returned the
+  "Cross-project reads are disabled" error. With it on, the administrator
+  listed the test project's backup, group and server group with the project
+  name and no warning. The first run showed that Cinder returns a group's
+  `project_id` only from microversion 3.58 and shows backup and group owners
+  only to administrators (`backup:backup_project_attribute` and
+  `group:group_project_attribute` are `rule:admin_api`); group owners are now
+  read at 3.58, and a result without any visible owner carries its own
+  warning. For `member`, the backup and group lists returned its own items
+  without an owner and that warning, and the server group list returned its
+  own group with the narrowed-result warning. All 18 calls with the final code
+  returned the expected outcome. The test resources and group type were left
+  for further checks. This partial check does not update the 105-tool summary
+  above.
+- **Local backup, volume group and server group tests (2026-11-14; same working
+  tree):** 565/565 (100%) with fastmcp 4.1.6 and the locked openstacksdk
+  4.22.0, run as `uv run pytest -q`; no failures or skipped tests. Three new
+  cases pin the calls and output without `all_projects` and passed before the
+  change. Twelve further cases cover the disabled switch, other projects' rows,
+  policy denial, the narrowed and hidden-owner warnings, and group owners read
+  at microversion 3.58.

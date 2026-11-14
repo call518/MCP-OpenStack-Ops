@@ -105,6 +105,44 @@ def _list_all_projects(list_resources: Any) -> List[Any]:
         raise
 
 
+PROJECT_ATTRIBUTE_HIDDEN = (
+    "OpenStack policy hid the owner project of every row from this credential, "
+    "so the result cannot show whether other projects were included"
+)
+
+
+def _cross_project_list(conn: Any, list_resources: Any, key: str,
+                        owners: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+    """List across projects; rows carry project_name and the result a scope.
+
+    Cinder shows a backup's or group's owner project only to administrators
+    (the *_project_attribute policies), so owners may fill in a missing one.
+    """
+    from ..connection import cross_project_items_scope, get_project_names
+    rows = [resource.to_dict() for resource in _list_all_projects(list_resources)]
+    names = get_project_names(conn)
+    for row in rows:
+        if not row.get('project_id') and owners:
+            row['project_id'] = owners.get(row.get('id'))
+        row['project_name'] = names.get(row.get('project_id'))
+    scope = cross_project_items_scope(rows)
+    if rows and not any(row.get('project_id') for row in rows):
+        scope['warning'] = PROJECT_ATTRIBUTE_HIDDEN
+    return {'success': True, key: rows, 'count': len(rows), 'scope': scope}
+
+
+def _group_owners(api: Any) -> Dict[str, str]:
+    """Map group IDs to owner projects; Cinder returns them from 3.58 on."""
+    try:
+        response = api.get('/groups/detail?all_tenants=1', microversion='3.58')
+        return {group['id']: group['project_id']
+                for group in response.json().get('groups', [])
+                if group.get('project_id')}
+    except Exception as e:
+        logger.warning("Could not read volume group owners: %s", type(e).__name__)
+        return {}
+
+
 def get_volume_list(all_projects: bool = False) -> List[Dict[str, Any]]:
     """
     Get list of volumes with detailed information for current project.
@@ -685,7 +723,7 @@ def _restore_backup(api, backup, volume_id, name):
 
 def set_volume_backups(action: str, backup_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
     """List, create, show, delete or restore real Cinder backups."""
-    from ..connection import get_openstack_connection
+    from ..connection import CrossProjectReadError, get_openstack_connection
 
     try:
         action = action.lower()
@@ -694,6 +732,8 @@ def set_volume_backups(action: str, backup_name: Optional[str] = None, **kwargs)
         if action != 'list' and not (backup_name and backup_name.strip()):
             raise ValueError('backup_name is required')
         api = get_openstack_connection().block_storage
+        if action == 'list' and kwargs.get('all_projects'):
+            return _cross_project_list(get_openstack_connection(), api.backups, 'backups')
         if action == 'list':
             backups = [b.to_dict() for b in api.backups()]
             return {'success': True, 'backups': backups, 'count': len(backups)}
@@ -720,13 +760,15 @@ def set_volume_backups(action: str, backup_name: Optional[str] = None, **kwargs)
         )
         return {'success': True, 'restore': restored.to_dict(),
                 'message': 'Backup restoration accepted; check status before use'}
+    except CrossProjectReadError:
+        raise
     except Exception as exc:
         return _storage_failure('Backup operation failed', exc)
 
 
 def set_volume_groups(action: str, group_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
     """List, create, show or delete Cinder generic volume groups (API >= 3.13)."""
-    from ..connection import get_openstack_connection
+    from ..connection import CrossProjectReadError, get_openstack_connection
 
     try:
         action = action.lower()
@@ -736,6 +778,8 @@ def set_volume_groups(action: str, group_name: Optional[str] = None, **kwargs) -
             raise ValueError('group_name is required')
         conn = get_openstack_connection()
         api = conn.block_storage
+        if action == 'list' and kwargs.get('all_projects'):
+            return _cross_project_list(conn, api.groups, 'groups', _group_owners(api))
         if action == 'list':
             groups = [g.to_dict() for g in api.groups()]
             return {'success': True, 'groups': groups, 'count': len(groups)}
@@ -767,6 +811,8 @@ def set_volume_groups(action: str, group_name: Optional[str] = None, **kwargs) -
             return {'success': True, 'group': api.get_group(group.id).to_dict()}
         api.delete_group(group, delete_volumes=kwargs.get('delete_volumes', False))
         return {'success': True, 'message': 'Group deletion accepted'}
+    except CrossProjectReadError:
+        raise
     except Exception as exc:
         return _storage_failure('Volume group operation failed', exc)
 

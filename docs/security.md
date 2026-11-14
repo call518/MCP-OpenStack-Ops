@@ -82,6 +82,8 @@ Some list tools accept `all_projects=true`, like the OpenStack CLI's
 |---|---|
 | `get_instance_details`, `search_instances`, `get_instances_by_status` | Instances of every visible project, each with `project_id` and `project_name` |
 | `get_volume_list`, `get_volume_snapshots` | Volumes or snapshots of every visible project, each with `project_id` and `project_name` |
+| `get_volume_backups`, `get_volume_groups` | Backups or generic volume groups of every visible project. Cinder shows their owner project only to administrators; when no row has an owner, `scope.warning` says the scope cannot be told |
+| `get_server_groups` | Server groups of every visible project, each with `project_id` and `project_name` |
 | `get_network_details`, `get_routers`, `get_security_groups`, `get_floating_ips` | Networks, routers, security groups or floating IPs that Neutron shows the credential, each with `project_id` and `project_name`. Neutron never denies a list and shows other projects' shared and external resources to everyone, so `scope.warning` appears unless another project's unshared resource is in the result |
 | `get_project_details` | A summary (ID, name, domain, enabled, `is_current`) of every visible project. With a `project_name` or ID that matches one project, that project's details and resource counts; network counts include only resources the credential can see |
 

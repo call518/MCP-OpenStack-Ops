@@ -19,7 +19,7 @@
 |---|---|
 | 방식 B 검증 | 전용 Role을 Nova와 Keystone 정책 규칙에 추가하고, `admin` 없이 여러 프로젝트를 조회하는지 확인. Cinder는 별도 규칙이 없음 |
 | 방식 C의 Cinder | Cinder의 `[keystone_authtoken] service_type`을 카탈로그 타입으로 바꾼 뒤, GET 전용 access rules credential로 볼륨 도구 확인. 클라우드 설정을 바꾸므로 방식 B와 함께 진행 |
-| 이후 서비스 | Neutron 완료. 남은 것: `get_volume_backups`, `get_volume_groups`, `get_server_groups`, `get_image_detail_list`, `get_heat_stacks`, `get_load_balancer_list` |
+| 이후 서비스 | Neutron, Cinder 백업·그룹, 서버 그룹 완료. 남은 것: `get_image_detail_list`, `get_heat_stacks`, `get_load_balancer_list` |
 
 - [ ] **Octavia 관리 리소스 (미결정)**
 

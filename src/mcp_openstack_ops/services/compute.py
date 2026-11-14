@@ -1292,21 +1292,40 @@ def _server_group_policies(group) -> List[str]:
     return [policy] if policy else []
 
 
-def get_server_groups() -> List[Dict[str, Any]]:
+def get_server_groups(all_projects: bool = False) -> List[Dict[str, Any]]:
     """
     Get list of server groups.
-    
+
+    Args:
+        all_projects: Include every project the credential's Nova policy
+            allows (requires ALLOW_CROSS_PROJECT_READ=true); rows then carry
+            project_id and project_name.
+
     Returns:
         List of server group dictionaries
     """
+    from ..connection import (
+        CrossProjectReadError, get_project_names, raise_if_cross_project_denied,
+        require_cross_project_read,
+    )
+    if all_projects:
+        require_cross_project_read()
     try:
         # Import here to avoid circular imports
         from ..connection import get_openstack_connection
         conn = get_openstack_connection()
         server_groups = []
-        
+
         try:
-            for group in conn.compute.server_groups():
+            if all_projects:
+                try:
+                    listed = list(conn.compute.server_groups(all_projects=True))
+                except Exception as e:
+                    raise_if_cross_project_denied(e)
+                    raise
+            else:
+                listed = conn.compute.server_groups()
+            for group in listed:
                 members = getattr(group, 'member_ids', []) or []
                 
                 server_groups.append({
@@ -1326,7 +1345,15 @@ def get_server_groups() -> List[Dict[str, Any]]:
             # An empty list would read as "no server groups"; report the error.
             raise
 
+        if all_projects:
+            names = get_project_names(conn)
+            for row in server_groups:
+                if row['project_id'] == 'unknown':
+                    row['project_id'] = None
+                row['project_name'] = names.get(row['project_id'])
         return server_groups
+    except CrossProjectReadError:
+        raise
     except Exception as e:
         logger.error(f"Failed to get server groups: {e}")
         raise
