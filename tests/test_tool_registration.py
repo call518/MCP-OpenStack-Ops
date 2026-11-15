@@ -24,7 +24,7 @@ async def verify():
     tools = {tool.name: tool for tool in await mcp.list_tools()}
     read_tools = [tool for tool in tools.values()
                   if tool.name.startswith(('get_', 'search_'))]
-    assert len(read_tools) == 55
+    assert len(read_tools) == 61
     for tool in read_tools:
         assert tool.description.strip(), tool.name
         for parameter, schema in tool.parameters.get('properties', {}).items():
@@ -35,7 +35,9 @@ async def verify():
         'get_image_members', 'get_heat_stack_details',
         'get_network_qos_policies', 'get_gnocchi_resources',
         'get_gnocchi_metrics', 'get_gnocchi_measures', 'get_gnocchi_service_info',
-        'get_gnocchi_aggregates',
+        'get_gnocchi_aggregates', 'get_secrets', 'get_secret_containers',
+        'get_secret_orders', 'get_secret_acl', 'get_key_manager_quotas',
+        'get_secret_stores',
     }
     writes = {
         'set_alarms', 'set_routers', 'set_security_groups',
@@ -43,6 +45,7 @@ async def verify():
         'set_volume_types', 'set_domains', 'set_identity_groups',
         'set_volume_backups', 'set_volume_groups', 'set_volume_qos',
         'set_network_qos_policies', 'set_network_agents',
+        'set_secret', 'set_secret_container', 'set_secret_order', 'set_secret_acl',
     }
     assert reads <= tools.keys()
     # Allocation tools and measured telemetry tools must point to each other.
@@ -88,6 +91,10 @@ async def verify():
         ('set_volume_qos', {'action': 'set', 'qos_name': 'a'}),
         ('set_network_qos_policies', {'action': 'delete', 'policy_name': 'a'}),
         ('set_network_agents', {'action': 'disable', 'agent_id': 'a'}),
+        ('set_secret', {'action': 'create_self_signed_tls', 'name': 'a'}),
+        ('set_secret_container', {'action': 'delete', 'name': 'a'}),
+        ('set_secret_order', {'action': 'create', 'name': 'a'}),
+        ('set_secret_acl', {'action': 'add_users', 'name_or_ref': 'a', 'users': 'u'}),
     ]
     for name, kwargs in cases:
         module = importlib.import_module('mcp_openstack_ops.tools.' + name)

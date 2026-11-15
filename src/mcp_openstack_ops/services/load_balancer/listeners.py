@@ -40,6 +40,49 @@ def listener_belongs_to_load_balancer(listener, lb_id: str) -> bool:
     return not ids or lb_id in ids
 
 
+TLS_PREREQUISITE_HINT = (
+    'Octavia could not use the TLS certificate. Check that the secret exists in '
+    'this project, is ACTIVE, holds a PKCS#12 bundle (or is a certificate '
+    'container), and that the cloud meets the Barbican prerequisites in '
+    'docs/barbican-tls-guide.md.'
+)
+
+
+def _tls_attrs(conn, kwargs) -> Dict[str, Any]:
+    """Resolve TLS secret names to the Barbican hrefs Octavia expects."""
+    from ..key_manager import resolve_secret_ref
+    attrs = {}
+    if kwargs.get('default_tls_container_ref'):
+        attrs['default_tls_container_ref'] = resolve_secret_ref(
+            conn, kwargs['default_tls_container_ref'])
+    if kwargs.get('sni_container_refs'):
+        attrs['sni_container_refs'] = [
+            resolve_secret_ref(conn, ref) for ref in kwargs['sni_container_refs']]
+    return attrs
+
+
+def _status_info(listener) -> Dict[str, Any]:
+    """Octavia states; creation is asynchronous, so callers poll these."""
+    return {
+        'provisioning_status': getattr(listener, 'provisioning_status', None),
+        'operating_status': getattr(listener, 'operating_status', None),
+    }
+
+
+def _tls_info(listener) -> Dict[str, Any]:
+    return {
+        'default_tls_container_ref': getattr(listener, 'default_tls_container_ref', None),
+        'sni_container_refs': getattr(listener, 'sni_container_refs', None) or [],
+    }
+
+
+def _with_tls_hint(message: str) -> str:
+    text = message.lower()
+    if any(word in text for word in ('certificate', 'tls', 'barbican', 'secret')):
+        return f'{message}. {TLS_PREREQUISITE_HINT}'
+    return message
+
+
 
 def get_load_balancer_listeners(lb_name_or_id: str) -> Dict[str, Any]:
     """
@@ -78,6 +121,8 @@ def get_load_balancer_listeners(lb_name_or_id: str) -> Dict[str, Any]:
                 'admin_state_up': listener.is_admin_state_up,
                 'loadbalancer_id': _listener_load_balancer_id(listener),
                 'default_pool_id': getattr(listener, 'default_pool_id', None),
+                **_status_info(listener),
+                **_tls_info(listener),
                 'created_at': str(listener.created_at) if hasattr(listener, 'created_at') else 'N/A',
                 'updated_at': str(listener.updated_at) if hasattr(listener, 'updated_at') else 'N/A'
             }
@@ -129,7 +174,14 @@ def set_load_balancer_listener(action: str, **kwargs) -> Dict[str, Any]:
                     'success': False,
                     'message': 'name, lb_name_or_id, protocol, and protocol_port are required'
                 }
-            
+            if (protocol.upper() == 'TERMINATED_HTTPS'
+                    and not kwargs.get('default_tls_container_ref')):
+                return {
+                    'success': False,
+                    'message': ('default_tls_container_ref (Barbican secret name, '
+                                'ID or href) is required for TERMINATED_HTTPS')
+                }
+
             # Find load balancer
             lb = conn.load_balancer.find_load_balancer(lb_name_or_id)
             if not lb:
@@ -146,12 +198,13 @@ def set_load_balancer_listener(action: str, **kwargs) -> Dict[str, Any]:
                 'description': kwargs.get('description', ''),
                 'admin_state_up': kwargs.get('admin_state_up', True),
                 'connection_limit': kwargs.get('connection_limit'),
-                'default_pool_id': kwargs.get('default_pool_id')
+                'default_pool_id': kwargs.get('default_pool_id'),
+                **_tls_attrs(conn, kwargs),
             }
-            
+
             # Remove None values
             listener_params = {k: v for k, v in listener_params.items() if v is not None}
-            
+
             listener = conn.load_balancer.create_listener(**listener_params)
             
             return {
@@ -162,7 +215,9 @@ def set_load_balancer_listener(action: str, **kwargs) -> Dict[str, Any]:
                     'name': listener.name,
                     'protocol': listener.protocol,
                     'protocol_port': listener.protocol_port,
-                    'admin_state_up': listener.is_admin_state_up
+                    'admin_state_up': listener.is_admin_state_up,
+                    **_status_info(listener),
+                    **_tls_info(listener),
                 }
             }
         
@@ -206,6 +261,7 @@ def set_load_balancer_listener(action: str, **kwargs) -> Dict[str, Any]:
             for key in ['name', 'description', 'admin_state_up', 'connection_limit', 'default_pool_id']:
                 if key in kwargs:
                     update_params[key] = kwargs[key]
+            update_params.update(_tls_attrs(conn, kwargs))
             
             if not update_params:
                 return {
@@ -221,7 +277,9 @@ def set_load_balancer_listener(action: str, **kwargs) -> Dict[str, Any]:
                     'id': updated_listener.id,
                     'name': updated_listener.name,
                     'description': updated_listener.description,
-                    'admin_state_up': updated_listener.is_admin_state_up
+                    'admin_state_up': updated_listener.is_admin_state_up,
+                    **_status_info(updated_listener),
+                    **_tls_info(updated_listener),
                 }
             }
         
@@ -320,20 +378,22 @@ def set_load_balancer_listener(action: str, **kwargs) -> Dict[str, Any]:
                     'protocol_port': listener.protocol_port,
                     'admin_state_up': listener.is_admin_state_up,
                     'loadbalancer_id': _listener_load_balancer_id(listener),
-                    'default_pool_id': getattr(listener, 'default_pool_id', None)
+                    'default_pool_id': getattr(listener, 'default_pool_id', None),
+                    **_status_info(listener),
+                    **_tls_info(listener),
                 }
             }
         
         else:
             return {
                 'success': False,
-                'message': f'Unknown action "{action}". Supported: create, delete, show'
+                'message': f'Unknown action "{action}". Supported: create, delete, set, unset, show, stats'
             }
             
     except Exception as e:
         logger.error(f"Failed to manage listener: {e}")
         return {
             'success': False,
-            'message': f'Failed to manage listener: {str(e)}',
+            'message': _with_tls_hint(f'Failed to manage listener: {str(e)}'),
             'error': str(e)
         }

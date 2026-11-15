@@ -57,6 +57,22 @@ cross-project 조회는 `ALLOW_CROSS_PROJECT_READ`로 켜는 16개 조회 도구
     heat-engine이 데이터베이스 연결을 잃었는데도 `heat-api`는 up으로 보고됐습니다.
   - `running_services`가 조회 결과로 만든 행도 실행 중으로 셉니다.
 
+## Barbican과 TLS 리스너
+
+- [ ] **Barbican 도구와 `TERMINATED_HTTPS` 리스너 라이브 검증**
+  - 2026-11-15 라이브 확인(admin 계정): `set_secret` `create_self_signed_tls`, 그리고
+    `default_tls_container_ref`를 이름으로 지정해 만든 `TERMINATED_HTTPS` 리스너가
+    `ACTIVE`/`ONLINE`이 되고 HTTPS를 제공함(`curl -vk`: TLSv1.3, 두 멤버 모두 HTTP 200).
+  - 아직 단위 테스트만 수행한 것: 나머지 Barbican 도구와 액션, `sni_container_refs`,
+    TLS 참조를 쓰는 리스너 `set`, pool의 backend re-encryption 파라미터(Octavia API로
+    직접 보내는 client authentication용 `tls_container_ref` 포함).
+  - Non-terminated HTTPS(`HTTPS` 리스너와 pool, `TLS-HELLO` 모니터)와, CA로 멤버를
+    검증하는 backend re-encryption을 client authentication이 있을 때와 없을 때 모두
+    확인합니다.
+  - Barbican이 있는 클라우드에서 확인할 것: 프로젝트 `member`가 시크릿을 만들 때
+    필요한 역할, 리스너 생성 시 Octavia가 ACL을 직접 부여하는지(2026-11-15 점검은 admin
+    계정으로 수행).
+
 ## [Issue #73](https://github.com/call518/MCP-OpenStack-Ops/issues/73) 후속 작업
 
 ### 검증 후속 작업

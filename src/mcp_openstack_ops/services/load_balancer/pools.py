@@ -6,10 +6,64 @@ including creating, updating, deleting, and querying pools and their members.
 """
 
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 from ...connection import get_openstack_connection
 
 logger = logging.getLogger(__name__)
+
+POOL_TLS_FIELDS = ('tls_enabled', 'ca_tls_container_ref', 'crl_container_ref',
+                   'tls_versions', 'tls_ciphers', 'alpn_protocols')
+
+
+def _pool_tls_attrs(conn, tls_enabled: Optional[bool], tls_container_ref: str,
+                    ca_tls_container_ref: str, crl_container_ref: str,
+                    tls_versions: Optional[List[str]], tls_ciphers: str,
+                    alpn_protocols: Optional[List[str]]) -> Dict[str, Any]:
+    """Backend re-encryption attributes, with Barbican names resolved to hrefs."""
+    from ..key_manager import resolve_secret_ref
+    attrs: Dict[str, Any] = {}
+    if tls_enabled is not None:
+        attrs['tls_enabled'] = tls_enabled
+    for key, value in (('tls_container_ref', tls_container_ref),
+                       ('ca_tls_container_ref', ca_tls_container_ref),
+                       ('crl_container_ref', crl_container_ref)):
+        if value:
+            attrs[key] = resolve_secret_ref(conn, value)
+    if tls_versions:
+        attrs['tls_versions'] = tls_versions
+    if tls_ciphers:
+        attrs['tls_ciphers'] = tls_ciphers
+    if alpn_protocols:
+        attrs['alpn_protocols'] = alpn_protocols
+    return attrs
+
+
+def _pool_tls_info(pool) -> Dict[str, Any]:
+    return {key: getattr(pool, key, None) for key in POOL_TLS_FIELDS}
+
+
+def _raw_pool(conn, pool_id: str) -> Dict[str, Any]:
+    """Octavia's pool body; the SDK Pool resource has no tls_container_ref."""
+    response = conn.load_balancer.get(f'/lbaas/pools/{pool_id}', raise_exc=True)
+    return response.json().get('pool', {})
+
+
+def _write_raw_pool(conn, method: str, path: str, body: Dict[str, Any]) -> Any:
+    """Send a pool request through the Octavia API, then read it back via the SDK.
+
+    Used only when tls_container_ref is set, which openstacksdk does not send.
+    """
+    response = getattr(conn.load_balancer, method)(
+        path, json={'pool': body}, raise_exc=True)
+    return conn.load_balancer.get_pool(response.json()['pool']['id'])
+
+
+def _with_client_cert(conn, pool, info: Dict[str, Any]) -> Dict[str, Any]:
+    try:
+        info['tls_container_ref'] = _raw_pool(conn, pool.id).get('tls_container_ref')
+    except Exception as e:
+        info['tls_container_ref_error'] = str(e)
+    return info
 
 
 def resource_ref_ids(resource, id_attr: str, list_attr: str) -> list:
@@ -97,6 +151,7 @@ def get_load_balancer_pools(listener_name_or_id: str = None) -> Dict[str, Any]:
                 'lb_algorithm': pool.lb_algorithm,
                 'admin_state_up': pool.is_admin_state_up,
                 **_pool_relations(pool),
+                **_pool_tls_info(pool),
                 'members': member_summary,
                 'member_count': len(member_summary),
                 'created_at': str(pool.created_at) if hasattr(pool, 'created_at') else 'N/A',
@@ -122,11 +177,18 @@ def get_load_balancer_pools(listener_name_or_id: str = None) -> Dict[str, Any]:
 
 def set_load_balancer_pool(action: str, pool_name_or_id: str = "", name: str = "", 
                           listener_name_or_id: str = "", protocol: str = "", 
-                          lb_algorithm: str = "ROUND_ROBIN", description: str = "", 
-                          admin_state_up: bool = True) -> Dict[str, Any]:
+                          lb_algorithm: str = "ROUND_ROBIN", description: str = "",
+                          admin_state_up: bool = True,
+                          tls_enabled: Optional[bool] = None,
+                          tls_container_ref: str = "",
+                          ca_tls_container_ref: str = "",
+                          crl_container_ref: str = "",
+                          tls_versions: Optional[List[str]] = None,
+                          tls_ciphers: str = "",
+                          alpn_protocols: Optional[List[str]] = None) -> Dict[str, Any]:
     """
     Manage load balancer pool operations.
-    
+
     Args:
         action: Operation to perform (create, delete, show, set)
         pool_name_or_id: Pool name or ID (required for delete/show/set)
@@ -136,13 +198,19 @@ def set_load_balancer_pool(action: str, pool_name_or_id: str = "", name: str = "
         lb_algorithm: Load balancing algorithm (ROUND_ROBIN, LEAST_CONNECTIONS, SOURCE_IP)
         description: Description for the pool
         admin_state_up: Administrative state
-        
+        tls_enabled .. alpn_protocols: Backend re-encryption settings (create/set);
+            certificate references accept Barbican names, IDs or hrefs
+
     Returns:
         Dictionary with operation results
     """
     try:
         conn = get_openstack_connection()
-        
+        tls_attrs = _pool_tls_attrs(
+            conn, tls_enabled, tls_container_ref, ca_tls_container_ref,
+            crl_container_ref, tls_versions, tls_ciphers, alpn_protocols,
+        ) if action in ('create', 'set') else {}
+
         if action == "create":
             if not name or not listener_name_or_id or not protocol:
                 return {
@@ -174,9 +242,13 @@ def set_load_balancer_pool(action: str, pool_name_or_id: str = "", name: str = "
             
             if description:
                 pool_attrs['description'] = description
-                
-            pool = conn.load_balancer.create_pool(**pool_attrs)
-            
+            pool_attrs.update(tls_attrs)
+
+            if 'tls_container_ref' in pool_attrs:
+                pool = _write_raw_pool(conn, 'post', '/lbaas/pools', pool_attrs)
+            else:
+                pool = conn.load_balancer.create_pool(**pool_attrs)
+
             return {
                 'success': True,
                 'message': f'Pool created successfully: {pool.name}',
@@ -188,7 +260,10 @@ def set_load_balancer_pool(action: str, pool_name_or_id: str = "", name: str = "
                     'listener_id': pool.listener_id,
                     'admin_state_up': pool.is_admin_state_up,
                     'provisioning_status': pool.provisioning_status,
-                    'operating_status': pool.operating_status
+                    'operating_status': pool.operating_status,
+                    **_pool_tls_info(pool),
+                    **({'tls_container_ref': pool_attrs['tls_container_ref']}
+                       if 'tls_container_ref' in pool_attrs else {}),
                 }
             }
             
@@ -267,6 +342,7 @@ def set_load_balancer_pool(action: str, pool_name_or_id: str = "", name: str = "
                     'provisioning_status': pool.provisioning_status,
                     'operating_status': pool.operating_status,
                     **_pool_relations(pool),
+                    **_with_client_cert(conn, pool, _pool_tls_info(pool)),
                     'members': members,
                     'member_count': len(members),
                     'created_at': str(pool.created_at) if hasattr(pool, 'created_at') else 'N/A',
@@ -303,9 +379,14 @@ def set_load_balancer_pool(action: str, pool_name_or_id: str = "", name: str = "
             if lb_algorithm:
                 update_attrs['lb_algorithm'] = lb_algorithm.upper()
             update_attrs['admin_state_up'] = admin_state_up
-            
-            updated_pool = conn.load_balancer.update_pool(pool, **update_attrs)
-            
+            update_attrs.update(tls_attrs)
+
+            if 'tls_container_ref' in update_attrs:
+                updated_pool = _write_raw_pool(
+                    conn, 'put', f'/lbaas/pools/{pool.id}', update_attrs)
+            else:
+                updated_pool = conn.load_balancer.update_pool(pool, **update_attrs)
+
             return {
                 'success': True,
                 'message': f'Pool updated successfully: {updated_pool.name}',
@@ -317,7 +398,10 @@ def set_load_balancer_pool(action: str, pool_name_or_id: str = "", name: str = "
                     'lb_algorithm': updated_pool.lb_algorithm,
                     'admin_state_up': updated_pool.is_admin_state_up,
                     'provisioning_status': updated_pool.provisioning_status,
-                    'operating_status': updated_pool.operating_status
+                    'operating_status': updated_pool.operating_status,
+                    **_pool_tls_info(updated_pool),
+                    **({'tls_container_ref': update_attrs['tls_container_ref']}
+                       if 'tls_container_ref' in update_attrs else {}),
                 }
             }
         
@@ -328,10 +412,11 @@ def set_load_balancer_pool(action: str, pool_name_or_id: str = "", name: str = "
             }
             
     except Exception as e:
+        from .listeners import _with_tls_hint
         logger.error(f"Failed to manage pool: {e}")
         return {
             'success': False,
-            'message': f'Failed to manage pool: {str(e)}',
+            'message': _with_tls_hint(f'Failed to manage pool: {str(e)}'),
             'error': str(e)
         }
 

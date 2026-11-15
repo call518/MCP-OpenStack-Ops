@@ -104,7 +104,7 @@ def set_load_balancer_health_monitor(action: str, monitor_name_or_id: str = "", 
         monitor_name_or_id: Monitor name or ID (required for delete/show/set)
         name: Name for the monitor
         pool_name_or_id: Pool name or ID (required for create)
-        monitor_type: Monitor type (HTTP, HTTPS, TCP, PING, UDP-CONNECT, SCTP)
+        monitor_type: Monitor type (HTTP, HTTPS, TLS-HELLO, TCP, PING, UDP-CONNECT, SCTP)
         delay: Delay between health checks in seconds
         timeout: Timeout for health check in seconds
         max_retries: Maximum retries before marking unhealthy

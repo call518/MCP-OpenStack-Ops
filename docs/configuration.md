@@ -66,6 +66,41 @@ Options:
 | `DOCKER_EXTERNAL_PORT_MCPO_PROXY` | MCPO host port | `8080` | OpenAPI proxy and docs |
 | `MCPO_CONFIG_FILE` | MCPO configuration mounted by Compose | `mcp-config.json.http.local` | Copy the tracked HTTP template to this ignored local file before starting Compose |
 
+## Access modes and `.env` settings
+
+Choose one access mode for the Docker Compose stack, then set the `.env` keys
+in its column. The keys must agree: the MCP server takes its mode from
+`MCP_MULTI_USER` and `REMOTE_AUTH_ENABLE`, while MCPO sends the headers in the
+file named by `MCPO_CONFIG_FILE`. If they disagree, the server answers MCPO with
+`401 Unauthorized` and OpenWebUI shows no OpenStack tools.
+
+| `.env` key | 1. Single account (Quick Start default) | 2. Single account + Bearer | 3. Multi-user | 4. Multi-user + Bearer |
+| --- | --- | --- | --- | --- |
+| Who OpenStack sees | The one account in `.env` | The one account in `.env` | The Application Credential sent with each request | The Application Credential sent with each request |
+| Typical use | One person on the same host | MCP or MCPO reachable from other hosts | A private instance per user | A private instance per user, behind a shared token |
+| `MCP_MULTI_USER` | `false` | `false` | `true` | `true` |
+| `REMOTE_AUTH_ENABLE` | `false` | `true` | `false` | `true` |
+| `REMOTE_SECRET_KEY` | Empty | Strong random value | Empty | Strong random value |
+| `MCPO_CONFIG_FILE` | `mcp-config.json.http.local` | `mcp-config.json.http.local` | `mcp-config.json.multi-user.local` | `mcp-config.json.multi-user.local` |
+| Headers in that MCPO file | `Authorization` placeholder, ignored | `Authorization: Bearer <REMOTE_SECRET_KEY>` with the same value | Application Credential ID and secret; `Authorization` removed or ignored | `Authorization: Bearer <REMOTE_SECRET_KEY>` plus the Application Credential ID and secret |
+| `OS_USERNAME`, `OS_PASSWORD`, `OS_PROJECT_NAME` | Required; every tool works in this project | Required; every tool works in this project | Not used; the credential sets user and project | Not used; the credential sets user and project |
+| `OS_AUTH_PROTOCOL` | `http` or `https`, as Keystone is served | `http` or `https`, as Keystone is served | `https` | `https` |
+| `MCP_MULTI_USER_ALLOW_INSECURE_HTTP` | `false` | `false` | `false`; `true` only for tests with `OS_AUTH_PROTOCOL=http` | `false`; `true` only for tests with `OS_AUTH_PROTOCOL=http` |
+| `DOCKER_BIND_ADDRESS` | `127.0.0.1` | Reachable address, behind HTTPS | `127.0.0.1`, or a reachable address behind HTTPS | Reachable address, behind HTTPS |
+
+These keys do not depend on the mode: `FASTMCP_TYPE=streamable-http` (always
+for Compose), `OS_AUTH_HOST`, `OS_AUTH_PORT`, `OS_REGION_NAME`, the service
+ports, `ALLOW_MODIFY_OPERATIONS` and `ALLOW_CROSS_PROJECT_READ`.
+
+- A shared OpenWebUI used by several people should use mode 1 or 2. MCPO sends
+  one fixed header set, so in modes 3 and 4 every OpenWebUI user acts as the one
+  Application Credential in the MCPO file. Modes 3 and 4 are described in the
+  [multi-user guide](multi-user-guide.md).
+- After changing any of these keys or the MCPO file, recreate both containers:
+  `docker compose up -d --force-recreate mcp-server mcpo-proxy`.
+- The Claude Desktop extension bundle does not use this table; it takes its
+  settings from the extension form ([Claude Desktop guide](claude-desktop-guide.md)).
+
 ## OpenStack endpoint topology
 
 Single-account and multi-user connections currently construct service URLs from
@@ -89,8 +124,8 @@ without Cinder), calls to that service wait for the connection timeout instead
 of failing immediately. Let the port be refused, or point it at a reachable
 gateway, so that a missing service fails fast with an explicit error.
 
-Aodh (`alarming`) and Gnocchi (`metric`) have no `OS_*_PORT` setting. Their
-tools use the Keystone catalog endpoint for `OS_INTERFACE` and
+Aodh (`alarming`), Gnocchi (`metric`) and Barbican (`key-manager`) have no
+`OS_*_PORT` setting. Their tools use the Keystone catalog endpoint for `OS_INTERFACE` and
 `OS_REGION_NAME`, which must also be reachable from the `mcp-server` container.
 
 ## HTTPS and private CA setup

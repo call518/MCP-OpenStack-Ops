@@ -151,6 +151,20 @@ Stop all instances with name containing 'test'
 
 **사용 도구:** `get_load_balancer_details()`, `set_load_balancer()`, `get_load_balancer_listeners()`
 
+### 🔐 Barbican 시크릿과 TLS 리스너
+
+```
+"List Barbican secrets and show which services use web-tls"
+"Create a self-signed TLS secret named web-tls for 192.168.35.169"
+"Add a TERMINATED_HTTPS listener on port 443 to web-lb with certificate web-tls"
+"Show the ACL of secret web-tls"
+```
+
+**사용 도구:** `get_secrets()`, `set_secret()`, `set_load_balancer_listener()`, `get_secret_acl()`
+
+시크릿 payload는 이 도구들을 거치지 않습니다. 사용자 인증서는 MCP 밖에서
+등록합니다. [Barbican과 TLS 가이드](barbican-tls-guide.ko.md)를 참고하세요.
+
 ### 🔍 고급 검색과 필터링
 
 ```

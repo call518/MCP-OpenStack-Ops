@@ -60,6 +60,24 @@ the wrong account is in use may outweigh the benefit. Nothing is decided.
     reported as up.
   - `running_services` counts the probe rows as running.
 
+## Barbican and TLS listeners
+
+- [ ] **Live-check the Barbican tools and `TERMINATED_HTTPS` listeners**
+  - Checked live on 2026-11-15 (admin account): `set_secret`
+    `create_self_signed_tls`, and a `TERMINATED_HTTPS` listener created with
+    `default_tls_container_ref` by name that reached `ACTIVE`/`ONLINE` and
+    served HTTPS (`curl -vk`: TLSv1.3, HTTP 200 from both members).
+  - Still unit-tested only: the other Barbican tools and actions,
+    `sni_container_refs`, listener `set` with TLS references, and the pool
+    backend re-encryption parameters (including the client authentication
+    `tls_container_ref`, sent through the Octavia API).
+  - Also check non-terminated HTTPS (`HTTPS` listener and pool, `TLS-HELLO`
+    monitor) and backend re-encryption with a CA-verified member, with and
+    without client authentication.
+  - Check on a cloud with Barbican: the role a project `member` needs to create
+    secrets, whether Octavia grants its own ACL at listener creation (the
+    2026-11-15 check used an admin account).
+
 ## [Issue #73](https://github.com/call518/MCP-OpenStack-Ops/issues/73) follow-up
 
 ### Validation follow-ups

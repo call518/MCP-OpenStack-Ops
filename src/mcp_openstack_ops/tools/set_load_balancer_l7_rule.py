@@ -21,12 +21,13 @@ async def set_load_balancer_l7_rule(
     admin_state_up: bool = True
 ) -> str:
     """
-    Manage L7 rule operations (create, delete, set, unset, show).
+    Create or delete an L7 rule. set, unset and show are not implemented; list
+    and show rules with get_load_balancer_l7_rules.
     
     Args:
-        action: Action to perform (create, delete, set, unset, show)
+        action: Action to perform (create, delete)
         policy_name_or_id: L7 policy name or ID (required for create)
-        rule_id: L7 rule ID (required for delete/update operations)
+        rule_id: L7 rule ID (required for delete)
         type: Rule type (PATH, HOST_NAME, HEADER, COOKIE, FILE_TYPE, SSL_CONN_HAS_CERT, SSL_VERIFY_RESULT, SSL_DN_FIELD)
         compare_type: Comparison type (STARTS_WITH, ENDS_WITH, CONTAINS, EQUAL_TO, REGEX)
         value: Rule value to match against

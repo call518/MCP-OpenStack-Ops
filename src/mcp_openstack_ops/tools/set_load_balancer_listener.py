@@ -20,7 +20,9 @@ async def set_load_balancer_listener(
     description: str = "",
     admin_state_up: bool = True,
     connection_limit: int = 0,
-    default_pool_id: str = ""
+    default_pool_id: str = "",
+    default_tls_container_ref: str = "",
+    sni_container_refs: str = ""
 ) -> str:
     """
     Comprehensive load balancer listener management (create, delete, set, unset, show, stats).
@@ -35,6 +37,7 @@ async def set_load_balancer_listener(
     
     Use when user requests:
     - "Create listener [name] on load balancer [lb_name] for HTTP on port 80"
+    - "Add an HTTPS listener on port 443 to [lb_name] using certificate [secret]"
     - "Delete listener [name/id]"
     - "Update listener [name] connection limit to 1000"
     - "Clear listener [name] description"
@@ -46,13 +49,22 @@ async def set_load_balancer_listener(
         listener_name_or_id: Listener name or ID (required for delete/set/unset/show/stats)
         name: Name for new listener (required for create)
         lb_name_or_id: Load balancer name or ID (required for create)
-        protocol: Listener protocol - HTTP, HTTPS, TCP, UDP (required for create)
+        protocol: Listener protocol - HTTP, HTTPS (non-terminated HTTPS, i.e. TLS
+            passthrough), TERMINATED_HTTPS (TLS-terminated HTTPS: TLS ends on the
+            load balancer), TCP, UDP, SCTP (required for create)
         protocol_port: Port number for listener (required for create)
         description: Description for listener
         admin_state_up: Administrative state (default: True)
         connection_limit: Maximum number of connections (0 = unlimited)
         default_pool_id: Default pool ID for the listener
-        
+        default_tls_container_ref: Default server certificate for TERMINATED_HTTPS
+            (create/set). A Barbican secret holding a PKCS#12 bundle, or a
+            certificate container, given as name, ID or href; names are resolved
+            to hrefs. Required when protocol is TERMINATED_HTTPS. Octavia uses it
+            when the client sends no SNI or no SNI certificate matches.
+        sni_container_refs: Comma-separated SNI certificates (names, IDs or hrefs)
+            that Octavia picks by requested host name (create/set). Optional.
+
     Returns:
         JSON string with operation results and listener details
     """
@@ -75,7 +87,10 @@ async def set_load_balancer_listener(
             'description': description if description else None,
             'admin_state_up': admin_state_up,
             'connection_limit': connection_limit if connection_limit > 0 else None,
-            'default_pool_id': default_pool_id if default_pool_id else None
+            'default_pool_id': default_pool_id if default_pool_id else None,
+            'default_tls_container_ref': default_tls_container_ref or None,
+            'sni_container_refs': [ref.strip() for ref in sni_container_refs.split(',')
+                                   if ref.strip()] or None,
         }
         
         # Remove None values

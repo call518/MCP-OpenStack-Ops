@@ -29,7 +29,7 @@ OpenStack 프로젝트를 조회하고 운영할 수 있게 해 줍니다.
 - **한 번에 하나의 프로젝트**: 서버 하나는 OpenStack 프로젝트 하나 안에서만
   동작하고, 리소스 소유권을 확인합니다.
 - **넓은 범위**: Nova, Neutron, Cinder, Glance, Keystone, Heat, Octavia,
-  Gnocchi/Aodh 텔레메트리를 다루는 도구 111개(조회 55개, 관리 56개)를
+  Barbican, Gnocchi/Aodh 텔레메트리를 다루는 도구 121개(조회 61개, 관리 60개)를
   제공합니다.
 
 AI가 생성한 코드 설명은
@@ -56,7 +56,7 @@ Stop all instances with name containing 'test'
 **더 많은 요청 예시:** [분야별 요청 예시](docs/usage-guide.ko.md#분야별-요청-예시)에
 바로 복사해 쓸 수 있는 요청과 각 요청이 쓰는 도구가 정리되어 있습니다. 클러스터
 상태, 인스턴스, 네트워크, 스토리지, 이미지, ID 관리, Heat,
-로드밸런서, 할당량과 쿼터, Gnocchi 텔레메트리, Aodh 알람, 문제 해결, 보안, 일괄
+로드밸런서, Barbican 시크릿과 TLS 리스너, 할당량과 쿼터, Gnocchi 텔레메트리, Aodh 알람, 문제 해결, 보안, 일괄
 작업, 여러 도구를 조합한 보고서를 다룹니다.
 
 **예시: Claude Desktop에서 본 클러스터 상태**
@@ -181,13 +181,14 @@ modify operations**를 켜고) 서버를 다시 시작하세요. 이 계정이 �
 
 - ✅ **프로젝트 범위 작업**: 모든 도구가 설정된 `OS_PROJECT_NAME`을 적용하고 리소스 소유권을 확인하므로, 작업이 하나의 테넌트 안에서만 이루어집니다.
 - ✅ **안전 장치가 있는 변경 작업**: 변경(`set_*`) 도구는 `ALLOW_MODIFY_OPERATIONS=true`일 때만 등록되므로, 기본 배포는 읽기 전용이고 감사하기 쉽습니다.
-- ✅ **넓은 도구 범위**: 컴퓨트, 네트워크, 스토리지, 이미지, ID, Heat, Octavia 로드밸런싱, 텔레메트리를 다루는 도구 111개. 프로젝트 리소스는 현재 프로젝트로 범위가 제한되고, 클라우드 전체 관리 API는 OpenStack 정책을 따릅니다.
+- ✅ **넓은 도구 범위**: 컴퓨트, 네트워크, 스토리지, 이미지, ID, Heat, Octavia 로드밸런싱, Barbican 시크릿, 텔레메트리를 다루는 도구 121개. 프로젝트 리소스는 현재 프로젝트로 범위가 제한되고, 클라우드 전체 관리 API는 OpenStack 정책을 따릅니다.
 - ✅ **일괄 작업과 필터 작업**: 인스턴스, 볼륨, 네트워크, 이미지, 스냅샷, 키페어 관리 도구는 쉼표로 구분한 대상이나 필터 조건을 받아 여러 리소스를 한 번에 의도대로 변경합니다.
 - ✅ **작업 후 결과와 비동기 안내**: 관리 도구는 리소스별 결과, 작업 후 다시 읽은 상태, 비동기 작업의 시간 안내를 함께 보고합니다.
 - ✅ **모니터링과 사용량 정보**: `get_service_status`, `get_resource_monitoring`, `get_usage_statistics`, quota 도구는 서비스 점검, 프로젝트 할당량, 별도의 quota 한도, API 기반 컴퓨트 할당 시간을 보고합니다. 이 도구들은 실시간 사용률이나 추세를 수집하지 않습니다. Ceilometer와 Gnocchi가 배포되어 있으면 읽기 전용 `get_gnocchi_*` 도구가 텔레메트리 시계열을 돌려줍니다.
 - ✅ **통합 인스턴스 조회**: `get_instance` 도구는 이름, ID, 상태, 자유 검색 경로를 하나로 묶고 페이지 처리와 요약/상세 모드를 제공합니다.
 - ✅ **서버 정보와 감사 기록**: 전용 도구로 서버 이벤트, 하이퍼바이저 상세, 가용 영역, quota, 리소스 소유권을 확인해 진단을 빠르게 합니다.
-- ✅ **로드밸런서 관리**: Octavia 도구는 리스너, 풀, 멤버, 헬스 모니터, flavor, quota, amphora 작업을 같은 안전 장치 아래에서 다룹니다.
+- ✅ **로드밸런서 관리**: Octavia 도구는 리스너, 풀, 멤버, 헬스 모니터, flavor, quota, amphora 작업을 같은 안전 장치 아래에서 다룹니다. `TERMINATED_HTTPS` 리스너는 Barbican에 저장된 인증서를 사용하고, pool은 non-terminated HTTPS(TLS passthrough)와, client authentication(mTLS)을 포함한 backend re-encryption을 지원합니다.
+- ✅ **payload 없는 Barbican 시크릿 관리**: Barbican 도구는 시크릿 메타데이터, 컨테이너, 키 생성 주문, ACL, 자체 서명 TLS 인증서를 다룹니다. 시크릿 payload는 받지도 반환하지도 않으므로 키 내용이 LLM에 전달되지 않습니다. 사용자 인증서는 MCP 밖에서 등록합니다([Barbican과 TLS 가이드](docs/barbican-tls-guide.ko.md)).
 - ✅ **연결과 배포의 유연성**: 연결 캐시, 설정 가능한 서비스 endpoint, Docker 패키지, Claude Desktop 확장, `stdio`/`streamable-http` 전송 방식을 지원해 프록시/배스천과 다중 프로젝트 구성에 대응합니다.
 - 🧭 **고급: cross-project 조회**: 관리자는 모든 프로젝트를 한 번에 물어볼 수 있고("List VMs per project"), 운영자는 OpenStack 정책으로 admin이 아닌 팀에 클라우드 전체 조회 권한만 줄 수 있습니다. 기본으로 꺼져 있습니다. [cross-project 조회 가이드](docs/cross-project-guide.ko.md)를 참고하세요.
 
@@ -246,10 +247,11 @@ Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인�
 | [OpenWebUI 가이드](docs/openwebui-guide.ko.md) | Docker Compose 스택, 직접 MCP와 MCPO 비교, OpenWebUI 설정, 문제 해결 |
 | [Claude Desktop 가이드](docs/claude-desktop-guide.ko.md) | 확장 번들, `uvx`, 소스 체크아웃, `mcp-remote`, 원격 커넥터 |
 | [Claude Code 가이드](docs/claude-code-guide.ko.md) | Claude Code에 HTTP 서버 등록하기 |
-| [설정 가이드](docs/configuration.ko.md) | 명령줄 옵션, 환경 변수, endpoint, HTTPS, 여러 프로젝트, SDK 버전 |
+| [설정 가이드](docs/configuration.ko.md) | 명령줄 옵션, 환경 변수, [접근 모드별 `.env` 설정](docs/configuration.ko.md#접근-모드별-env-설정), endpoint, HTTPS, 여러 프로젝트, SDK 버전 |
 | [보안 가이드](docs/security.ko.md) | 클라이언트별 인증 지원 현황, 프로젝트 격리, 읽기 전용 기본값, Bearer 인증 |
 | [다중 사용자 가이드](docs/multi-user-guide.ko.md) | 사용자별 Application Credential 인증 (실험 기능) |
 | [cross-project 조회 가이드](docs/cross-project-guide.ko.md) | 고급 선택 기능: 여러 프로젝트 조회, 방식, 필요한 OpenStack 정책 |
+| [Barbican과 TLS 가이드](docs/barbican-tls-guide.ko.md) | Barbican 사전 조건, 시크릿 payload를 제외한 이유, 자체 서명 인증서, `TERMINATED_HTTPS` 리스너, non-terminated HTTPS(TLS passthrough)와 backend re-encryption, client authentication(mTLS) 단계별 절차 |
 | [개발 가이드](docs/development.ko.md) | 테스트, live 도구 점검, 도구 추가, 기여 방법 |
 | [TODO](ToDo.ko.md) | 아직 남은 구현 및 live 검증 작업 |
 | [OpenStack CLI와 MCP 도구 매핑](#-openstack-cli와-mcp-도구-매핑) | 모든 도구와 대응하는 CLI 명령, 검증 상태 |
@@ -316,7 +318,7 @@ Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인�
 | `openstack server remove volume` | `set_server_volume` (action="detach") | ✅ | member 계정의 detach가 set_server_volume으로 available에 도달. 2026-11-10 targeted check (관리자): available에 도달 |
 | `openstack server set` | `set_server_properties` (action="set") | ✅ | 서버 속성 설정 |
 | `openstack server unset` | `set_server_properties` (action="unset") | ✅ | 서버 속성 해제 |
-| `openstack server dump create` | `set_server_dump` | ❌ Unsupported | 지원하지 않음을 명시적으로 반환하며 dump는 만들지 않음 |
+| `openstack server dump create` | `set_server_dump` | ❌ Not implemented | Nova의 trigger-crash-dump 동작(microversion 2.17, openstacksdk `trigger_server_crash_dump`)을 노출하지 않음. 지원하지 않음을 명시적으로 반환하며 dump는 만들지 않음 |
 | `openstack server event list` | `get_server_events` | ✅ | 서버 이름이나 UUID를 `server_id`가 아닌 `instance_name`으로 전달. action 목록에는 완료 시각이 없으므로, `include_event_details=true`로 action별 이벤트 결과를 가져와 마지막 완료 시각을 계산. 상세 조회는 최대 10개 action. 이벤트 노출 범위는 Nova 정책을 따름 |
 | `openstack server group list` | `get_server_groups` | ✅ | 서버 그룹 목록. `member_ids`를 읽고, compute microversion 2.64부터는 `policies` 대신 `policy`를 읽음. 목록 조회 실패를 빈 목록 대신 오류로 보고. 2026-11-10 targeted check: policy와 함께 나열됨 |
 | `openstack server group create/delete` | `set_server_group` | ✅ | 서버 그룹 관리. 2026-11-10 targeted check: create와 show에서 policy와 member가 보고되었고, 이후 그룹이 삭제됨 |
@@ -464,12 +466,13 @@ Octavia 도구는 openstacksdk의 속성 이름(`is_admin_state_up`, `is_enabled
 | `openstack loadbalancer delete` | `set_load_balancer` (action="delete") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서 삭제 |
 | `openstack loadbalancer set` | `set_load_balancer` (action="update") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서 속성 변경 |
 | `openstack loadbalancer stats show` | `set_load_balancer` (action="stats") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서 통계 |
-| `openstack loadbalancer status show` | `set_load_balancer` (action="status") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서 상태 트리 |
+| `openstack loadbalancer status show` | `set_load_balancer` (action="status") | ✅ | Octavia 상태 트리(`GET /lbaas/loadbalancers/{id}/status`): 리스너, pool, 멤버, 헬스 모니터와 각 상태. 이전에는 로드밸런서 자체 상태만 반환했음. 2026-11-16 대상 점검: 멤버 2개인 pool 하나를 공유하는 리스너 2개와 로드밸런서가 모두 ACTIVE/ONLINE으로 반환됨 |
 | `openstack loadbalancer failover` | `set_load_balancer` (action="failover") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서 failover |
 | `openstack loadbalancer unset` | `set_load_balancer` (action="unset") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서 속성 해제 |
 | **리스너 관리** | | | |
-| `openstack loadbalancer listener list` | `get_load_balancer_listeners` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서의 리스너 목록 |
+| `openstack loadbalancer listener list` | `get_load_balancer_listeners` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서의 리스너 목록. `provisioning_status`, `operating_status`, `default_tls_container_ref`, `sni_container_refs` 표시 |
 | `openstack loadbalancer listener create` | `set_load_balancer_listener` (action="create") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 리스너 생성(HTTP/HTTPS/TCP/UDP) |
+| `openstack loadbalancer listener create --protocol TERMINATED_HTTPS --default-tls-container-ref --sni-container-refs` | `set_load_balancer_listener` (action="create"/"set", `default_tls_container_ref`, `sni_container_refs`) | ✅ | Barbican 시크릿 또는 certificate 컨테이너를 이름, ID, href로 지정(이름은 href로 변환). `TERMINATED_HTTPS`에서는 `default_tls_container_ref` 필수. 인증서 오류에는 사전 조건 안내가 붙음. [Barbican과 TLS 가이드](docs/barbican-tls-guide.ko.md) 참고 2026-11-15 대상 점검(OpenWebUI, 단일 계정): 자체 서명 시크릿을 이름으로, 기존 HTTP pool을 지정한 443 포트 `TERMINATED_HTTPS` 리스너가 HTTP 리스너와 함께 ACTIVE/ONLINE이 됨. 같은 날 Claude 클라이언트로 같은 방식의 시크릿과 리스너를 새로 만든 실행에서, floating IP와 VIP에 대한 `curl -vk`가 그 인증서로 TLSv1.3 핸드셰이크를 마치고(h2 협상) HTTP 멤버 2대 각각에서 HTTP 200을 받음. 확인하지 않은 것: `sni_container_refs`, `set`. |
 | `openstack loadbalancer listener delete` | `set_load_balancer_listener` (action="delete") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 리스너 삭제 |
 | `openstack loadbalancer listener show` | `get_load_balancer_listeners` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 리스너 상세 정보 |
 | `openstack loadbalancer listener set` | `set_load_balancer_listener` (action="update") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 리스너 속성 변경 |
@@ -480,6 +483,8 @@ Octavia 도구는 openstacksdk의 속성 이름(`is_admin_state_up`, `is_enabled
 | `openstack loadbalancer pool create` | `set_load_balancer_pool` (action="create") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 알고리즘을 지정한 풀 생성 |
 | `openstack loadbalancer pool delete` | `set_load_balancer_pool` (action="delete") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 풀 삭제 |
 | `openstack loadbalancer pool set` | `set_load_balancer_pool` (action="set") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 풀 속성 변경 |
+| `openstack loadbalancer pool create/set --enable-tls --ca-tls-container-ref --crl-container-ref --tls-version --tls-ciphers --alpn-protocol` | `set_load_balancer_pool` (action="create"/"set", `tls_enabled`, `ca_tls_container_ref`, `crl_container_ref`, `tls_versions`, `tls_ciphers`, `alpn_protocols`) | ⚠️ Live unverified | 단위 테스트만 수행. Backend re-encryption. 인증서 참조는 Barbican 이름, ID, href로 지정. pool 결과에 이 필드들이 표시됨. [Barbican과 TLS 가이드](docs/barbican-tls-guide.ko.md#멤버까지의-tls) 참고 |
+| `openstack loadbalancer pool create/set --tls-container-ref` | `set_load_balancer_pool` (`tls_container_ref`) | ⚠️ Live unverified | 단위 테스트만 수행. Backend re-encryption의 client authentication: mutual TLS(mTLS)를 요구하는 멤버에 제시할 클라이언트 인증서. openstacksdk 4.22.0의 pool에는 이 필드가 없어 이 값이 있는 요청은 Octavia API로 직접 보냄. `show`는 Octavia 응답에서 읽음 |
 | `openstack loadbalancer pool show` | `get_load_balancer_pools` | ✅ | 2026-11-12 Octavia 대상 읽기 점검 통과. 풀 상세 정보(`listener_ids`, `loadbalancer_ids`, `health_monitor_id` 포함) |
 | `openstack loadbalancer pool stats show` | N/A | ❌ Not implemented | 이 CLI 작업에 해당하는 등록된 도구/action이 없음 |
 | `openstack loadbalancer pool unset` | N/A | ❌ Not implemented | 이 CLI 작업에 해당하는 등록된 도구/action이 없음 |
@@ -492,7 +497,7 @@ Octavia 도구는 openstacksdk의 속성 이름(`is_admin_state_up`, `is_enabled
 | `openstack loadbalancer member unset` | N/A | ❌ Not implemented | 이 CLI 작업에 해당하는 등록된 도구/action이 없음 |
 | **헬스 모니터 관리** | | | |
 | `openstack loadbalancer healthmonitor list` | `get_load_balancer_health_monitors` | ✅ | 2026-11-12 Octavia 대상 읽기 점검 통과. 헬스 모니터 목록(전체 또는 풀별). Octavia 응답의 `pool_ids` 표시 |
-| `openstack loadbalancer healthmonitor create` | `set_load_balancer_health_monitor` (action="create") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 헬스 모니터 생성 |
+| `openstack loadbalancer healthmonitor create` | `set_load_balancer_health_monitor` (action="create") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 헬스 모니터 생성. non-terminated HTTPS(TLS passthrough) pool용 `TLS-HELLO` 타입 포함 |
 | `openstack loadbalancer healthmonitor delete` | `set_load_balancer_health_monitor` (action="delete") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 헬스 모니터 삭제 |
 | `openstack loadbalancer healthmonitor set` | `set_load_balancer_health_monitor` (action="set") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 헬스 모니터 변경 |
 | `openstack loadbalancer healthmonitor show` | `get_load_balancer_health_monitors` | ✅ | 2026-11-12 Octavia 대상 읽기 점검 통과. 헬스 모니터 상세 정보(`pool_ids` 포함) |
@@ -548,7 +553,35 @@ Octavia 도구는 openstacksdk의 속성 이름(`is_admin_state_up`, `is_enabled
 | `openstack loadbalancer quota set` | `set_load_balancer_quota` (action="set") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. Quota 설정 |
 | `openstack loadbalancer quota reset` | `set_load_balancer_quota` (action="reset") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. Quota 초기화 |
 
-### 8. 📊 **Monitoring & Logging**
+### 8. 🔐 **Key Manager (Barbican)**
+
+시크릿 payload는 의도적으로 제외했습니다. Barbican과 openstacksdk는 payload를
+저장하고 반환할 수 있지만, 도구 인자와 결과는 LLM을 거치므로 어떤 도구도
+payload를 받거나 반환하지 않습니다. 사용자 인증서와 키는 MCP 밖에서 등록하고
+이름이나 href로 참조합니다. 조회는 Barbican 메타데이터 API를 사용하며, payload를
+내려받는 SDK의 `get_secret`/`find_secret`은 쓰지 않습니다.
+[Barbican과 TLS 가이드](docs/barbican-tls-guide.ko.md)를 참고하세요.
+
+| OpenStack CLI Command | MCP Tool | Status | Notes |
+|---------------------|---------|------|------|
+| `openstack secret list` | `get_secrets` | ⚠️ Live unverified | 단위 테스트만 수행. 현재 프로젝트 시크릿의 메타데이터. `secret_type` 필터. `limit` 1-1000, `truncated` 표시 |
+| `openstack secret get` | `get_secrets` (`name`) | ⚠️ Live unverified | 단위 테스트만 수행. 이름, ID, href로 지정. 메타데이터와 consumer만 반환 |
+| `openstack secret get --payload` / `--decrypt` | N/A | ❌ Not implemented | 의도적으로 제외: payload가 LLM에 전달되기 때문 |
+| `openstack secret store` (user payload) | N/A | ❌ Not implemented | 의도적으로 제외: payload가 LLM에 전달되기 때문. 사용자 인증서는 MCP 밖에서 등록 |
+| `openssl req -x509` + `openstack secret store` | `set_secret` (action="create_self_signed_tls") | ✅ | MCP 서버 안에서 키와 인증서를 생성해 암호 없는 PKCS#12 `opaque` 시크릿으로 저장. href, 공개 인증서, fingerprint만 반환하고 키는 반환하지 않음 2026-11-15 대상 점검: IP SAN을 가진 시크릿을 생성했고, 결과에는 href, 공개 인증서, fingerprint, 만료 시각만 있고 키나 payload는 없었음. |
+| `openstack secret delete` | `set_secret` (action="delete") | ⚠️ Live unverified | 단위 테스트만 수행. 이름, ID, href로 지정 |
+| `openstack secret container list` / `show` | `get_secret_containers` | ⚠️ Live unverified | 단위 테스트만 수행. 목록, 또는 이름, ID, href로 컨테이너 하나 조회 |
+| `openstack secret container create` | `set_secret_container` (action="create") | ⚠️ Live unverified | 단위 테스트만 수행. 이름, ID, href로 지정한 기존 시크릿으로 `generic`, `certificate`, `rsa` 생성 |
+| `openstack secret container delete` | `set_secret_container` (action="delete") | ⚠️ Live unverified | 단위 테스트만 수행. 시크릿은 유지됨 |
+| `openstack secret order list` / `get` | `get_secret_orders` | ⚠️ Live unverified | 단위 테스트만 수행. 비대칭 주문의 `container_ref`를 포함한 주문 원본 데이터 |
+| `openstack secret order create` | `set_secret_order` (action="create") | ⚠️ Live unverified | 단위 테스트만 수행. `key`(기본 aes 256 cbc) 또는 `asymmetric`(기본 rsa 2048). Barbican이 키 생성. 비동기 |
+| `openstack secret order delete` | `set_secret_order` (action="delete") | ⚠️ Live unverified | 단위 테스트만 수행 |
+| `openstack acl get` | `get_secret_acl` | ⚠️ Live unverified | 단위 테스트만 수행. 시크릿 또는 컨테이너 |
+| `openstack acl user add` / `user remove` / `submit` / `delete` | `set_secret_acl` (action="add_users"/"remove_users"/"set"/"delete") | ⚠️ Live unverified | 단위 테스트만 수행. 시크릿 또는 컨테이너. `set`은 사용자 목록을 교체하고 선택적으로 `project_access`도 변경 |
+| Barbican effective quotas (`GET /v1/quotas`) | `get_key_manager_quotas` | ⚠️ Live unverified | 단위 테스트만 수행. 현재 프로젝트의 실효 쿼터. 프로젝트 쿼터 변경은 구현하지 않음 |
+| Secret store backends (`GET /v1/secret-stores`) | `get_secret_stores` | ⚠️ Live unverified | 단위 테스트만 수행. Barbican에 다중 시크릿 스토어 백엔드가 활성화된 경우에만 제공 |
+
+### 9. 📊 **Monitoring & Logging**
 
 할당량과 실측 텔레메트리는 서로 다릅니다. `get_resource_monitoring`, `get_quota`,
 `get_usage_statistics`는 Nova의 flavor 할당, quota, 용량, 할당 시간을 보고합니다.
@@ -575,18 +608,18 @@ Octavia 도구는 openstacksdk의 속성 이름(`is_admin_state_up`, `is_enabled
 | Compute agents | `set_compute_agents` | ✅ | Nova 서비스와 하이퍼바이저의 list/show. `agent_id`로 하는 `show`는 서비스 목록에서 찾음(SDK에 단일 서비스 조회가 없어 이전에는 실패). zone과 하이퍼바이저 용량은 SDK 필드 이름으로 읽음. 2026-11-10 targeted check (관리자): 하이퍼바이저를 포함한 list, ID로 show, 호스트로 show, 알 수 없는 ID에 대한 명시적 오류 |
 | Usage statistics | `get_usage_statistics` | ✅ | 기간별 컴퓨트 할당 시간과 따로 표시된 현재 스냅샷 |
 
-### 9. 📏 **Usage & Quota**
+### 10. 📏 **Usage & Quota**
 
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
-| `openstack quota show` | `get_quota` | ✅ | Quota 조회. 네트워크 floating IP quota는 SDK의 `floating_ips` 필드를 읽음(이전에는 항상 -1). 2026-11-10 targeted check: Neutron quota와 일치 |
+| `openstack quota show` | `get_quota` | ✅ | Quota 조회. 네트워크 floating IP quota는 SDK의 `floating_ips` 필드를 읽음(이전에는 항상 -1). 2026-11-10 targeted check: Neutron quota와 일치. 컴퓨트 사용량은 각 서버에 포함된 flavor(Nova 2.47 이상에서는 flavor `id`에 이름이 들어감)에서 vCPU와 RAM을 합산하며, flavor 크기를 알 수 없으면 `unsized_instances`와 함께 null을 보고함. 이전에는 조회가 모두 조용히 실패해 사용량이 0이었음. 2026-11-16 대상 점검: `m1.small` 서버 2대가 vCPU 2, 4096 MB로 보고됨(이전에는 0과 0) |
 | `openstack quota set` | `set_quota` (action="set") | ✅ | 입력한 필드를 Nova/Neutron/Cinder로 나눠 보냄. 일부 실패는 보고됨 |
 | `openstack quota delete` | `set_quota` (action="delete") | ✅ | 세 서비스의 quota를 모두 기본값으로 되돌림. 변경 도구가 필요 |
 | `openstack usage show` | `get_usage_statistics` | ✅ | 현재 프로젝트의 Nova simple tenant usage. 금액 청구가 아님 |
 | `openstack limits show` | `get_quota` (includes limits) | ✅ | 한도 조회 |
 | Resource allocations | `get_resource_monitoring` | ⚠️ Live unverified | reader에게는 물리 용량 정책 제한이 있음. 할당량과 용량은 별도이며 실시간 사용률은 없음 |
 
-### 10. 🗂️ **cross-project 조회 (고급, 선택 기능)**
+### 11. 🗂️ **cross-project 조회 (고급, 선택 기능)**
 
 기본으로 꺼져 있으며 프로젝트 하나만 쓸 때는 필요 없습니다. 아래 행은 서버에
 `ALLOW_CROSS_PROJECT_READ=true`가 설정되어 있고 OpenStack 정책이 자격 증명의 여러
@@ -623,6 +656,7 @@ Octavia 도구는 openstacksdk의 속성 이름(`is_admin_state_up`, `is_enabled
 - **볼륨 그룹:** 클라우드가 Cinder generic group(microversion 3.13 이상)을 지원해야 합니다. 생성에는 기존 `group_type`과 쉼표로 구분한 `volume_types`가 필요합니다. `delete_volumes=true`를 명시하지 않으면 그룹을 삭제해도 멤버 볼륨은 삭제되지 않습니다. 비동기 생성/삭제 응답은 완료가 아니라 접수를 뜻합니다.
 - **ID와 이미지:** `set_users`는 새 사용자의 비밀번호를 `password_env`로 지정한 서버 변수에서 읽습니다. 비밀번호를 프롬프트에 넣지 마세요. 프로젝트 역할은 부여하지 않습니다. 도메인을 삭제하기 전에 `set_domains(action="update", enabled=false)`로 명시적으로 비활성화하세요. 이미지 멤버를 바꾸려면 현재 프로젝트가 소유한 이미지, shared 가시성, 적절한 Glance 정책이 필요합니다. 멤버를 추가해도 받는 쪽의 멤버십이 자동으로 수락되지는 않습니다.
 - **텔레메트리(Gnocchi):** 읽기 전용 `get_gnocchi_resources`, `get_gnocchi_metrics`, `get_gnocchi_measures`, `get_gnocchi_aggregates`, `get_gnocchi_service_info` 도구는 설정된 interface/region에 해당하는 Keystone catalog의 `metric` endpoint로 `gnocchiclient`를 사용합니다. Ceilometer가 Gnocchi로 데이터를 수집하고 있어야 하며, Ceilometer 자체에는 API가 없습니다. 결과는 `project_id`가 현재 프로젝트인 리소스로 제한됩니다. metric은 Ceilometer 서비스 프로젝트가 만들므로 소유권은 포함된 리소스로 확인합니다. 사용할 수 있는 metric은 배포에 따라 다릅니다. `vcpus`, `memory`, `disk.root.size` 같은 알림 기반 metric은 flavor 크기를 기록합니다. `cpu`, `memory.usage`, `disk.device.*`, `network.*` 같은 polling metric에는 동작하는 ceilometer-compute agent와 실행 중인 인스턴스가 필요합니다. `cpu`는 누적 나노초이므로 archive policy가 지원하면 `aggregation="rate:mean"`을 쓰세요. 현재 Ceilometer는 `cpu_util`을 만들지 않습니다. 측정값과 aggregation 방식은 각 metric의 archive policy에 따라 제한됩니다. `get_gnocchi_aggregates`는 구조화된 파라미터나 operations 표현식을 받으며, 두 방식 모두 현재 프로젝트 리소스 검색을 추가하므로 표현식의 metric 참조는 일치한 리소스의 metric 이름으로 해석됩니다. metric 간 산술은 모든 피연산자에 데이터가 있는 지점만 반환합니다. Gnocchi 쓰기 작업(측정값 입력, 리소스/metric/archive policy 변경)은 구현하지 않았습니다.
+- **Barbican과 TLS 리스너:** Barbican 도구는 Keystone catalog의 `key-manager` endpoint를 사용하며, 없으면 "Barbican (key-manager) service is not available"을 보고합니다. 시크릿을 만들려면 Barbican 정책이 요구하는 역할이 필요합니다(구 정책은 `admin` 또는 `creator`, Secure RBAC는 프로젝트 `member`). `TERMINATED_HTTPS` 리스너의 경우 Octavia의 기본 `barbican_acl_auth`가 리스너 생성 시 참조된 시크릿에 Octavia 서비스 사용자의 읽기 권한을 부여하며, 요청 사용자는 그 시크릿의 ACL을 변경할 수 있어야 합니다. 이는 배포 사전 조건이며 [Barbican과 TLS 가이드](docs/barbican-tls-guide.ko.md)에 정리되어 있습니다.
 - **로그와 텔레메트리:** `set_service_logs(action="show")`와 `set_metrics(action="show")`는 지원하지 않음을 명시적으로 반환합니다. 중앙 로그 백엔드는 구현하지 않았습니다. `set_metrics`의 list/summary는 Nova/Neutron/Cinder 리소스 metadata만 노출하므로, 텔레메트리 샘플은 Gnocchi 도구를 사용하세요.
 
 ---

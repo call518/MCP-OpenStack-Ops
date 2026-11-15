@@ -12,23 +12,18 @@ from ..mcp_main import (
 @conditional_tool
 async def set_server_dump(instance_name: str) -> str:
     """
-    Create a dump file for a server (vendor-specific feature).
-    
-    Functions:
-    - Attempt to create server memory/disk dump
-    - Provide alternative backup suggestions
-    - Explain dump limitations
-    
-    Use when user requests:
-    - "Create dump of server X"
-    - "Generate server dump file"
-    - "Create server core dump"
-    
+    Not implemented: always returns an unsupported result and creates no dump.
+
+    `openstack server dump create` maps to Nova's trigger-crash-dump action
+    (API microversion 2.17), which injects an NMI into the guest; this server
+    does not implement it. Report the unsupported result instead of claiming a
+    dump was created; snapshots or backups are the available alternatives.
+
     Args:
         instance_name: Name or ID of the server
-        
+
     Returns:
-        JSON string containing dump operation results or alternatives
+        JSON string with the unsupported result
     """
     try:
         logger.info(f"Attempting to create server dump: {instance_name}")

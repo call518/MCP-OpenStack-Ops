@@ -748,6 +748,7 @@ wheels = [
 name = "mcp-openstack-ops"
 source = { editable = "." }
 dependencies = [
+    { name = "cryptography" },
     { name = "fastmcp" },
     { name = "gnocchiclient" },
     { name = "openstacksdk" },
@@ -765,6 +766,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "cryptography", specifier = ">=42.0.0" },
     { name = "fastmcp", specifier = ">=4.1.6" },
     { name = "gnocchiclient", specifier = ">=7.2.0,<8" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.28.1" },

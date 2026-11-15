@@ -484,3 +484,69 @@ an earlier full summary.
   events for failures, `environment`, `update` with `existing=true`, and
   `nested_depth`; these stay **Live unverified**. This partial check does not
   update the 105-tool summary above.
+- **Local Barbican and TLS listener and pool tests (2026-11-15; uncommitted
+  working tree based on `e161831`):** 608/608 (100%) with fastmcp 4.1.6, the
+  locked openstacksdk 4.22.0 and cryptography 50.0.0, run as `uv run --frozen
+  pytest -q`; no failures or skipped tests. Twenty-six new cases in
+  `tests/test_key_manager.py` cover the ten Barbican tools, the listener TLS
+  parameters and the pool backend re-encryption parameters against autospecced
+  openstacksdk key-manager and Octavia proxies: secret
+  listing paginates and drops any payload field; secret lookups by name, ID or
+  href use the metadata API and never call the SDK's payload-downloading
+  `get_secret`/`find_secret`; an ambiguous name is refused; a self-signed
+  secret is a loadable PKCS#12 bundle with the requested IP and DNS SANs, and
+  the result contains neither the private key nor the payload; `set_secret`
+  rejects any payload-style action and has no payload parameter; containers
+  resolve secret names; asymmetric orders get RSA 2048 defaults and keep
+  `container_ref`; ACL `add_users` merges users and `set` replaces users and
+  project access; a missing `key-manager` endpoint is reported as unavailable;
+  `TERMINATED_HTTPS` without `default_tls_container_ref` is refused before any
+  Octavia call; secret names and certificate container names resolve to hrefs
+  for create and set; a certificate error carries the prerequisite hint; and
+  listener results report the TLS references. Pools send `tls_enabled`, the CA
+  and TLS versions through the SDK, with the CA name resolved to an href; with
+  `tls_container_ref` (client authentication, mTLS) they send `POST /lbaas/pools` or
+  `PUT /lbaas/pools/{id}` to the Octavia API instead, the PUT carrying only
+  updatable fields; `show` reads `tls_container_ref` from the Octavia response
+  and listings report the TLS fields; the tool rejects an invalid `tls_enabled`
+  and splits comma lists. The tool registration test now expects 61 read tools
+  and checks the runtime write guard of the four new `set_*` tools. No live
+  cloud was reached (the lab host did not answer), so every Barbican path, the
+  TLS listener and pool parameters, and non-terminated HTTPS setups remain **Live
+  unverified**.
+- **Local audit-fix tests (2026-11-16; uncommitted working tree based on
+  `e161831`):** 611/611 (100%) with fastmcp 4.1.6, the locked openstacksdk
+  4.22.0 and cryptography 50.0.0, run as `uv run --frozen pytest -q`; no
+  failures or skipped tests. New or changed cases cover listener results that
+  carry `provisioning_status` and `operating_status`, `set_load_balancer`
+  `status` reading Octavia's status tree (and failing when that call fails),
+  and `get_quota` summing compute usage from the flavor embedded in each
+  server, reporting null with `unsized_instances` instead of 0 when a flavor
+  cannot be sized. Docstring and message corrections (the four Octavia tools
+  that listed unimplemented actions, the listener's supported-action message,
+  and `set_server_dump`) have no dedicated tests.
+- **Targeted Barbican, TLS listener, status and quota check (2026-11-15 and
+  2026-11-16; partial; uncommitted working tree based on `e161831`):** on the
+  single-node Kolla test cloud, with the Docker Compose stack in single-account
+  mode and an administrator account. Through OpenWebUI, `set_secret`
+  (`create_self_signed_tls`) created a secret with two IP SANs; the result held
+  the href, public certificate, fingerprint and expiry, and no key or payload.
+  `set_load_balancer_listener` then created a `TERMINATED_HTTPS` listener on
+  port 443, given the secret by name and the existing HTTP pool. Read through
+  openstacksdk inside the MCP container, the listener and the existing HTTP
+  listener were ACTIVE/ONLINE and shared the pool, whose two members were
+  ONLINE. That run's listener results lacked state fields, so the model could
+  not confirm completion; after the fix, `set_load_balancer` `status`, called
+  in the container, returned the same states as a tree. `get_quota` reported
+  2 vCPUs and 4096 MB for two `m1.small` servers (0 and 0 before the fix).
+  Later on 2026-11-15, the user ran the same request through a Claude client,
+  which created a new secret (certificate valid from 16:09:37 UTC, the
+  creation time minus five minutes) and listener the same way. From a
+  member VM, `curl -vk` to the floating IP and to the VIP completed a TLSv1.3
+  handshake (`TLS_AES_256_GCM_SHA384`, h2 negotiated) presenting that
+  self-signed certificate (CN and issuer 192.168.35.169), and each returned
+  HTTP 200 from a different one of the two HTTP members; the output was
+  shared by the user. The client's listener-state polling results were not
+  shared. Not checked: Barbican policy for a non-administrator, `sni_container_refs`, the other Barbican tools, pool
+  backend re-encryption, and listener state fields as read by an MCP client. This
+  partial check does not update the 105-tool summary above.

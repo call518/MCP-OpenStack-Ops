@@ -417,3 +417,60 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   재위임)으로 실패했습니다. 결과는 사용자가 관찰한 것이며 저장된 명령 출력은 없습니다.
   확인하지 않은 것: 스택 이벤트의 실패 여부, `environment`, `existing=true`인 `update`, `nested_depth`. 이 항목은 **Live
   unverified**로 남습니다. 이 부분 점검은 위의 105개 도구 요약을 갱신하지 않습니다.
+- **로컬 Barbican과 TLS 리스너·pool 테스트 (2026-11-15, `e161831` 기반의 커밋되지
+  않은 작업 트리):** fastmcp 4.1.6, 고정된 openstacksdk 4.22.0, cryptography 50.0.0에서
+  `uv run --frozen pytest -q`로 실행해 608/608 (100%)이며, 실패나 건너뛴 테스트는
+  없습니다. `tests/test_key_manager.py`의 새 테스트 26건은 autospec한 openstacksdk
+  key-manager와 Octavia proxy로 Barbican 도구 10개, 리스너 TLS 파라미터, pool의 backend
+  re-encryption 파라미터를 검사합니다. 시크릿
+  목록은 페이지를 넘기며 payload 필드를 버립니다. 이름, ID, href로 시크릿을 찾을 때
+  메타데이터 API를 쓰고, payload를 내려받는 SDK의 `get_secret`/`find_secret`은
+  호출하지 않습니다. 모호한 이름은 거부합니다. 자체 서명 시크릿은 요청한 IP와 DNS
+  SAN을 가진, 읽을 수 있는 PKCS#12 번들이며, 결과에는 개인키와 payload가 없습니다.
+  `set_secret`은 payload 성격의 액션을 거부하고 payload 파라미터가 없습니다.
+  컨테이너는 시크릿 이름을 변환합니다. 비대칭 주문은 RSA 2048 기본값을 쓰고
+  `container_ref`를 유지합니다. ACL `add_users`는 사용자를 병합하고 `set`은 사용자와
+  프로젝트 접근을 교체합니다. `key-manager` endpoint가 없으면 사용 불가로 보고합니다.
+  `default_tls_container_ref` 없는 `TERMINATED_HTTPS`는 Octavia 호출 전에 거부합니다.
+  create와 set에서 시크릿 이름과 certificate 컨테이너 이름을 href로 변환합니다.
+  인증서 오류에는 사전 조건 안내가 붙고, 리스너 결과에 TLS 참조가 표시됩니다. pool은
+  `tls_enabled`, CA, TLS 버전을 SDK로 보내며 CA 이름을 href로 변환합니다.
+  `tls_container_ref`(mTLS)가 있으면 SDK 대신 Octavia API로 `POST /lbaas/pools` 또는
+  `PUT /lbaas/pools/{id}`를 보내고, PUT에는 변경 가능한 필드만 넣습니다. `show`는
+  Octavia 응답에서 `tls_container_ref`를 읽고, 목록에는 TLS 필드가 표시됩니다. 도구는
+  잘못된 `tls_enabled` 값을 거부하고 쉼표 목록을 나눕니다. 도구 등록 테스트는 이제
+  조회 도구 61개를 기대하고, 새 `set_*` 도구 4개의 런타임 쓰기 차단을 확인합니다.
+  라이브 클라우드에는 연결하지 못했으므로(랩 호스트 응답 없음) 모든 Barbican 경로,
+  TLS 리스너와 pool 파라미터, non-terminated HTTPS 구성은 **Live unverified**로 남습니다.
+- **로컬 점검 수정 테스트 (2026-11-16, `e161831` 기반의 커밋되지 않은 작업 트리):**
+  fastmcp 4.1.6, 고정된 openstacksdk 4.22.0, cryptography 50.0.0에서
+  `uv run --frozen pytest -q`로 실행해 611/611 (100%)이며, 실패나 건너뛴 테스트는
+  없습니다. 새로 추가하거나 바꾼 테스트는 리스너 결과에 `provisioning_status`와
+  `operating_status`가 포함되는지, `set_load_balancer`의 `status`가 Octavia 상태
+  트리를 읽는지(그 호출이 실패하면 실패를 반환하는지), `get_quota`가 각 서버에 포함된
+  flavor에서 컴퓨트 사용량을 합산하고 flavor 크기를 알 수 없으면 0 대신
+  `unsized_instances`와 함께 null을 보고하는지를 검사합니다. 설명과 메시지 수정
+  (구현되지 않은 액션을 적어 둔 Octavia 도구 4개, 리스너의 지원 액션 메시지,
+  `set_server_dump`)에는 전용 테스트가 없습니다.
+- **Barbican, TLS 리스너, 상태, 쿼터 대상 점검 (2026-11-15, 2026-11-16, 부분 점검,
+  `e161831` 기반의 커밋되지 않은 작업 트리):** 단일 노드 Kolla 테스트 클라우드에서
+  Docker Compose 스택을 단일 계정 모드와 관리자 계정으로 실행했습니다. OpenWebUI를
+  통해 `set_secret`(`create_self_signed_tls`)이 IP SAN 2개를 가진 시크릿을 만들었고,
+  결과에는 href, 공개 인증서, fingerprint, 만료 시각만 있고 키나 payload는
+  없었습니다. 이어서 `set_load_balancer_listener`가 시크릿을 이름으로, 기존 HTTP
+  pool을 지정해 443 포트 `TERMINATED_HTTPS` 리스너를 만들었습니다. MCP 컨테이너
+  안에서 openstacksdk로 읽은 결과, 이 리스너와 기존 HTTP 리스너는 ACTIVE/ONLINE이고
+  pool을 공유하며, pool의 멤버 2개는 ONLINE이었습니다. 그 실행에서는 리스너 결과에
+  상태 필드가 없어 모델이 완료를 확인하지 못했습니다. 수정 후 컨테이너에서 호출한
+  `set_load_balancer` `status`는 같은 상태를 트리로 반환했습니다. `get_quota`는
+  `m1.small` 서버 2대에 대해 vCPU 2, 4096 MB를 보고했습니다(수정 전에는 0과 0).
+  같은 날 이후 사용자가 같은 요청을 Claude 클라이언트로 실행해, 같은 방식으로 새
+  시크릿(인증서 유효 시작 16:09:37 UTC, 생성 시각보다 5분 앞)과 리스너를 만들었습니다.
+  멤버 VM에서 floating IP와 VIP에 보낸 `curl -vk`는 그 자체 서명 인증서(CN과 issuer
+  192.168.35.169)로 TLSv1.3 핸드셰이크(`TLS_AES_256_GCM_SHA384`, h2 협상)를 마쳤고,
+  각각 HTTP 멤버 2대 중 서로 다른 멤버에서 HTTP 200을 받았습니다. 출력은 사용자가
+  공유했습니다. 클라이언트의 리스너 상태 반복 조회 결과는 공유되지 않았습니다.
+  확인하지 않은 것: 관리자가 아닌 계정의 Barbican 정책,
+  `sni_container_refs`, 나머지 Barbican 도구, pool의 backend re-encryption,
+  MCP 클라이언트가 읽은 리스너 상태 필드. 이 부분 점검은 위의 105개 도구 요약을 갱신하지
+  않습니다.

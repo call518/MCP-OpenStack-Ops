@@ -12,6 +12,7 @@ dependencies = [
     "setuptools-scm>=10.0.5",
     "pre-commit>=4.6.0",
     "gnocchiclient>=7.2.0,<8",
+    "cryptography>=42.0.0",
 ]
 
 [project.optional-dependencies]

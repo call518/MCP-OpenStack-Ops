@@ -28,8 +28,9 @@ instances are stopped?" into OpenStack API calls and returns the results.
   not even registered unless you enable them.
 - **One project at a time**: each server works inside one OpenStack project and
   checks resource ownership.
-- **Broad coverage**: 111 tools (55 read-only, 56 management) for Nova,
-  Neutron, Cinder, Glance, Keystone, Heat, Octavia, and Gnocchi/Aodh telemetry.
+- **Broad coverage**: 121 tools (61 read-only, 60 management) for Nova,
+  Neutron, Cinder, Glance, Keystone, Heat, Octavia, Barbican, and Gnocchi/Aodh
+  telemetry.
 
 For an AI-generated walkthrough of the code, see
 [![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-blue)](https://deepwiki.com/call518/MCP-OpenStack-Ops).
@@ -54,7 +55,7 @@ cloud.
 
 **More requests to try:** [Example queries by area](docs/usage-guide.md#example-queries-by-area)
 lists copy-ready requests, with the tools each one uses, for cluster status,
-instances, networks, storage, images, identity, Heat, load balancers, allocation and quotas, Gnocchi telemetry, Aodh alarms,
+instances, networks, storage, images, identity, Heat, load balancers, Barbican secrets and TLS listeners, allocation and quotas, Gnocchi telemetry, Aodh alarms,
 troubleshooting, security, batch actions, and multi-tool reports.
 
 **Example: cluster status in Claude Desktop**
@@ -178,13 +179,14 @@ what the account may do.
 
 - ✅ **Project-Scoped Operations**: Every tool enforces the configured `OS_PROJECT_NAME`, validating resource ownership so actions stay inside a single tenant.
 - ✅ **Safety-Gated Writes**: Modify (`set_*`) tooling only registers when `ALLOW_MODIFY_OPERATIONS=true`, keeping default deployments read-only and auditable.
-- ✅ **Broad Tool Coverage**: 111 tools across compute, networking, storage, images, identity, Heat, Octavia load balancing and telemetry. Project resources are scoped to the active project; cloud-wide administrative APIs remain subject to OpenStack policy.
+- ✅ **Broad Tool Coverage**: 121 tools across compute, networking, storage, images, identity, Heat, Octavia load balancing, Barbican secrets and telemetry. Project resources are scoped to the active project; cloud-wide administrative APIs remain subject to OpenStack policy.
 - ✅ **Bulk & Filtered Actions**: Instance, volume, network, image, snapshot, and keypair managers accept comma-delimited targets or filter criteria to orchestrate bulk changes intentionally.
 - ✅ **Post-Action Feedback & Async Guidance**: Management tools report per-resource results, the status read back after the action, and timing notes for asynchronous operations.
 - ✅ **Monitoring & Usage Insights**: `get_service_status`, `get_resource_monitoring`, `get_usage_statistics`, and quota tools report service probes, project allocations, separate quota limits, and API-backed compute allocation-hours. These tools do not collect live utilization or trends; read-only `get_gnocchi_*` tools return telemetry time series when Ceilometer and Gnocchi are deployed.
 - ✅ **Unified Instance Queries**: The `get_instance` tool consolidates name, ID, status, and free-form search paths with pagination plus summary/detailed modes.
 - ✅ **Server Insight & Audit Trail**: Dedicated tools expose server events, hypervisor details, availability zones, quotas, and resource ownership to speed diagnostics.
-- ✅ **Load Balancer Management**: Octavia tools cover listeners, pools, members, health monitors, flavors, quotas, and amphora operations with the same safety gates.
+- ✅ **Load Balancer Management**: Octavia tools cover listeners, pools, members, health monitors, flavors, quotas, and amphora operations with the same safety gates. `TERMINATED_HTTPS` listeners take certificates stored in Barbican, and pools support non-terminated HTTPS (TLS passthrough) and backend re-encryption, including client authentication (mTLS).
+- ✅ **Barbican Secrets Without Payloads**: Barbican tools manage secret metadata, containers, key-generation orders, ACLs and self-signed TLS certificates. Secret payloads are never accepted or returned, so key material cannot reach the LLM; register your own certificates outside MCP ([Barbican and TLS guide](docs/barbican-tls-guide.md)).
 - ✅ **Connection & Deployment Flexibility**: Connection caching, configurable service endpoints, Docker packaging, a Claude Desktop extension, and both `stdio`/`streamable-http` transports support proxy/bastion and multi-project setups.
 - 🧭 **Advanced: Cross-Project Reads**: Administrators can ask about every project at once ("List VMs per project"), and operators can give read-only, cloud-wide views to non-admin teams through OpenStack policy. Off by default; see the [cross-project reads guide](docs/cross-project-guide.md).
 
@@ -242,10 +244,11 @@ To change the SDK version for an older release, see
 | [OpenWebUI guide](docs/openwebui-guide.md) | Docker Compose stack, direct MCP versus MCPO, OpenWebUI settings, troubleshooting |
 | [Claude Desktop guide](docs/claude-desktop-guide.md) | Extension bundle, `uvx`, source checkout, `mcp-remote`, remote connector |
 | [Claude Code guide](docs/claude-code-guide.md) | Registering the HTTP server in Claude Code |
-| [Configuration guide](docs/configuration.md) | Command-line options, environment variables, endpoints, HTTPS, multiple projects, SDK version |
+| [Configuration guide](docs/configuration.md) | Command-line options, environment variables, [access modes and `.env` settings](docs/configuration.md#access-modes-and-env-settings), endpoints, HTTPS, multiple projects, SDK version |
 | [Security guide](docs/security.md) | Authentication support by client, project isolation, read-only default, Bearer authentication |
 | [Multi-user guide](docs/multi-user-guide.md) | Per-user Application Credential authentication (experimental) |
 | [Cross-project reads guide](docs/cross-project-guide.md) | Advanced, opt-in: reading across projects, setups, required OpenStack policy |
+| [Barbican and TLS guide](docs/barbican-tls-guide.md) | Barbican prerequisites, why secret payloads are excluded, self-signed certificates, `TERMINATED_HTTPS` listeners, non-terminated HTTPS (TLS passthrough) and backend re-encryption, step-by-step client authentication (mTLS) |
 | [Development guide](docs/development.md) | Tests, live tool checks, adding tools, contributing |
 | [TODO](ToDo.md) | Outstanding implementation and live-validation work |
 | [OpenStack CLI vs MCP tools mapping](#-openstack-cli-vs-mcp-tools-mapping) | Every tool, its CLI equivalent, and its validation status |
@@ -312,7 +315,7 @@ unit-test results behind the Status values below are recorded in
 | `openstack server remove volume` | `set_server_volume` (action="detach") | ✅ | Member detach reached available via set_server_volume. 2026-11-10 targeted check (administrator): reached available |
 | `openstack server set` | `set_server_properties` (action="set") | ✅ | Server property setting |
 | `openstack server unset` | `set_server_properties` (action="unset") | ✅ | Server property unsetting |
-| `openstack server dump create` | `set_server_dump` | ❌ Unsupported | Returns an explicit unsupported result; no dump is created |
+| `openstack server dump create` | `set_server_dump` | ❌ Not implemented | Nova's trigger-crash-dump action (microversion 2.17, openstacksdk `trigger_server_crash_dump`) is not exposed. The tool returns an explicit unsupported result; no dump is created |
 | `openstack server event list` | `get_server_events` | ✅ | Pass the server name or UUID via `instance_name`, not `server_id`. The action list has no completion time; set `include_event_details=true` to fetch per-action event results and derive the latest finish time. Detailed lookup is capped at 10 actions. Event visibility follows Nova policy |
 | `openstack server group list` | `get_server_groups` | ✅ | Server group listing. Reads `member_ids` and, from compute microversion 2.64, `policy` instead of `policies`; a listing failure is reported instead of an empty list. 2026-11-10 targeted check: listed with its policy |
 | `openstack server group create/delete` | `set_server_group` | ✅ | Server group management. 2026-11-10 targeted check: create and show reported the policy and members, then the group was deleted |
@@ -462,12 +465,13 @@ Octavia was not available in any live test cloud.
 | `openstack loadbalancer delete` | `set_load_balancer` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer deletion |
 | `openstack loadbalancer set` | `set_load_balancer` (action="update") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer property update |
 | `openstack loadbalancer stats show` | `set_load_balancer` (action="stats") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer statistics |
-| `openstack loadbalancer status show` | `set_load_balancer` (action="status") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer status tree |
+| `openstack loadbalancer status show` | `set_load_balancer` (action="status") | ✅ | Octavia status tree (`GET /lbaas/loadbalancers/{id}/status`): listeners, pools, members and health monitors with their states. Previously returned only the load balancer's own state. 2026-11-16 targeted check: returned a load balancer with two listeners sharing one pool of two members, all ACTIVE/ONLINE |
 | `openstack loadbalancer failover` | `set_load_balancer` (action="failover") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer failover |
 | `openstack loadbalancer unset` | `set_load_balancer` (action="unset") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Load balancer property unset |
 | **Listener Management** | | | |
-| `openstack loadbalancer listener list` | `get_load_balancer_listeners` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Listener listing for load balancer |
+| `openstack loadbalancer listener list` | `get_load_balancer_listeners` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Listener listing for load balancer; reports `provisioning_status`, `operating_status`, `default_tls_container_ref` and `sni_container_refs` |
 | `openstack loadbalancer listener create` | `set_load_balancer_listener` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Listener creation (HTTP/HTTPS/TCP/UDP) |
+| `openstack loadbalancer listener create --protocol TERMINATED_HTTPS --default-tls-container-ref --sni-container-refs` | `set_load_balancer_listener` (action="create"/"set", `default_tls_container_ref`, `sni_container_refs`) | ✅ | Barbican secret or certificate container by name, ID or href (names resolved to hrefs); `default_tls_container_ref` required for `TERMINATED_HTTPS`; certificate errors carry a prerequisite hint. See the [Barbican and TLS guide](docs/barbican-tls-guide.md) 2026-11-15 targeted check (OpenWebUI, single account): a `TERMINATED_HTTPS` listener on port 443, given a self-signed secret by name and the existing HTTP pool, reached ACTIVE/ONLINE beside the HTTP listener. A later run on the same day, through a Claude client, created a new secret and listener the same way; `curl -vk` to the floating IP and the VIP completed a TLSv1.3 handshake with that certificate (h2 negotiated) and got HTTP 200 from each of the two HTTP members. Not checked: `sni_container_refs` and `set`. |
 | `openstack loadbalancer listener delete` | `set_load_balancer_listener` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Listener deletion |
 | `openstack loadbalancer listener show` | `get_load_balancer_listeners` | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Listener detailed information |
 | `openstack loadbalancer listener set` | `set_load_balancer_listener` (action="update") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Listener property update |
@@ -478,6 +482,8 @@ Octavia was not available in any live test cloud.
 | `openstack loadbalancer pool create` | `set_load_balancer_pool` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool creation with algorithms |
 | `openstack loadbalancer pool delete` | `set_load_balancer_pool` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool deletion |
 | `openstack loadbalancer pool set` | `set_load_balancer_pool` (action="set") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Pool property update |
+| `openstack loadbalancer pool create/set --enable-tls --ca-tls-container-ref --crl-container-ref --tls-version --tls-ciphers --alpn-protocol` | `set_load_balancer_pool` (action="create"/"set", `tls_enabled`, `ca_tls_container_ref`, `crl_container_ref`, `tls_versions`, `tls_ciphers`, `alpn_protocols`) | ⚠️ Live unverified | Unit-tested only. Backend re-encryption; certificate references by Barbican name, ID or href. Pool results report these fields. See the [Barbican and TLS guide](docs/barbican-tls-guide.md#tls-to-the-members) |
+| `openstack loadbalancer pool create/set --tls-container-ref` | `set_load_balancer_pool` (`tls_container_ref`) | ⚠️ Live unverified | Unit-tested only. Client authentication for backend re-encryption: the client certificate for members that require mutual TLS (mTLS). openstacksdk 4.22.0 has no such pool field, so a request with it goes to the Octavia API directly; `show` reads it from the Octavia response |
 | `openstack loadbalancer pool show` | `get_load_balancer_pools` | ✅ | 2026-11-12 targeted Octavia read check passed. Pool detailed information, including `listener_ids`, `loadbalancer_ids` and `health_monitor_id` |
 | `openstack loadbalancer pool stats show` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | `openstack loadbalancer pool unset` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
@@ -490,7 +496,7 @@ Octavia was not available in any live test cloud.
 | `openstack loadbalancer member unset` | N/A | ❌ Not implemented | No registered tool/action for this CLI operation |
 | **Health Monitor Management** | | | |
 | `openstack loadbalancer healthmonitor list` | `get_load_balancer_health_monitors` | ✅ | 2026-11-12 targeted Octavia read check passed. Health monitor listing (all or by pool); reports `pool_ids` from the Octavia response |
-| `openstack loadbalancer healthmonitor create` | `set_load_balancer_health_monitor` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Health monitor creation |
+| `openstack loadbalancer healthmonitor create` | `set_load_balancer_health_monitor` (action="create") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Health monitor creation; types include `TLS-HELLO` for non-terminated HTTPS (TLS passthrough) pools |
 | `openstack loadbalancer healthmonitor delete` | `set_load_balancer_health_monitor` (action="delete") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Health monitor deletion |
 | `openstack loadbalancer healthmonitor set` | `set_load_balancer_health_monitor` (action="set") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Health monitor update |
 | `openstack loadbalancer healthmonitor show` | `get_load_balancer_health_monitors` | ✅ | 2026-11-12 targeted Octavia read check passed. Health monitor detailed information, including `pool_ids` |
@@ -546,7 +552,35 @@ Octavia was not available in any live test cloud.
 | `openstack loadbalancer quota set` | `set_load_balancer_quota` (action="set") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Quota setting |
 | `openstack loadbalancer quota reset` | `set_load_balancer_quota` (action="reset") | ⚠️ Live unverified | Implemented; Octavia unavailable in the test platform. Quota reset |
 
-### 8. 📊 **Monitoring & Logging**
+### 8. 🔐 **Key Manager (Barbican)**
+
+Secret payloads are excluded on purpose. Barbican and openstacksdk can store
+and return them, but tool arguments and results pass through the LLM, so no
+tool accepts or returns a payload: register your own certificates and keys
+outside MCP and reference them by name or href. Reads use Barbican's metadata
+API, never the SDK's payload-downloading `get_secret`/`find_secret`. See the
+[Barbican and TLS guide](docs/barbican-tls-guide.md).
+
+| OpenStack CLI Command | MCP Tool | Status | Notes |
+|---------------------|---------|------|------|
+| `openstack secret list` | `get_secrets` | ⚠️ Live unverified | Unit-tested only. Metadata of current-project secrets; `secret_type` filter; `limit` 1-1000 with `truncated` |
+| `openstack secret get` | `get_secrets` (`name`) | ⚠️ Live unverified | Unit-tested only. By name, ID or href; metadata and consumers only |
+| `openstack secret get --payload` / `--decrypt` | N/A | ❌ Not implemented | Intentionally excluded: payloads would reach the LLM |
+| `openstack secret store` (user payload) | N/A | ❌ Not implemented | Intentionally excluded: payloads would reach the LLM. Register user certificates outside MCP |
+| `openssl req -x509` + `openstack secret store` | `set_secret` (action="create_self_signed_tls") | ✅ | Key and certificate generated in the MCP server and stored as an unencrypted PKCS#12 `opaque` secret; returns the href, public certificate and fingerprint, never the key 2026-11-15 targeted check: created a secret with IP SANs; the result held the href, public certificate, fingerprint and expiry, and no key or payload. |
+| `openstack secret delete` | `set_secret` (action="delete") | ⚠️ Live unverified | Unit-tested only. By name, ID or href |
+| `openstack secret container list` / `show` | `get_secret_containers` | ⚠️ Live unverified | Unit-tested only. List, or one container by name, ID or href |
+| `openstack secret container create` | `set_secret_container` (action="create") | ⚠️ Live unverified | Unit-tested only. `generic`, `certificate` or `rsa` from existing secrets given by name, ID or href |
+| `openstack secret container delete` | `set_secret_container` (action="delete") | ⚠️ Live unverified | Unit-tested only. The secrets are kept |
+| `openstack secret order list` / `get` | `get_secret_orders` | ⚠️ Live unverified | Unit-tested only. Raw order data, including `container_ref` of asymmetric orders |
+| `openstack secret order create` | `set_secret_order` (action="create") | ⚠️ Live unverified | Unit-tested only. `key` (default aes 256 cbc) or `asymmetric` (default rsa 2048); Barbican generates the key; asynchronous |
+| `openstack secret order delete` | `set_secret_order` (action="delete") | ⚠️ Live unverified | Unit-tested only |
+| `openstack acl get` | `get_secret_acl` | ⚠️ Live unverified | Unit-tested only. Secret or container |
+| `openstack acl user add` / `user remove` / `submit` / `delete` | `set_secret_acl` (action="add_users"/"remove_users"/"set"/"delete") | ⚠️ Live unverified | Unit-tested only. Secret or container; `set` replaces the user list and optionally `project_access` |
+| Barbican effective quotas (`GET /v1/quotas`) | `get_key_manager_quotas` | ⚠️ Live unverified | Unit-tested only. Current project's effective quotas. Project quota changes are not implemented |
+| Secret store backends (`GET /v1/secret-stores`) | `get_secret_stores` | ⚠️ Live unverified | Unit-tested only. Served only when Barbican enables multiple secret store backends |
+
+### 9. 📊 **Monitoring & Logging**
 
 Allocation and measured telemetry are separate. `get_resource_monitoring`,
 `get_quota`, and `get_usage_statistics` report flavor allocations, quotas,
@@ -574,18 +608,18 @@ not available in this cloud" (checked live on OpenStack 2026.1).
 | Compute agents | `set_compute_agents` | ✅ | list/show of Nova services and hypervisors. `show` by `agent_id` looks the service up in the service listing (the SDK has no single-service lookup; this previously failed), and zones and hypervisor capacity read the SDK field names. 2026-11-10 targeted check (administrator): list with hypervisors, show by ID, show by host, and an explicit error for an unknown ID |
 | Usage statistics | `get_usage_statistics` | ✅ | Period compute allocation-hours plus separately labeled current snapshots |
 
-### 9. 📏 **Usage & Quota**
+### 10. 📏 **Usage & Quota**
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
-| `openstack quota show` | `get_quota` | ✅ | Quota query. The network floating IP quota reads the SDK `floating_ips` field (previously always -1). 2026-11-10 targeted check: matched the Neutron quota |
+| `openstack quota show` | `get_quota` | ✅ | Quota query. The network floating IP quota reads the SDK `floating_ips` field (previously always -1). 2026-11-10 targeted check: matched the Neutron quota. Compute usage sums vCPUs and RAM from the flavor embedded in each server (Nova 2.47+, where the flavor `id` holds its name) and reports null with `unsized_instances` when a flavor cannot be sized; previously every lookup failed silently and usage was 0. 2026-11-16 targeted check: two `m1.small` servers reported 2 vCPUs and 4096 MB (previously 0 and 0) |
 | `openstack quota set` | `set_quota` (action="set") | ✅ | Routes supplied fields to Nova/Neutron/Cinder; partial failures are reported |
 | `openstack quota delete` | `set_quota` (action="delete") | ✅ | Resets all three service quotas to defaults; requires modification tools |
 | `openstack usage show` | `get_usage_statistics` | ✅ | Current-project Nova simple tenant usage; not monetary charges |
 | `openstack limits show` | `get_quota` (includes limits) | ✅ | Limits query |
 | Resource allocations | `get_resource_monitoring` | ⚠️ Live unverified | Reader physical-capacity policy restrictions; allocations are separate from capacity; no live utilization |
 
-### 10. 🗂️ **Cross-project reads (advanced, opt-in)**
+### 11. 🗂️ **Cross-project reads (advanced, opt-in)**
 
 Off by default and not needed for single-project use. These rows apply only
 when the server sets `ALLOW_CROSS_PROJECT_READ=true` and OpenStack policy lets
@@ -622,6 +656,7 @@ The feature table marks implemented API paths, not verification against every Op
 - **Volume groups:** the cloud must support Cinder generic groups (microversion 3.13 or newer). Create requires an existing `group_type` and comma-delimited `volume_types`. Deletion does not delete member volumes unless `delete_volumes=true` is explicitly supplied. Async creation/deletion responses mean accepted, not finished.
 - **Identity and images:** `set_users` reads a new user's password from the server variable named by `password_env`; never put passwords in prompts. It does not grant project roles. Disable a domain explicitly with `set_domains(action="update", enabled=false)` before deleting it. Image member modifications require an image owned by the current project, shared visibility, and appropriate Glance policy; adding a member does not automatically accept the recipient's membership.
 - **Telemetry (Gnocchi):** the read-only `get_gnocchi_resources`, `get_gnocchi_metrics`, `get_gnocchi_measures`, `get_gnocchi_aggregates`, and `get_gnocchi_service_info` tools use `gnocchiclient` with the Keystone catalog's `metric` endpoint for the configured interface/region. Ceilometer must be collecting data into Gnocchi; it has no API of its own. Results are limited to resources whose `project_id` is the current project. Metrics are created by the Ceilometer service project, so ownership is checked through the embedded resource. Available metrics depend on deployment. Notification-based metrics such as `vcpus`, `memory`, and `disk.root.size` record flavor sizes. Polled metrics such as `cpu`, `memory.usage`, `disk.device.*`, and `network.*` require a working ceilometer-compute agent and a running instance. `cpu` is cumulative nanoseconds; use `aggregation="rate:mean"` when the archive policy supports it. Current Ceilometer does not produce `cpu_util`. Measures and aggregation methods are limited by each metric's archive policy. `get_gnocchi_aggregates` accepts either structured parameters or an operations expression; both add a current-project resource search, so expression metric references resolve as metric names on matched resources. Arithmetic between metrics returns points only where every operand has data. Gnocchi write operations (measure ingestion, resource/metric/archive policy changes) are not implemented.
+- **Barbican and TLS listeners:** the Barbican tools use the Keystone catalog's `key-manager` endpoint; without it they report "Barbican (key-manager) service is not available". Creating secrets requires the role Barbican's policy demands (`admin` or `creator` under the legacy policy, project `member` under Secure RBAC). For `TERMINATED_HTTPS` listeners, Octavia's default `barbican_acl_auth` grants its service user read access to the referenced secret when the listener is created; the requesting user must be allowed to change that secret's ACL. These are deployment prerequisites, described in the [Barbican and TLS guide](docs/barbican-tls-guide.md).
 - **Logs and telemetry:** `set_service_logs(action="show")` and `set_metrics(action="show")` return explicit unsupported errors. No centralized logging backend is implemented. `set_metrics` list/summary operations expose Nova/Neutron/Cinder resource metadata only; use the Gnocchi tools for telemetry samples.
 
 ---

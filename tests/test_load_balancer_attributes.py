@@ -124,9 +124,27 @@ def test_load_balancer_details_and_status(conn):
     # Octavia rejects ?listener_id= on GET /pools with 400; filter by LB instead.
     conn.load_balancer.pools.assert_called_once_with(loadbalancer_id='lb-1')
 
+    tree = {'statuses': {'loadbalancer': {
+        'id': 'lb-1', 'provisioning_status': 'PENDING_UPDATE', 'operating_status': 'ONLINE',
+        'listeners': [{'id': 'lis-1', 'provisioning_status': 'PENDING_CREATE',
+                       'operating_status': 'OFFLINE', 'pools': [{'id': 'pool-1', 'members': [
+                           {'id': 'mem-1', 'operating_status': 'ONLINE'}]}]}],
+    }}}
+    conn.load_balancer.get.return_value = SimpleNamespace(json=lambda: tree)
+
     status = core.set_load_balancer('status', lb_name_or_id='web-lb')
     assert status['success'] is True
-    assert status['load_balancer_status']['admin_state_up'] is False
+    result = status['load_balancer_status']
+    assert result['admin_state_up'] is False
+    assert result['provisioning_status'] == 'PENDING_UPDATE'
+    assert result['listeners'][0]['provisioning_status'] == 'PENDING_CREATE'
+    assert result['listeners'][0]['pools'][0]['members'][0]['operating_status'] == 'ONLINE'
+    assert conn.load_balancer.get.call_args.args[0] == '/lbaas/loadbalancers/lb-1/status'
+    assert conn.load_balancer.get.call_args.kwargs['raise_exc'] is True
+
+    conn.load_balancer.get.side_effect = RuntimeError('404 status API missing')
+    failed = core.set_load_balancer('status', lb_name_or_id='web-lb')
+    assert failed['success'] is False and '404' in failed['message']
 
 
 def test_load_balancer_update_reports_sdk_admin_state(conn):

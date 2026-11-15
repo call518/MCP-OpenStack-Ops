@@ -205,6 +205,31 @@ def test_get_quota_reports_sdk_floating_ips(conn):
     assert result['quotas']['network']['limits']['floatingips'] == 7
 
 
+def test_get_quota_sums_embedded_flavor_sizes(conn):
+    # Nova 2.47+ embeds the flavor and puts its name, not its ID, in 'id'.
+    embedded = {'id': 'm1.small', 'original_name': 'm1.small', 'vcpus': 1, 'ram': 2048}
+    conn.compute.servers.return_value = [
+        Server.existing(id='s1', status='ACTIVE', flavor=embedded),
+        Server.existing(id='s2', status='ACTIVE', flavor=embedded),
+    ]
+    conn.compute.get_flavor.side_effect = AssertionError('embedded sizes suffice')
+
+    usage = monitoring.get_quota()['quotas']['compute']['usage']
+
+    assert (usage['instances'], usage['cores'], usage['ram']) == (2, 2, 4096)
+
+
+def test_get_quota_reports_unknown_usage_instead_of_zero(conn):
+    conn.compute.servers.return_value = [
+        Server.existing(id='s1', status='ACTIVE', flavor={'id': 'gone'})]
+    conn.compute.get_flavor.side_effect = RuntimeError('flavor deleted')
+
+    usage = monitoring.get_quota()['quotas']['compute']['usage']
+
+    assert usage['cores'] is None and usage['ram'] is None
+    assert usage['unsized_instances'] == 1
+
+
 def test_project_info_reports_sdk_floating_ips(conn):
     conn.identity.get_project.return_value = Project.existing(
         id='project-a', name='demo')

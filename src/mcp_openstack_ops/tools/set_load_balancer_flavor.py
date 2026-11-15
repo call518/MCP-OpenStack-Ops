@@ -18,11 +18,12 @@ async def set_load_balancer_flavor(
     enabled: bool = True
 ) -> str:
     """
-    Manage flavor operations (create, delete, set, unset, show).
+    Create or delete an Octavia flavor. set, unset and show are not implemented;
+    list and show flavors with get_load_balancer_flavors.
     
     Args:
-        action: Action to perform (create, delete, set, unset, show)
-        flavor_name_or_id: Flavor name or ID (required for delete/update)
+        action: Action to perform (create, delete)
+        flavor_name_or_id: Flavor name or ID (required for delete)
         name: Name for new flavor (required for create)
         flavor_profile_id: Profile ID (required for create)
         description: Description

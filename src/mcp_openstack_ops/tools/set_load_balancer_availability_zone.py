@@ -18,11 +18,12 @@ async def set_load_balancer_availability_zone(
     enabled: bool = True
 ) -> str:
     """
-    Manage availability zone operations (create, delete, set, unset, show).
+    Create or delete an Octavia availability zone. set, unset and show are not
+    implemented; list and show zones with get_load_balancer_availability_zones.
     
     Args:
-        action: Action to perform (create, delete, set, unset, show)
-        az_name: Availability zone name (required for delete/update)
+        action: Action to perform (create, delete)
+        az_name: Availability zone name (required for delete)
         name: Name for new availability zone (required for create)
         availability_zone_profile_id: Profile ID (required for create)
         description: Description

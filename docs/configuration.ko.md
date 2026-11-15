@@ -66,6 +66,41 @@ Options:
 | `DOCKER_EXTERNAL_PORT_MCPO_PROXY` | MCPO 호스트 포트 | `8080` | OpenAPI 프록시와 문서 |
 | `MCPO_CONFIG_FILE` | Compose가 마운트하는 MCPO 설정 | `mcp-config.json.http.local` | Compose를 시작하기 전에 추적되는 HTTP 템플릿을 Git이 무시하는 이 로컬 파일로 복사 |
 
+## 접근 모드별 `.env` 설정
+
+Docker Compose 스택의 접근 모드를 하나 고른 뒤, 그 열의 값대로 `.env` 키를
+설정합니다. 이 키들은 서로 맞아야 합니다. MCP 서버는 `MCP_MULTI_USER`와
+`REMOTE_AUTH_ENABLE`로 모드를 정하고, MCPO는 `MCPO_CONFIG_FILE`이 가리키는 파일의
+헤더를 보냅니다. 둘이 맞지 않으면 서버가 MCPO에 `401 Unauthorized`로 응답하고,
+OpenWebUI에는 OpenStack 도구가 하나도 나오지 않습니다.
+
+| `.env` 키 | 1. 단일 계정(single account, Quick Start 기본값) | 2. 단일 계정 + Bearer | 3. 다중 사용자(multi-user) | 4. 다중 사용자 + Bearer |
+| --- | --- | --- | --- | --- |
+| OpenStack이 인식하는 주체 | `.env`의 계정 하나 | `.env`의 계정 하나 | 요청마다 보내는 Application Credential | 요청마다 보내는 Application Credential |
+| 일반적인 용도 | 같은 호스트의 한 사람 | 다른 호스트에서 MCP나 MCPO에 접속 | 사용자마다 별도 인스턴스 | 사용자마다 별도 인스턴스, 공유 토큰 뒤에 배치 |
+| `MCP_MULTI_USER` | `false` | `false` | `true` | `true` |
+| `REMOTE_AUTH_ENABLE` | `false` | `true` | `false` | `true` |
+| `REMOTE_SECRET_KEY` | 비움 | 강력한 임의 값 | 비움 | 강력한 임의 값 |
+| `MCPO_CONFIG_FILE` | `mcp-config.json.http.local` | `mcp-config.json.http.local` | `mcp-config.json.multi-user.local` | `mcp-config.json.multi-user.local` |
+| 그 MCPO 파일의 헤더 | `Authorization` placeholder, 무시됨 | 같은 값의 `Authorization: Bearer <REMOTE_SECRET_KEY>` | Application Credential ID와 secret. `Authorization`은 삭제하거나 무시됨 | `Authorization: Bearer <REMOTE_SECRET_KEY>`와 Application Credential ID, secret |
+| `OS_USERNAME`, `OS_PASSWORD`, `OS_PROJECT_NAME` | 필수. 모든 도구가 이 프로젝트에서 동작 | 필수. 모든 도구가 이 프로젝트에서 동작 | 사용하지 않음. 자격 증명이 사용자와 프로젝트를 정함 | 사용하지 않음. 자격 증명이 사용자와 프로젝트를 정함 |
+| `OS_AUTH_PROTOCOL` | Keystone 제공 방식에 맞춰 `http` 또는 `https` | Keystone 제공 방식에 맞춰 `http` 또는 `https` | `https` | `https` |
+| `MCP_MULTI_USER_ALLOW_INSECURE_HTTP` | `false` | `false` | `false`. `OS_AUTH_PROTOCOL=http`로 테스트할 때만 `true` | `false`. `OS_AUTH_PROTOCOL=http`로 테스트할 때만 `true` |
+| `DOCKER_BIND_ADDRESS` | `127.0.0.1` | 접근 가능한 주소, HTTPS 뒤에 배치 | `127.0.0.1`, 또는 HTTPS 뒤의 접근 가능한 주소 | 접근 가능한 주소, HTTPS 뒤에 배치 |
+
+다음 키는 모드와 무관합니다: `FASTMCP_TYPE=streamable-http`(Compose에서는 항상),
+`OS_AUTH_HOST`, `OS_AUTH_PORT`, `OS_REGION_NAME`, 서비스 포트,
+`ALLOW_MODIFY_OPERATIONS`, `ALLOW_CROSS_PROJECT_READ`.
+
+- 여러 사람이 함께 쓰는 OpenWebUI는 모드 1이나 2를 사용합니다. MCPO는 고정된 헤더
+  한 벌만 보내므로, 모드 3과 4에서는 모든 OpenWebUI 사용자가 MCPO 파일에 든
+  Application Credential 하나로 동작합니다. 모드 3과 4는
+  [다중 사용자 가이드](multi-user-guide.ko.md)에 설명되어 있습니다.
+- 이 키나 MCPO 파일을 바꾼 뒤에는 두 컨테이너를 다시 만듭니다:
+  `docker compose up -d --force-recreate mcp-server mcpo-proxy`.
+- Claude Desktop 확장 번들은 이 표를 쓰지 않고 확장 설정 화면에서 값을 받습니다
+  ([Claude Desktop 가이드](claude-desktop-guide.ko.md)).
+
 ## OpenStack endpoint 구성
 
 단일 계정 연결과 다중 사용자 연결은 모두 현재 하나의 `OS_AUTH_HOST`,
@@ -89,7 +124,8 @@ Cinder가 없는 클라우드의 `OS_VOLUME_PORT`)로 가는 트래픽을 조용
 오류로 빨리 실패하도록, 그 포트를 거부(refuse)하게 하거나 접근 가능한 게이트웨이로
 연결하세요.
 
-Aodh(`alarming`)와 Gnocchi(`metric`)에는 `OS_*_PORT` 설정이 없습니다. 이 도구들은
+Aodh(`alarming`), Gnocchi(`metric`), Barbican(`key-manager`)에는 `OS_*_PORT` 설정이
+없습니다. 이 도구들은
 `OS_INTERFACE`와 `OS_REGION_NAME`에 해당하는 Keystone catalog endpoint를 사용하며,
 이 endpoint도 `mcp-server` 컨테이너에서 접근할 수 있어야 합니다.
 

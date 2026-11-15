@@ -150,6 +150,20 @@ OpenStack permissions; see the [cross-project reads guide](cross-project-guide.m
 
 **Tools used:** `get_load_balancer_details()`, `set_load_balancer()`, `get_load_balancer_listeners()`
 
+### 🔐 Barbican secrets and TLS listeners
+
+```
+"List Barbican secrets and show which services use web-tls"
+"Create a self-signed TLS secret named web-tls for 192.168.35.169"
+"Add a TERMINATED_HTTPS listener on port 443 to web-lb with certificate web-tls"
+"Show the ACL of secret web-tls"
+```
+
+**Tools used:** `get_secrets()`, `set_secret()`, `set_load_balancer_listener()`, `get_secret_acl()`
+
+Secret payloads never pass through these tools; register your own certificates
+outside MCP. See the [Barbican and TLS guide](barbican-tls-guide.md).
+
 ### 🔍 Advanced search and filtering
 
 ```

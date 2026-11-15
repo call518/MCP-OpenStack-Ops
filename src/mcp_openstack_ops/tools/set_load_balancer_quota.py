@@ -19,10 +19,11 @@ async def set_load_balancer_quota(
     member: int = -1
 ) -> str:
     """
-    Manage quota operations (set, reset, unset).
+    Set or reset Octavia quotas of a project. unset is not implemented; reset
+    restores the defaults.
     
     Args:
-        action: Action to perform (set, reset, unset)
+        action: Action to perform (set, reset)
         project_id: Project ID (required)
         load_balancer: Load balancer quota limit
         listener: Listener quota limit

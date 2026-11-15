@@ -476,25 +476,30 @@ def set_load_balancer(action: str, **kwargs) -> Dict[str, Any]:
                     'message': f'Load balancer not found: {lb_name_or_id}'
                 }
             
-            # Get load balancer status tree
+            # Octavia's status tree: the load balancer with its listeners,
+            # pools, members and health monitors. openstacksdk has no call
+            # for GET /lbaas/loadbalancers/{id}/status.
             try:
-                # Since status endpoint may not be available, get basic status
-                return {
-                    'success': True,
-                    'load_balancer_status': {
-                        'id': lb.id,
-                        'name': lb.name,
-                        'provisioning_status': lb.provisioning_status,
-                        'operating_status': lb.operating_status,
-                        'admin_state_up': lb.is_admin_state_up,
-                        'vip_address': lb.vip_address
-                    }
-                }
+                response = conn.load_balancer.get(
+                    f'/lbaas/loadbalancers/{lb.id}/status', raise_exc=True)
+                tree = response.json().get('statuses', {}).get('loadbalancer', {})
             except Exception as e:
                 return {
                     'success': False,
-                    'message': f'Failed to get load balancer status: {str(e)}'
+                    'message': f'Failed to get load balancer status tree: {str(e)}'
                 }
+            return {
+                'success': True,
+                'load_balancer_status': {
+                    'id': lb.id,
+                    'name': lb.name,
+                    'provisioning_status': tree.get('provisioning_status'),
+                    'operating_status': tree.get('operating_status'),
+                    'admin_state_up': lb.is_admin_state_up,
+                    'vip_address': lb.vip_address,
+                    'listeners': tree.get('listeners', []),
+                }
+            }
         
         else:
             return {

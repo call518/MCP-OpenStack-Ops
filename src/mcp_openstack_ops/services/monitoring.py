@@ -570,21 +570,30 @@ def get_quota(project_name: str = "") -> Dict[str, Any]:
             active_instances = [i for i in instances if getattr(i, 'status', '') == 'ACTIVE']
             total_cores = 0
             total_ram = 0
-            
+            unsized = 0
+
+            # Nova 2.47+ embeds the flavor sizes in the server and puts the
+            # flavor name, not its ID, in 'id'; read the embedded sizes first.
             for instance in instances:
                 try:
-                    flavor = conn.compute.get_flavor(instance.flavor['id'])
-                    total_cores += getattr(flavor, 'vcpus', 0)
-                    total_ram += getattr(flavor, 'ram', 0)
+                    values = dict(instance.flavor or {})
+                    if not values.get('vcpus') or not values.get('ram'):
+                        values = conn.compute.get_flavor(values.get('id')).to_dict()
+                    if not values.get('vcpus') or not values.get('ram'):
+                        raise ValueError('Flavor resource sizes are unavailable')
+                    total_cores += values['vcpus']
+                    total_ram += values['ram']
                 except Exception:
-                    pass
-            
+                    unsized += 1
+
             keypairs = list(conn.compute.keypairs())
-            
+
             quota_data['compute']['usage'] = {
                 'instances': len(instances),
-                'cores': total_cores,
-                'ram': total_ram,
+                # Unknown when any instance's flavor could not be sized.
+                'cores': None if unsized else total_cores,
+                'ram': None if unsized else total_ram,
+                **({'unsized_instances': unsized} if unsized else {}),
                 'key_pairs': len(keypairs),
                 'active_instances': len(active_instances)
             }

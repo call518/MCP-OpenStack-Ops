@@ -29,7 +29,7 @@ async def set_load_balancer_health_monitor(
     Comprehensive health monitor management operations (create, delete, set, unset, show).
 
     Functions:
-    - Create new health monitors for pools with various protocols (HTTP, HTTPS, TCP, UDP, PING)
+    - Create new health monitors for pools with various protocols (HTTP, HTTPS, TLS-HELLO, TCP, UDP, PING)
     - Delete existing health monitors
     - Set/update monitor settings (timing, HTTP parameters, admin state)
     - Unset/clear monitor settings (HTTP parameters, expected codes)
@@ -47,7 +47,9 @@ async def set_load_balancer_health_monitor(
         monitor_name_or_id: Monitor name or ID (required for delete/set/unset/show)
         name: Name for the monitor
         pool_name_or_id: Pool name or ID (required for create)
-        monitor_type: Monitor type (HTTP, HTTPS, TCP, PING, UDP-CONNECT, SCTP)
+        monitor_type: Monitor type (HTTP, HTTPS, TLS-HELLO, TCP, PING, UDP-CONNECT,
+            SCTP). TLS-HELLO checks only the TLS handshake, suited to
+            non-terminated HTTPS (TLS passthrough) pools
         delay: Delay between health checks in seconds (default: 10)
         timeout: Timeout for health check in seconds (default: 5)
         max_retries: Maximum retries before marking unhealthy (default: 3)

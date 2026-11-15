@@ -2597,11 +2597,13 @@ def create_server_dump(instance_name: str, **kwargs) -> Dict[str, Any]:
                 'message': f'Server "{instance_name}" not found'
             }
         
-        # Note: Server dump is not directly supported by OpenStack SDK
-        # This would typically require direct API calls or vendor-specific implementations
+        # Nova offers trigger-crash-dump (microversion 2.17; openstacksdk
+        # trigger_server_crash_dump), but this server does not implement it.
         return {
             'success': False,
-            'message': 'Server dump creation is not supported by the current OpenStack SDK. This feature requires vendor-specific implementation.',
+            'message': ('Server dump is not implemented by this MCP server. Nova\'s '
+                        'trigger-crash-dump action (openstack server dump create) '
+                        'is not exposed; no dump was created.'),
             'note': 'Consider using server backup or snapshot instead'
         }
         
