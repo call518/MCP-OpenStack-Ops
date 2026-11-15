@@ -251,7 +251,7 @@ def set_load_balancer_pool(action: str, pool_name_or_id: str = "", name: str = "
 
             return {
                 'success': True,
-                'message': f'Pool created successfully: {pool.name}',
+                'message': f'Pool creation accepted: {pool.name}; check provisioning_status before use',
                 'pool': {
                     'id': pool.id,
                     'name': pool.name,
@@ -291,7 +291,7 @@ def set_load_balancer_pool(action: str, pool_name_or_id: str = "", name: str = "
             
             return {
                 'success': True,
-                'message': f'Pool deleted successfully: {pool.name}'
+                'message': f'Pool deletion accepted: {pool.name}'
             }
             
         elif action == "show":
@@ -389,7 +389,7 @@ def set_load_balancer_pool(action: str, pool_name_or_id: str = "", name: str = "
 
             return {
                 'success': True,
-                'message': f'Pool updated successfully: {updated_pool.name}',
+                'message': f'Pool update accepted: {updated_pool.name}; check provisioning_status before use',
                 'pool': {
                     'id': updated_pool.id,
                     'name': updated_pool.name,
@@ -554,7 +554,7 @@ def set_load_balancer_pool_member(action: str, pool_name_or_id: str, member_id: 
             
             return {
                 'success': True,
-                'message': f'Pool member created successfully',
+                'message': f'Pool member creation accepted; check provisioning_status before use',
                 'member': {
                     'id': member.id,
                     'name': getattr(member, 'name', ''),
@@ -589,7 +589,7 @@ def set_load_balancer_pool_member(action: str, pool_name_or_id: str, member_id: 
             
             return {
                 'success': True,
-                'message': f'Pool member deleted successfully: {member.address}:{member.protocol_port}'
+                'message': f'Pool member deletion accepted: {member.address}:{member.protocol_port}'
             }
             
         elif action == "show":
@@ -661,7 +661,7 @@ def set_load_balancer_pool_member(action: str, pool_name_or_id: str, member_id: 
             
             return {
                 'success': True,
-                'message': f'Pool member updated successfully',
+                'message': f'Pool member update accepted; check provisioning_status before use',
                 'member': {
                     'id': updated_member.id,
                     'name': getattr(updated_member, 'name', ''),

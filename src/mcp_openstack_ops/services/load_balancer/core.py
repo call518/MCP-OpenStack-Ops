@@ -299,7 +299,7 @@ def set_load_balancer(action: str, **kwargs) -> Dict[str, Any]:
             
             return {
                 'success': True,
-                'message': f'Load balancer created successfully: {lb.name}',
+                'message': f'Load balancer creation accepted: {lb.name}; check provisioning_status before use',
                 'load_balancer': {
                     'id': lb.id,
                     'name': lb.name,
@@ -327,7 +327,7 @@ def set_load_balancer(action: str, **kwargs) -> Dict[str, Any]:
             conn.load_balancer.delete_load_balancer(lb.id, cascade=kwargs.get('cascade', False))
             return {
                 'success': True,
-                'message': f'Load balancer deleted successfully: {lb.name}'
+                'message': f'Load balancer deletion accepted: {lb.name}'
             }
         
         elif action in ["set", "update"]:
@@ -359,12 +359,13 @@ def set_load_balancer(action: str, **kwargs) -> Dict[str, Any]:
             updated_lb = conn.load_balancer.update_load_balancer(lb.id, **update_params)
             return {
                 'success': True,
-                'message': f'Load balancer updated successfully: {updated_lb.name}',
+                'message': f'Load balancer update accepted: {updated_lb.name}; check provisioning_status before use',
                 'load_balancer': {
                     'id': updated_lb.id,
                     'name': updated_lb.name,
                     'description': updated_lb.description,
-                    'admin_state_up': updated_lb.is_admin_state_up
+                    'admin_state_up': updated_lb.is_admin_state_up,
+                    'provisioning_status': getattr(updated_lb, 'provisioning_status', None)
                 }
             }
         

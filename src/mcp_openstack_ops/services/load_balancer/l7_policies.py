@@ -121,12 +121,13 @@ def set_load_balancer_l7_policy(action: str, **kwargs) -> Dict[str, Any]:
             
             return {
                 'success': True,
-                'message': f'L7 policy created successfully',
+                'message': f'L7 policy creation accepted; check provisioning_status before use',
                 'l7_policy': {
                     'id': policy.id,
                     'name': policy.name,
                     'action': policy.action,
-                    'position': policy.position
+                    'position': policy.position,
+                    'provisioning_status': getattr(policy, 'provisioning_status', None)
                 }
             }
         
@@ -148,7 +149,7 @@ def set_load_balancer_l7_policy(action: str, **kwargs) -> Dict[str, Any]:
             conn.load_balancer.delete_l7_policy(policy.id)
             return {
                 'success': True,
-                'message': 'L7 policy deleted successfully'
+                'message': 'L7 policy deletion accepted'
             }
         
         else:
@@ -273,12 +274,13 @@ def set_load_balancer_l7_rule(action: str, **kwargs) -> Dict[str, Any]:
             
             return {
                 'success': True,
-                'message': f'L7 rule created successfully',
+                'message': f'L7 rule creation accepted; check provisioning_status before use',
                 'l7_rule': {
                     'id': rule.id,
                     'type': rule.type,
                     'compare_type': rule.compare_type,
-                    'value': rule.rule_value
+                    'value': rule.rule_value,
+                    'provisioning_status': getattr(rule, 'provisioning_status', None)
                 }
             }
         
@@ -302,7 +304,7 @@ def set_load_balancer_l7_rule(action: str, **kwargs) -> Dict[str, Any]:
             conn.load_balancer.delete_l7_rule(rule_id, l7_policy=policy.id)
             return {
                 'success': True,
-                'message': 'L7 rule deleted successfully'
+                'message': 'L7 rule deletion accepted'
             }
         
         else:
