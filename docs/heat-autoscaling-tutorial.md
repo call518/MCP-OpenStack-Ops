@@ -4,6 +4,11 @@
 
 ![VM CPU usage during scale-out and scale-in](../img/screenshot-heat-04-grafana-chart-eng.png)
 
+**No Heat template was written by hand: the stack was created from a
+natural-language request alone.** The MCP client turned
+[the request](#the-request) into calls to this server's tools, which built the
+base image, stored the certificate in Barbican and created the stack.
+
 Under CPU load, the web server group grows from two to three and then four
 members, and shrinks back to two when the load ends. Each new member's boot
 spike passes without setting off another scale-out.

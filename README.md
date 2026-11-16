@@ -37,16 +37,18 @@ For an AI-generated walkthrough of the code, see
 
 ## What can you do with it?
 
-**Showcase: an autoscaling HTTPS web tier with Heat**
+**Showcase: a Heat autoscaling stack created from natural language alone**
 
 ![Web servers scaling out and in on CPU load](img/screenshot-heat-04-grafana-chart-eng.png)
 
-Under CPU load, the web server group grows from two to four members and
-shrinks back to two when the load ends. The stack combines a base image
-snapshotted from a web server VM, a self-signed certificate in Barbican, an
-Octavia load balancer that terminates HTTPS, and a Heat autoscaling group
-driven by Aodh CPU alarms. The request, templates and a walkthrough of the
-chart are in the [Heat autoscaling tutorial](docs/heat-autoscaling-tutorial.md).
+**No Heat template was written by hand: the stack was created from a
+natural-language request alone.** Using this server's tools, the MCP client
+snapshotted a web server VM into a base image, generated a self-signed
+certificate and stored it in Barbican, and created a Heat stack with an Octavia
+load balancer that terminates HTTPS and an autoscaling group driven by Aodh CPU
+alarms. Under CPU load the group grew from two to four web servers and shrank
+back to two when the load ended. The request, templates and a walkthrough of
+the chart are in the [Heat autoscaling tutorial](docs/heat-autoscaling-tutorial.md).
 
 Ask questions and give instructions in natural language, for example:
 
