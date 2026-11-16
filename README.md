@@ -37,6 +37,17 @@ For an AI-generated walkthrough of the code, see
 
 ## What can you do with it?
 
+**Showcase: an autoscaling HTTPS web tier with Heat**
+
+![Web servers scaling out and in on CPU load](img/screenshot-heat-04-grafana-chart-eng.png)
+
+Under CPU load, the web server group grows from two to four members and
+shrinks back to two when the load ends. The stack combines a base image
+snapshotted from a web server VM, a self-signed certificate in Barbican, an
+Octavia load balancer that terminates HTTPS, and a Heat autoscaling group
+driven by Aodh CPU alarms. The request, templates and a walkthrough of the
+chart are in the [Heat autoscaling tutorial](docs/heat-autoscaling-tutorial.md).
+
 Ask questions and give instructions in natural language, for example:
 
 ```text
@@ -249,6 +260,7 @@ To change the SDK version for an older release, see
 | [Multi-user guide](docs/multi-user-guide.md) | Per-user Application Credential authentication (experimental) |
 | [Cross-project reads guide](docs/cross-project-guide.md) | Advanced, opt-in: reading across projects, setups, required OpenStack policy |
 | [Barbican and TLS guide](docs/barbican-tls-guide.md) | Barbican prerequisites, why secret payloads are excluded, self-signed certificates, `TERMINATED_HTTPS` listeners, non-terminated HTTPS (TLS passthrough) and backend re-encryption, step-by-step client authentication (mTLS) |
+| [Heat autoscaling tutorial](docs/heat-autoscaling-tutorial.md) | Heat stack with a `TERMINATED_HTTPS` load balancer and Aodh-driven autoscaling web servers: request, templates, verification, scaling walkthrough |
 | [Development guide](docs/development.md) | Tests, live tool checks, adding tools, contributing |
 | [TODO](ToDo.md) | Outstanding implementation and live-validation work |
 | [OpenStack CLI vs MCP tools mapping](#-openstack-cli-vs-mcp-tools-mapping) | Every tool, its CLI equivalent, and its validation status |

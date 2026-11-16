@@ -38,6 +38,16 @@ AI가 생성한 코드 설명은
 
 ## 무엇을 할 수 있나요?
 
+**쇼케이스: Heat로 구성한 오토스케일링 HTTPS 웹 계층**
+
+![CPU 부하에 따라 확장·축소되는 웹서버](img/screenshot-heat-04-grafana-chart-kor.png)
+
+CPU 부하가 걸리면 웹서버 그룹이 2대에서 4대로 늘어나고, 부하가 끝나면 다시
+2대로 줄어듭니다. 스택은 웹서버 VM 스냅샷으로 만든 기준 이미지, Barbican에
+등록한 자체 서명 인증서, HTTPS를 종료하는 Octavia 로드밸런서, Aodh CPU 알람으로
+동작하는 Heat 오토스케일링 그룹으로 구성됩니다. 요청, 템플릿, 차트 해설은
+[Heat 오토스케일링 튜토리얼](docs/heat-autoscaling-tutorial.ko.md)에 있습니다.
+
 일상 언어로 질문하고 지시하면 됩니다. 예를 들면 다음과 같습니다.
 
 ```text
@@ -252,6 +262,7 @@ Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인�
 | [다중 사용자 가이드](docs/multi-user-guide.ko.md) | 사용자별 Application Credential 인증 (실험 기능) |
 | [cross-project 조회 가이드](docs/cross-project-guide.ko.md) | 고급 선택 기능: 여러 프로젝트 조회, 방식, 필요한 OpenStack 정책 |
 | [Barbican과 TLS 가이드](docs/barbican-tls-guide.ko.md) | Barbican 사전 조건, 시크릿 payload를 제외한 이유, 자체 서명 인증서, `TERMINATED_HTTPS` 리스너, non-terminated HTTPS(TLS passthrough)와 backend re-encryption, client authentication(mTLS) 단계별 절차 |
+| [Heat 오토스케일링 튜토리얼](docs/heat-autoscaling-tutorial.ko.md) | `TERMINATED_HTTPS` 로드밸런서와 Aodh 기반 웹서버 오토스케일링을 쓰는 Heat 스택: 요청, 템플릿, 확인, 스케일링 실습 |
 | [개발 가이드](docs/development.ko.md) | 테스트, live 도구 점검, 도구 추가, 기여 방법 |
 | [TODO](ToDo.ko.md) | 아직 남은 구현 및 live 검증 작업 |
 | [OpenStack CLI와 MCP 도구 매핑](#-openstack-cli와-mcp-도구-매핑) | 모든 도구와 대응하는 CLI 명령, 검증 상태 |
