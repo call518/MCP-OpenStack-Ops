@@ -49,6 +49,25 @@ the wrong account is in use may outweigh the benefit. Nothing is decided.
 | Expiry | Report an expired or deleted credential clearly; reauthentication cannot recover it |
 | MCPB | `os_username`, `os_password`, and `os_project_name` are `required: true`; they would become optional and the server would validate the combination |
 
+## Concurrent tool calls in multi-user mode
+
+- [ ] **Stop tool calls from blocking the event loop (on hold)**
+
+114 of the 121 tools are `async def` functions that call the synchronous
+OpenStack SDK directly, so one running tool call blocks the server's event
+loop. In stdio and single-account HTTP this changes nothing for tool calls,
+which run one at a time either way. In multi-user HTTP, one user's slow call
+delays every other user. On hold because it is a performance issue only, and
+correct behavior comes first.
+
+| Item | Detail |
+|---|---|
+| Proposed change | Declare the 114 tools with `def`; fastmcp 4.1.6 runs `def` tools in a thread pool and passes contextvars. Add one middleware that runs calls with the same key one at a time in arrival order (`anyio.Lock`, FIFO): one global key in stdio and single-account HTTP, `project_id` in multi-user HTTP |
+| Guarantee to keep | Today every call runs alone, in arrival order, after the previous one finishes. The lock keeps this within a project, including calls from different users of the same project. Running all calls concurrently was rejected: chained synchronous calls sent in parallel (network then subnet) could fail |
+| Expected effect | Multi-user HTTP: calls for different projects no longer wait for each other. stdio and single-account HTTP: no change for tool calls |
+| Tests to change | 21 calls in 6 test files that `await` tool functions |
+| Release condition | Run the same requests on 3.9.2 and the new build (simple load balancer, network → subnet → router → security group rule chain) in Claude Desktop and OpenWebUI, plus concurrent calls from two projects in multi-user mode. Do not release if any result differs from 3.9.2 |
+
 ## Service status reporting
 
 - [ ] **Report real service state in `get_service_status`**
