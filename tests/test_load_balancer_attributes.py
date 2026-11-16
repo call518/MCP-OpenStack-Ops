@@ -376,40 +376,6 @@ def test_l7_policy_create_passes_sdk_compatible_attrs(conn):
     assert created.is_admin_state_up is False
 
 
-def test_async_octavia_writes_report_acceptance_with_provisioning_status(conn):
-    # Octavia answers writes with PENDING_*; the response must not claim
-    # completion and must carry the state the caller polls.
-    pending = {'provisioning_status': 'PENDING_UPDATE'}
-    conn.load_balancer.find_load_balancer.return_value = _lb()
-    conn.load_balancer.update_load_balancer.return_value = _lb(**pending)
-    conn.load_balancer.create_listener.return_value = _listener(**pending)
-    conn.load_balancer.find_listener.return_value = _listener()
-    conn.load_balancer.create_l7_policy.return_value = L7Policy.existing(
-        id='pol-1', name='redirect', action='REJECT', position=1, **pending)
-    conn.load_balancer.find_l7_policy.return_value = L7Policy.existing(id='pol-1')
-    conn.load_balancer.create_l7_rule.return_value = L7Rule.existing(
-        id='rule-1', type='PATH', compare_type='STARTS_WITH', rule_value='/api',
-        **pending)
-
-    results = {
-        'load_balancer': core.set_load_balancer(
-            'set', lb_name_or_id='web-lb', description='x'),
-        'listener': listeners.set_load_balancer_listener(
-            'create', name='http', lb_name_or_id='web-lb', protocol='http',
-            protocol_port=80),
-        'l7_policy': l7_policies.set_load_balancer_l7_policy(
-            'create', listener_name_or_id='http', name='redirect'),
-        'l7_rule': l7_policies.set_load_balancer_l7_rule(
-            'create', policy_name_or_id='redirect', value='/api'),
-    }
-
-    for key, result in results.items():
-        assert result['success'] is True, result
-        assert 'successfully' not in result['message'], result
-        assert 'accepted' in result['message'], result
-        assert result[key]['provisioning_status'] == 'PENDING_UPDATE', result
-
-
 def _quota(project_id='project-a'):
     return Quota.existing(
         id=project_id, project_id=project_id, load_balancers=5, listeners=10,

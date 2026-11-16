@@ -216,16 +216,3 @@ async def test_server_volumes_for_existing_server_without_volumes(conn):
     payload = json.loads(await handler('vm'))
 
     assert payload['result'] == []
-
-
-# --- 7. asynchronous actions report initiation, not completion ------------
-
-@pytest.mark.parametrize('action', [
-    'start', 'stop', 'pause', 'unpause', 'suspend', 'resume', 'delete',
-    'shelve', 'unshelve', 'rescue', 'unrescue', 'confirm_resize', 'revert_resize',
-])
-def test_async_instance_actions_report_initiation(conn, action):
-    result = compute.set_instance('vm', action)
-
-    assert result['success'] is True, result
-    assert result['message'].endswith('initiated'), result

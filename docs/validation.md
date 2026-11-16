@@ -525,21 +525,6 @@ an earlier full summary.
   cannot be sized. Docstring and message corrections (the four Octavia tools
   that listed unimplemented actions, the listener's supported-action message,
   and `set_server_dump`) have no dedicated tests.
-- **Local asynchronous result message tests (2026-11-16; uncommitted working
-  tree based on `9ffc449`):** 626/626 (100%) with fastmcp 4.1.6 and the locked
-  openstacksdk 4.22.0, run as `uv run pytest -q`; no failures or skipped tests.
-  Results of writes that OpenStack only accepts no longer claim completion.
-  Octavia create, update and delete results for load balancers, listeners,
-  pools, members, health monitors, and L7 policies and rules say "accepted"
-  instead of "successfully", and create and update results add "check
-  provisioning_status before use"; the load balancer `set`, L7 policy create
-  and L7 rule create results now carry `provisioning_status`. Cinder volume
-  create, delete, extend, attach and detach, snapshot create and delete, and
-  volume creation from a snapshot say "accepted". Nova start, stop, pause,
-  unpause, suspend, resume, delete, shelve, unshelve, rescue, unrescue, resize
-  confirm and revert, and migration confirm, revert, abort and force-complete
-  say "initiated". Fifteen new cases cover four Octavia write paths, thirteen
-  instance actions and volume creation. No live check was run for this change.
 - **Targeted Barbican, TLS listener, status and quota check (2026-11-15 and
   2026-11-16; partial; uncommitted working tree based on `e161831`):** on the
   single-node Kolla test cloud, with the Docker Compose stack in single-account

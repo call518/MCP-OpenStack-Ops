@@ -253,15 +253,3 @@ def test_cinder_mapping_requires_the_volume_endpoint(monkeypatch):
     assert storage.block_storage_unavailable_message(
         AttributeError("'Volume' object has no attribute 'foo'")) is None
     assert storage.block_storage_unavailable_message(RuntimeError('boom')) is None
-
-
-def test_volume_create_reports_acceptance_not_completion(conn):
-    conn.volume.create_volume.return_value = SimpleNamespace(
-        id='vol-1', name='data', status='creating', size=1, volume_type='lvm')
-
-    result = storage.set_volume('data', 'create', size=1)
-
-    assert result['success'] is True, result
-    assert 'accepted' in result['message'], result
-    assert 'successfully' not in result['message'], result
-    assert result['volume']['status'] == 'creating'

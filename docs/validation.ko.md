@@ -452,20 +452,6 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   `unsized_instances`와 함께 null을 보고하는지를 검사합니다. 설명과 메시지 수정
   (구현되지 않은 액션을 적어 둔 Octavia 도구 4개, 리스너의 지원 액션 메시지,
   `set_server_dump`)에는 전용 테스트가 없습니다.
-- **로컬 비동기 결과 메시지 테스트 (2026-11-16, `9ffc449` 기반의 커밋되지 않은 작업
-  트리):** fastmcp 4.1.6, 고정된 openstacksdk 4.22.0에서 `uv run pytest -q`로 실행해
-  626/626 (100%)이며, 실패나 건너뛴 테스트는 없습니다. OpenStack이 접수만 한 쓰기
-  작업의 결과가 더 이상 완료를 주장하지 않습니다. 로드밸런서, 리스너, 풀, 멤버, 헬스
-  모니터, L7 정책과 규칙의 Octavia 생성, 수정, 삭제 결과는 "successfully" 대신
-  "accepted"라고 표시하고, 생성과 수정 결과에는 "check provisioning_status before
-  use"를 덧붙입니다. 로드밸런서 `set`, L7 정책 생성, L7 규칙 생성 결과에는 이제
-  `provisioning_status`가 포함됩니다. Cinder 볼륨 생성, 삭제, 확장, 연결, 분리,
-  스냅샷 생성과 삭제, 스냅샷에서 볼륨 생성은 "accepted"로 표시합니다. Nova start,
-  stop, pause, unpause, suspend, resume, delete, shelve, unshelve, rescue,
-  unrescue, resize confirm과 revert, migration confirm, revert, abort,
-  force-complete는 "initiated"로 표시합니다. 새 테스트 15개가 Octavia 쓰기 경로 4개,
-  인스턴스 액션 13개, 볼륨 생성을 검사합니다. 이 변경에 대한 라이브 점검은 실행하지
-  않았습니다.
 - **Barbican, TLS 리스너, 상태, 쿼터 대상 점검 (2026-11-15, 2026-11-16, 부분 점검,
   `e161831` 기반의 커밋되지 않은 작업 트리):** 단일 노드 Kolla 테스트 클라우드에서
   Docker Compose 스택을 단일 계정 모드와 관리자 계정으로 실행했습니다. OpenWebUI를
