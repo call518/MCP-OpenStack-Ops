@@ -288,7 +288,7 @@ def set_volume(volume_name: str, action: str, **kwargs) -> Dict[str, Any]:
             
             return {
                 'success': True,
-                'message': f'Volume "{volume_name}" created successfully',
+                'message': f'Volume "{volume_name}" creation accepted; check status before use',
                 'volume': {
                     'id': volume.id,
                     'name': getattr(volume, 'name', 'unnamed'),
@@ -328,7 +328,7 @@ def set_volume(volume_name: str, action: str, **kwargs) -> Dict[str, Any]:
             
             return {
                 'success': True,
-                'message': f'Volume "{volume_name}" deleted successfully'
+                'message': f'Volume "{volume_name}" deletion accepted'
             }
             
         elif action.lower() == 'extend':
@@ -365,7 +365,8 @@ def set_volume(volume_name: str, action: str, **kwargs) -> Dict[str, Any]:
             
             return {
                 'success': True,
-                'message': f'Volume "{volume_name}" extended from {current_size}GB to {new_size}GB'
+                'message': (f'Volume "{volume_name}" extension from {current_size}GB '
+                            f'to {new_size}GB accepted; check status before use')
             }
             
         elif action.lower() == 'attach':
@@ -415,7 +416,7 @@ def set_volume(volume_name: str, action: str, **kwargs) -> Dict[str, Any]:
 
             return {
                 'success': True,
-                'message': f'Volume "{volume_name}" detached successfully'
+                'message': f'Volume "{volume_name}" detachment accepted; check status before use'
             }
             
         elif action.lower() == 'snapshot':
@@ -445,7 +446,7 @@ def set_volume(volume_name: str, action: str, **kwargs) -> Dict[str, Any]:
             
             return {
                 'success': True,
-                'message': f'Snapshot "{snapshot_name}" created successfully',
+                'message': f'Snapshot "{snapshot_name}" creation accepted; check status before use',
                 'snapshot': {
                     'id': snapshot.id,
                     'name': getattr(snapshot, 'name', 'unnamed'),
@@ -619,7 +620,7 @@ def set_snapshot(snapshot_name: str, action: str, **kwargs) -> Dict[str, Any]:
             
             return {
                 'success': True,
-                'message': f'Snapshot "{snapshot_name}" created successfully',
+                'message': f'Snapshot "{snapshot_name}" creation accepted; check status before use',
                 'snapshot': {
                     'id': snapshot.id,
                     'name': getattr(snapshot, 'name', 'unnamed'),
@@ -646,7 +647,7 @@ def set_snapshot(snapshot_name: str, action: str, **kwargs) -> Dict[str, Any]:
             
             return {
                 'success': True,
-                'message': f'Snapshot "{snapshot_name}" deleted successfully'
+                'message': f'Snapshot "{snapshot_name}" deletion accepted'
             }
             
         elif action.lower() == 'restore':
@@ -682,7 +683,8 @@ def set_snapshot(snapshot_name: str, action: str, **kwargs) -> Dict[str, Any]:
             
             return {
                 'success': True,
-                'message': f'Volume "{volume_name}" created from snapshot "{snapshot_name}"',
+                'message': (f'Volume "{volume_name}" creation from snapshot '
+                            f'"{snapshot_name}" accepted; check status before use'),
                 'volume': {
                     'id': volume.id,
                     'name': getattr(volume, 'name', 'unnamed'),
@@ -1037,7 +1039,8 @@ def set_server_volume(instance_name: str, action: str, **kwargs) -> Dict[str, An
                 )
                 return {
                     'success': True,
-                    'message': f'Volume "{volume_name}" attached to server "{instance_name}"',
+                    'message': (f'Volume "{volume_name}" attachment to server '
+                                f'"{instance_name}" accepted; check status before use'),
                     'attachment': {
                         'volume_id': volume.id,
                         'volume_name': getattr(volume, 'name', 'unnamed'),
@@ -1091,7 +1094,8 @@ def set_server_volume(instance_name: str, action: str, **kwargs) -> Dict[str, An
                 conn.compute.delete_volume_attachment(server.id, volume.id)
                 return {
                     'success': True,
-                    'message': f'Volume "{volume_name}" detached from server "{instance_name}"'
+                    'message': (f'Volume "{volume_name}" detachment from server '
+                                f'"{instance_name}" accepted; check status before use')
                 }
             except Exception as e:
                 return {

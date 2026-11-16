@@ -209,7 +209,7 @@ def set_load_balancer_listener(action: str, **kwargs) -> Dict[str, Any]:
             
             return {
                 'success': True,
-                'message': f'Listener created successfully: {listener.name}',
+                'message': f'Listener creation accepted: {listener.name}; check provisioning_status before use',
                 'listener': {
                     'id': listener.id,
                     'name': listener.name,
@@ -239,7 +239,7 @@ def set_load_balancer_listener(action: str, **kwargs) -> Dict[str, Any]:
             conn.load_balancer.delete_listener(listener.id)
             return {
                 'success': True,
-                'message': f'Listener deleted successfully: {listener.name}'
+                'message': f'Listener deletion accepted: {listener.name}'
             }
         
         elif action in ["set", "update"]:
@@ -272,7 +272,7 @@ def set_load_balancer_listener(action: str, **kwargs) -> Dict[str, Any]:
             updated_listener = conn.load_balancer.update_listener(listener.id, **update_params)
             return {
                 'success': True,
-                'message': f'Listener updated successfully: {updated_listener.name}',
+                'message': f'Listener update accepted: {updated_listener.name}; check provisioning_status before use',
                 'listener': {
                     'id': updated_listener.id,
                     'name': updated_listener.name,

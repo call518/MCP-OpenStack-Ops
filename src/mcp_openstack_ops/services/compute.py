@@ -833,14 +833,14 @@ def set_instance(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
             conn.compute.start_server(server)
             return {
                 'success': True,
-                'message': f'Instance "{instance_name}" started'
+                'message': f'Instance "{instance_name}" start initiated'
             }
             
         elif action.lower() in ['stop', 'shutdown', 'power_off']:
             conn.compute.stop_server(server)
             return {
                 'success': True,
-                'message': f'Instance "{instance_name}" stopped'
+                'message': f'Instance "{instance_name}" stop initiated'
             }
             
         elif action.lower() in ['reboot', 'restart']:
@@ -855,28 +855,28 @@ def set_instance(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
             conn.compute.pause_server(server)
             return {
                 'success': True,
-                'message': f'Instance "{instance_name}" paused'
+                'message': f'Instance "{instance_name}" pause initiated'
             }
             
         elif action.lower() == 'unpause':
             conn.compute.unpause_server(server)
             return {
                 'success': True,
-                'message': f'Instance "{instance_name}" unpaused'
+                'message': f'Instance "{instance_name}" unpause initiated'
             }
             
         elif action.lower() == 'suspend':
             conn.compute.suspend_server(server)
             return {
                 'success': True,
-                'message': f'Instance "{instance_name}" suspended'
+                'message': f'Instance "{instance_name}" suspend initiated'
             }
             
         elif action.lower() == 'resume':
             conn.compute.resume_server(server)
             return {
                 'success': True,
-                'message': f'Instance "{instance_name}" resumed'
+                'message': f'Instance "{instance_name}" resume initiated'
             }
             
         elif action.lower() in ['delete', 'terminate']:
@@ -887,13 +887,13 @@ def set_instance(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
                 conn.compute.delete_server(server, force=True)
                 return {
                     'success': True,
-                    'message': f'Instance "{instance_name}" force deleted'
+                    'message': f'Instance "{instance_name}" force deletion initiated'
                 }
             else:
                 conn.compute.delete_server(server)
                 return {
                     'success': True,
-                    'message': f'Instance "{instance_name}" deleted'
+                    'message': f'Instance "{instance_name}" deletion initiated'
                 }
                 
         elif action.lower() == 'resize':
@@ -927,14 +927,14 @@ def set_instance(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
             conn.compute.confirm_server_resize(server)
             return {
                 'success': True,
-                'message': f'Instance "{instance_name}" resize confirmed'
+                'message': f'Instance "{instance_name}" resize confirmation initiated'
             }
             
         elif action.lower() == 'revert_resize':
             conn.compute.revert_server_resize(server)
             return {
                 'success': True,
-                'message': f'Instance "{instance_name}" resize reverted'
+                'message': f'Instance "{instance_name}" resize revert initiated'
             }
             
         elif action.lower() == 'snapshot':
@@ -985,14 +985,14 @@ def set_instance(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
             conn.compute.shelve_server(server)
             return {
                 'success': True,
-                'message': f'Instance "{instance_name}" shelved'
+                'message': f'Instance "{instance_name}" shelve initiated'
             }
             
         elif action.lower() == 'unshelve':
             conn.compute.unshelve_server(server)
             return {
                 'success': True,
-                'message': f'Instance "{instance_name}" unshelved'
+                'message': f'Instance "{instance_name}" unshelve initiated'
             }
             
         elif action.lower() == 'lock':
@@ -1022,14 +1022,14 @@ def set_instance(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
             conn.compute.rescue_server(server, **rescue_params)
             return {
                 'success': True,
-                'message': f'Instance "{instance_name}" put in rescue mode'
+                'message': f'Instance "{instance_name}" rescue initiated'
             }
             
         elif action.lower() == 'unrescue':
             conn.compute.unrescue_server(server)
             return {
                 'success': True,
-                'message': f'Instance "{instance_name}" restored from rescue mode'
+                'message': f'Instance "{instance_name}" unrescue initiated'
             }
             
         elif action.lower() == 'rebuild':
@@ -2250,7 +2250,7 @@ def set_server_migration(instance_name: str, action: str, **kwargs) -> Dict[str,
             conn.compute.confirm_server_resize(server)
             return {
                 'success': True,
-                'message': f'Migration/resize confirmed for server "{instance_name}"'
+                'message': f'Migration/resize confirmation initiated for server "{instance_name}"'
             }
             
         elif action.lower() == 'revert':
@@ -2258,7 +2258,7 @@ def set_server_migration(instance_name: str, action: str, **kwargs) -> Dict[str,
             conn.compute.revert_server_resize(server)
             return {
                 'success': True,
-                'message': f'Migration/resize reverted for server "{instance_name}"'
+                'message': f'Migration/resize revert initiated for server "{instance_name}"'
             }
             
         elif action.lower() == 'list':
@@ -2346,7 +2346,7 @@ def set_server_migration(instance_name: str, action: str, **kwargs) -> Dict[str,
                 conn.compute.abort_server_migration(server.id, migration_id)
                 return {
                     'success': True,
-                    'message': f'Migration "{migration_id}" aborted for server "{instance_name}"'
+                    'message': f'Migration "{migration_id}" abort initiated for server "{instance_name}"'
                 }
             except Exception as e:
                 return {
@@ -2366,7 +2366,7 @@ def set_server_migration(instance_name: str, action: str, **kwargs) -> Dict[str,
                 conn.compute.force_complete_server_migration(server.id, migration_id)
                 return {
                     'success': True,
-                    'message': f'Migration "{migration_id}" force completed for server "{instance_name}"'
+                    'message': f'Migration "{migration_id}" force completion initiated for server "{instance_name}"'
                 }
             except Exception as e:
                 return {
