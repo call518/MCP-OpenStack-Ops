@@ -26,25 +26,24 @@ async def set_load_balancer_health_monitor(
     expected_codes: str = "200"
 ) -> str:
     """
-    Comprehensive health monitor management operations (create, delete, set, unset, show).
+    Comprehensive health monitor management operations (create, delete, set, show).
 
     Functions:
     - Create new health monitors for pools with various protocols (HTTP, HTTPS, TLS-HELLO, TCP, UDP, PING)
     - Delete existing health monitors
     - Set/update monitor settings (timing, HTTP parameters, admin state)
-    - Unset/clear monitor settings (HTTP parameters, expected codes)
     - Show detailed health monitor configuration and status
 
     Use when user requests:
     - "Create HTTP health monitor for pool [name] checking /health every 30 seconds"
     - "Delete health monitor [name/id]"
     - "Update health monitor [name] timeout to 10 seconds"
-    - "Clear health monitor [name] expected codes"
     - "Show health monitor [name/id] details"
 
     Args:
-        action: Operation to perform (create, delete, set, unset, show)
-        monitor_name_or_id: Monitor name or ID (required for delete/set/unset/show)
+        action: Operation to perform (create, delete, set, show). "unset" is not
+            implemented and returns an error.
+        monitor_name_or_id: Monitor name or ID (required for delete/set/show)
         name: Name for the monitor
         pool_name_or_id: Pool name or ID (required for create)
         monitor_type: Monitor type (HTTP, HTTPS, TLS-HELLO, TCP, PING, UDP-CONNECT,

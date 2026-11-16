@@ -360,7 +360,8 @@ Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인�
 | `openstack floating ip delete` | `set_floating_ip` (action="delete") | ✅ | Floating IP 삭제. 2026-11-10 targeted check: 반납됨 |
 | `openstack floating ip set` | `set_floating_ip` (action="set") | ✅ | Floating IP 속성 설정 |
 | `openstack floating ip show` | `set_floating_ip` (action="show") | ✅ | Floating IP 상세. 2026-11-10 targeted check: ID로 조회됨 |
-| `openstack floating ip unset` | `set_floating_ip` (action="unset") | ❌ Limitation | 무엇을 해제할지 고르는 파라미터를 도구가 노출하지 않아 이 action은 항상 오류를 반환. `set`이나 `disassociate`를 사용 |
+| `openstack floating ip unset --port` | `set_floating_ip` (action="disassociate"), `set_server_floating_ip` (action="remove") | ✅ | port 연결을 끊고 floating IP는 유지. `set_server_floating_ip` (action="remove")는 `openstack server remove floating ip`와 같은 경로이며, `disassociate`는 별도의 날짜 기록이 있는 live 점검이 없음 |
+| `openstack floating ip unset --qos-policy` / `--tag` / `--all-tag` | — | ❌ Not implemented | floating IP의 QoS policy나 tag를 지우는 도구가 없음. `set_floating_ip` (action="unset")은 무엇을 지울지 고르는 파라미터가 없어 항상 오류를 반환하므로, port 연결 해제에는 `disassociate`를 사용 |
 | `openstack floating ip pool list` | `get_floating_ip_pools` | ✅ | 전역 풀의 남은 용량은 알 수 없음(`available_ips=null`). 조회에 실패하면 가짜 풀 대신 오류를 반환. 2026-11-10 targeted check: 외부 네트워크 풀이 나열됨 |
 | `openstack floating ip port forwarding create` | `set_floating_ip_port_forwarding` (action="create") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼의 port-forwarding endpoint가 HTTP 404를 반환 |
 | `openstack floating ip port forwarding delete` | `set_floating_ip_port_forwarding` (action="delete") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼의 port-forwarding endpoint가 HTTP 404를 반환 |

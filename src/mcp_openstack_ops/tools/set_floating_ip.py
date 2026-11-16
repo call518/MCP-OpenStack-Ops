@@ -11,22 +11,23 @@ from ..mcp_main import (
 async def set_floating_ip(action: str, floating_network_id: str = "", port_id: str = "", floating_ip_id: str = "", 
                          floating_ip_address: str = "", description: str = "") -> str:
     """
-    Manage floating IPs (create, delete, associate, disassociate, set, show, unset, list).
-    
+    Manage floating IPs (create, delete, associate, disassociate, set, show, list).
+
     Functions:
     - Create new floating IPs from external networks (allocate)
     - Delete existing floating IPs (release)
     - Associate floating IPs with instance ports
-    - Disassociate floating IPs from instances
+    - Disassociate floating IPs from instances (detach the port, keep the IP)
     - Set floating IP properties (description, fixed IP)
     - Show detailed floating IP information
-    - Unset floating IP properties (clear description)
     - List all floating IPs
-    
+
     Use when user requests floating IP management, external connectivity setup, or IP allocation tasks.
-    
+
     Args:
-        action: Action to perform (create/allocate, delete/release, associate, disassociate, set, show, unset, list)
+        action: Action to perform (create/allocate, delete/release, associate, disassociate, set, show, list).
+            Do not use "unset": no parameter selects what to clear, so it always
+            returns an error. Use "disassociate" to detach the port.
         floating_network_id: ID of external network for create action
         port_id: Port ID for association operations, or to associate on create
         floating_ip_id: Floating IP ID for operations

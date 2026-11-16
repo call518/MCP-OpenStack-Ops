@@ -358,7 +358,8 @@ unit-test results behind the Status values below are recorded in
 | `openstack floating ip delete` | `set_floating_ip` (action="delete") | ✅ | Floating IP deletion. 2026-11-10 targeted check: released |
 | `openstack floating ip set` | `set_floating_ip` (action="set") | ✅ | Floating IP property setting |
 | `openstack floating ip show` | `set_floating_ip` (action="show") | ✅ | Floating IP details. 2026-11-10 targeted check: shown by ID |
-| `openstack floating ip unset` | `set_floating_ip` (action="unset") | ❌ Limitation | The tool exposes no parameter that selects what to unset, so this action always returns an error. Use `set` or `disassociate` |
+| `openstack floating ip unset --port` | `set_floating_ip` (action="disassociate"), `set_server_floating_ip` (action="remove") | ✅ | Detaches the port and keeps the floating IP. `set_server_floating_ip` (action="remove") is the same path as `openstack server remove floating ip`; `disassociate` has no separate dated live check |
+| `openstack floating ip unset --qos-policy` / `--tag` / `--all-tag` | — | ❌ Not implemented | No tool clears a floating IP's QoS policy or tags. `set_floating_ip` (action="unset") exposes no parameter that selects what to clear and always returns an error; use `disassociate` to detach the port |
 | `openstack floating ip pool list` | `get_floating_ip_pools` | ✅ | Available global pool capacity remains unknown (`available_ips=null`). A failed query returns an error instead of a placeholder pool. 2026-11-10 targeted check: the external network pool was listed |
 | `openstack floating ip port forwarding create` | `set_floating_ip_port_forwarding` (action="create") | ⚠️ Live unverified | Implemented; test platform port-forwarding endpoint returns HTTP 404 |
 | `openstack floating ip port forwarding delete` | `set_floating_ip_port_forwarding` (action="delete") | ⚠️ Live unverified | Implemented; test platform port-forwarding endpoint returns HTTP 404 |
