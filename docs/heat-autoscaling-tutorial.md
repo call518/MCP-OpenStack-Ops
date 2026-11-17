@@ -505,6 +505,23 @@ What the chart shows about the settings:
 - Scale actions are spaced at least about 15 minutes apart, the cooldown.
 - Scale-in stops at two members, the group's `min_size`.
 
+**Ask for the CPU data in natural language.** You do not need Grafana to follow
+the scaling. The screenshot below is from the `web-asg` stack built from the
+[two-line creation request](#the-request) above. A separate one-line request
+for the members' CPU over the last hour at 1-minute intervals made the MCP
+client read the members' Gnocchi `cpu` measures through this server's tools.
+The client then drew the chart, the interval summary and the CSV itself,
+converting each value to percent of one vCPU (`cpu` ns per minute ÷ 60e9 ×
+100). The session was in Korean; the screenshot shows it translated into
+English.
+
+![Per-member CPU queried in natural language](../img/screenshot-heat-99-claude-code-cpu-query-eng.png)
+
+The data matches the alarm settings: the group mean stayed above 60% from
+10:12 to 10:16 KST, five consecutive minutes, and the third member
+(`.128`) was created at 10:17. That member then booted at 95–99% CPU for about
+7 minutes before idling at 5–6%.
+
 ## Troubleshooting
 
 When something fails, report the state instead of deleting or retrying:

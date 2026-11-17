@@ -52,9 +52,20 @@ Use the test-rockylinux-9 VM (web server) as the source for a new base image. Cr
 Using this server's tools, the MCP client snapshotted a web server VM into a
 base image, generated a self-signed certificate and stored it in Barbican, and
 created a Heat stack with an Octavia load balancer that terminates HTTPS and an
-autoscaling group driven by Aodh CPU alarms. Under CPU load the group grew from two to four web servers and shrank
-back to two when the load ended. The request, templates and a walkthrough of
-the chart are in the [Heat autoscaling tutorial](docs/heat-autoscaling-tutorial.md).
+autoscaling group driven by Aodh CPU alarms. Under CPU load the group grew from
+two to four web servers and shrank back to two when the load ended. The
+request, templates and a walkthrough of the chart are in the
+[Heat autoscaling tutorial](docs/heat-autoscaling-tutorial.md).
+
+**Then ask how it is doing, in one line**
+
+![Per-member CPU queried in natural language](img/screenshot-heat-99-claude-code-cpu-query-eng.png)
+
+A one-line request for the members' CPU over the last hour, at 1-minute
+intervals, returned per-member data from Gnocchi through this server's tools;
+the client drew the chart, summary and CSV. It shows the group mean above 60%
+for five minutes and the third member added right after. (The session was in
+Korean; the screenshot shows it translated into English.)
 
 Ask questions and give instructions in natural language, for example:
 
