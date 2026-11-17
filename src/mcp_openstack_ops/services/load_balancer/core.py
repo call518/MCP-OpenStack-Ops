@@ -22,7 +22,8 @@ def get_load_balancer_list(limit: int = 50, offset: int = 0, include_all: bool =
     Get list of load balancers with comprehensive details for current project.
 
     Args:
-        limit: Maximum number of load balancers to return (1-200, default: 50)
+        limit: Maximum number of load balancers to return (default: 50; capped
+            by the LIST_MAX_LIMIT setting)
         offset: Number of load balancers to skip (default: 0)
         include_all: If True, return all load balancers (ignores limit/offset)
         all_projects: Keep every load balancer Octavia returns; its
@@ -39,6 +40,8 @@ def get_load_balancer_list(limit: int = 50, offset: int = 0, include_all: bool =
     if all_projects and not cross_project_read_enabled():
         return {'success': False, 'message': CROSS_PROJECT_READ_DISABLED,
                 'error': CROSS_PROJECT_READ_DISABLED}
+    from ...settings import list_max_limit
+    max_limit = list_max_limit()
     try:
         conn = get_openstack_connection()
         current_project_id = conn.current_project_id
@@ -48,7 +51,7 @@ def get_load_balancer_list(limit: int = 50, offset: int = 0, include_all: bool =
         
         # Validate limit
         if not include_all:
-            limit = max(1, min(limit, 200))
+            limit = max(1, min(limit, max_limit))
         
         # Get all load balancers and filter by current project
         all_lbs = []

@@ -327,9 +327,9 @@ set_instance(action="stop", name_contains="test")
 ```
 
 **일괄 작업과 필터를 지원하는 도구:**
-- **`set_instance`**: 필터(name_contains, status, flavor_contains, image_contains)를 지원하는 일괄 수명 주기 관리
-- **`set_volume`**: 필터(name_contains, status, 크기 필터)를 지원하는 일괄 볼륨 작업
-- **`set_image`**: 필터(name_contains, status)를 지원하는 일괄 이미지 관리
+- **`set_instance`**: 필터(name_contains, status, flavor_contains, image_contains)를 지원하는 일괄 수명 주기 관리. 지정한 필터는 모두 일치해야 함. 서버의 `INSTANCE_FILTER_MAX_MATCHES`(기본값 100, [설정](configuration.ko.md#환경-변수) 참고)보다 많이 일치하면 어떤 인스턴스에도 작업하지 않고 거부하므로 필터를 좁힐 것
+- **`set_volume`**: 이름 목록에 대한 일괄 볼륨 작업. 필터 파라미터는 없음
+- **`set_image`**: 이름 목록에 대한 일괄 이미지 관리. 필터 파라미터는 없음
 - **`set_networks`**: 필터(name_contains, status)를 지원하는 일괄 네트워크 작업
 - **`set_keypair`**: 필터(name_contains)를 지원하는 일괄 키페어 관리
 - **`set_snapshot`**: 필터(name_contains, status)를 지원하는 일괄 스냅샷 작업
@@ -380,7 +380,7 @@ Post-Action Status:
 인스턴스 목록은 페이지 단위로 나뉘므로 큰 프로젝트에서도 수천 개의 인스턴스를 한
 번에 돌려주지 않습니다.
 
-- `get_instance_details`는 기본적으로 요청당 인스턴스 50개, 최대 200개를 반환합니다.
+- `get_instance_details`는 기본적으로 요청당 인스턴스 50개, 최대 서버의 `LIST_MAX_LIMIT`(기본값 100)개를 반환합니다.
 - `limit`과 `offset`으로 결과를 넘겨 봅니다.
 - `include_all=True`는 한도를 무시합니다. 큰 프로젝트에서는 주의해서 쓰세요.
 

@@ -51,6 +51,8 @@ Options:
 | `MCP_LOG_LEVEL` | 로그 수준 | `INFO` | 개발 시 디버깅 |
 | `ALLOW_MODIFY_OPERATIONS` | 변경 작업 허용 | `false` | 상태 변경에 대한 안전 장치 |
 | `ALLOW_CROSS_PROJECT_READ` | 지원하는 목록 도구에서 `all_projects=true` 허용 | `false` | 기능만 켜며, 허용 여부는 OpenStack 정책이 판단. 고급 기능. [cross-project 조회 가이드](cross-project-guide.ko.md) 참고 |
+| `LIST_MAX_LIMIT` | `limit` 파라미터가 있는 목록 도구(`get_instance_details`, `search_instances`, `get_instance`, `get_load_balancer_list`)가 한 번 호출에 반환하는 최대 항목 수 | `100` | 양의 정수. 인스턴스 한 건은 대략 300~400 토큰이므로, 컨텍스트가 작은 모델이면 낮추고 다음 페이지는 `offset`으로 읽음. 잘못된 값이면 이 호출들이 실패 |
+| `INSTANCE_FILTER_MAX_MATCHES` | 필터(`name_contains`, `status`, `flavor_contains`, `image_contains`)를 쓰는 `set_instance` 호출이 작업할 수 있는 최대 인스턴스 수 | `100` | 양의 정수. 더 많이 일치하면 어떤 인스턴스에도 작업하지 않고 거부. 잘못된 값이면 이런 호출이 실패. `LIST_MAX_LIMIT`와 무관하며, 일치 항목은 내부에서 한 번의 목록 조회로 모음 |
 | `FASTMCP_TYPE` | 전송 방식 | `stdio` | 바꿀 일이 거의 없음 |
 | `FASTMCP_HOST` | HTTP 호스트 주소 | `127.0.0.1` | HTTP 모드 전용 |
 | `FASTMCP_PORT` | HTTP 포트 번호 | `8080` | HTTP 모드 전용 |
@@ -90,7 +92,8 @@ OpenWebUI에는 OpenStack 도구가 하나도 나오지 않습니다.
 
 다음 키는 모드와 무관합니다: `FASTMCP_TYPE=streamable-http`(Compose에서는 항상),
 `OS_AUTH_HOST`, `OS_AUTH_PORT`, `OS_REGION_NAME`, 서비스 포트,
-`ALLOW_MODIFY_OPERATIONS`, `ALLOW_CROSS_PROJECT_READ`.
+`ALLOW_MODIFY_OPERATIONS`, `ALLOW_CROSS_PROJECT_READ`, `LIST_MAX_LIMIT`,
+`INSTANCE_FILTER_MAX_MATCHES`.
 
 - 여러 사람이 함께 쓰는 OpenWebUI는 모드 1이나 2를 사용합니다. MCPO는 고정된 헤더
   한 벌만 보내므로, 모드 3과 4에서는 모든 OpenWebUI 사용자가 MCPO 파일에 든

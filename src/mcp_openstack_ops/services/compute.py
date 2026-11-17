@@ -86,7 +86,8 @@ def get_instance_details(
     
     Args:
         instance_names: List of instance names to filter (optional)
-        limit: Maximum number of instances to return (default: 50, max: 200)
+        limit: Maximum number of instances to return (default: 50; capped by
+            the LIST_MAX_LIMIT setting)
         offset: Number of instances to skip for pagination (default: 0)
         include_all: If True, return all instances ignoring limit (default: False)
         all_projects: List instances of every project the credential's
@@ -107,8 +108,8 @@ def get_instance_details(
         conn = get_openstack_connection()
         
         # Validate and sanitize inputs
-        if limit > 200:
-            limit = 200
+        from ..settings import list_max_limit
+        limit = min(limit, list_max_limit())
         if limit < 1:
             limit = 1
         if offset < 0:
@@ -398,6 +399,9 @@ def search_instances(
     Returns:
         Matching instances, optionally with pagination metadata
     """
+    # Read before the try block: its handler hides the cause of any error.
+    from ..settings import list_max_limit
+    max_limit = list_max_limit()
     try:
         # Import here to avoid circular imports
         from ..connection import get_openstack_connection, require_cross_project_read
@@ -417,7 +421,7 @@ def search_instances(
                              for field in search_fields]
         needs_images = bool(search_term and 'image_name' in search_fields)
         matching_instances = []
-        limit = max(1, min(limit, 200))
+        limit = max(1, min(limit, max_limit))
         all_instances_result = get_instance_details(
             include_all=True,
             enrich_images=needs_images,

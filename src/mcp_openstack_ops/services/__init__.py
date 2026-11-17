@@ -6,10 +6,6 @@ Each module focuses on a specific OpenStack service area for better maintainabil
 """
 
 # Core connection and cluster management
-from .core import (
-    get_service_status
-)
-
 # Compute service functions
 from .compute import (
     get_instance_details,
@@ -115,7 +111,6 @@ from .monitoring import (
     get_usage_statistics,
     get_quota,
     set_quota,
-    get_compute_quota_usage,
     get_hypervisor_details,
     get_availability_zones
 )
@@ -138,8 +133,7 @@ __all__ = [
     # Core
     'get_openstack_connection',
     'reset_connection_cache',
-    'get_service_status',
-    
+
     # Compute
     'get_instance_details',
     'get_instance_by_name',
@@ -234,6 +228,5 @@ __all__ = [
     'get_usage_statistics',
     'get_quota',
     'set_quota',
-    'get_compute_quota_usage',
     'monitor_resources'
 ]

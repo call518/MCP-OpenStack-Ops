@@ -17,7 +17,8 @@ async def set_image_metadata(
     Manage OpenStack image metadata and properties
     
     Args:
-        action: Action to perform - show, set
+        action: Action to perform - show, set. show reads any visible image;
+            set applies only to images owned by the current project
         image_name: Name or ID of the image
         properties: JSON string of properties to set (e.g., '{"os_type": "linux", "architecture": "x86_64"}')
         

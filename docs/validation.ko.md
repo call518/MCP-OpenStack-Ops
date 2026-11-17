@@ -503,3 +503,32 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   `set_network_agents`의 enable/disable 경로도 **Live unverified**로 바꿨습니다. live
   도구 스크립트는 action="list"만 호출합니다. 2026-11-04 요약의 `set_server_dump`
   서술을 바로잡았으며 수치는 바뀌지 않았습니다.
+- **Glance 소유권과 일괄 상한 로컬 테스트 (2026-11-17, `b0bcada` 기반의 커밋되지
+  않은 작업 트리):** fastmcp 4.1.6과 잠금된 openstacksdk 4.22.0으로
+  `uv run pytest -q`를 실행해 652/652 (100%)였고, 실패나 건너뛴 테스트는
+  없었습니다. 새 테스트 13개: `set_image` update와 delete, `set_image_metadata`
+  set, `set_image_visibility` set은 다른 프로젝트의 public 이미지를 거부하고,
+  같은 이름의 다른 프로젝트 이미지가 있어도 소유한 이미지를 고르며, 소유한
+  이미지 이름이 모호하면 거부합니다. `show`는 다른 프로젝트의 public 이미지를
+  여전히 읽습니다. `set_image` create는 데이터 없는 레코드라고 보고합니다.
+  `set_instance`는 `name_contains` 검색이 200개를 넘게 일치하면 작업 없이
+  거부하고, 결과가 완전하면 그대로 실행합니다. delete는 이전에 다른 프로젝트의
+  public, shared, community 이미지도 받아들이는 조회를 썼습니다. live 점검은
+  실행하지 않았으므로 이 이미지 쓰기 경로는 **Live unverified**입니다.
+- **쿼터 사용률, 목록 상한, 인스턴스 필터 로컬 테스트와 정리 (2026-11-17, 같은
+  커밋되지 않은 작업 트리):** fastmcp 4.1.6과 잠금된 openstacksdk 4.22.0으로
+  `uv run pytest -q`를 실행해 674/674 (100%)였고, 실패나 건너뛴 테스트는
+  없었습니다. 새 테스트 26개. `get_quota`는 `usage_percent`를 보고하며, 한도가
+  무제한이거나 0이거나 없을 때와 사용량을 모를 때는 null입니다. 백업이나 보안 그룹
+  규칙 개수 조회에 실패하면 0 대신 오류와 함께 null을 보고합니다.
+  `LIST_MAX_LIMIT`(기본값 100, 이전에는 고정 200)은 `get_instance_details`와
+  `search_instances`의 한 페이지를 제한하며, 잘못된 값이면 `get_load_balancer_list`를
+  포함해 변수 이름을 담은 오류로 실패합니다. 필터를 쓰는 `set_instance`는 이제
+  프로젝트를 한 번 조회하고 지정한 필터가 모두 일치해야 합니다. 이전에는
+  `name_contains`와 `status`를 함께 주면 둘의 합집합을 선택했고, `flavor_contains`와
+  `image_contains`는 dict 값인 flavor와 image에서 실패하거나 단독으로는 아무것도
+  고르지 못했습니다. `INSTANCE_FILTER_MAX_MATCHES`(기본값 100)보다 대상이 많으면
+  작업 없이 거부하고, 잘못된 값과 상태는 거부하며, 목록 조회 실패 내용은 계속
+  가립니다. 앞 기록의 `set_instance` 테스트 2개는 대체했습니다. 제거한 미사용 코드
+  (`services/core.py`)의 테스트 2개는 삭제했습니다. live 점검은 실행하지
+  않았습니다.

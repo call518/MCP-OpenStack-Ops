@@ -223,61 +223,6 @@ def get_resource_monitoring() -> Dict[str, Any]:
         }
 
 
-def get_compute_quota_usage(conn) -> Dict[str, Any]:
-    """
-    Get compute quota usage information.
-    
-    Args:
-        conn: OpenStack connection object
-    
-    Returns:
-        Dict containing compute quota usage data
-    """
-    try:
-        project_id = conn.current_project_id
-        quota = conn.compute.get_quota_set(project_id)
-        limits = conn.compute.get_limits()
-        
-        # Get current usage
-        servers = list(conn.compute.servers())
-        total_vcpus = sum(getattr(server, 'flavor', {}).get('vcpus', 0) for server in servers)
-        total_ram = sum(getattr(server, 'flavor', {}).get('ram', 0) for server in servers)
-        
-        usage_data = {
-            'instances': {
-                'used': len(servers),
-                'limit': getattr(quota, 'instances', -1),
-                'percentage': (len(servers) / getattr(quota, 'instances', 1)) * 100 if getattr(quota, 'instances', -1) > 0 else 0
-            },
-            'vcpus': {
-                'used': total_vcpus,
-                'limit': getattr(quota, 'cores', -1),
-                'percentage': (total_vcpus / getattr(quota, 'cores', 1)) * 100 if getattr(quota, 'cores', -1) > 0 else 0
-            },
-            'ram': {
-                'used': total_ram,
-                'limit': getattr(quota, 'ram', -1),
-                'percentage': (total_ram / getattr(quota, 'ram', 1)) * 100 if getattr(quota, 'ram', -1) > 0 else 0
-            },
-            'key_pairs': {
-                'used': len(list(conn.compute.keypairs())),
-                'limit': getattr(quota, 'key_pairs', -1),
-                'percentage': 0  # Calculate if needed
-            }
-        }
-        
-        return usage_data
-        
-    except Exception as e:
-        logger.error(f"Failed to get compute quota usage: {e}")
-        return {
-            'error': str(e),
-            'instances': {'used': 0, 'limit': -1, 'percentage': 0},
-            'vcpus': {'used': 0, 'limit': -1, 'percentage': 0},
-            'ram': {'used': 0, 'limit': -1, 'percentage': 0}
-        }
-
-
 def _get_period_compute_usage(conn, start: datetime, end: datetime) -> Dict[str, Any]:
     """Merge Nova 2.40 usage pages without following arbitrary next-link URLs."""
     from urllib.parse import quote
@@ -502,6 +447,22 @@ def get_usage_statistics(start_date: str = "", end_date: str = "") -> Dict[str, 
         }
 
 
+def _usage_percent(limits: Dict[str, Any], usage: Dict[str, Any]) -> Dict[str, Any]:
+    """Percent of each limit in use.
+
+    Null when the limit is unlimited (-1), zero or missing, or the usage is
+    unknown, so an unknown value is never reported as 0%.
+    """
+    percent = {}
+    for key, limit in limits.items():
+        if key not in usage:
+            continue
+        used = usage[key]
+        known = isinstance(used, int) and isinstance(limit, int) and limit > 0
+        percent[key] = round(used * 100 / limit, 1) if known else None
+    return percent
+
+
 def get_quota(project_name: str = "") -> Dict[str, Any]:
     """
     Get quota information for a project.
@@ -597,6 +558,8 @@ def get_quota(project_name: str = "") -> Dict[str, Any]:
                 'key_pairs': len(keypairs),
                 'active_instances': len(active_instances)
             }
+            quota_data['compute']['usage_percent'] = _usage_percent(
+                quota_data['compute']['limits'], quota_data['compute']['usage'])
         except Exception as e:
             quota_data['compute'] = {'error': str(e)}
         
@@ -622,13 +585,17 @@ def get_quota(project_name: str = "") -> Dict[str, Any]:
             security_groups = list(conn.network.security_groups(project_id=project_id))
             
             total_sg_rules = 0
+            sg_rules_error = None
             for sg in security_groups:
                 try:
                     rules = list(conn.network.security_group_rules(security_group_id=sg.id))
                     total_sg_rules += len(rules)
-                except Exception:
-                    pass
-            
+                except Exception as exc:
+                    # A partial count would understate usage; report unknown.
+                    sg_rules_error = str(exc)
+                    total_sg_rules = None
+                    break
+
             quota_data['network']['usage'] = {
                 'networks': len(networks),
                 'subnets': len(subnets),
@@ -636,8 +603,12 @@ def get_quota(project_name: str = "") -> Dict[str, Any]:
                 'routers': len(routers),
                 'floatingips': len(floatingips),
                 'security_groups': len(security_groups),
-                'security_group_rules': total_sg_rules
+                'security_group_rules': total_sg_rules,
+                **({'security_group_rules_error': sg_rules_error}
+                   if sg_rules_error else {}),
             }
+            quota_data['network']['usage_percent'] = _usage_percent(
+                quota_data['network']['limits'], quota_data['network']['usage'])
         except Exception as e:
             quota_data['network'] = {'error': str(e)}
         
@@ -658,21 +629,28 @@ def get_quota(project_name: str = "") -> Dict[str, Any]:
             
             total_gigabytes = sum(getattr(vol, 'size', 0) for vol in volumes)
             
-            # Try to get backups (may not be available in all OpenStack deployments)
+            # Backups may be unavailable (no cinder-backup); report unknown
+            # usage instead of 0.
+            backups_error = None
             try:
                 backups = list(conn.volume.backups(project_id=project_id))
+                backup_count = len(backups)
                 backup_gigabytes = sum(getattr(backup, 'size', 0) for backup in backups)
-            except Exception:
-                backups = []
-                backup_gigabytes = 0
-            
+            except Exception as exc:
+                backups_error = str(exc)
+                backup_count = None
+                backup_gigabytes = None
+
             quota_data['volume']['usage'] = {
                 'volumes': len(volumes),
                 'snapshots': len(snapshots),
                 'gigabytes': total_gigabytes,
-                'backups': len(backups),
-                'backup_gigabytes': backup_gigabytes
+                'backups': backup_count,
+                'backup_gigabytes': backup_gigabytes,
+                **({'backups_error': backups_error} if backups_error else {}),
             }
+            quota_data['volume']['usage_percent'] = _usage_percent(
+                quota_data['volume']['limits'], quota_data['volume']['usage'])
         except Exception as e:
             quota_data['volume'] = {'error': str(e)}
         

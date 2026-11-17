@@ -51,6 +51,8 @@ Options:
 | `MCP_LOG_LEVEL` | Logging level | `INFO` | Development debugging |
 | `ALLOW_MODIFY_OPERATIONS` | Enable modify operations | `false` | Safety control for state modifications |
 | `ALLOW_CROSS_PROJECT_READ` | Enable `all_projects=true` on supported list tools | `false` | Exposes the feature only; OpenStack policy decides access. Advanced; see the [cross-project reads guide](cross-project-guide.md) |
+| `LIST_MAX_LIMIT` | Most items one call of a list tool with a `limit` parameter returns (`get_instance_details`, `search_instances`, `get_instance`, `get_load_balancer_list`) | `100` | Positive integer. One instance row is roughly 300-400 tokens; lower it for small-context models, which then read further pages with `offset`. An invalid value makes those calls fail |
+| `INSTANCE_FILTER_MAX_MATCHES` | Most instances a filter-based `set_instance` call may act on (`name_contains`, `status`, `flavor_contains`, `image_contains`) | `100` | Positive integer. More matches are refused without acting on any instance; an invalid value makes such calls fail. Independent of `LIST_MAX_LIMIT`: matches are collected in one internal listing |
 | `FASTMCP_TYPE` | Transport type | `stdio` | Rarely needed to change |
 | `FASTMCP_HOST` | HTTP host address | `127.0.0.1` | For HTTP mode only |
 | `FASTMCP_PORT` | HTTP port number | `8080` | For HTTP mode only |
@@ -90,7 +92,8 @@ file named by `MCPO_CONFIG_FILE`. If they disagree, the server answers MCPO with
 
 These keys do not depend on the mode: `FASTMCP_TYPE=streamable-http` (always
 for Compose), `OS_AUTH_HOST`, `OS_AUTH_PORT`, `OS_REGION_NAME`, the service
-ports, `ALLOW_MODIFY_OPERATIONS` and `ALLOW_CROSS_PROJECT_READ`.
+ports, `ALLOW_MODIFY_OPERATIONS`, `ALLOW_CROSS_PROJECT_READ`, `LIST_MAX_LIMIT`
+and `INSTANCE_FILTER_MAX_MATCHES`.
 
 - A shared OpenWebUI used by several people should use mode 1 or 2. MCPO sends
   one fixed header set, so in modes 3 and 4 every OpenWebUI user acts as the one

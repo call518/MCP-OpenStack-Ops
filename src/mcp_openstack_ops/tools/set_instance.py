@@ -4,7 +4,6 @@ import json
 from typing import Optional
 from ..functions import (
     get_instance_by_name as _get_instance_by_name,
-    get_instances_by_status as _get_instances_by_status,
     set_instance as _set_instance,
 )
 from ..mcp_main import (
@@ -12,7 +11,15 @@ from ..mcp_main import (
     handle_operation_result,
     logger,
 )
-from ..services.compute import search_instances as _search_instances
+from ..services.compute import NOVA_SERVER_STATUSES
+from ..services.compute import get_instance_details as _get_instance_details
+from ..settings import instance_filter_max_matches
+
+
+def _contains(value, needle: str) -> bool:
+    """Case-insensitive substring match against a possibly missing value."""
+    return needle.lower() in str(value or '').lower()
+
 
 @conditional_tool
 async def set_instance(
@@ -76,7 +83,10 @@ async def set_instance(
     
     Targeting Methods:
     1. Direct: Specify instance_names directly
-    2. Filter-based: Use name_contains, status, flavor_contains, image_contains to auto-identify targets
+    2. Filter-based: Use name_contains, status, flavor_contains, image_contains to auto-identify targets.
+       Every given filter must match (AND). More matches than the server's
+       INSTANCE_FILTER_MAX_MATCHES (default 100) are rejected without acting
+       on any instance
     
     Args:
         instance_names: Name(s) of instances to manage or create. Support formats:
@@ -162,45 +172,36 @@ async def set_instance(
         if has_filter_params:
             logger.info(f"Using filter-based targeting for action '{action}'")
             
-            # Build search criteria
-            search_results = []
-            
-            if name_contains:
-                result = _search_instances(
-                    search_term=name_contains,
-                    search_fields=['name'],
-                    limit=200,
-                    include_inactive=True
-                )
-                if isinstance(result, dict) and 'instances' in result:
-                    search_results.extend(result['instances'])
-                elif isinstance(result, list):
-                    search_results.extend(result)
-            
-            if status:
-                status_instances = _get_instances_by_status(status.upper())
-                search_results.extend(status_instances)
-            
-            # Apply additional filters if specified
-            if flavor_contains or image_contains:
-                filtered_results = []
-                for instance in search_results:
-                    if flavor_contains and flavor_contains.lower() not in instance.get('flavor', '').lower():
-                        continue
-                    if image_contains and image_contains.lower() not in instance.get('image', '').lower():
-                        continue
-                    filtered_results.append(instance)
-                search_results = filtered_results
-            
-            # Remove duplicates and extract names
-            seen_ids = set()
-            target_names = []
-            for instance in search_results:
-                instance_id = instance.get('id', '')
-                if instance_id and instance_id not in seen_ids:
-                    seen_ids.add(instance_id)
-                    target_names.append(instance.get('name', ''))
-            
+            max_matches = instance_filter_max_matches()
+            wanted_status = status.strip().upper()
+            if wanted_status and wanted_status not in NOVA_SERVER_STATUSES:
+                return (f'Error: Invalid instance status "{status}". Valid statuses: '
+                        + ', '.join(sorted(NOVA_SERVER_STATUSES)))
+
+            # One listing of the project, then every given filter must match
+            # (AND); paging would let a list change between pages skip targets.
+            listing = _get_instance_details(include_all=True,
+                                            enrich_images=bool(image_contains))
+            if listing.get('success') is False:
+                # Keep the redaction of the search/status queries this replaces.
+                raise RuntimeError('OpenStack instance listing failed')
+            matched = [
+                row for row in listing.get('instances', [])
+                if (not name_contains or _contains(row.get('name'), name_contains))
+                and (not wanted_status
+                     or str(row.get('status', '')).upper() == wanted_status)
+                and (not flavor_contains
+                     or _contains((row.get('flavor') or {}).get('name'), flavor_contains))
+                and (not image_contains
+                     or _contains((row.get('image') or {}).get('name'), image_contains))
+            ]
+            # Refuse rather than act on an unexpectedly large target set.
+            if len(matched) > max_matches:
+                return (f"Error: {len(matched)} instances match the filters, more "
+                        f"than INSTANCE_FILTER_MAX_MATCHES ({max_matches}). Narrow "
+                        "the filters; no action was taken.")
+            target_names = [row.get('name', '') for row in matched]
+
             if not target_names:
                 filter_desc = []
                 if name_contains: filter_desc.append(f"name contains '{name_contains}'")

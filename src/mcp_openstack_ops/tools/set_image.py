@@ -17,10 +17,15 @@ async def set_image(image_names: str, action: str, container_format: str = "bare
     Manage images (create, delete, update, list).
     Supports both single image and bulk operations.
     
+    Create registers an image record only. No image data is uploaded, so the
+    image stays queued and cannot boot servers; uploading data is not
+    implemented. Delete and update apply only to images owned by the current
+    project.
+
     Functions:
-    - Create new images with specified formats and properties
-    - Delete existing images
-    - Update image metadata and visibility settings
+    - Create new image records with specified formats and properties
+    - Delete images owned by the current project
+    - Update metadata and visibility of images owned by the current project
     - List all available images in the project
     - Handle image lifecycle management
     - Bulk operations: Apply action to multiple images at once

@@ -159,6 +159,29 @@ def get_image_detail_list(all_projects: bool = False) -> List[Dict[str, Any]]:
         raise
 
 
+def _find_owned_image(conn: Any, name_or_id: str) -> Any:
+    """Resolve an image owned by the current project for a write.
+
+    Public, shared and community images of other projects are visible but
+    must not be modified or deleted through this server.
+    """
+    project_id = conn.current_project_id
+    if not project_id:
+        raise ValueError('A project-scoped connection is required')
+    images = list(conn.image.images())
+    matches = [img for img in images if img.id == name_or_id]
+    if not matches:
+        matches = [img for img in images if img.name == name_or_id]
+    if not matches:
+        raise ValueError(f'Image "{name_or_id}" not found')
+    owned = [img for img in matches if img.owner == project_id]
+    if not owned:
+        raise ValueError(f'Image "{name_or_id}" is not owned by the current project')
+    if len(owned) > 1:
+        raise ValueError(f'Image name "{name_or_id}" is ambiguous; use an ID')
+    return owned[0]
+
+
 def set_image(image_name: str, action: str, **kwargs) -> Dict[str, Any]:
     """
     Manage images (create, delete, update, list).
@@ -217,7 +240,8 @@ def set_image(image_name: str, action: str, **kwargs) -> Dict[str, Any]:
             )
             return {
                 'success': True,
-                'message': f'Image "{image_name}" created successfully',
+                'message': (f'Image record "{image_name}" created without data; '
+                            'uploading image data is not implemented'),
                 'image': {
                     'id': image.id,
                     'name': image.name,
@@ -227,22 +251,7 @@ def set_image(image_name: str, action: str, **kwargs) -> Dict[str, Any]:
             }
             
         elif action.lower() == 'delete':
-            # Find the image using secure project-scoped lookup
-            from ..connection import find_resource_by_name_or_id, get_openstack_connection
-            conn = get_openstack_connection()
-            
-            image = find_resource_by_name_or_id(
-                conn.image.images(), 
-                image_name, 
-                "Image"
-            )
-                    
-            if not image:
-                return {
-                    'success': False,
-                    'message': f'Image "{image_name}" not found or not accessible in current project'
-                }
-                
+            image = _find_owned_image(conn, image_name)
             conn.image.delete_image(image)
             return {
                 'success': True,
@@ -251,19 +260,7 @@ def set_image(image_name: str, action: str, **kwargs) -> Dict[str, Any]:
             }
             
         elif action.lower() == 'update':
-            # Find the image
-            image = None
-            for img in conn.image.images():
-                if img.name == image_name or img.id == image_name:
-                    image = img
-                    break
-                    
-            if not image:
-                return {
-                    'success': False,
-                    'message': f'Image "{image_name}" not found'
-                }
-                
+            image = _find_owned_image(conn, image_name)
             update_params = {}
             if 'visibility' in kwargs:
                 update_params['visibility'] = kwargs['visibility']
@@ -419,20 +416,19 @@ def set_image_metadata(action: str, image_name: str, **kwargs) -> Dict[str, Any]
         # Import here to avoid circular imports
         from ..connection import get_openstack_connection
         conn = get_openstack_connection()
-        
-        # Find the image
-        image = None
-        for img in conn.image.images():
-            if img.name == image_name or img.id == image_name:
-                image = img
-                break
-                
+
+        if action.lower() == 'set':
+            image = _find_owned_image(conn, image_name)
+        else:
+            image = next((img for img in conn.image.images()
+                          if img.name == image_name or img.id == image_name), None)
+
         if not image:
             return {
                 'success': False,
                 'message': f'Image "{image_name}" not found'
             }
-        
+
         if action.lower() == 'show':
             try:
                 # Get detailed image information including metadata
@@ -518,20 +514,19 @@ def set_image_visibility(action: str, image_name: str, **kwargs) -> Dict[str, An
         # Import here to avoid circular imports
         from ..connection import get_openstack_connection
         conn = get_openstack_connection()
-        
-        # Find the image
-        image = None
-        for img in conn.image.images():
-            if img.name == image_name or img.id == image_name:
-                image = img
-                break
-                
+
+        if action.lower() == 'set':
+            image = _find_owned_image(conn, image_name)
+        else:
+            image = next((img for img in conn.image.images()
+                          if img.name == image_name or img.id == image_name), None)
+
         if not image:
             return {
                 'success': False,
                 'message': f'Image "{image_name}" not found'
             }
-        
+
         if action.lower() == 'show':
             return {
                 'success': True,

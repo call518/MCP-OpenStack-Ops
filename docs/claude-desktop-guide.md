@@ -44,6 +44,9 @@ not have this file.
    certificate is optional. **Allow modify operations** is off, so only read
    tools are registered. **Allow cross-project reads** is off; see
    [cross-project reads guide](cross-project-guide.md) before turning it on.
+   **Max items per list call** is 100; lower it for a small-context model.
+   **Max instances per filtered action** is 100; a filter-based `set_instance`
+   call that matches more instances is refused without any action.
 
 Claude Desktop stores the password as a sensitive value instead of writing it
 to `claude_desktop_config.json`. The bundle contains the source, `pyproject.toml`,

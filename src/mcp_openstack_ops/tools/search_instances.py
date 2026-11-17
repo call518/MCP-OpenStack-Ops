@@ -36,7 +36,7 @@ async def search_instances(
     Args:
         search_term: Term to search for (supports partial matching)
         search_in: Field to search in ('name', 'status', 'host', 'flavor', 'image', 'availability_zone', 'all')
-        limit: Maximum number of matching instances to return (default: 50, max: 200)
+        limit: Maximum number of matching instances to return (default: 50; capped by the server LIST_MAX_LIMIT setting, default 100)
         offset: Number of matching instances to skip for pagination (default: 0)
         case_sensitive: If True, performs case-sensitive search (default: False)
         all_projects: If True, include every project the credential's OpenStack

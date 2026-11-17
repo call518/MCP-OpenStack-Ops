@@ -53,6 +53,118 @@ async def test_instance_tool_forwards_advanced_action_parameters(monkeypatch):
     assert service.call_args.kwargs['preserve_ephemeral'] is True
 
 
+def _row(i, name=None, status='ACTIVE', flavor='m1.small', image='ubuntu-24.04'):
+    return {'id': f'vm-{i}', 'name': name or f'dev-{i}', 'status': status,
+            'flavor': {'name': flavor}, 'image': {'name': image}}
+
+
+def _instance_tool(monkeypatch, rows):
+    module = importlib.import_module('mcp_openstack_ops.tools.set_instance')
+    service = Mock(return_value={'success': True})
+    listing = Mock(return_value={'instances': rows, 'count': len(rows)})
+    monkeypatch.setattr(module, '_set_instance', service)
+    monkeypatch.setattr(module, '_get_instance_details', listing)
+    monkeypatch.setattr(module, '_get_instance_by_name', Mock(return_value=None))
+    monkeypatch.setattr('time.sleep', lambda _: None)
+    return _tool_handler(module, 'set_instance'), service, listing
+
+
+def _acted(service):
+    return [call.args[0] for call in service.call_args_list]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('env,total,acted', [
+    (None, 100, 100),     # default limit: exactly 100 still runs
+    (None, 101, 0),       # default limit: 101 is refused
+    ('', 101, 0),         # empty value uses the default
+    ('500', 450, 450),    # a raised limit needs no extra listing
+    ('500', 501, 0),
+    ('2', 3, 0),          # lowered limit
+])
+async def test_instance_filter_max_matches(monkeypatch, env, total, acted):
+    if env is None:
+        monkeypatch.delenv('INSTANCE_FILTER_MAX_MATCHES', raising=False)
+    else:
+        monkeypatch.setenv('INSTANCE_FILTER_MAX_MATCHES', env)
+    handler, service, listing = _instance_tool(
+        monkeypatch, [_row(i) for i in range(total)])
+
+    result = await handler(name_contains='dev', action='stop')
+
+    assert service.call_count == acted
+    listing.assert_called_once()
+    assert listing.call_args.kwargs['include_all'] is True
+    if not acted:
+        assert 'INSTANCE_FILTER_MAX_MATCHES' in result, result
+        assert 'no action was taken' in result
+
+
+@pytest.mark.asyncio
+async def test_instance_filters_combine_with_and(monkeypatch):
+    rows = [_row(1, 'dev-1', 'ACTIVE'), _row(2, 'dev-2', 'SHUTOFF'),
+            _row(3, 'prod-1', 'ACTIVE')]
+    handler, service, _ = _instance_tool(monkeypatch, rows)
+
+    await handler(name_contains='dev', status='active', action='stop')
+
+    # Previously the name and status matches were joined (union).
+    assert _acted(service) == ['dev-1']
+
+
+@pytest.mark.asyncio
+async def test_instance_flavor_and_image_filters_match_names(monkeypatch):
+    rows = [_row(1, flavor='m1.small', image='ubuntu-24.04'),
+            _row(2, flavor='m1.large', image='ubuntu-24.04'),
+            _row(3, flavor='m1.small', image='rocky-9')]
+    handler, service, listing = _instance_tool(monkeypatch, rows)
+
+    await handler(flavor_contains='SMALL', action='stop')
+    assert _acted(service) == ['dev-1', 'dev-3']
+    assert listing.call_args.kwargs['enrich_images'] is False
+
+    service.reset_mock()
+    await handler(flavor_contains='small', image_contains='rocky', action='stop')
+    assert _acted(service) == ['dev-3']
+    assert listing.call_args.kwargs['enrich_images'] is True
+
+
+@pytest.mark.asyncio
+async def test_instance_filter_rejects_invalid_status(monkeypatch):
+    handler, service, listing = _instance_tool(monkeypatch, [_row(1)])
+
+    result = await handler(status='RUNNING', action='stop')
+
+    assert result.startswith('Error: Invalid instance status "RUNNING"'), result
+    listing.assert_not_called()
+    service.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_instance_filter_listing_failure_is_redacted(monkeypatch):
+    handler, service, listing = _instance_tool(monkeypatch, [])
+    listing.return_value = {'instances': [], 'success': False,
+                            'error': 'private detail'}
+
+    result = await handler(name_contains='dev', action='stop')
+
+    assert 'OpenStack instance listing failed' in result
+    assert 'private detail' not in result
+    service.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('value', ['0', '-5', 'abc', '1.5'])
+async def test_instance_filter_rejects_invalid_limit(monkeypatch, value):
+    monkeypatch.setenv('INSTANCE_FILTER_MAX_MATCHES', value)
+    handler, service, _ = _instance_tool(monkeypatch, [_row(1)])
+
+    result = await handler(name_contains='dev', action='stop')
+
+    assert 'INSTANCE_FILTER_MAX_MATCHES must be a positive integer' in result
+    service.assert_not_called()
+
+
 @pytest.mark.asyncio
 async def test_flavor_set_alias_uses_backend_action_and_parameter(monkeypatch):
     module = importlib.import_module('mcp_openstack_ops.tools.set_flavor')

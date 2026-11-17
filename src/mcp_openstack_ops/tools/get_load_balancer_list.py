@@ -32,7 +32,7 @@ async def get_load_balancer_list(
     - "Show load balancer status"
     
     Args:
-        limit: Maximum load balancers to return (1-200, default: 50)
+        limit: Maximum load balancers to return (default: 50; capped by the server LIST_MAX_LIMIT setting, default 100)
         offset: Number of load balancers to skip for pagination (default: 0)  
         include_all: Return all load balancers ignoring limit/offset (default: False)
         all_projects: If True, include every project the credential's Octavia

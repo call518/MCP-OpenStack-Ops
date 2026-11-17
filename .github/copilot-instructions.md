@@ -144,7 +144,8 @@ Large-scale environments require pagination in data-heavy functions:
 def get_instance_details(instance_names=None, limit=50, offset=0, include_all=False):
 ```
 
-Default limit: 50, max: 200, always include pagination metadata in responses.
+Default limit: 50, max: the `LIST_MAX_LIMIT` setting (default 100, read through
+`settings.list_max_limit()`), always include pagination metadata in responses.
 
 ## Transport Modes
 - **stdio**: Direct pipe communication via `mcp-config.json.stdio`

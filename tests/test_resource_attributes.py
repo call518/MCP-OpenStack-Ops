@@ -230,6 +230,53 @@ def test_get_quota_reports_unknown_usage_instead_of_zero(conn):
     assert usage['unsized_instances'] == 1
 
 
+def test_get_quota_reports_usage_percent(conn):
+    from openstack.compute.v2.quota_set import QuotaSet
+    embedded = {'id': 'm1.small', 'vcpus': 1, 'ram': 2048}
+    conn.compute.get_quota_set.return_value = QuotaSet.existing(
+        id='project-a', instances=4, cores=-1, ram=0, key_pairs=None)
+    conn.compute.servers.return_value = [
+        Server.existing(id='s1', status='ACTIVE', flavor=embedded)]
+
+    compute = monitoring.get_quota()['quotas']['compute']
+
+    # 1 of 4 instances; unlimited (-1), zero and missing limits stay null.
+    assert compute['usage_percent'] == {
+        'instances': 25.0, 'cores': None, 'ram': None, 'key_pairs': None}
+
+
+def test_get_quota_unknown_usage_has_null_percent(conn):
+    from openstack.compute.v2.quota_set import QuotaSet
+    conn.compute.get_quota_set.return_value = QuotaSet.existing(
+        id='project-a', instances=10, cores=10, ram=10240)
+    conn.compute.servers.return_value = [
+        Server.existing(id='s1', status='ACTIVE', flavor={'id': 'gone'})]
+    conn.compute.get_flavor.side_effect = RuntimeError('flavor deleted')
+
+    percent = monitoring.get_quota()['quotas']['compute']['usage_percent']
+
+    assert percent['instances'] == 10.0
+    assert percent['cores'] is None and percent['ram'] is None
+
+
+def test_get_quota_reports_failed_backup_and_rule_counts_as_unknown(conn):
+    from openstack.network.v2.security_group import SecurityGroup
+    conn.network.security_groups.return_value = [
+        SecurityGroup.existing(id='sg-1', project_id='project-a')]
+    conn.network.security_group_rules.side_effect = RuntimeError('denied')
+    conn.block_storage.backups.side_effect = RuntimeError('no cinder-backup')
+
+    quotas = monitoring.get_quota()['quotas']
+
+    network = quotas['network']['usage']
+    assert network['security_group_rules'] is None
+    assert network['security_group_rules_error'] == 'denied'
+    volume = quotas['volume']['usage']
+    assert volume['backups'] is None and volume['backup_gigabytes'] is None
+    assert volume['backups_error'] == 'no cinder-backup'
+    assert quotas['volume']['usage_percent']['backups'] is None
+
+
 def test_project_info_reports_sdk_floating_ips(conn):
     conn.identity.get_project.return_value = Project.existing(
         id='project-a', name='demo')

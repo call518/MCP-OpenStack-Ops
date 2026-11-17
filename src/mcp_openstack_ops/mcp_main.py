@@ -234,34 +234,6 @@ def _is_modify_operation_allowed() -> bool:
     """Check if modify operations are allowed based on environment variable."""
     return os.environ.get("ALLOW_MODIFY_OPERATIONS", "false").lower() == "true"
 
-def _check_modify_operation_permission() -> str:
-    """Check and return error message if modify operations are not allowed."""
-    if not _is_modify_operation_allowed():
-        return """
-❌ **MODIFY OPERATION BLOCKED**
-
-This operation can modify or delete OpenStack resources and has been disabled for safety.
-
-To enable modify operations, set the following in your .env file:
-```
-ALLOW_MODIFY_OPERATIONS=true
-```
-
-**⚠️  WARNING**: Only enable this in development or testing environments where data loss is acceptable.
-
-**Read-only operations available:**
-- get_cluster_status, get_service_status
-- get_instance_details, search_instances
-- get_network_details, get_project_info
-- get_flavor_list, get_image_list, get_user_list
-- get_keypair_list, get_security_groups
-- get_floating_ips, get_routers, get_volume_types
-- get_volume_snapshots, get_heat_stacks
-- get_resource_monitoring, get_usage_statistics, get_quota
-- get_volume_list, get_image_detail_list, get_project_details
-"""
-    return ""
-
 def conditional_tool(func):
     """
     Decorator that conditionally registers tools based on ALLOW_MODIFY_OPERATIONS setting.

@@ -326,9 +326,9 @@ set_instance(action="stop", name_contains="test")
 ```
 
 **Tools with bulk and filter support:**
-- **`set_instance`**: Bulk lifecycle management with filtering (name_contains, status, flavor_contains, image_contains)
-- **`set_volume`**: Bulk volume operations with filtering (name_contains, status, size filtering)
-- **`set_image`**: Bulk image management with filtering (name_contains, status)
+- **`set_instance`**: Bulk lifecycle management with filtering (name_contains, status, flavor_contains, image_contains). Every given filter must match. More matches than the server's `INSTANCE_FILTER_MAX_MATCHES` (default 100; see [Configuration](configuration.md#environment-variables)) are refused without acting on any instance; narrow the filters
+- **`set_volume`**: Bulk volume operations on a list of names; no filter parameters
+- **`set_image`**: Bulk image management on a list of names; no filter parameters
 - **`set_networks`**: Bulk network operations with filtering (name_contains, status)
 - **`set_keypair`**: Bulk keypair management with filtering (name_contains)
 - **`set_snapshot`**: Bulk snapshot operations with filtering (name_contains, status)
@@ -381,7 +381,7 @@ also available.
 Instance listings are paginated so that large projects do not return thousands
 of instances at once:
 
-- `get_instance_details` returns 50 instances per request by default, at most 200
+- `get_instance_details` returns 50 instances per request by default, at most the server's `LIST_MAX_LIMIT` (default 100)
 - `limit` and `offset` page through the results
 - `include_all=True` ignores the limit; use it with caution in large projects
 

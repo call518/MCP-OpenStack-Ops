@@ -50,7 +50,7 @@ async def get_instance(
         search_in: Fields to search in ("name", "status", "host", "flavor", "image", "availability_zone", "all")
         all_instances: If True, retrieve all instances (ignores other filters)
         detailed: If True, return detailed information; if False, return summary only
-        limit: Maximum instances to return (default: 50, max: 200)
+        limit: Maximum instances to return (default: 50; capped by the server LIST_MAX_LIMIT setting, default 100)
         offset: Number of instances to skip for pagination
         case_sensitive: Case-sensitive search (default: False)
         

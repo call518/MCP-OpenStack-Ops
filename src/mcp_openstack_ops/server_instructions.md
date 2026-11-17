@@ -24,4 +24,4 @@ Numbers and monitoring
 - Gnocchi metrics vcpus, memory, and disk.root.size record flavor sizes, not usage.
 
 Large projects
-- Instance listings paginate (50 per request by default, at most 200). Use limit and offset; use include_all only when the user needs every item.
+- Instance and load balancer listings paginate (50 per request by default, at most the server's LIST_MAX_LIMIT). Use limit and offset; use include_all only when the user needs every item.

@@ -38,7 +38,7 @@ async def get_instance_details(
         instance_names: Comma-separated list of instance names to query (optional)
         instance_ids: Comma-separated list of instance IDs to query (optional)
         all_instances: If True, returns all instances of the current project (default: False)
-        limit: Maximum number of instances to return (default: 50, max: 200)
+        limit: Maximum number of instances to return (default: 50; capped by the server LIST_MAX_LIMIT setting, default 100)
         offset: Number of instances to skip for pagination (default: 0)
         include_all: If True, ignore pagination limits (use with caution in large environments)
         all_projects: If True, include every project the credential's OpenStack

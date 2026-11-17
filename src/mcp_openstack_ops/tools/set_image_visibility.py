@@ -17,7 +17,8 @@ async def set_image_visibility(
     Manage OpenStack image visibility settings for access control
     
     Args:
-        action: Action to perform - show, set
+        action: Action to perform - show, set. show reads any visible image;
+            set applies only to images owned by the current project
         image_name: Name or ID of the image
         visibility: Visibility setting - public, private, shared, community (required for set)
         

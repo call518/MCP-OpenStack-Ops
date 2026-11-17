@@ -12,7 +12,12 @@ from ..mcp_main import (
 async def get_quota(project_name: str = "") -> str:
     """
     Get quota information for projects (similar to 'openstack quota show').
-    
+
+    Each service reports limits, usage and usage_percent (percent of each
+    limit in use). A usage value is null when it could not be determined, and
+    usage_percent is null for unlimited (-1), zero or missing limits and for
+    unknown usage.
+
     Args:
         project_name: Name of the project (optional, defaults to current project if empty)
     

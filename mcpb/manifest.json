@@ -55,7 +55,9 @@
         "OS_HEAT_STACK_PORT": "${user_config.os_heat_stack_port}",
         "OS_HEAT_STACK_CFN_PORT": "${user_config.os_heat_stack_cfn_port}",
         "ALLOW_MODIFY_OPERATIONS": "${user_config.allow_modify_operations}",
-        "ALLOW_CROSS_PROJECT_READ": "${user_config.allow_cross_project_read}"
+        "ALLOW_CROSS_PROJECT_READ": "${user_config.allow_cross_project_read}",
+        "LIST_MAX_LIMIT": "${user_config.list_max_limit}",
+        "INSTANCE_FILTER_MAX_MATCHES": "${user_config.instance_filter_max_matches}"
       }
     }
   },
@@ -187,6 +189,22 @@
       "title": "Allow cross-project reads (ALLOW_CROSS_PROJECT_READ)",
       "description": "Let supported list tools accept all_projects=true; OpenStack policy still decides whether the account may read other projects",
       "default": false,
+      "required": false
+    },
+    "list_max_limit": {
+      "type": "number",
+      "title": "Max items per list call (LIST_MAX_LIMIT)",
+      "description": "Most items one call of a list tool returns; about 300-400 tokens per instance. Lower it for small-context models",
+      "default": 100,
+      "min": 1,
+      "required": false
+    },
+    "instance_filter_max_matches": {
+      "type": "number",
+      "title": "Max instances per filtered action (INSTANCE_FILTER_MAX_MATCHES)",
+      "description": "set_instance with filters refuses to act when more instances than this match",
+      "default": 100,
+      "min": 1,
       "required": false
     }
   },

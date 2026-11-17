@@ -257,17 +257,6 @@ def test_legacy_connection_cache_is_preserved(monkeypatch):
     assert connection.get_openstack_connection() is cached
 
 
-def test_probe_tls_options_preserve_legacy_behavior(monkeypatch):
-    from mcp_openstack_ops.services.core import _probe_request_options
-    conn = Mock()
-    conn.session.verify = "/private-ca.pem"
-    assert _probe_request_options(conn) == {
-        "verify": "/private-ca.pem", "allow_redirects": False,
-    }
-    monkeypatch.setattr(users, "enabled", False)
-    assert _probe_request_options(conn) == {}
-
-
 def test_project_boundary_is_unchanged():
     item = identity()
     token = users._identity.set(item)

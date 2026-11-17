@@ -42,7 +42,9 @@ Desktop이 `mcp-remote` 브리지만 시작합니다. MCP 서버는 같은 컴�
    리전은 서버 기본값이 미리 들어 있습니다. CA 인증서는 선택입니다. **Allow modify
    operations**가 꺼져 있으므로 조회 도구만 등록됩니다. **Allow cross-project
    reads**도 꺼져 있습니다. 켜기 전에 [cross-project 조회 가이드](cross-project-guide.ko.md)를
-   참고하세요.
+   참고하세요. **Max items per list call**은 100이며, 컨텍스트가 작은 모델이면
+   낮추세요. **Max instances per filtered action**은 100이며, 필터를 쓰는
+   `set_instance` 호출이 이보다 많은 인스턴스와 일치하면 아무 작업 없이 거부됩니다.
 
 Claude Desktop은 비밀번호를 `claude_desktop_config.json`에 쓰지 않고 민감한 값으로
 따로 저장합니다. 번들에는 소스, `pyproject.toml`, `uv.lock`이 들어 있고, Claude

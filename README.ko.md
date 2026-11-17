@@ -305,13 +305,13 @@ Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인�
 
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
-| `openstack server list` | `get_instance` | ✅ | 서로 다른 reader 프로젝트가 각각 소유한 VM 정확히 10개를 반환함. 제한된 랩 검증만 수행 |
+| `openstack server list` | `get_instance` | ✅ | 서로 다른 reader 프로젝트가 각각 소유한 VM 정확히 10개를 반환함. 제한된 랩 검증만 수행. 한 번 호출에 최대 `LIST_MAX_LIMIT`개 반환(기본값 100, 이전에는 고정 200. 2026-11-17, 단위 테스트만 거침) |
 | `openstack server show` | `get_instance` | ✅ | 자기 프로젝트의 테스트 리소스 조회 완료. 다른 프로젝트의 비공개 ID는 상세 정보를 반환하지 않음. 소유 ID 16개 일괄 조회는 주장하지 않음. 각 인스턴스는 `boot_source`(`image` 또는 `volume`)를 보고함. 요약 모드에서는 볼륨 부팅 인스턴스의 이미지를 unknown으로 표시하고, `detailed=true`이면 부팅 볼륨에서 이미지를 찾음. 2026-11-10 OpenStack 2026.1 점검(3.7.6): 볼륨 부팅 서버는 요약 모드와 상세 모드 모두에서 `volume`, 그 밖에는 `image`. 상세 모드는 부팅 볼륨에서 이미지 이름을 찾음 |
 | `openstack server create` | `set_instance` (action="create") | ✅ | **ENHANCED** - 일괄 생성 지원. 아래 볼륨 옵션을 주지 않으면 이미지를 flavor의 로컬 디스크로 부팅함. 2026-11-10 targeted check: 서버가 ACTIVE에 도달 |
 | `openstack server create --boot-from-volume <size>` | `set_instance` (action="create", `boot_from_volume`, `volume_size`) | ✅ | 루트 디스크를 이미지로 새로 만든 Cinder 볼륨에 둠. 선택적 `volume_type`과 `delete_on_termination`, 일괄 생성 지원. 2026-11-10 targeted check: 한 번의 호출로 만든 서버 3대가 ACTIVE에 도달했고, 각각 `/dev/vda`의 부팅 가능한 10 GB 볼륨을 사용. 2026-11-10 OpenStack 2026.1 점검(3.7.6): `volume_type`을 지정한 1 GB 루트 볼륨. 서버를 삭제하면 루트 볼륨도 삭제되었고, `delete_on_termination=false`이면 유지됨 |
 | `openstack server create --volume` | `set_instance` (action="create", `boot_volume`) | ✅ | 사용 가능하고 부팅 가능한 기존 볼륨으로 이미지 없이 서버 1대를 부팅함. 2026-11-10 OpenStack 2026.1 점검(3.7.6): 서버가 그 볼륨으로 ACTIVE에 도달함. 사용 중이거나 부팅할 수 없거나 없는 볼륨, 그리고 서버 이름 2개는 서버를 만들지 않고 거부됨 |
 | `openstack server start/stop/reboot` | `set_instance` | ✅ | 도구 스키마에 모든 action과 `reboot_type`이 노출됨. 프로젝트마다 테스트 VM 2대로 일괄 stop/start 최종 상태를 확인했으나, reboot는 이번에 재검증하지 않음 |
-| `openstack server delete` | `set_instance` (action="delete") | ✅ | 도구 스키마에 delete와 선택적 강제 삭제가 노출됨. `name_contains` 필터로 일괄 삭제. `force=true`는 openstacksdk `delete_server(force=True)`를 사용(이전에는 존재하지 않는 SDK 메서드를 호출). 2026-11-10 targeted check: 강제 삭제로 서버가 제거됨 |
+| `openstack server delete` | `set_instance` (action="delete") | ✅ | 도구 스키마에 delete와 선택적 강제 삭제가 노출됨. `name_contains` 필터로 일괄 삭제. 지정한 필터는 모두 일치해야 하며(이전에는 `name_contains`와 `status`를 함께 주면 합집합을 선택), `INSTANCE_FILTER_MAX_MATCHES`(기본값 100)보다 많이 일치하면 어떤 인스턴스에도 작업하지 않고 거부(2026-11-17, 단위 테스트만 거침). `force=true`는 openstacksdk `delete_server(force=True)`를 사용(이전에는 존재하지 않는 SDK 메서드를 호출). 2026-11-10 targeted check: 강제 삭제로 서버가 제거됨 |
 | `openstack server backup create` | `set_server_backup` | ✅ | 순환 보관을 지원하는 Nova backup action. 비동기이며 사용자 지정 metadata는 없음 |
 | `openstack server image create` | `set_instance` (action="snapshot") | ✅ | 선택적 `snapshot_name`과 JSON `metadata`를 받음. 파라미터 전달은 로컬 테스트만 했고, 이번 변경에서 live 재검증하지 않음 |
 | `openstack server shelve/unshelve` | `set_instance` | ✅ | 도구 스키마에 action이 노출됨. 인스턴스 shelve는 이번 변경에서 live 재검증하지 않음 |
@@ -429,15 +429,16 @@ Cinder가 없는 OpenStack 2026.1에서 live로 확인했습니다([검증](docs
 |---------------------|---------|------|------|
 | `openstack image list` | `get_image_detail_list` | ✅ | 이미지 목록. 조회에 실패하면 빈 목록 대신 오류를 반환. 2026-11-10 targeted check: 나열됨 |
 | `openstack image show` | `get_image_detail_list` (filtering) | ✅ | 특정 이미지 조회 |
-| `openstack image create` | `set_image` (action="create") | ✅ | min_disk, min_ram, properties를 지원하는 이미지 생성 |
-| `openstack image delete` | `set_image` (action="delete") | ✅ | 이미지 삭제 |
-| `openstack image set` | `set_image` (action="update") | ✅ | 이미지 속성 수정 |
+| `openstack image create` | `set_image` (action="create") | ✅ | min_disk, min_ram, properties를 가진 이미지 레코드만 생성. 이미지 데이터는 업로드하지 않으므로 이미지는 `queued`에 머물고 서버를 부팅할 수 없음 |
+| `openstack image create --file` / `--import` | — | ❌ Not implemented | 이미지 데이터를 업로드하거나 import하는 도구가 없음 |
+| `openstack image delete` | `set_image` (action="delete") | ⚠️ Live unverified | 현재 프로젝트가 소유한 이미지만. 다른 프로젝트의 public, shared, community 이미지는 거부(이전에는 허용). 2026-11-17 변경은 단위 테스트만 거침 |
+| `openstack image set` | `set_image` (action="update") | ⚠️ Live unverified | 현재 프로젝트가 소유한 이미지만(이전에는 보이는 모든 이미지). 2026-11-17 변경은 단위 테스트만 거침 |
 | `openstack image save` | — | ❌ Not implemented | `set_image`는 create, delete, update, list만 지원하며 다운로드 action은 없음 |
 | `openstack image add project` | `set_image_members` (action="add") | ✅ | shared 가시성 이미지에 프로젝트 추가 |
 | `openstack image member list` | `get_image_members` | ✅ | 이미지 멤버 목록 |
 | `openstack image member create` | `set_image_members` | ✅ | 이미지 멤버 관리 |
-| `openstack image set --property` | `set_image_metadata` | ✅ | 이미지 metadata |
-| `openstack image set --public/private` | `set_image_visibility` | ✅ | 이미지 가시성 설정 |
+| `openstack image set --property` | `set_image_metadata` | ⚠️ Live unverified | `show`는 보이는 모든 이미지를 읽음. `set`은 현재 프로젝트가 소유한 이미지에만 적용(이전에는 보이는 모든 이미지). 2026-11-17 변경은 단위 테스트만 거침 |
+| `openstack image set --public/private` | `set_image_visibility` | ⚠️ Live unverified | `show`는 보이는 모든 이미지를 읽음. `set`은 현재 프로젝트가 소유한 이미지에만 적용(이전에는 보이는 모든 이미지). 2026-11-17 변경은 단위 테스트만 거침 |
 
 ### 5. 👥 **Identity (Keystone)**
 
@@ -490,7 +491,7 @@ Octavia 도구는 openstacksdk의 속성 이름(`is_admin_state_up`, `is_enabled
 
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
-| `openstack loadbalancer list` | `get_load_balancer_list` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 페이지 처리를 지원하는 로드밸런서 목록 |
+| `openstack loadbalancer list` | `get_load_balancer_list` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 페이지 처리를 지원하는 로드밸런서 목록. 한 번 호출에 최대 `LIST_MAX_LIMIT`개 반환(기본값 100, 이전에는 고정 200) |
 | `openstack loadbalancer show` | `get_load_balancer_details` | ✅ | 2026-11-12 Octavia 대상 읽기 점검 통과. 로드밸런서 상세 정보. 풀은 각 풀의 `listeners` 참조로 리스너에 연결 |
 | `openstack loadbalancer create` | `set_load_balancer` (action="create") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서 생성 |
 | `openstack loadbalancer delete` | `set_load_balancer` (action="delete") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서 삭제 |
@@ -642,7 +643,7 @@ payload를 받거나 반환하지 않습니다. 사용자 인증서와 키는 MC
 
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
-| `openstack quota show` | `get_quota` | ✅ | Quota 조회. 네트워크 floating IP quota는 SDK의 `floating_ips` 필드를 읽음(이전에는 항상 -1). 2026-11-10 targeted check: Neutron quota와 일치. 컴퓨트 사용량은 각 서버에 포함된 flavor(Nova 2.47 이상에서는 flavor `id`에 이름이 들어감)에서 vCPU와 RAM을 합산하며, flavor 크기를 알 수 없으면 `unsized_instances`와 함께 null을 보고함. 이전에는 조회가 모두 조용히 실패해 사용량이 0이었음. 2026-11-16 대상 점검: `m1.small` 서버 2대가 vCPU 2, 4096 MB로 보고됨(이전에는 0과 0) |
+| `openstack quota show` | `get_quota` | ✅ | Quota 조회. 네트워크 floating IP quota는 SDK의 `floating_ips` 필드를 읽음(이전에는 항상 -1). 2026-11-10 targeted check: Neutron quota와 일치. 컴퓨트 사용량은 각 서버에 포함된 flavor(Nova 2.47 이상에서는 flavor `id`에 이름이 들어감)에서 vCPU와 RAM을 합산하며, flavor 크기를 알 수 없으면 `unsized_instances`와 함께 null을 보고함. 이전에는 조회가 모두 조용히 실패해 사용량이 0이었음. 2026-11-16 대상 점검: `m1.small` 서버 2대가 vCPU 2, 4096 MB로 보고됨(이전에는 0과 0). 서비스마다 `usage_percent`도 보고하며, 한도가 무제한이거나 0이거나 없을 때와 사용량을 모를 때는 null. 백업이나 보안 그룹 규칙 개수 조회에 실패하면 0 대신 오류와 함께 null(2026-11-17, 단위 테스트만 거침) |
 | `openstack quota set` | `set_quota` (action="set") | ✅ | 입력한 필드를 Nova/Neutron/Cinder로 나눠 보냄. 일부 실패는 보고됨 |
 | `openstack quota delete` | `set_quota` (action="delete") | ✅ | 세 서비스의 quota를 모두 기본값으로 되돌림. 변경 도구가 필요 |
 | `openstack usage show` | `get_usage_statistics` | ✅ | 현재 프로젝트의 Nova simple tenant usage. 금액 청구가 아님 |

@@ -581,3 +581,34 @@ an earlier full summary.
   `set_network_agents` enable/disable path was also marked **Live unverified**:
   the live tool script calls only action="list". The `set_server_dump` wording
   of the 2026-11-04 summary was corrected; its counts are unchanged.
+- **Local Glance ownership and bulk-limit tests (2026-11-17; uncommitted
+  working tree based on `b0bcada`):** 652/652 (100%) with fastmcp 4.1.6 and
+  the locked openstacksdk 4.22.0, run as `uv run pytest -q`; no failures or
+  skipped tests. Thirteen new cases: `set_image` update and delete,
+  `set_image_metadata` set and `set_image_visibility` set refuse another
+  project's public image, pick the owned image over a foreign one with the
+  same name, and refuse an ambiguous owned name; `show` still reads a foreign
+  public image; `set_image` create reports a record without data; and
+  `set_instance` refuses a `name_contains` search that reports more than 200
+  matches without acting, while a complete result still runs. Delete had
+  previously used a lookup that also accepted other projects' public, shared
+  and community images. No live check was run, so these image write paths are
+  **Live unverified**.
+- **Local quota percentage, list-limit and instance-filter tests, and cleanup
+  (2026-11-17; same uncommitted working tree):** 674/674 (100%) with fastmcp
+  4.1.6 and the locked openstacksdk 4.22.0, run as `uv run pytest -q`; no
+  failures or skipped tests. Twenty-six new cases. `get_quota` reports
+  `usage_percent`, null for unlimited, zero or missing limits and for unknown
+  usage, and reports a failed backup or security group rule count as null with
+  its error instead of 0. `LIST_MAX_LIMIT` (default 100, previously a fixed
+  200) caps one page of `get_instance_details` and `search_instances`, and an
+  invalid value fails with the variable named, including in
+  `get_load_balancer_list`. Filter-based `set_instance` now lists the project
+  once and requires every given filter to match: `name_contains` with `status`
+  previously selected the union of both, and `flavor_contains` and
+  `image_contains` failed on the dict-valued flavor and image or, alone,
+  matched nothing. `INSTANCE_FILTER_MAX_MATCHES` (default 100) refuses a larger
+  target set without acting, invalid values and statuses are refused, and a
+  listing failure stays redacted. The two `set_instance` cases of the previous
+  record were replaced. Two tests of removed unused code (`services/core.py`)
+  were deleted. No live check was run.
