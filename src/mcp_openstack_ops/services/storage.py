@@ -827,8 +827,19 @@ def set_volume_qos(action: str, qos_name: Optional[str] = None, **kwargs) -> Dic
 
     try:
         action = action.lower()
-        if action not in {'list', 'create', 'show', 'delete', 'set'}:
-            raise ValueError('Supported actions: list, create, show, delete, set')
+        actions = {
+            'list',
+            'create',
+            'show',
+            'delete',
+            'set',
+            'associations',
+            'associate',
+            'disassociate',
+            'disassociate_all',
+        }
+        if action not in actions:
+            raise ValueError(f'Supported actions: {", ".join(sorted(actions))}')
         if action != 'list' and not (qos_name and qos_name.strip()):
             raise ValueError('qos_name is required')
         specs = kwargs.get('specs', {})
@@ -858,6 +869,57 @@ def set_volume_qos(action: str, qos_name: Optional[str] = None, **kwargs) -> Dic
             raise ValueError(
                 'QoS specification not found or name is ambiguous; use an ID')
         path = '/qos-specs/' + quote(matches[0]['id'], safe='')
+        if action == 'associations':
+            response = api.get(path + '/associations')
+            response.raise_for_status()
+            associations = response.json()['qos_associations']
+            return {
+                'success': True,
+                'qos_policy': matches[0],
+                'associations': associations,
+                'association_count': len(associations),
+            }
+        if action in {'associate', 'disassociate', 'disassociate_all'}:
+            volume_type = kwargs.get('volume_type')
+            volume_type_id = None
+            if action != 'disassociate_all':
+                if not (volume_type and volume_type.strip()):
+                    raise ValueError(f'volume_type is required for {action}')
+                types = list(api.types())
+                type_matches = [t for t in types if t.id == volume_type]
+                if not type_matches:
+                    type_matches = [t for t in types if t.name == volume_type]
+                if len(type_matches) != 1:
+                    raise ValueError(
+                        'Volume type not found or name is ambiguous; use an ID')
+                volume_type_id = type_matches[0].id
+            operation_path = path + '/' + action
+            if volume_type_id is None:
+                response = api.get(operation_path)
+            else:
+                response = api.get(
+                    operation_path, params={'vol_type_id': volume_type_id})
+            response.raise_for_status()
+            response = api.get(path + '/associations')
+            response.raise_for_status()
+            associations = response.json()['qos_associations']
+            associated_ids = {item['id'] for item in associations}
+            if action == 'associate':
+                confirmed = volume_type_id in associated_ids
+            elif action == 'disassociate':
+                confirmed = volume_type_id not in associated_ids
+            else:
+                confirmed = not associations
+            state = 'confirmed' if confirmed else 'accepted but not yet confirmed'
+            return {
+                'success': confirmed,
+                'accepted': True,
+                'confirmed': confirmed,
+                'message': f'QoS {action} {state}',
+                'qos_policy': matches[0],
+                'associations': associations,
+                'association_count': len(associations),
+            }
         if action == 'delete':
             response = api.delete(path, params={'force': str(kwargs.get('force',
                 False)).lower()})

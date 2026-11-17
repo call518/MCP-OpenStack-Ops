@@ -421,7 +421,11 @@ Cinder가 없는 OpenStack 2026.1에서 live로 확인했습니다([검증](docs
 | `openstack volume group list` | `get_volume_groups` | ✅ | Cinder generic group(API >= 3.13) 필요 |
 | `openstack volume group create` | `set_volume_groups` | ✅ | Create/list/show/delete. 생성에는 group_type과 volume_types 필요 |
 | `openstack volume qos list` | `get_volume_qos` | ✅ | Cinder QoS 사양. 클라우드 정책을 따름 |
-| `openstack volume qos create` | `set_volume_qos` | ✅ | 사양 Create/list/show/set/delete. 유형 자동 연결은 없음 |
+| `openstack volume qos show` | `get_volume_qos` (`qos_name`) | ⚠️ Live unverified | 사양 하나와 현재 Volume Type 연결을 표시. 2026-11-17 추가, 단위 테스트만 수행 |
+| `openstack volume qos create` | `set_volume_qos` | ✅ | 사양 Create/list/show/set/delete. 생성 시 Volume Type을 자동 연결하지 않으며 명시적 `associate` action을 사용 |
+| `openstack volume qos associate` | `set_volume_qos` (action="associate") | ⚠️ Live unverified | 이름 또는 ID로 사양을 Volume Type에 연결한 뒤 연결을 다시 읽고 `accepted`와 `confirmed`를 구분해 보고. 2026-11-17 추가, 단위 테스트만 수행 |
+| `openstack volume qos disassociate` | `set_volume_qos` (action="disassociate") | ⚠️ Live unverified | 이름 또는 ID로 Volume Type 하나의 연결을 해제하고 연결을 다시 읽음. 2026-11-17 추가, 단위 테스트만 수행 |
+| `openstack volume qos disassociate --all` | `set_volume_qos` (action="disassociate_all") | ⚠️ Live unverified | 모든 Volume Type 연결을 해제하고 연결을 다시 읽음. 2026-11-17 추가, 단위 테스트만 수행 |
 
 ### 4. 🖼️ **Image (Glance)**
 

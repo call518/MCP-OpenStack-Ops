@@ -526,6 +526,99 @@ def test_cinder_qos_list_show_set_delete_and_errors(conn):
     assert not storage.set_volume_qos('delete', 'fast')['success']
 
 
+@pytest.mark.parametrize(
+    'action,remaining,confirmed',
+    [
+        ('associate', [{'id': 'type-a', 'name': 'fast-type'}], True),
+        ('associate', [], False),
+        ('disassociate', [], True),
+    ],
+)
+def test_cinder_qos_associate_and_disassociate(
+    conn, action, remaining, confirmed
+):
+    api = conn.block_storage
+    policy = {'id': 'qos-a', 'name': 'fast'}
+    volume_type = SimpleNamespace(id='type-a', name='fast-type')
+    api.types.return_value = [volume_type]
+    list_response = Mock()
+    operation_response = Mock()
+    association_response = Mock()
+    list_response.json.return_value = {'qos_specs': [policy]}
+    association_response.json.return_value = {'qos_associations': remaining}
+    api.get.side_effect = [
+        list_response, operation_response, association_response,
+    ]
+
+    result = storage.set_volume_qos(action, 'fast', volume_type='fast-type')
+
+    assert result['success'] is confirmed
+    assert result['accepted']
+    assert result['confirmed'] is confirmed
+    api.get.assert_any_call(
+        f'/qos-specs/qos-a/{action}', params={'vol_type_id': 'type-a'})
+    api.get.assert_called_with('/qos-specs/qos-a/associations')
+    operation_response.raise_for_status.assert_called_once()
+    association_response.raise_for_status.assert_called_once()
+
+
+def test_cinder_qos_disassociate_all_and_list_associations(conn):
+    api = conn.block_storage
+    policy = {'id': 'qos-a', 'name': 'fast'}
+    list_response = Mock()
+    operation_response = Mock()
+    empty_associations = Mock()
+    list_response.json.return_value = {'qos_specs': [policy]}
+    empty_associations.json.return_value = {'qos_associations': []}
+    api.get.side_effect = [
+        list_response, operation_response, empty_associations,
+    ]
+
+    result = storage.set_volume_qos('disassociate_all', 'qos-a')
+
+    assert result['confirmed'] is True
+    api.get.assert_any_call('/qos-specs/qos-a/disassociate_all')
+
+    list_response = Mock()
+    association_response = Mock()
+    list_response.json.return_value = {'qos_specs': [policy]}
+    association = {'id': 'type-a', 'name': 'fast-type'}
+    association_response.json.return_value = {
+        'qos_associations': [association],
+    }
+    api.get.side_effect = [list_response, association_response]
+    result = storage.set_volume_qos('associations', 'fast')
+    assert result['associations'] == [association]
+    assert result['association_count'] == 1
+
+
+def test_cinder_qos_association_validates_volume_type(conn):
+    api = conn.block_storage
+    policy = {'id': 'qos-a', 'name': 'fast'}
+    api.get.return_value.json.return_value = {'qos_specs': [policy]}
+    api.types.return_value = []
+
+    missing = storage.set_volume_qos('associate', 'fast')
+    unknown = storage.set_volume_qos(
+        'associate', 'fast', volume_type='missing-type')
+
+    assert not missing['success']
+    assert 'volume_type is required' in missing['error']
+    assert not unknown['success']
+    assert 'Volume type not found' in unknown['error']
+    assert all('/associate' not in call.args[0] for call in api.get.call_args_list)
+
+    api.types.return_value = [
+        SimpleNamespace(id='type-a', name='duplicate'),
+        SimpleNamespace(id='type-b', name='duplicate'),
+    ]
+    ambiguous = storage.set_volume_qos(
+        'associate', 'fast', volume_type='duplicate')
+    assert not ambiguous['success']
+    assert 'ambiguous' in ambiguous['error']
+    assert all('/associate' not in call.args[0] for call in api.get.call_args_list)
+
+
 def test_backup_actions_reach_sdk(conn):
     api = conn.block_storage
     backup = Backup(id='backup-a', name='backup')

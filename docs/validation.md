@@ -612,3 +612,15 @@ an earlier full summary.
   listing failure stays redacted. The two `set_instance` cases of the previous
   record were replaced. Two tests of removed unused code (`services/core.py`)
   were deleted. No live check was run.
+- **Local Cinder QoS association tests (2026-11-17; uncommitted working tree
+  based on `b4a1a41`):** 679/679 (100%) with the locked openstacksdk 4.22.0,
+  run as `.venv/bin/python -m pytest -q`; no failures or skipped tests. Seven
+  targeted QoS and registration cases cover associate,
+  accepted-but-not-yet-confirmed reporting, disassociate, disassociate-all,
+  association listing, missing and ambiguous volume types, and
+  modification-disabled registration guards. `compileall` also passed. The
+  restricted Codex sandbox stalled every Python thread handoff, including a
+  standalone `asyncio.to_thread(lambda: 42)`; the same previously stalled
+  test passed outside that sandbox, and the full suite then completed in
+  124.62 seconds. No live Cinder association was changed, so the new
+  association paths are **Live unverified**.

@@ -532,3 +532,13 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   가립니다. 앞 기록의 `set_instance` 테스트 2개는 대체했습니다. 제거한 미사용 코드
   (`services/core.py`)의 테스트 2개는 삭제했습니다. live 점검은 실행하지
   않았습니다.
+- **Cinder QoS 연결 로컬 테스트 (2026-11-17, `b4a1a41` 기반의 커밋되지 않은
+  작업 트리):** 잠금된 openstacksdk 4.22.0으로 `.venv/bin/python -m pytest -q`를
+  실행해 679/679 (100%)가 통과했고, 실패하거나 건너뛴 테스트는 없었습니다.
+  QoS와 등록 targeted 테스트 7개는 associate, 수락됐지만 아직 확인되지 않은 상태
+  보고, disassociate, disassociate-all, 연결 목록, 없거나 이름이 모호한 Volume
+  Type, 변경 비활성화 등록 guard를 검사했습니다. `compileall`도 통과했습니다.
+  제한된 Codex sandbox에서는 독립적인 `asyncio.to_thread(lambda: 42)`를 포함해 모든
+  Python thread 전달이 멈췄습니다. 같은 테스트를 sandbox 밖에서 실행하자 통과했고,
+  전체 suite도 124.62초에 완료됐습니다. 실제 Cinder 연결은 변경하지 않았으므로 새
+  연결 경로는 **Live unverified**입니다.

@@ -423,7 +423,11 @@ unchanged since.
 | `openstack volume group list` | `get_volume_groups` | ✅ | Requires Cinder generic groups (API >= 3.13) |
 | `openstack volume group create` | `set_volume_groups` | ✅ | Create/list/show/delete; create requires group_type and volume_types |
 | `openstack volume qos list` | `get_volume_qos` | ✅ | Cinder QoS specifications; subject to cloud policy |
-| `openstack volume qos create` | `set_volume_qos` | ✅ | Create/list/show/set/delete specifications; no automatic type association |
+| `openstack volume qos show` | `get_volume_qos` (`qos_name`) | ⚠️ Live unverified | Shows one specification and its current volume type associations. Added 2026-11-17; unit tests only |
+| `openstack volume qos create` | `set_volume_qos` | ✅ | Create/list/show/set/delete specifications. Creation does not automatically associate a volume type; use the explicit `associate` action |
+| `openstack volume qos associate` | `set_volume_qos` (action="associate") | ⚠️ Live unverified | Associates a specification with a volume type by name or ID, then reads the associations back and reports `accepted` separately from `confirmed`. Added 2026-11-17; unit tests only |
+| `openstack volume qos disassociate` | `set_volume_qos` (action="disassociate") | ⚠️ Live unverified | Disassociates one volume type by name or ID and reads the associations back. Added 2026-11-17; unit tests only |
+| `openstack volume qos disassociate --all` | `set_volume_qos` (action="disassociate_all") | ⚠️ Live unverified | Disassociates every volume type and reads the associations back. Added 2026-11-17; unit tests only |
 
 ### 4. 🖼️ **Image (Glance)**
 

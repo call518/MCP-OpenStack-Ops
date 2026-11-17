@@ -70,6 +70,9 @@ async def verify():
             'set_network_ports': {'show'},
             'set_subnets': {'show'},
             'set_security_group_rules': {'create', 'delete'},
+            'set_volume_qos': {
+                'associate', 'disassociate', 'disassociate_all',
+            },
         }
         for name, actions in expected_actions.items():
             description = tools[name].parameters['properties']['action']['description']
@@ -89,6 +92,9 @@ async def verify():
         ('set_volume_backups', {'action': 'create', 'backup_name': 'a'}),
         ('set_volume_groups', {'action': 'delete', 'group_name': 'a'}),
         ('set_volume_qos', {'action': 'set', 'qos_name': 'a'}),
+        ('set_volume_qos', {
+            'action': 'associate', 'qos_name': 'a', 'volume_type': 'type-a',
+        }),
         ('set_network_qos_policies', {'action': 'delete', 'policy_name': 'a'}),
         ('set_network_agents', {'action': 'disable', 'agent_id': 'a'}),
         ('set_secret', {'action': 'create_self_signed_tls', 'name': 'a'}),
