@@ -20,7 +20,9 @@ an earlier full summary.
 - **Live tool checks:** 105/105 tools registered at that revision exercised. At least one live
   path passed for 76 tools; 28 tools were unavailable because the test cloud
   lacks Octavia, Aodh, Neutron QoS, or floating-IP port-forwarding APIs; one
-  tool (`set_server_dump`) reached its documented platform limitation. The
+  tool (`set_server_dump`) returned its unsupported result. Its message then
+  blamed an SDK limitation, but Nova offers trigger-crash-dump and the tool
+  simply does not implement it. The
   `set_snapshot` status fix was retested separately after the full run: an
   actual snapshot reached `available`, and its isolated test project was
   removed. These are unique-tool classifications, not individual call counts.
@@ -565,3 +567,17 @@ an earlier full summary.
   shared. Not checked: Barbican policy for a non-administrator, `sni_container_refs`, the other Barbican tools, pool
   backend re-encryption, and listener state fields as read by an MCP client. This
   partial check does not update the 105-tool summary above.
+- **Local ignored-parameter fix tests (2026-11-17; uncommitted working tree
+  based on `568b098`):** 639/639 (100%) with fastmcp 4.1.6 and the locked
+  openstacksdk 4.22.0, run as `uv run pytest -q`; no failures or skipped tests.
+  Thirteen new cases: `set_subnets` create omits an unset `gateway_ip` and
+  forwards an explicit one and `description`; `set_network_ports` create omits
+  unset `security_groups` and forwards explicit groups and `description`;
+  `set_volume` rejects each of seven unimplemented parameters and `set_project`
+  rejects `parent` and `tags`, both without calling the backend. An offline
+  openstacksdk 4.22.0 serialization check showed that the previous calls sent
+  `"gateway_ip": null` and `"security_groups": []`. No live check was run, so
+  the subnet and port create paths are **Live unverified**. The
+  `set_network_agents` enable/disable path was also marked **Live unverified**:
+  the live tool script calls only action="list". The `set_server_dump` wording
+  of the 2026-11-04 summary was corrected; its counts are unchanged.

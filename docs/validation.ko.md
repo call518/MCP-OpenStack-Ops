@@ -20,7 +20,9 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
 - **Live 도구 점검:** 그 리비전에 등록된 도구 105/105개를 실행했습니다. 76개 도구는
   최소 한 개의 live 경로가 통과했습니다. 28개 도구는 테스트 클라우드에 Octavia, Aodh,
   Neutron QoS, floating IP port-forwarding API가 없어 사용할 수 없었습니다. 도구
-  하나(`set_server_dump`)는 문서화된 플랫폼 제약에 도달했습니다. `set_snapshot` 상태
+  하나(`set_server_dump`)는 지원하지 않는다는 결과를 반환했습니다. 당시 메시지는 SDK
+  제약 탓으로 돌렸지만, Nova는 trigger-crash-dump를 제공하며 이 도구가 구현하지 않은
+  것입니다. `set_snapshot` 상태
   수정은 전체 실행 후 따로 재검증했습니다. 실제 스냅샷이 `available`에 도달했고, 격리된
   테스트 프로젝트는 삭제했습니다. 이 수치는 개별 호출 수가 아니라 도구 단위 분류입니다.
 - **Claude Code 프롬프트 점검:** 문서화된 예시 118/118개를 실제 MCP 서버에 요청했습니다.
@@ -488,3 +490,16 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   `sni_container_refs`, 나머지 Barbican 도구, pool의 backend re-encryption,
   MCP 클라이언트가 읽은 리스너 상태 필드. 이 부분 점검은 위의 105개 도구 요약을 갱신하지
   않습니다.
+- **무시되던 파라미터 수정 로컬 테스트 (2026-11-17, `568b098` 기반의 커밋되지 않은
+  작업 트리):** fastmcp 4.1.6과 잠금된 openstacksdk 4.22.0으로 `uv run pytest -q`를
+  실행해 639/639 (100%)였고, 실패나 건너뛴 테스트는 없었습니다. 새 테스트 13개:
+  `set_subnets` 생성은 지정하지 않은 `gateway_ip`를 보내지 않고, 명시한 값과
+  `description`은 전달합니다. `set_network_ports` 생성은 지정하지 않은
+  `security_groups`를 보내지 않고, 명시한 그룹과 `description`은 전달합니다.
+  `set_volume`은 구현되지 않은 파라미터 7개 각각을, `set_project`는 `parent`와
+  `tags`를 백엔드 호출 없이 거부합니다. openstacksdk 4.22.0 오프라인 직렬화 확인 결과,
+  이전 호출은 `"gateway_ip": null`과 `"security_groups": []`를 보냈습니다. live 점검은
+  실행하지 않았으므로 서브넷과 port 생성 경로는 **Live unverified**입니다.
+  `set_network_agents`의 enable/disable 경로도 **Live unverified**로 바꿨습니다. live
+  도구 스크립트는 action="list"만 호출합니다. 2026-11-04 요약의 `set_server_dump`
+  서술을 바로잡았으며 수치는 바뀌지 않았습니다.

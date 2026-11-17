@@ -367,7 +367,7 @@ unit-test results behind the Status values below are recorded in
 | `openstack network delete` | `set_networks` (action="delete") | ✅ | Both default/explicit-MTU test networks removed through actual TCP MCP, API absence confirmed |
 | `openstack network set` | `set_networks` (action="update") | ✅ | **ENHANCED** - Bulk updates |
 | `openstack subnet list` | `get_network_details` (includes subnets) | ✅ | Owned and shared external network subnets returned; three visible subnets per test reader |
-| `openstack subnet create/delete` | `set_subnets` | ✅ | Member TCP MCP subnet create read back; deletion allowed parent network removal in both projects |
+| `openstack subnet create/delete` | `set_subnets` | ⚠️ Live unverified | Create omits an unset `gateway_ip`, so Neutron assigns the first address of the CIDR (previously it sent null, which creates a subnet without a gateway), and forwards `description` (previously dropped). This 2026-11-17 change is unit-tested only. Earlier live check: member TCP MCP subnet create read back; deletion allowed parent network removal in both projects |
 | `openstack router list` | `get_routers` | ⚠️ Live unverified | Only part of composite error requests in this round; no independent reader result attribution |
 | `openstack router create/delete` | `set_routers` | ✅ | Project-owned routers; attached interfaces are not removed automatically |
 | `openstack floating ip list` | `get_floating_ips` | ✅ | Floating IP listing. A failed query returns an error instead of a placeholder address. 2026-11-10 targeted check: listed |
@@ -387,11 +387,11 @@ unit-test results behind the Status values below are recorded in
 | `openstack security group create/delete` | `set_security_groups` | ✅ | Project-owned security groups |
 | `openstack security group rule create/delete` | `set_security_group_rules` | ⚠️ Live unverified | Implemented for project-owned groups. Create requires an explicit CIDR or project-owned remote group; delete verifies the rule belongs to the selected group. Not live-tested in this change |
 | `openstack port list` | `set_network_ports` (action="list") | ⚠️ Live unverified | Implemented list action requires modification-tool registration; not exercised in this round |
-| `openstack port create/delete` | `set_network_ports` | ✅ | Port management |
+| `openstack port create/delete` | `set_network_ports` | ⚠️ Live unverified | Create omits unset `security_groups`, so Neutron applies the project's default group (previously it sent an empty list, which creates a port without any security group), and forwards `description` (previously dropped). This 2026-11-17 change is unit-tested only |
 | `openstack network qos policy list` | `get_network_qos_policies` | ⚠️ Live unverified | Implemented; test platform QoS endpoint returns HTTP 404 |
 | `openstack network qos policy create` | `set_network_qos_policies` | ⚠️ Live unverified | Implemented; test platform QoS endpoint returns HTTP 404. Policy containers only; no bandwidth rules |
 | `openstack network agent list` | `get_service_status` (includes agents) | ⚠️ Live unverified | Reader service-policy restrictions; partial data is not proof of global health. 2026-11-10 targeted check returned agents as administrator only |
-| `openstack network agent set` | `set_network_agents` | ✅ | Enable/disable cloud-wide agents; usually admin-only |
+| `openstack network agent set` | `set_network_agents` | ⚠️ Live unverified | Enable/disable cloud-wide agents; usually admin-only. The live tool check called only action="list"; enable and disable were not exercised |
 
 ### 3. 💾 **Storage (Cinder)**
 
@@ -407,6 +407,7 @@ unchanged since.
 | `openstack volume list` | `get_volume_list` | ✅ | Exactly ten owned volumes per reader; no other test project volume IDs returned. `multiattach` and `source_volid` read the SDK `is_multiattach` and `source_volume_id` fields. 2026-11-10 targeted check: listed with those fields |
 | `openstack volume show` | `get_volume_list` | ✅ | Listing-based client filtering; no dedicated get_volume_list filter argument |
 | `openstack volume create/delete` | `set_volume` | ✅ | Volume creation/deletion. 2026-11-10 targeted check: a 1 GB volume reached available and two volumes were deleted |
+| `openstack volume create --source`, `openstack volume migrate`, `openstack volume transfer request create` | — | ❌ Not implemented | `set_volume` rejects `source_volume`, `transfer_name`, `host`, `force_host_copy`, `lock_volume`, `backup_name` and `incremental` before any API call (previously ignored while the action ran). Use `set_volume_backups` for backups |
 | `openstack volume set --size` | `set_volume` (action="extend") | ✅ | Positive new_size takes precedence over size; size remains a fallback. A test volume reached the requested size and available state; API acceptance alone is not completion |
 | `openstack volume set` (other properties) | — | ❌ Not implemented | set_volume has no modify/update action; do not send this unsupported action |
 | `openstack volume type list` | `get_volume_types` | ✅ | Volume type listing. A failed query returns an error instead of a placeholder `standard` type. 2026-11-10 targeted check: listed |
@@ -450,6 +451,7 @@ unchanged since.
 | `openstack project list` | `get_project_details` (`all_projects=true`) | ✅ | Without `all_projects`, only the current project with its resource counts. With `all_projects=true` and `ALLOW_CROSS_PROJECT_READ=true`, a summary of every project Keystone policy allows. 2026-11-13 targeted check: administrator listed three projects; a `member` received an explicit Keystone policy-denial failure |
 | `openstack project show` | `get_project_details` (name param) | ✅ | Without `all_projects`, only the current project. With `all_projects=true` and a name or ID that matches one project, that project's details and resource counts, including another project's. 2026-11-13 targeted check: administrator's counts for two other projects matched direct API counts; a `member` received the Keystone policy-denial failure |
 | `openstack project create/delete` | `set_project` | ✅ | Project management |
+| `openstack project create --parent`, `openstack project set --tag` | — | ❌ Not implemented | `set_project` rejects `parent` and `tags` before any API call (previously ignored while the action ran) |
 | `openstack role list` | `get_role_assignments` | ✅ | Role listing |
 | `openstack role assignment list` | `get_role_assignments` | ✅ | A failed query returns an error instead of a placeholder assignment. 2026-11-10 targeted check: listed as administrator; reader roles were denied by Keystone policy in an earlier round |
 | `openstack role create` | `set_roles` (action="create") | ✅ | Role creation; `set_roles` also lists roles |

@@ -25,7 +25,8 @@ async def set_network_ports(
         network_id: Network ID for port creation (required for create)
         description: Description for the port
         admin_state_up: Administrative state (default: True)
-        security_groups: JSON array of security group IDs (e.g., '["sg1", "sg2"]')
+        security_groups: JSON array of security group IDs (e.g., '["sg1", "sg2"]');
+            if omitted or empty, Neutron applies the project's default group
         
     Returns:
         JSON string with port management operation results
@@ -42,14 +43,17 @@ async def set_network_ports(
         # Parse security groups from JSON string
         import json as json_lib
         parsed_security_groups = json_lib.loads(security_groups) if security_groups != "[]" else []
-        
+        # An explicit empty list creates a port without any security group.
+        optional = ({'security_groups': parsed_security_groups}
+                    if parsed_security_groups else {})
+
         result = _set_network_ports(
             action=action,
             port_name=port_name if port_name else None,
             network_id=network_id if network_id else None,
             description=description,
             admin_state_up=admin_state_up,
-            security_groups=parsed_security_groups
+            **optional
         )
         return json.dumps(result, indent=2)
     except json_lib.JSONDecodeError as e:

@@ -1251,7 +1251,9 @@ def set_network_ports(action: str, port_name: Optional[str] = None, **kwargs) ->
             create_params = {'network_id': network_id}
             if name:
                 create_params['name'] = name
-            
+            if kwargs.get('description'):
+                create_params['description'] = kwargs['description']
+
             # Optional parameters
             if 'admin_state_up' in kwargs:
                 create_params['is_admin_state_up'] = kwargs['admin_state_up']
@@ -1412,6 +1414,8 @@ def set_subnets(action: str, subnet_name: Optional[str] = None, **kwargs) -> Dic
             
             if name:
                 create_params['name'] = name
+            if kwargs.get('description'):
+                create_params['description'] = kwargs['description']
             if 'gateway_ip' in kwargs:
                 create_params['gateway_ip'] = kwargs['gateway_ip']
             if 'enable_dhcp' in kwargs:

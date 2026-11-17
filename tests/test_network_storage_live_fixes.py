@@ -265,3 +265,73 @@ def test_volume_create_reports_acceptance_not_completion(conn):
     assert 'accepted' in result['message'], result
     assert 'successfully' not in result['message'], result
     assert result['volume']['status'] == 'creating'
+
+
+# --- 5. subnet and port create defaults --------------------------------------
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('gateway_ip,expected', [
+    ('', 'absent'),  # an explicit null would create a subnet without a gateway
+    ('10.0.0.254', '10.0.0.254'),
+])
+async def test_subnet_create_gateway_default_and_description(
+        conn, monkeypatch, gateway_ip, expected):
+    monkeypatch.setenv('ALLOW_MODIFY_OPERATIONS', 'true')
+    _, handler = _tool('set_subnets')
+    conn.network.create_subnet.return_value = SimpleNamespace(
+        id='subnet-1', name='s', network_id='net-1', cidr='10.0.0.0/24',
+        gateway_ip='10.0.0.1')
+
+    result = json.loads(await handler(
+        action='create', subnet_name='s', network_id='net-1',
+        cidr='10.0.0.0/24', description='d', gateway_ip=gateway_ip))
+
+    assert result['success'] is True, result
+    params = conn.network.create_subnet.call_args.kwargs
+    assert params.get('gateway_ip', 'absent') == expected
+    assert params['description'] == 'd'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('security_groups,expected', [
+    ('[]', 'absent'),  # an explicit [] would create a port without any group
+    ('["sg-1"]', ['sg-1']),
+])
+async def test_port_create_security_group_default_and_description(
+        conn, monkeypatch, security_groups, expected):
+    monkeypatch.setenv('ALLOW_MODIFY_OPERATIONS', 'true')
+    _, handler = _tool('set_network_ports')
+    conn.network.create_port.return_value = SimpleNamespace(
+        id='port-1', name='p', network_id='net-1', status='DOWN',
+        mac_address='fa:16:3e:00:00:01')
+
+    result = json.loads(await handler(
+        action='create', port_name='p', network_id='net-1', description='d',
+        security_groups=security_groups))
+
+    assert result['success'] is True, result
+    params = conn.network.create_port.call_args.kwargs
+    assert params.get('security_group_ids', 'absent') == expected
+    assert params['description'] == 'd'
+
+
+# --- 6. unimplemented set_volume parameters ----------------------------------
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('parameter,value', [
+    ('source_volume', 'src'), ('backup_name', 'b'), ('transfer_name', 't'),
+    ('host', 'h'), ('incremental', True), ('force_host_copy', True),
+    ('lock_volume', True),
+])
+async def test_volume_rejects_unimplemented_parameters(
+        monkeypatch, parameter, value):
+    module, handler = _tool('set_volume')
+    service = Mock(return_value={'success': True})
+    monkeypatch.setattr(module, '_set_volume', service)
+
+    result = await handler(volume_names='data', action='create',
+                           **{parameter: value})
+
+    assert result.startswith('Error: Not implemented'), result
+    assert parameter in result
+    service.assert_not_called()

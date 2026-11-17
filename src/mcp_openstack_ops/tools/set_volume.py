@@ -40,18 +40,18 @@ async def set_volume(volume_names: str, action: str, size: int = 1, instance_nam
         size: Volume size in GB (default: 1); fallback for extend if new_size is omitted
         instance_name: Instance name or ID (required for attach)
         new_size: Target size for extend; takes precedence over size when positive
-        source_volume: Compatibility parameter; clone is not implemented here
-        backup_name: Compatibility parameter; use set_volume_backups for backups
+        source_volume: Not implemented (clone); a value is rejected
+        backup_name: Not implemented; a value is rejected. Use set_volume_backups
         snapshot_name: Custom snapshot name (auto-generated if not provided)
-        transfer_name: Compatibility parameter; transfers are not implemented here
-        host: Compatibility parameter; migration is not implemented here
+        transfer_name: Not implemented (transfer); a value is rejected
+        host: Not implemented (migration); a value is rejected
         description: Description for create/snapshot operations
         volume_type: Volume type for create operations
         availability_zone: Availability zone for create operations
         force: Force operations even when volume is attached
-        incremental: Compatibility parameter; backups use set_volume_backups
-        force_host_copy: Compatibility parameter; migration is not implemented here
-        lock_volume: Compatibility parameter; migration is not implemented here
+        incremental: Not implemented; true is rejected. Use set_volume_backups
+        force_host_copy: Not implemented (migration); true is rejected
+        lock_volume: Not implemented (migration); true is rejected
         
     Returns:
         Volume management operation result in JSON format with success status and volume information.
@@ -61,7 +61,18 @@ async def set_volume(volume_names: str, action: str, size: int = 1, instance_nam
     try:
         if not action or not action.strip():
             return "Error: Action is required (create, delete, list)"
-            
+
+        unsupported = [name for name, value in (
+            ('source_volume', source_volume), ('backup_name', backup_name),
+            ('transfer_name', transfer_name), ('host', host),
+            ('incremental', incremental), ('force_host_copy', force_host_copy),
+            ('lock_volume', lock_volume),
+        ) if value]
+        if unsupported:
+            return (f"Error: Not implemented by set_volume: {', '.join(unsupported)}. "
+                    "Use set_volume_backups for backups; clone, transfer and "
+                    "migration are not available. Nothing was changed.")
+
         action = action.strip().lower()
         
         # For list action, allow empty volume_names

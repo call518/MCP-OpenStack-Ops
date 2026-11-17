@@ -274,3 +274,18 @@ async def test_search_tools_preserve_query_and_page_metadata(monkeypatch, tool):
     if tool == 'get_instance':
         assert result['query_type'] == 'search'
         assert result['total_instances'] == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('parameter', ['parent', 'tags'])
+async def test_project_rejects_unimplemented_parameters(monkeypatch, parameter):
+    module = importlib.import_module('mcp_openstack_ops.tools.set_project')
+    service = Mock(return_value={'success': True})
+    monkeypatch.setattr(module, '_set_project', service)
+
+    result = await _tool_handler(module, 'set_project')(
+        project_name='project', action='create', **{parameter: 'value'},
+    )
+
+    assert result.startswith('Error: Not implemented'), result
+    service.assert_not_called()

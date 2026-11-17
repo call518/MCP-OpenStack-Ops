@@ -29,12 +29,18 @@ async def set_project(
         enable: Enable project (optional, for update action)
         disable: Disable project (optional, for update action)
         domain: Domain name or ID (optional, for create)
-        parent: Reserved compatibility parameter; parent changes are not implemented
-        tags: Reserved compatibility parameter; project tags are not implemented
+        parent: Not implemented (project hierarchy); a value is rejected
+        tags: Not implemented (project tags); a value is rejected
     
     Returns:
         JSON string containing the result of the project management operation
     """
+    unsupported = [name for name, value in (('parent', parent), ('tags', tags))
+                   if value]
+    if unsupported:
+        return (f"Error: Not implemented by set_project: {', '.join(unsupported)}. "
+                "Nothing was changed.")
+
     try:
         action = action.strip().lower()
         if action == 'set':

@@ -30,7 +30,8 @@ async def set_subnets(
         description: Description for the subnet
         ip_version: IP version 4 or 6 (default: 4)
         enable_dhcp: Enable DHCP for the subnet (default: True)
-        gateway_ip: Gateway IP address (auto-assigned if not provided)
+        gateway_ip: Gateway IP address (if omitted, Neutron assigns the first
+            address of the CIDR)
         dns_nameservers: JSON array of DNS server IPs (e.g., '["8.8.8.8", "1.1.1.1"]')
         
     Returns:
@@ -48,7 +49,9 @@ async def set_subnets(
         # Parse DNS nameservers from JSON string
         import json as json_lib
         parsed_dns_nameservers = json_lib.loads(dns_nameservers) if dns_nameservers != "[]" else []
-        
+        # An explicit null gateway_ip creates a subnet without a gateway.
+        optional = {'gateway_ip': gateway_ip} if gateway_ip else {}
+
         result = _set_subnets(
             action=action,
             subnet_name=subnet_name if subnet_name else None,
@@ -57,8 +60,8 @@ async def set_subnets(
             description=description,
             ip_version=ip_version,
             enable_dhcp=enable_dhcp,
-            gateway_ip=gateway_ip if gateway_ip else None,
-            dns_nameservers=parsed_dns_nameservers
+            dns_nameservers=parsed_dns_nameservers,
+            **optional
         )
         return json.dumps(result, indent=2)
     except json_lib.JSONDecodeError as e:

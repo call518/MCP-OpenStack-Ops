@@ -366,7 +366,7 @@ Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인�
 | `openstack network delete` | `set_networks` (action="delete") | ✅ | 기본 MTU와 지정 MTU 테스트 네트워크를 실제 TCP MCP로 삭제했고 API에서 사라진 것을 확인 |
 | `openstack network set` | `set_networks` (action="update") | ✅ | **ENHANCED** - 일괄 업데이트 |
 | `openstack subnet list` | `get_network_details` (includes subnets) | ✅ | 소유 네트워크와 공유 외부 네트워크의 서브넷을 반환. 테스트 reader마다 보이는 서브넷 3개 |
-| `openstack subnet create/delete` | `set_subnets` | ✅ | member 계정의 TCP MCP로 서브넷을 만들고 재조회. 삭제 후 두 프로젝트 모두에서 상위 네트워크를 제거할 수 있었음 |
+| `openstack subnet create/delete` | `set_subnets` | ⚠️ Live unverified | 생성 시 지정하지 않은 `gateway_ip`는 보내지 않으므로 Neutron이 CIDR의 첫 주소를 할당(이전에는 null을 보내 게이트웨이 없는 서브넷이 생성됨). `description`도 전달(이전에는 버려짐). 2026-11-17 변경은 단위 테스트만 거침. 이전 live 점검: member 계정의 TCP MCP로 서브넷을 만들고 재조회. 삭제 후 두 프로젝트 모두에서 상위 네트워크를 제거할 수 있었음 |
 | `openstack router list` | `get_routers` | ⚠️ Live unverified | 이번에는 복합 오류 요청의 일부로만 호출되었고, reader 결과를 따로 확인하지 않음 |
 | `openstack router create/delete` | `set_routers` | ✅ | 프로젝트 소유 라우터. 연결된 interface는 자동으로 제거하지 않음 |
 | `openstack floating ip list` | `get_floating_ips` | ✅ | Floating IP 목록. 조회에 실패하면 가짜 주소 대신 오류를 반환. 2026-11-10 targeted check: 나열됨 |
@@ -386,11 +386,11 @@ Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인�
 | `openstack security group create/delete` | `set_security_groups` | ✅ | 프로젝트 소유 보안 그룹 |
 | `openstack security group rule create/delete` | `set_security_group_rules` | ⚠️ Live unverified | 프로젝트 소유 그룹에 대해 구현됨. 생성 시 명시적인 CIDR 또는 프로젝트 소유 원격 그룹이 필요하며, 삭제 시 규칙이 선택한 그룹 소속인지 확인. 이번 변경에서는 live 테스트하지 않음 |
 | `openstack port list` | `set_network_ports` (action="list") | ⚠️ Live unverified | 구현된 list action은 변경 도구가 등록되어야 사용 가능. 이번에 실행하지 않음 |
-| `openstack port create/delete` | `set_network_ports` | ✅ | Port 관리 |
+| `openstack port create/delete` | `set_network_ports` | ⚠️ Live unverified | 생성 시 지정하지 않은 `security_groups`는 보내지 않으므로 Neutron이 프로젝트의 default 그룹을 적용(이전에는 빈 목록을 보내 보안 그룹 없는 port가 생성됨). `description`도 전달(이전에는 버려짐). 2026-11-17 변경은 단위 테스트만 거침 |
 | `openstack network qos policy list` | `get_network_qos_policies` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼의 QoS endpoint가 HTTP 404를 반환 |
 | `openstack network qos policy create` | `set_network_qos_policies` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼의 QoS endpoint가 HTTP 404를 반환. 정책 컨테이너만 다루며 대역폭 규칙은 없음 |
 | `openstack network agent list` | `get_service_status` (includes agents) | ⚠️ Live unverified | reader에게는 서비스 정책 제한이 있으며, 일부 데이터만으로는 전체 상태를 증명하지 못함. 2026-11-10 targeted check는 관리자로만 agent를 반환함 |
-| `openstack network agent set` | `set_network_agents` | ✅ | 클라우드 전체 agent 켜기/끄기. 보통 관리자 전용 |
+| `openstack network agent set` | `set_network_agents` | ⚠️ Live unverified | 클라우드 전체 agent 켜기/끄기. 보통 관리자 전용. live 도구 점검은 action="list"만 호출했고 enable과 disable은 실행하지 않음 |
 
 ### 3. 💾 **Storage (Cinder)**
 
@@ -405,6 +405,7 @@ Cinder가 없는 OpenStack 2026.1에서 live로 확인했습니다([검증](docs
 | `openstack volume list` | `get_volume_list` | ✅ | reader마다 소유한 볼륨 정확히 10개. 다른 테스트 프로젝트의 볼륨 ID는 반환하지 않음. `multiattach`와 `source_volid`는 SDK의 `is_multiattach`와 `source_volume_id` 필드를 읽음. 2026-11-10 targeted check: 이 필드들과 함께 나열됨 |
 | `openstack volume show` | `get_volume_list` | ✅ | 목록 기반 클라이언트 측 필터링. get_volume_list 전용 필터 인자는 없음 |
 | `openstack volume create/delete` | `set_volume` | ✅ | 볼륨 생성/삭제. 2026-11-10 targeted check: 1 GB 볼륨이 available에 도달했고 볼륨 2개가 삭제됨 |
+| `openstack volume create --source`, `openstack volume migrate`, `openstack volume transfer request create` | — | ❌ Not implemented | `set_volume`은 `source_volume`, `transfer_name`, `host`, `force_host_copy`, `lock_volume`, `backup_name`, `incremental`을 API 호출 전에 거부(이전에는 무시한 채 action을 실행). 백업은 `set_volume_backups` 사용 |
 | `openstack volume set --size` | `set_volume` (action="extend") | ✅ | 양수 new_size가 size보다 우선하며 size는 대체값으로 남음. 테스트 볼륨이 요청한 크기와 available 상태에 도달. API가 요청을 받은 것만으로는 완료가 아님 |
 | `openstack volume set` (other properties) | — | ❌ Not implemented | set_volume에는 modify/update action이 없으므로 이 미지원 action을 보내지 말 것 |
 | `openstack volume type list` | `get_volume_types` | ✅ | 볼륨 유형 목록. 조회에 실패하면 가짜 `standard` 유형 대신 오류를 반환. 2026-11-10 targeted check: 나열됨 |
@@ -448,6 +449,7 @@ Cinder가 없는 OpenStack 2026.1에서 live로 확인했습니다([검증](docs
 | `openstack project list` | `get_project_details` (`all_projects=true`) | ✅ | `all_projects`가 없으면 현재 프로젝트와 그 리소스 수만 반환. `all_projects=true`이고 `ALLOW_CROSS_PROJECT_READ=true`이면 Keystone 정책이 허용하는 모든 프로젝트의 요약 반환. 2026-11-13 targeted check: 관리자는 세 프로젝트를 나열했고, `member`는 Keystone 정책 거부 실패를 받음 |
 | `openstack project show` | `get_project_details` (name param) | ✅ | `all_projects`가 없으면 현재 프로젝트만. `all_projects=true`이고 이름이나 ID가 한 프로젝트와 일치하면 다른 프로젝트를 포함해 그 프로젝트의 상세와 리소스 수 반환. 2026-11-13 targeted check: 관리자가 본 다른 두 프로젝트의 수가 API로 직접 센 값과 일치했고, `member`는 Keystone 정책 거부 실패를 받음 |
 | `openstack project create/delete` | `set_project` | ✅ | 프로젝트 관리 |
+| `openstack project create --parent`, `openstack project set --tag` | — | ❌ Not implemented | `set_project`는 `parent`와 `tags`를 API 호출 전에 거부(이전에는 무시한 채 action을 실행) |
 | `openstack role list` | `get_role_assignments` | ✅ | 역할 목록 |
 | `openstack role assignment list` | `get_role_assignments` | ✅ | 조회에 실패하면 가짜 할당 대신 오류를 반환. 2026-11-10 targeted check: 관리자로 나열됨. 이전 회차에서는 reader 역할이 Keystone 정책에 의해 거부됨 |
 | `openstack role create` | `set_roles` (action="create") | ✅ | 역할 생성. `set_roles`는 역할 목록도 제공 |
