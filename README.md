@@ -41,12 +41,18 @@ For an AI-generated walkthrough of the code, see
 
 ![Web servers scaling out and in on CPU load](img/screenshot-heat-04-grafana-chart-eng.png)
 
-**No Heat template was written by hand: the stack was created from a
-natural-language request alone.** Using this server's tools, the MCP client
-snapshotted a web server VM into a base image, generated a self-signed
-certificate and stored it in Barbican, and created a Heat stack with an Octavia
-load balancer that terminates HTTPS and an autoscaling group driven by Aodh CPU
-alarms. Under CPU load the group grew from two to four web servers and shrank
+**No Heat template was written by hand: the stack was created from this
+two-line natural-language request.**
+
+```text
+Use the test-rockylinux-9 VM (web server) as the source for a new base image. Create and bring up a Heat stack with a TLS-terminating load balancer and autoscaling web servers.
+- Run 2 web servers under normal conditions, with a maximum of 4. Scale out by 1 when average CPU utilization stays above 60% for 5 minutes, and scale in by 1 when it stays below 40% for 5 minutes, down to a minimum of 2. Use a 900-second cooldown and set the stack's timeout_mins to 60.
+```
+
+Using this server's tools, the MCP client snapshotted a web server VM into a
+base image, generated a self-signed certificate and stored it in Barbican, and
+created a Heat stack with an Octavia load balancer that terminates HTTPS and an
+autoscaling group driven by Aodh CPU alarms. Under CPU load the group grew from two to four web servers and shrank
 back to two when the load ended. The request, templates and a walkthrough of
 the chart are in the [Heat autoscaling tutorial](docs/heat-autoscaling-tutorial.md).
 

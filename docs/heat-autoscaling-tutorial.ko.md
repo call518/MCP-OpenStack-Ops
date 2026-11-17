@@ -4,7 +4,7 @@
 
 ![scale-out과 scale-in 중의 VM CPU 사용량](../img/screenshot-heat-04-grafana-chart-kor.png)
 
-**Heat 템플릿을 직접 작성하지 않고, 자연어 요청만으로 스택을 만들었습니다.**
+**Heat 템플릿을 직접 작성하지 않고, 두 줄짜리 자연어 요청만으로 스택을 만들었습니다.**
 MCP 클라이언트가 [요청](#요청-내용)을 이 서버의 도구 호출로 바꿨고, 그 도구들이
 기준 이미지를 만들고, 인증서를 Barbican에 등록하고, 스택을 생성했습니다.
 
@@ -14,27 +14,28 @@ CPU 부하가 걸리면 웹서버 그룹이 2대에서 3대, 4대로 늘어나�
 
 이 튜토리얼은 차트 뒤의 Heat 스택을 다룹니다. HTTPS를 종료하는 Octavia
 로드밸런서와 Aodh CPU 알람으로 동작하는 웹서버 오토스케일링 그룹입니다. MCP
-클라이언트에 전달한 [요청](#요청-내용)을 보여주고, 각 요구사항을 설명하고, 이런
-스택에 쓰이는 템플릿, 결과 확인 방법, 차트 해석([스케일링 실습](#스케일링-실습))을
+클라이언트에 전달한 [요청](#요청-내용), 클라이언트가 스스로 채운 내용, 클라이언트가
+생성한 템플릿, 결과 확인 방법, 차트 해석([스케일링 실습](#스케일링-실습))을
 다룹니다.
 
 스크린샷은 Nova가 QEMU TCG(KVM 없음)로 동작하는 단일 노드 Kolla 클라우드에서
-실행한 결과이며, VM과 amphora 부팅이 느립니다. 아래 일부 설정(스택 timeout,
-알람 지연, cooldown)은 이 환경에 맞춘 값이므로 환경에 따라 조정하세요.
+실행한 결과이며, VM과 amphora 부팅이 느립니다. 요청의 cooldown과 스택 timeout은
+이 환경에 맞춘 값이므로 환경에 따라 조정하세요.
 
 ## 구성 요소
 
 | 구성 요소 | Heat 리소스 | 역할 |
 | --- | --- | --- |
-| 기준 이미지 | (스택 생성 전 준비) | 동작 중인 웹서버 VM의 스냅샷 |
+| 기준 이미지 | (스택 생성 전에 만듦) | 동작 중인 웹서버 VM의 스냅샷 |
 | 로드밸런서 | `OS::Octavia::LoadBalancer` | private 서브넷의 VIP |
 | HTTPS 리스너 | `OS::Octavia::Listener` | Barbican 인증서를 쓰는 443/tcp `TERMINATED_HTTPS` |
 | Pool | `OS::Octavia::Pool` | `HTTP`, `ROUND_ROBIN` |
+| Health monitor | `OS::Octavia::HealthMonitor` | `HTTP GET /`, `200` 기대 |
 | Floating IP | `OS::Neutron::FloatingIPAssociation` | VIP를 외부에 노출 |
+| 멤버 security group | `OS::Neutron::SecurityGroup` | 서브넷에서 오는 80/tcp, 22/tcp, ICMP 허용 |
 | 오토스케일링 그룹 | `OS::Heat::AutoScalingGroup` | 멤버 2~4대. 각 멤버는 `files`로 넘기는 중첩 템플릿 |
 | 멤버 | `member.yaml`: `OS::Nova::Server` + `OS::Octavia::PoolMember` | 80/tcp 웹서버, pool에 등록 |
 | 스케일링 정책 | `OS::Heat::ScalingPolicy` (×2) | 멤버 +1 / −1, cooldown 900초 |
-| 알람 지연 | `OS::Heat::Delay` | 그룹 완료 후 10분 대기 |
 | CPU 알람 | `OS::Aodh::GnocchiAggregationByResourcesAlarm` (×2) | 평균 CPU 60% 초과 / 40% 미만이 5분 유지 |
 
 트래픽 흐름: 클라이언트 → floating IP → VIP(여기서 TLS 종료) → pool → 멤버
@@ -62,49 +63,37 @@ member)를 함께 추가하거나 제거합니다.
    `test-rockylinux-9`를 썼습니다. 스냅샷 전에 멤버가 새 인스턴스로 부팅되도록
    `cloud-init clean`을 실행했고, 느린 TCG 부팅에 맞춰 게스트의 장치 대기 시간을
    늘려 두었습니다.
-6. **사용 중이지 않은 floating IP**와 멤버의 80/tcp를 허용하는 security group.
+6. **사용 중이지 않은 floating IP.**
 
 ## 요청 내용
 
-MCP 클라이언트에 아래 요청을 그대로 전달했습니다. 각 요구사항은 다음 절에서
-설명합니다.
+MCP 클라이언트에 아래 요청을 그대로 전달했습니다.
 
 ```text
-test-rockylinux-9 VM(웹서버)을 기준 이미지로 해서 TLS 종료형 LB + 웹서버 오토스케일링 구성을 Heat 스택으로 만들어서 가동해줘.
-
-- 평상시 2대, 최대 4대. 평균 CPU가 60%를 넘으면 1대씩 늘리고, 40% 밑으로 떨어지면 2대까지 1대씩 줄여줘.
-  - 확장/축소 조건은 5분 연속 유지 시 트리거해줘
-    (granularity 60, evaluation_periods 5).
-  - Aodh 평가 주기는 60초로 설정돼 있어.
-- 웹서버는 HTTP 80/tcp로 동일한 서비스를 제공하게 해줘.
-- LB는 TLS-terminated HTTPS 방식으로 구성해줘.
-  - 외부 listener는 TERMINATED_HTTPS 프로토콜과 443/tcp를 사용해줘.
-  - TLS 종료용 자체서명 인증서를 새로 생성해 Barbican에 등록하고, 그 참조값을 default_tls_container_ref로 사용해줘.
-  - listener가 전달하는 pool은 HTTP 프로토콜과 ROUND_ROBIN 알고리즘을 사용하고,
-    각 ASG 웹서버의 80/tcp를 member 포트로 등록해줘.
-  - VIP에는 사용 중이지 않은 Floating IP를 붙여 외부에 노출해줘.
-- 기준 이미지는 기존 이미지를 쓰지 말고 test-rockylinux-9를 정지한 뒤 새로 스냅샷 떠줘.
-  원본 VM은 스냅샷 완료 후 다시 켜줘.
-  (장치 대기 시간 연장과 cloud-init clean은 이미 해뒀어.)
-- ASG 멤버(서버 + pool member)는 files로 넘기는 중첩 템플릿으로 만들고,
-  OS::Heat::Stack은 쓰지 마.
-- 알람 액션은 trust+ 접두어를 붙인 ScalingPolicy signal_url로 지정해줘.
-  생성 후 Aodh notifier 응답이 HTTP 200인지까지 확인해야 완료로 봐.
-
-참고로 단일 노드에 KVM 없이 QEMU TCG로 동작해서 VM과 amphora 부팅이 많이 느려.
-신규 멤버 부팅 부하는 약 7분으로 관측됐어.
-
-- 스택 timeout_mins는 60으로 주고 실제 적용 여부도 확인해줘.
-  도구로 확인할 수 없다면 확인 명령을 알려줘.
-- 스택 생성은 완료될 때까지 기다려줘.
-- 생성 직후 부팅 부하로 확장되지 않도록 OS::Heat::Delay를 사용해서
-  ASG 완료 후 10분이 지난 뒤 알람을 생성해줘.
-- 확장 직후 신규 멤버 부팅 부하로 연쇄 확장되지 않도록
-  ScalingPolicy cooldown은 900초로 설정해줘.
-- 실패하면 스택이나 리소스를 삭제하거나 재시도하지 말고 현재 상태와 실패 원인만 알려줘.
+test-rockylinux-9 VM(웹서버)으로 새 기준 이미지를 만들어서 TLS 종료형 LB + 웹서버 오토스케일링 구성을 Heat 스택으로 만들어서 가동해줘.
+평상시 2대, 최대 4대. 평균 CPU가 5분 연속 60%를 넘으면 1대씩 늘리고, 5분 연속 40% 밑이면 2대까지 1대씩 줄여줘. cooldown은 900초, 스택 timeout_mins는 60.
 ```
 
-## 요구사항별 이유
+요청에는 스케일링 목표와 느린 환경을 위한 값 두 개만 있습니다.
+
+| 요청 | 생성된 스택 |
+| --- | --- |
+| `test-rockylinux-9`로 새 기준 이미지 | 스냅샷 이미지(`web-rocky9-base-20261117`)를 `image` 기본값으로 사용 |
+| TLS 종료형 로드밸런서 | 443/tcp `TERMINATED_HTTPS` 리스너 |
+| 평상시 2대, 최대 4대, 최소 2대 | `min_size: 2`, `desired_capacity: 2`, `max_size: 4` |
+| 60% 초과 시 +1 / 40% 미만 시 −1, 5분 연속 | `granularity: 60`, `evaluation_periods: 5`인 알람 2개가 각각 ±1 스케일링 정책을 호출 |
+| cooldown 900초 | 그룹과 두 정책 모두 `cooldown: 900` |
+| `timeout_mins` 60 | 스택 생성 시 지정(CLI로는 `--timeout 60`) |
+
+- **cooldown 900초.** 신규 멤버의 부팅 부하(여기서는 약 7분)는 그룹 평균을
+  올립니다. 스케일링 후 정책은 900초 동안 signal을 무시하며, 이는 부팅 시간과
+  5분 평가 구간을 덮습니다.
+- **`timeout_mins: 60`.** amphora 부팅과 멤버 부팅이 스택 timeout에 포함되며,
+  TCG에서는 둘 다 느립니다.
+
+## 클라이언트가 스스로 채운 내용
+
+템플릿의 나머지는 클라이언트가 요청과 이 서버의 도구 설명을 바탕으로 정했습니다.
 
 - **`OS::Heat::Stack` 대신 `files`의 중첩 템플릿.** Aodh는 Keystone trust로
   스케일링 정책을 호출하고, 스케일링은 그 trust로 멤버를 만듭니다.
@@ -126,177 +115,249 @@ test-rockylinux-9 VM(웹서버)을 기준 이미지로 해서 TLS 종료형 LB +
   `metering.server_group: <부모 스택 ID>`를 가집니다. Ceilometer는 이를 Gnocchi
   `server_group` 속성으로 저장하고, 알람 query는 그 인스턴스만 선택합니다. 기준
   VM이나 다른 서버는 계산에 포함되지 않습니다.
-- **알람 전의 `OS::Heat::Delay`.** 그룹은 서버가 ACTIVE가 되면 완료되지만, TCG에서는
-  게스트가 아직 CPU를 최대로 쓰며 부팅 중입니다. 이때 알람이 생기면 곧바로
-  확장됩니다. 지연 리소스는 그룹에, 알람은 지연 리소스에 의존하므로 알람은
-  10분 뒤에야 생성됩니다.
-- **cooldown 900초.** 신규 멤버의 부팅 부하(여기서는 약 7분)는 그룹 평균을
-  올립니다. 스케일링 후 정책은 900초 동안 signal을 무시하며, 이는 부팅 시간과
-  5분 평가 구간을 덮습니다.
-- **`timeout_mins: 60`.** amphora 부팅, 멤버 부팅, 10분 지연이 모두 스택 timeout에
-  포함됩니다. TCG에서는 Heat 기본값이 부족할 수 있습니다.
 - **`repeat_actions: true`.** Aodh는 기본적으로 상태가 바뀔 때만 알립니다. repeat
   actions를 켜면 `alarm` 상태가 유지되는 동안 평가마다 signal을 보냅니다.
   cooldown 중의 signal은 무시되고, cooldown이 끝난 뒤의 signal로 다시 확장합니다.
   부하가 계속 높을 때 그룹이 3대에서 4대로 늘어나는 방식입니다.
-- **실패 시 삭제나 재시도 금지.** 실패한 스택을 지우면 원인 증거가 사라집니다.
-  대신 현재 상태와 원인을 요청하세요([문제 해결](#문제-해결) 참고).
+- **floating IP용 자체 서명 인증서.** 클라이언트가 사용 중이지 않은 floating IP를
+  고르고, 그 주소로 자체 서명 인증서를 발급해 Barbican에 저장한 뒤 그 href를
+  `tls_secret_ref`로 넘겼습니다.
+- **Pool과 health monitor.** `ROUND_ROBIN`을 쓰는 `HTTP` pool과, 웹서버가 응답하는
+  멤버에만 트래픽을 보내도록 HTTP health monitor(`GET /`, `200` 기대)를 둡니다.
+  그룹이 monitor에 의존하므로 멤버는 monitor 다음에 생성됩니다.
+- **멤버 security group.** 스택이 서브넷에서 오는 80/tcp, 22/tcp, ICMP를 허용하는
+  자체 security group을 만듭니다. VIP와 멤버가 같은 서브넷에 있으므로 amphora는
+  그 서브넷에서 멤버에 접근합니다.
+- **`member.yaml`의 `OS::stack_id` 출력.** 멤버의 참조 ID를 중첩 스택 ID 대신
+  서버 ID로 만듭니다.
 
-## 예시 템플릿
+## 생성된 템플릿
 
-아래 템플릿은 요청을 구현한 것입니다. 요청과 도구 설명을 바탕으로 이 가이드를
-위해 작성한 예시이며, 스크린샷의 스택은 MCP 클라이언트가 생성한 것이라 이름과
-세부 내용이 다를 수 있습니다. `create` 전에 `set_heat_stack`을
-`action="validate"`로 실행하세요.
+MCP 클라이언트가 요청에 따라 생성한 템플릿을 그대로 옮겼습니다. `web-asg.yaml`이
+메인 템플릿(`template`)이고, `member.yaml`은 `files`에 키 `member.yaml`로 넘기는
+중첩 템플릿입니다. 파라미터 기본값(이미지, 네트워크, 키 페어, 서브넷 CIDR)은 이
+실습 환경의 이름이므로 환경에 맞게 바꾸세요.
 
-메인 템플릿(`template`):
+`web-asg.yaml`:
 
 ```yaml
-heat_template_version: 2021-04-16
-description: TLS-terminated Octavia LB with autoscaling web servers
+heat_template_version: 2018-08-31
+
+description: >
+  Octavia TERMINATED_HTTPS LB + Rocky Linux 9 web server AutoScalingGroup
+  (min 2 / max 4), scaled by Aodh alarms on the group-average CPU.
 
 parameters:
-  image: {type: string, description: Base image created from the web server snapshot}
-  flavor: {type: string, default: m1.small}
-  network: {type: string, description: Private network for members}
-  subnet: {type: string, description: Private subnet for the VIP and members}
-  security_group: {type: string, description: Allows 80/tcp to members}
-  floating_ip_id: {type: string, description: ID of an unused floating IP}
-  tls_container_ref: {type: string, description: Barbican secret href (PKCS#12)}
+  image:
+    type: string
+    default: web-rocky9-base-20261117
+  flavor:
+    type: string
+    default: m1.small
+  key_name:
+    type: string
+    default: mykey
+  network:
+    type: string
+    default: private-net
+  subnet:
+    type: string
+    default: private-subnet
+  subnet_cidr:
+    type: string
+    default: 10.40.40.0/24
+  floating_ip_id:
+    type: string
+    description: Pre-allocated FIP for the LB VIP (TLS cert CN/SAN)
+  floating_ip_address:
+    type: string
+    description: Address of floating_ip_id (output only)
+  tls_secret_ref:
+    type: string
+    description: Barbican PKCS#12 secret href
+  member_port:
+    type: number
+    default: 80
+  # Gnocchi cpu metric: archive policy ceilometer-1min-rate (60 s only).
+  # rate:mean threshold = percent/100 * 60 s * 1e9 ns * vCPUs (m1.small = 1 vCPU)
+  cpu_high_ns:
+    type: number
+    default: 36000000000   # 60 %
+  cpu_low_ns:
+    type: number
+    default: 24000000000   # 40 %
 
 resources:
+  member_sg:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      name: web-asg-member-sg
+      rules:
+        - {protocol: tcp, port_range_min: {get_param: member_port}, port_range_max: {get_param: member_port}, remote_ip_prefix: {get_param: subnet_cidr}}
+        - {protocol: tcp, port_range_min: 22, port_range_max: 22, remote_ip_prefix: {get_param: subnet_cidr}}
+        - {protocol: icmp, remote_ip_prefix: {get_param: subnet_cidr}}
+
   lb:
     type: OS::Octavia::LoadBalancer
     properties:
-      name: asg-web-lb
+      name: web-asg-lb
       vip_subnet: {get_param: subnet}
 
-  listener:
+  listener_https:
     type: OS::Octavia::Listener
     properties:
+      name: web-asg-https
       loadbalancer: {get_resource: lb}
       protocol: TERMINATED_HTTPS
       protocol_port: 443
-      default_tls_container_ref: {get_param: tls_container_ref}
+      default_tls_container_ref: {get_param: tls_secret_ref}
 
   pool:
     type: OS::Octavia::Pool
     properties:
-      listener: {get_resource: listener}
+      name: web-asg-pool
+      listener: {get_resource: listener_https}
       protocol: HTTP
       lb_algorithm: ROUND_ROBIN
 
-  vip_floating_ip:
+  monitor:
+    type: OS::Octavia::HealthMonitor
+    properties:
+      pool: {get_resource: pool}
+      type: HTTP
+      http_method: GET
+      url_path: /
+      expected_codes: "200"
+      delay: 5
+      timeout: 5
+      max_retries: 3
+
+  vip_fip_assoc:
     type: OS::Neutron::FloatingIPAssociation
     properties:
       floatingip_id: {get_param: floating_ip_id}
       port_id: {get_attr: [lb, vip_port_id]}
 
-  asg:
+  web_asg:
     type: OS::Heat::AutoScalingGroup
+    depends_on: monitor
     properties:
       min_size: 2
+      desired_capacity: 2
       max_size: 4
+      cooldown: 900
       resource:
         type: member.yaml
         properties:
           image: {get_param: image}
           flavor: {get_param: flavor}
+          key_name: {get_param: key_name}
           network: {get_param: network}
           subnet: {get_param: subnet}
-          security_group: {get_param: security_group}
+          security_group: {get_resource: member_sg}
           pool_id: {get_resource: pool}
+          member_port: {get_param: member_port}
           metadata: {"metering.server_group": {get_param: "OS::stack_id"}}
 
-  scale_out_policy:
+  scale_up_policy:
     type: OS::Heat::ScalingPolicy
     properties:
       adjustment_type: change_in_capacity
-      auto_scaling_group_id: {get_resource: asg}
+      auto_scaling_group_id: {get_resource: web_asg}
       scaling_adjustment: 1
       cooldown: 900
 
-  scale_in_policy:
+  scale_down_policy:
     type: OS::Heat::ScalingPolicy
     properties:
       adjustment_type: change_in_capacity
-      auto_scaling_group_id: {get_resource: asg}
+      auto_scaling_group_id: {get_resource: web_asg}
       scaling_adjustment: -1
       cooldown: 900
 
-  alarm_delay:
-    type: OS::Heat::Delay
-    depends_on: asg
-    properties:
-      min_wait: 600
-      actions: [CREATE]
-
   cpu_alarm_high:
     type: OS::Aodh::GnocchiAggregationByResourcesAlarm
-    depends_on: alarm_delay
     properties:
-      description: Scale out when mean CPU > 60% for 5 minutes
+      description: Group avg CPU > 60% for 5 consecutive minutes
       metric: cpu
       aggregation_method: rate:mean
       granularity: 60
       evaluation_periods: 5
-      threshold: 36000000000   # 60% of 1 vCPU over 60 s, in ns
+      threshold: {get_param: cpu_high_ns}
       comparison_operator: gt
       resource_type: instance
-      query:
-        str_replace:
-          template: '{"=": {"server_group": "stack_id"}}'
-          params:
-            stack_id: {get_param: "OS::stack_id"}
       repeat_actions: true
       alarm_actions:
         - str_replace:
             template: trust+url
             params:
-              url: {get_attr: [scale_out_policy, signal_url]}
+              url: {get_attr: [scale_up_policy, signal_url]}
+      query:
+        list_join:
+          - ''
+          - - '{"=": {"server_group": "'
+            - {get_param: "OS::stack_id"}
+            - '"}}'
 
   cpu_alarm_low:
     type: OS::Aodh::GnocchiAggregationByResourcesAlarm
-    depends_on: alarm_delay
     properties:
-      description: Scale in when mean CPU < 40% for 5 minutes
+      description: Group avg CPU < 40% for 5 consecutive minutes
       metric: cpu
       aggregation_method: rate:mean
       granularity: 60
       evaluation_periods: 5
-      threshold: 24000000000   # 40% of 1 vCPU over 60 s, in ns
+      threshold: {get_param: cpu_low_ns}
       comparison_operator: lt
       resource_type: instance
-      query:
-        str_replace:
-          template: '{"=": {"server_group": "stack_id"}}'
-          params:
-            stack_id: {get_param: "OS::stack_id"}
       repeat_actions: true
       alarm_actions:
         - str_replace:
             template: trust+url
             params:
-              url: {get_attr: [scale_in_policy, signal_url]}
+              url: {get_attr: [scale_down_policy, signal_url]}
+      query:
+        list_join:
+          - ''
+          - - '{"=": {"server_group": "'
+            - {get_param: "OS::stack_id"}
+            - '"}}'
 
 outputs:
-  vip_address:
+  lb_vip:
     value: {get_attr: [lb, vip_address]}
+  https_url:
+    value:
+      str_replace:
+        template: https://FIP/
+        params:
+          FIP: {get_param: floating_ip_address}
+  asg_size:
+    value: {get_attr: [web_asg, current_size]}
+  member_ips:
+    value: {get_attr: [web_asg, outputs_list, server_ip]}
+  scale_up_url:
+    value: {get_attr: [scale_up_policy, signal_url]}
+  scale_down_url:
+    value: {get_attr: [scale_down_policy, signal_url]}
 ```
 
-멤버 템플릿(`files`의 키 `member.yaml`):
+`member.yaml`:
 
 ```yaml
-heat_template_version: 2021-04-16
-description: One web server and its pool member
+heat_template_version: 2018-08-31
+
+description: Web server member (volume-backed snapshot image) registered to the Octavia pool
 
 parameters:
   image: {type: string}
   flavor: {type: string}
+  key_name: {type: string}
   network: {type: string}
   subnet: {type: string}
   security_group: {type: string}
   pool_id: {type: string}
+  member_port: {type: number}
   metadata: {type: json}
 
 resources:
@@ -305,17 +366,36 @@ resources:
     properties:
       image: {get_param: image}
       flavor: {get_param: flavor}
-      networks: [{network: {get_param: network}}]
-      security_groups: [{get_param: security_group}]
+      key_name: {get_param: key_name}
       metadata: {get_param: metadata}
+      networks:
+        - network: {get_param: network}
+      security_groups:
+        - {get_param: security_group}
 
-  member:
+  pool_member:
     type: OS::Octavia::PoolMember
     properties:
       pool: {get_param: pool_id}
-      address: {get_attr: [server, networks, {get_param: network}, 0]}
-      protocol_port: 80
+      address: {get_attr: [server, first_address]}
+      protocol_port: {get_param: member_port}
       subnet: {get_param: subnet}
+
+outputs:
+  server_ip:
+    value: {get_attr: [server, first_address]}
+  OS::stack_id:
+    value: {get_resource: server}
+```
+
+OpenStack CLI로 같은 스택을 만들려면 두 파일을 한 디렉터리에 두고 floating IP와
+Barbican 시크릿 href를 넘깁니다.
+
+```bash
+openstack stack create web-asg -t web-asg.yaml --timeout 60 \
+  --parameter floating_ip_id=<floating IP ID> \
+  --parameter floating_ip_address=<floating IP address> \
+  --parameter tls_secret_ref=<Barbican secret href>
 ```
 
 ## 클라이언트가 수행하는 단계
@@ -323,34 +403,33 @@ resources:
 MCP 클라이언트는 요청을 대략 아래 순서의 도구 호출로 바꿉니다. 쓰기 작업은
 비동기이므로 각 단계는 다음으로 넘어가기 전에 조회로 확인합니다.
 
-1. **기준 이미지.** 웹서버 VM에 `set_instance`(`action="stop"`)를 실행하고
-   `SHUTOFF`를 확인합니다. `set_instance`(`action="snapshot"`, `snapshot_name`)
-   후 `get_image_detail_list`에서 이미지가 `active`가 될 때까지 기다리고,
-   `set_instance`(`action="start"`)로 다시 켠 뒤 `ACTIVE`를 확인합니다.
+1. **기준 이미지.** 웹서버 VM에 `set_instance`(`action="snapshot"`,
+   `snapshot_name`)를 실행하고 `get_image_detail_list`에서 이미지가 `active`가
+   될 때까지 기다립니다.
 2. **Floating IP.** `get_floating_ips`로 포트에 연결되지 않은 주소를 고릅니다.
 3. **인증서.** floating IP를 `common_name`과 `subject_alt_names`에 넣어
    `set_secret`(`action="create_self_signed_tls"`)을 실행합니다. 시크릿 href와
    공개 인증서만 반환되고 개인 키는 Barbican에 남습니다. 이 href가
-   `tls_container_ref` 파라미터가 됩니다.
-4. **검증.** `template`, `files`(`{"member.yaml": "<content>"}`), `parameters`로
-   `set_heat_stack`(`action="validate"`)을 실행합니다.
+   `tls_secret_ref` 파라미터가 됩니다.
+4. **검증(권장).** `template`, `files`(`{"member.yaml": "<content>"}`),
+   `parameters`로 `set_heat_stack`(`action="validate"`)을 실행합니다.
 5. **생성.** 같은 입력으로 `set_heat_stack`(`action="create"`,
    `timeout_mins=60`)을 실행합니다. 호출은 스택 완료가 아니라 Heat가 요청을
    접수했을 때 반환됩니다.
 6. **대기.** 스택이 `CREATE_COMPLETE`(또는 실패)가 될 때까지 `get_heat_stacks`로
-   확인합니다. TCG에서는 amphora 부팅, 멤버 2대 부팅, 10분 지연이 포함됩니다.
+   확인합니다. TCG에서는 amphora 부팅과 멤버 2대 부팅이 포함됩니다.
 7. **`timeout_mins` 확인.** `get_heat_stacks`는 스택마다 `timeout_mins`를
    반환하며, 값이 `60`이어야 합니다. CLI로는 다음과 같습니다.
 
    ```bash
-   openstack stack show asg-web-lb -c timeout_mins
+   openstack stack show web-asg -c timeout_mins
    ```
 
 8. **알람과 notifier 확인.** `set_alarms`(`action="list"` 또는 `"show"`)로 두
    알람과 `trust+` 액션을 확인합니다. MCP 도구는 서비스 로그를 읽을 수 없으므로
-   HTTP 200 확인은 controller의 Aodh notifier 로그로 합니다. 멤버가 유휴 상태면
-   scale-in 알람이 생성 약 5분 뒤 `alarm` 상태가 되어 scale-in 정책을 호출합니다
-   (그룹이 이미 최소 크기이므로 제거되는 멤버는 없습니다). Kolla 배포에서는:
+   HTTP 200 확인은 controller의 Aodh notifier 로그로 합니다. 멤버 부팅이 끝나
+   유휴 상태가 되면 scale-in 알람이 약 5분 안에 `alarm` 상태가 되어 scale-in
+   정책을 호출합니다(그룹이 이미 최소 크기이므로 제거되는 멤버는 없습니다). Kolla 배포에서는:
 
    ```bash
    grep '<scale-in alarm ID>' /var/log/kolla/aodh/aodh-notifier.log | tail
@@ -364,8 +443,8 @@ MCP 클라이언트는 요청을 대략 아래 순서의 도구 호출로 바꿉
 ## 결과 확인
 
 **스택.** Horizon의 Orchestration 화면에서 스택이 `Create Complete`로 표시됩니다.
-토폴로지에는 알람, 스케일링 정책, 오토스케일링 그룹, 로드밸런서 리소스, floating
-IP가 있습니다.
+토폴로지에는 알람, 스케일링 정책, 오토스케일링 그룹, 멤버 security group,
+로드밸런서 리소스, floating IP가 있습니다.
 
 ![Heat 스택 토폴로지, Create Complete](../img/screenshot-heat-01.png)
 
@@ -392,7 +471,7 @@ curl -vk https://<floating IP>/
 ## 스케일링 실습
 
 멤버에 CPU 부하를 주고(예: `stress-ng`) VM별 CPU를 관찰합니다. 이 튜토리얼 맨 위
-차트가 같은 실행의 것이며, y축은 vCPU 단위 CPU 사용량(1 = vCPU 하나가 완전히 사용
+차트가 그런 실행의 예이며, y축은 vCPU 단위 CPU 사용량(1 = vCPU 하나가 완전히 사용
 중)이고 시각은 대략적인 값입니다.
 
 | 시각(대략) | 이벤트 | 설명 |
@@ -425,8 +504,8 @@ curl -vk https://<floating IP>/
 | --- | --- |
 | 스케일링이 HTTP 403(trust redelegation)으로 실패 | 멤버가 `OS::Heat::Stack`임. `files`의 중첩 템플릿을 사용 |
 | `validate`나 `create`가 `member.yaml`을 찾지 못함 | `files`에 중첩 템플릿 내용이 없거나 키가 `type:`과 다름 |
-| 스택이 timeout으로 실패 | amphora 부팅, 멤버 부팅, 지연을 합친 시간보다 `timeout_mins`가 짧음 |
+| 스택이 timeout으로 실패 | amphora 부팅과 멤버 부팅을 합친 시간보다 `timeout_mins`가 짧음 |
 | 리스너 생성이 인증서 오류로 실패 | Barbican 사전 조건 또는 ACL. [Barbican과 TLS 가이드](barbican-tls-guide.ko.md#문제-해결) 참고 |
 | 알람이 `insufficient data`에 머묾 | 60초 `cpu` 측정값이 없음(수집 주기 또는 archive policy), 또는 멤버에 `metering.server_group`이 없음 |
 | 알람은 울리지만 스케일링되지 않음 | cooldown 중, 그룹이 `max_size`/`min_size`에 도달, 또는 액션 URL에 `trust+`가 없음. notifier 로그와 정책 이벤트를 확인 |
-| 생성 직후 scale-out | 지연 없이 알람이 생성되어 부팅 부하가 계산됨 |
+| 생성 직후 scale-out | 알람이 멤버의 부팅 부하를 계산함. 그룹 완료 후 기다리는 `OS::Heat::Delay` 등으로 알람을 늦게 만들도록 요청 |
