@@ -39,6 +39,8 @@ Options:
 | `OS_PROJECT_DOMAIN_NAME` | 프로젝트 도메인 이름 | `default` | 도메인 범위 |
 | `OS_USER_DOMAIN_NAME` | 사용자 도메인 이름 | `default` | 도메인 범위 |
 | `OS_REGION_NAME` | OpenStack 리전 | `RegionOne` | 리전 범위 |
+| `OS_ENDPOINT_SOURCE` | 서비스 endpoint를 가져오는 곳: `configured` 또는 `catalog` | `configured` | `catalog`는 모든 서비스에 Keystone catalog를 사용; [OpenStack endpoint 구성](#openstack-endpoint-구성) 참고 |
+| `OS_INTERFACE` | Catalog interface: `public`, `internal`, `admin` | `internal` | catalog endpoint를 고름; 클라우드 내부 네트워크 밖에서는 `public` 사용 |
 | **OpenStack 서비스 포트** |
 | `OS_COMPUTE_PORT` | Compute 서비스 포트 | `8774` | Nova endpoint |
 | `OS_NETWORK_PORT` | Network 서비스 포트 | `9696` | Neutron endpoint |
@@ -91,7 +93,8 @@ OpenWebUI에는 OpenStack 도구가 하나도 나오지 않습니다.
 | `DOCKER_BIND_ADDRESS` | `127.0.0.1` | 접근 가능한 주소, HTTPS 뒤에 배치 | `127.0.0.1`, 또는 HTTPS 뒤의 접근 가능한 주소 | 접근 가능한 주소, HTTPS 뒤에 배치 |
 
 다음 키는 모드와 무관합니다: `FASTMCP_TYPE=streamable-http`(Compose에서는 항상),
-`OS_AUTH_HOST`, `OS_AUTH_PORT`, `OS_REGION_NAME`, 서비스 포트,
+`OS_AUTH_HOST`, `OS_AUTH_PORT`, `OS_REGION_NAME`, `OS_ENDPOINT_SOURCE`,
+`OS_INTERFACE`, 서비스 포트,
 `ALLOW_MODIFY_OPERATIONS`, `ALLOW_CROSS_PROJECT_READ`, `LIST_MAX_LIMIT`,
 `INSTANCE_FILTER_MAX_MATCHES`.
 
@@ -106,31 +109,40 @@ OpenWebUI에는 OpenStack 도구가 하나도 나오지 않습니다.
 
 ## OpenStack endpoint 구성
 
-단일 계정 연결과 다중 사용자 연결은 모두 현재 하나의 `OS_AUTH_HOST`,
-`OS_AUTH_PROTOCOL`, 그리고 `OS_*_PORT` 값으로 서비스 URL을 만듭니다. 나열된 모든
-서비스를 한 호스트에서 노출하는 소규모 배포, API 게이트웨이, 가상 IP에서는 이
-방식이 동작합니다. 서버는 현재 Keystone 서비스 catalog에서 서로 다른 서비스
-호스트나 사용자 지정 URL 경로를 찾아내지 않습니다.
+`OS_ENDPOINT_SOURCE`는 두 연결 모드가 서비스 endpoint를 찾는 방식을 정합니다.
+Keystone에는 항상 `OS_AUTH_PROTOCOL://OS_AUTH_HOST:OS_AUTH_PORT`로 접속합니다.
 
-시작하기 전에 이 URL들이 `mcp-server` 컨테이너 안에서 접근 가능한지 확인하세요.
-클라우드가 서비스마다 다른 호스트나 경로를 쓴다면, `OS_AUTH_HOST`에 게이트웨이나
-리버스 프록시를 두고 설정한 포트를 해당 endpoint로 연결하세요. Keystone 호스트
-이름만 넣고 진행하지 마세요. MCP 서버가 인증에는 성공하고 첫 서비스 도구에서
+| `OS_ENDPOINT_SOURCE` | Compute, network, volume, image, placement, Heat | 그 밖의 서비스 | 사용하는 경우 |
+| --- | --- | --- | --- |
+| `configured` (기본값) | `OS_AUTH_HOST`, `OS_AUTH_PROTOCOL`, `OS_*_PORT` 값으로 만듦 | Keystone catalog, `OS_INTERFACE` | 나열된 모든 서비스를 한 호스트에서 노출하는 경우: 소규모 배포, API 게이트웨이, 가상 IP |
+| `catalog` | Keystone catalog, `OS_INTERFACE` | Keystone catalog, `OS_INTERFACE` | 서비스마다 자체 호스트 이름이나 URL 경로가 있는 경우(예: `https://nova.example.com/v2.1`) |
+
+`OS_INTERFACE`(`public`, `internal`, `admin`, 기본값 `internal`)는
+`OS_REGION_NAME`에 해당하는 catalog endpoint를 고릅니다. MCP 서버에서 접근할 수 있는
+interface를 쓰세요. 노트북에서는 보통 프로젝트 OpenRC 파일에 있는 값인 `public`입니다.
+`catalog`에서는 `OS_*_PORT` 설정을 무시합니다. `openstack catalog list`로 endpoint를
+확인하고 선택한 interface의 endpoint에 접근할 수 있는지 점검하세요. 다중 사용자
+모드에서는 이 endpoint도 HTTPS를 써야 합니다.
+
+### 설정으로 만든 endpoint
+
+`configured`에서는 시작하기 전에 만들어진 URL에 MCP 서버(Docker Compose에서는
+`mcp-server` 컨테이너 안)가 접근할 수 있는지 확인하세요. 클라우드가 서비스마다 다른
+호스트나 경로를 쓴다면 `OS_ENDPOINT_SOURCE=catalog`를 쓰거나, `OS_AUTH_HOST`에
+게이트웨이나 리버스 프록시를 두고 설정한 포트를 해당 endpoint로 연결하세요. Keystone
+호스트 이름만 넣고 진행하지 마세요. MCP 서버가 인증에는 성공하고 첫 서비스 도구에서
 실패할 수 있습니다.
 
-`OS_INTERFACE`는 이렇게 명시적으로 만든 endpoint URL을 바꾸지 않습니다. 현재 단일
-호스트 구성은 internal interface 관례를 따릅니다.
+설정으로 만드는 서비스 URL은 서비스가 배포되지 않았어도 모두 만들어집니다. 방화벽이
+그런 포트(예: Cinder가 없는 클라우드의 `OS_VOLUME_PORT`)로 가는 트래픽을 조용히
+버리면, 해당 서비스 호출은 바로 실패하지 않고 연결 timeout까지 기다립니다. 없는
+서비스가 명시적 오류로 빨리 실패하도록, 그 포트를 거부(refuse)하게 하거나 접근 가능한
+게이트웨이로 연결하세요. `catalog`에서는 catalog에 없는 서비스가 바로 실패합니다.
 
-서비스가 배포되지 않았어도 모든 서비스 URL이 만들어집니다. 방화벽이 그런 포트(예:
-Cinder가 없는 클라우드의 `OS_VOLUME_PORT`)로 가는 트래픽을 조용히 버리면, 해당
-서비스 호출은 바로 실패하지 않고 연결 timeout까지 기다립니다. 없는 서비스가 명시적
-오류로 빨리 실패하도록, 그 포트를 거부(refuse)하게 하거나 접근 가능한 게이트웨이로
-연결하세요.
-
-Aodh(`alarming`), Gnocchi(`metric`), Barbican(`key-manager`)에는 `OS_*_PORT` 설정이
-없습니다. 이 도구들은
-`OS_INTERFACE`와 `OS_REGION_NAME`에 해당하는 Keystone catalog endpoint를 사용하며,
-이 endpoint도 `mcp-server` 컨테이너에서 접근할 수 있어야 합니다.
+Aodh(`alarming`), Gnocchi(`metric`), Barbican(`key-manager`), Octavia
+(`load-balancer`)에는 `OS_*_PORT` 설정이 없으며, 항상 `OS_INTERFACE`와
+`OS_REGION_NAME`에 해당하는 Keystone catalog endpoint를 사용합니다. 이 endpoint도
+MCP 서버에서 접근할 수 있어야 합니다.
 
 ## HTTPS와 사설 CA 설정
 

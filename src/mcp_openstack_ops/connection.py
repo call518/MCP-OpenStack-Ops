@@ -15,7 +15,7 @@ import os
 from typing import Optional, Any, Dict
 from dotenv import load_dotenv
 from openstack import connection
-from . import user_connection
+from . import settings, user_connection
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -82,20 +82,35 @@ def get_openstack_connection():
         # HTTP mode - no SSL verification needed
         verify_ssl = False
     
-    # Get configurable service ports (with defaults)
-    # Note: OS_AUTH_PORT is used for Identity service endpoint
-    compute_port = os.environ.get("OS_COMPUTE_PORT", "8774") 
-    network_port = os.environ.get("OS_NETWORK_PORT", "9696")
-    volume_port = os.environ.get("OS_VOLUME_PORT", "8776")
-    image_port = os.environ.get("OS_IMAGE_PORT", "9292")
-    placement_port = os.environ.get("OS_PLACEMENT_PORT", "8780")
-    heat_stack_port = os.environ.get("OS_HEAT_STACK_PORT", "8004")
-    heat_stack_cfn_port = os.environ.get("OS_HEAT_STACK_CFN_PORT", "18888")
-    
+    source = settings.endpoint_source()
+    interface = settings.endpoint_interface()
+    auth_endpoint = f"{os_auth_protocol}://{os_auth_host}:{os_auth_port}"
+    endpoints: Dict[str, str] = {"identity_endpoint": auth_endpoint}
+    if source == "configured":
+        # Note: OS_AUTH_PORT is used for Identity service endpoint
+        compute_port = os.environ.get("OS_COMPUTE_PORT", "8774")
+        network_port = os.environ.get("OS_NETWORK_PORT", "9696")
+        volume_port = os.environ.get("OS_VOLUME_PORT", "8776")
+        image_port = os.environ.get("OS_IMAGE_PORT", "9292")
+        placement_port = os.environ.get("OS_PLACEMENT_PORT", "8780")
+        heat_stack_port = os.environ.get("OS_HEAT_STACK_PORT", "8004")
+        base = f"{os_auth_protocol}://{os_auth_host}"
+        endpoints.update(
+            compute_endpoint=f"{base}:{compute_port}/v2.1",
+            network_endpoint=f"{base}:{network_port}",
+            volume_endpoint=f"{base}:{volume_port}/v3",
+            image_endpoint=f"{base}:{image_port}",
+            placement_endpoint=f"{base}:{placement_port}",
+            orchestration_endpoint=f"{base}:{heat_stack_port}/v1",
+        )
+
     try:
-        logger.info(f"Creating OpenStack connection with protocol: {os_auth_protocol}, host: {os_auth_host}")
+        logger.info(
+            f"Creating OpenStack connection with protocol: {os_auth_protocol}, "
+            f"host: {os_auth_host}, endpoints: {source}, interface: {interface}"
+        )
         _connection_cache = connection.Connection(
-            auth_url=f"{os_auth_protocol}://{os_auth_host}:{os_auth_port}",
+            auth_url=auth_endpoint,
             verify=verify_ssl,
             project_name=os.environ.get("OS_PROJECT_NAME"),
             username=os.environ.get("OS_USERNAME"),
@@ -104,17 +119,10 @@ def get_openstack_connection():
             project_domain_name=os.environ.get("OS_PROJECT_DOMAIN_NAME", "Default"),
             region_name=os.environ.get("OS_REGION_NAME", "RegionOne"),
             identity_api_version=os.environ.get("OS_IDENTITY_API_VERSION", "3"),
-            interface="internal",
-            # Override all service endpoints to use configured protocol
-            identity_endpoint=f"{os_auth_protocol}://{os_auth_host}:{os_auth_port}",
-            compute_endpoint=f"{os_auth_protocol}://{os_auth_host}:{compute_port}/v2.1",
-            network_endpoint=f"{os_auth_protocol}://{os_auth_host}:{network_port}",
-            volume_endpoint=f"{os_auth_protocol}://{os_auth_host}:{volume_port}/v3",
-            image_endpoint=f"{os_auth_protocol}://{os_auth_host}:{image_port}",
-            placement_endpoint=f"{os_auth_protocol}://{os_auth_host}:{placement_port}",
-            orchestration_endpoint=f"{os_auth_protocol}://{os_auth_host}:{heat_stack_port}/v1",
+            interface=interface,
             orchestration_api_version="1",
-            timeout=10
+            timeout=10,
+            **endpoints,
         )
         
         # Test the connection
@@ -124,9 +132,10 @@ def get_openstack_connection():
             project_id = _connection_cache.current_project_id
             if not project_id:
                 raise ValueError("A project-scoped OpenStack connection is required")
-            _connection_cache.config.config["orchestration_endpoint_override"] = (
-                f"{os_auth_protocol}://{os_auth_host}:{heat_stack_port}/v1/{project_id}"
-            )
+            if source == "configured":
+                _connection_cache.config.config["orchestration_endpoint_override"] = (
+                    f"{os_auth_protocol}://{os_auth_host}:{heat_stack_port}/v1/{project_id}"
+                )
             logger.info("OpenStack connection successful")
         except Exception as test_e:
             logger.error(f"Connection test failed: {test_e}")
