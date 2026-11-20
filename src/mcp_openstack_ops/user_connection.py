@@ -9,7 +9,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from time import perf_counter
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 from uuid import uuid4
 
 import anyio
@@ -29,23 +29,56 @@ logger = logging.getLogger(__name__)
 enabled = False
 
 
+_MAX_SAME_ORIGIN_REDIRECTS = 3
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+
+
+def _origin(url: str) -> tuple[str, str, int | None]:
+    parts = urlsplit(url)
+    scheme = parts.scheme.lower()
+    return scheme, (parts.hostname or "").lower(), parts.port or _DEFAULT_PORTS.get(scheme)
+
+
 class RestrictedSession(requests.Session):
-    """Restrict credential-bearing requests to the configured protocol."""
+    """Restrict credential-bearing requests to the configured protocol.
+
+    Redirects are never followed to another origin. A GET or HEAD redirect to
+    the same scheme, host and port is followed, so that version discovery
+    works on services that redirect ``/v2.1`` to ``/v2.1/``; the credential
+    token then reaches only the service it was already sent to.
+    """
 
     def __init__(self, protocol: str) -> None:
         super().__init__()
         self.protocol = protocol
 
-    def send(
-        self, request: requests.PreparedRequest, **kwargs: Any
-    ) -> requests.Response:
-        """Check the final prepared URL before sending credentials."""
-        if urlsplit(request.url).scheme != self.protocol:
+    def _check(self, url: str) -> None:
+        if urlsplit(url).scheme != self.protocol:
             raise ValueError(
                 f"Multi-user OpenStack requests require {self.protocol.upper()}"
             )
+
+    def send(
+        self, request: requests.PreparedRequest, **kwargs: Any
+    ) -> requests.Response:
+        """Check every prepared URL before sending credentials."""
+        self._check(request.url)
         kwargs["allow_redirects"] = False
-        return super().send(request, **kwargs)
+        response = super().send(request, **kwargs)
+        for _ in range(_MAX_SAME_ORIGIN_REDIRECTS):
+            location = response.headers.get("location")
+            if not (response.is_redirect and location
+                    and request.method in ("GET", "HEAD")):
+                break
+            target = urljoin(request.url, location)
+            if _origin(target) != _origin(request.url):
+                break  # Return the redirect itself; never follow it elsewhere.
+            self._check(target)
+            response.close()
+            request = request.copy()
+            request.prepare_url(target, None)
+            response = super().send(request, **kwargs)
+        return response
 
 
 def service_protocol() -> str:

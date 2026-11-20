@@ -24,7 +24,7 @@ async def verify():
     tools = {tool.name: tool for tool in await mcp.list_tools()}
     read_tools = [tool for tool in tools.values()
                   if tool.name.startswith(('get_', 'search_'))]
-    assert len(read_tools) == 61
+    assert len(read_tools) == 62
     for tool in read_tools:
         assert tool.description.strip(), tool.name
         for parameter, schema in tool.parameters.get('properties', {}).items():

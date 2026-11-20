@@ -63,6 +63,44 @@ def _get_server_image(conn: Any, server: Any, *,
     return info
 
 
+def _server_flavor_info(conn: Any, server: Any, cache: Dict[str, Any]) -> Dict[str, Any]:
+    """Describe a server's flavor without reporting unknown sizes as zero.
+
+    From compute microversion 2.47 the server embeds the flavor's name and
+    sizes. Older responses carry only the flavor ID; the flavor is then looked
+    up once per ID. Values that cannot be determined are null.
+    """
+    ref = getattr(server, 'flavor', None)
+    if not ref:
+        return {'id': None, 'name': None, 'vcpus': None, 'ram': None, 'disk': None}
+
+    def field(name: str) -> Any:
+        return ref.get(name) if isinstance(ref, dict) else getattr(ref, name, None)
+
+    info = {
+        'id': field('id'),
+        'name': field('original_name') or field('name'),
+        'vcpus': field('vcpus'), 'ram': field('ram'), 'disk': field('disk'),
+    }
+    if info['name'] or not info['id']:
+        return info
+    flavor_id = info['id']
+    if flavor_id not in cache:
+        try:
+            cache[flavor_id] = conn.compute.get_flavor(flavor_id)
+        except Exception as e:
+            logger.warning(f"Flavor {flavor_id} lookup failed: {type(e).__name__}")
+            cache[flavor_id] = None
+    flavor = cache[flavor_id]
+    if flavor is None:
+        # Only the ID is known; 0 from an ID-only reference is not a size.
+        info.update(vcpus=None, ram=None, disk=None)
+        return info
+    info.update(name=getattr(flavor, 'name', None), vcpus=getattr(flavor, 'vcpus', None),
+                ram=getattr(flavor, 'ram', None), disk=getattr(flavor, 'disk', None))
+    return info
+
+
 def _server_boot_source(server: Any) -> str:
     """Return 'image', or 'volume' when Nova reports no image (boot from volume)."""
     reference = getattr(server, 'image', None)
@@ -167,30 +205,11 @@ def get_instance_details(
         else:
             paginated_servers = all_servers[offset:offset + limit]
         
+        flavor_cache: Dict[str, Any] = {}
         for server in paginated_servers:
             try:
-                # Get server flavor details - use embedded flavor info from server details
-                flavor_info = {'id': 'unknown', 'name': 'unknown', 'vcpus': 0, 'ram': 0, 'disk': 0}
-                if hasattr(server, 'flavor') and server.flavor:
-                    if isinstance(server.flavor, dict):
-                        # Flavor info is embedded in server details - use it directly
-                        flavor_info = {
-                            'id': server.flavor.get('id', 'unknown'),
-                            'name': server.flavor.get('original_name', server.flavor.get('name', 'unknown')),
-                            'vcpus': server.flavor.get('vcpus', 0),
-                            'ram': server.flavor.get('ram', 0),
-                            'disk': server.flavor.get('disk', 0)
-                        }
-                    else:
-                        # If flavor is an object, try to get attributes
-                        flavor_info = {
-                            'id': getattr(server.flavor, 'id', 'unknown'),
-                            'name': getattr(server.flavor, 'original_name', getattr(server.flavor, 'name', 'unknown')),
-                            'vcpus': getattr(server.flavor, 'vcpus', 0),
-                            'ram': getattr(server.flavor, 'ram', 0),
-                            'disk': getattr(server.flavor, 'disk', 0)
-                        }
-                
+                flavor_info = _server_flavor_info(conn, server, flavor_cache)
+
                 # Get server image details
                 if enrich_images:
                     image_info = _get_server_image(
@@ -462,12 +481,12 @@ def search_instances(
                         if match_found:
                             break
                 elif field == 'flavor_name':
-                    flavor = instance.get('flavor', {})
-                    if matches(flavor.get('name', '')):
+                    flavor = instance.get('flavor') or {}
+                    if matches(flavor.get('name') or ''):
                         match_found = True
                 elif field == 'image_name':
-                    image = instance.get('image', {})
-                    if matches(image.get('name', '')):
+                    image = instance.get('image') or {}
+                    if matches(image.get('name') or ''):
                         match_found = True
             
             if match_found:
@@ -1094,28 +1113,73 @@ def set_instance(instance_name: str, action: str, **kwargs) -> Dict[str, Any]:
         }
 
 
+FLAVOR_EXTRA_SPECS_MICROVERSION = (2, 61)
+
+
+def _microversion_at_least(value: Any, minimum: tuple) -> bool:
+    try:
+        major, minor = str(value).split('.', 1)
+        return (int(major), int(minor)) >= minimum
+    except (TypeError, ValueError):
+        return False
+
+
+def _flavor_extra_specs(conn: Any, flavor: Any) -> tuple:
+    """Return (extra_specs, error) for a listed flavor.
+
+    Flavor lists carry extra specs only from compute microversion 2.61. Below
+    that, an empty dict means "not returned", so the specs are fetched
+    separately; a failure is reported instead of an empty dict.
+    """
+    specs = getattr(flavor, 'extra_specs', None)
+    if specs and isinstance(specs, dict):
+        return dict(specs), None
+    if _microversion_at_least(getattr(flavor, 'microversion', None),
+                              FLAVOR_EXTRA_SPECS_MICROVERSION):
+        return {}, None
+    try:
+        fetched = conn.compute.fetch_flavor_extra_specs(flavor)
+        return dict(getattr(fetched, 'extra_specs', None) or {}), None
+    except Exception as e:
+        return None, f'{type(e).__name__}: {e}'
+
+
+def _flavor_accelerators(extra_specs: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Summarize PCI passthrough aliases and vGPU/pGPU resource requests."""
+    accelerators: List[Dict[str, Any]] = []
+    if not extra_specs:
+        return accelerators
+    for entry in str(extra_specs.get('pci_passthrough:alias', '')).split(','):
+        alias, _, count = entry.strip().partition(':')
+        if alias:
+            accelerators.append({
+                'type': 'pci_passthrough', 'alias': alias,
+                'count': int(count) if count.strip().isdigit() else 1,
+            })
+    for key, value in extra_specs.items():
+        resource = key.split(':', 1)[1] if key.startswith('resources') and ':' in key else ''
+        if resource.upper() in ('VGPU', 'PGPU') and str(value).isdigit():
+            accelerators.append({'type': resource.lower(), 'count': int(value)})
+    return accelerators
+
+
 def get_flavor_list() -> List[Dict[str, Any]]:
     """
     Get list of available flavors with detailed information.
-    
+
     Returns:
-        List of flavor dictionaries
+        List of flavor dictionaries. ``extra_specs`` is null, with
+        ``extra_specs_error``, when the specs could not be read.
     """
     try:
         # Import here to avoid circular imports
         from ..connection import get_openstack_connection
         conn = get_openstack_connection()
         flavors = []
-        
+
         for flavor in conn.compute.flavors(details=True):
-            # Get extra specs if available
-            extra_specs = {}
-            try:
-                extra_specs = dict(getattr(flavor, 'extra_specs', {}))
-            except Exception:
-                pass
-            
-            flavors.append({
+            extra_specs, specs_error = _flavor_extra_specs(conn, flavor)
+            entry = {
                 'id': flavor.id,
                 'name': getattr(flavor, 'name', 'unnamed'),
                 'vcpus': getattr(flavor, 'vcpus', 0),
@@ -1126,9 +1190,13 @@ def get_flavor_list() -> List[Dict[str, Any]]:
                 'rxtx_factor': getattr(flavor, 'rxtx_factor', 1.0),
                 'is_public': getattr(flavor, 'is_public', True),
                 'extra_specs': extra_specs,
+                'accelerators': _flavor_accelerators(extra_specs),
                 'description': getattr(flavor, 'description', '')
-            })
-        
+            }
+            if specs_error:
+                entry['extra_specs_error'] = specs_error
+            flavors.append(entry)
+
         return flavors
     except Exception as e:
         logger.error(f"Failed to get flavor list: {e}")

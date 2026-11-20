@@ -542,3 +542,33 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   Python thread 전달이 멈췄습니다. 같은 테스트를 sandbox 밖에서 실행하자 통과했고,
   전체 suite도 124.62초에 완료됐습니다. 실제 Cinder 연결은 변경하지 않았으므로 새
   연결 경로는 **Live unverified**입니다.
+- **Flavor 표시 로컬 테스트 (2026-11-20, `74de4a4` 기반의 커밋되지 않은 작업
+  트리):** fastmcp 4.1.6과 잠금된 openstacksdk 4.22.0으로
+  `uv run --locked --extra dev python -m pytest -q tests`를 실행해 704/704 (100%)가
+  통과했고, 실패하거나 건너뛴 테스트는 없었습니다. 새 테스트 26개는 다중 사용자 HTTPS
+  session에서 같은 origin의 GET/HEAD 리다이렉트를 따르는 동작(상대 경로와 기본 포트
+  대상, 최대 횟수)과 다른 호스트·포트·다운그레이드·GET 이외 리다이렉트의 거부, 목록에서
+  가져오거나 microversion 2.61 미만에서 따로 조회하고 읽을 수 없으면 오류와 함께
+  `null`로 보고하는 flavor extra spec, accelerator 해석, `get_flavors`의 필터·정렬·경고,
+  그리고 서버 flavor 이름 조회와 알 수 없는 크기의 `null` 보고를 검사합니다. 읽기 전용
+  도구 수 검사는 이제 62개입니다.
+- **Flavor 표시 대상 점검 (2026-11-20 UTC, partial, 아직 병합되지 않은 별도의
+  catalog endpoint 변경과 함께 적용):** 대상 클라우드는 서비스마다 자체 HTTPS 호스트
+  이름을 쓰므로 이 리비전만으로는 접근할 수 없어, 두 변경을 합친 작업 트리에서 서버를
+  실행했습니다. admin이 아닌 role을 가진 프로젝트 범위 Application Credential 하나로 다중
+  사용자 모드를 `ALLOW_MODIFY_OPERATIONS=false`로 실행하고 `127.0.0.1`의 Streamable
+  HTTP로 호출했습니다. 변경 전에는 compute 버전 탐색이 같은 origin 리다이렉트(`/v2.1`에서
+  `/v2.1/`로)를 받았지만 session이 이를 거부해, 모든 compute와 block storage 요청이
+  기본 microversion을 썼습니다. 그래서 flavor 목록에 extra spec이 없었고 서버에는
+  flavor ID만 있었습니다. 변경 후 session은 compute 2.96, block storage 3.71, placement
+  1.39를 협상했습니다. `get_flavors`는 flavor 24개를 모두 extra spec과 함께 반환했고,
+  `accelerators_only=true`는 PCI passthrough GPU flavor 2개를 반환했습니다.
+  `get_instances_by_status`는 활성 인스턴스 11개 모두의 flavor 이름과 크기를
+  보고했습니다. `flavor`에 대한 `search_instances`는 예상한 인스턴스 6개와 일치했고,
+  `None`이라는 검색어는 아무것과도 일치하지 않았습니다. 필수 매개변수가 없는 읽기 도구
+  49개를 실행했을 때 새 실패는 없었습니다. 404를 반환하던 `get_volume_groups`는 이제
+  통과했고(Cinder group은 microversion 3.13 필요), 나머지 실패는 admin이 아닌 role에
+  대한 정책 거부, Gnocchi 서비스 부재, 이 클라우드가 제공하지 않는 API였습니다. 이
+  이름으로 일치시키는 `set_instance`의 `flavor_contains`는 실행하지 않았으므로 **Live
+  unverified**이며, configured endpoint에서의 이 변경도 마찬가지입니다. 이 partial
+  점검은 위의 105개 도구 요약을 갱신하지 않습니다.

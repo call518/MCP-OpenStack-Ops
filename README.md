@@ -28,7 +28,7 @@ instances are stopped?" into OpenStack API calls and returns the results.
   not even registered unless you enable them.
 - **One project at a time**: each server works inside one OpenStack project and
   checks resource ownership.
-- **Broad coverage**: 121 tools (61 read-only, 60 management) for Nova,
+- **Broad coverage**: 122 tools (62 read-only, 60 management) for Nova,
   Neutron, Cinder, Glance, Keystone, Heat, Octavia, Barbican, and Gnocchi/Aodh
   telemetry.
 
@@ -209,7 +209,7 @@ what the account may do.
 
 - ✅ **Project-Scoped Operations**: Every tool enforces the configured `OS_PROJECT_NAME`, validating resource ownership so actions stay inside a single tenant.
 - ✅ **Safety-Gated Writes**: Modify (`set_*`) tooling only registers when `ALLOW_MODIFY_OPERATIONS=true`, keeping default deployments read-only and auditable.
-- ✅ **Broad Tool Coverage**: 121 tools across compute, networking, storage, images, identity, Heat, Octavia load balancing, Barbican secrets and telemetry. Project resources are scoped to the active project; cloud-wide administrative APIs remain subject to OpenStack policy.
+- ✅ **Broad Tool Coverage**: 122 tools across compute, networking, storage, images, identity, Heat, Octavia load balancing, Barbican secrets and telemetry. Project resources are scoped to the active project; cloud-wide administrative APIs remain subject to OpenStack policy.
 - ✅ **Bulk & Filtered Actions**: Instance, volume, network, image, snapshot, and keypair managers accept comma-delimited targets or filter criteria to orchestrate bulk changes intentionally.
 - ✅ **Post-Action Feedback & Async Guidance**: Management tools report per-resource results, the status read back after the action, and timing notes for asynchronous operations.
 - ✅ **Monitoring & Usage Insights**: `get_service_status`, `get_resource_monitoring`, `get_usage_statistics`, and quota tools report service probes, project allocations, separate quota limits, and API-backed compute allocation-hours. These tools do not collect live utilization or trends; read-only `get_gnocchi_*` tools return telemetry time series when Ceilometer and Gnocchi are deployed.
@@ -306,7 +306,7 @@ unit-test results behind the Status values below are recorded in
 
 | OpenStack CLI Command | MCP Tool | Status | Notes |
 |---------------------|---------|------|------|
-| `openstack server list` | `get_instance` | ✅ | Separate reader projects each returned exactly ten owned VMs; bounded lab validation only. One call returns at most `LIST_MAX_LIMIT` items (default 100, previously a fixed 200; 2026-11-17, unit-tested only) |
+| `openstack server list` | `get_instance` | ✅ | Separate reader projects each returned exactly ten owned VMs; bounded lab validation only. One call returns at most `LIST_MAX_LIMIT` items (default 100, previously a fixed 200; 2026-11-17, unit-tested only). Each instance's `flavor` reports its name and sizes; a flavor given only by ID (compute microversion below 2.47) is looked up, and sizes that cannot be determined are `null`, not 0 (2026-11-20 targeted check: names filled for all listed VMs) |
 | `openstack server show` | `get_instance` | ✅ | Own fixture queries completed; foreign private ID returned no details; no 16-owned-ID batch claim. Each instance reports `boot_source` (`image` or `volume`); summary mode shows a volume-backed instance's image as unknown, and `detailed=true` resolves it from the boot volume. 2026-11-10 OpenStack 2026.1 check (3.7.6): `volume` for volume-backed servers in summary and detailed modes, `image` otherwise; detailed mode resolved the image name from the boot volume |
 | `openstack server create` | `set_instance` (action="create") | ✅ | **ENHANCED** - Bulk creation support. Boots the image on the flavor's local disk unless a volume option below is given. 2026-11-10 targeted check: a server reached ACTIVE |
 | `openstack server create --boot-from-volume <size>` | `set_instance` (action="create", `boot_from_volume`, `volume_size`) | ✅ | Root disk on a new Cinder volume created from the image; optional `volume_type` and `delete_on_termination`; bulk creation supported. 2026-11-10 targeted check: three servers created in one call reached ACTIVE, each on a bootable 10 GB volume at `/dev/vda`. 2026-11-10 OpenStack 2026.1 check (3.7.6): 1 GB root volumes with `volume_type`; the root volume was deleted with the server, and kept with `delete_on_termination=false` |
@@ -350,7 +350,8 @@ unit-test results behind the Status values below are recorded in
 | `openstack server event list` | `get_server_events` | ✅ | Pass the server name or UUID via `instance_name`, not `server_id`. The action list has no completion time; set `include_event_details=true` to fetch per-action event results and derive the latest finish time. Detailed lookup is capped at 10 actions. Event visibility follows Nova policy |
 | `openstack server group list` | `get_server_groups` | ✅ | Server group listing. Reads `member_ids` and, from compute microversion 2.64, `policy` instead of `policies`; a listing failure is reported instead of an empty list. 2026-11-10 targeted check: listed with its policy |
 | `openstack server group create/delete` | `set_server_group` | ✅ | Server group management. 2026-11-10 targeted check: create and show reported the policy and members, then the group was deleted |
-| `openstack flavor list` | `set_flavor` (action="list") | ✅ | Requires modification tools to be enabled for registration |
+| `openstack flavor list --long` | `get_flavors` | ✅ | Read-only; registered without modification tools. Reports extra specs (fetched separately below compute microversion 2.61; `null` with `extra_specs_error` when unreadable) and an `accelerators` summary of PCI passthrough and VGPU/PGPU requests; `name_contains` and `accelerators_only` filters. 2026-11-20 targeted check: 24 flavors with extra specs, two GPU flavors found |
+| `openstack flavor list` | `set_flavor` (action="list") | ✅ | Same listing; registered only with modification tools. Prefer `get_flavors` |
 | `openstack flavor create/delete` | `set_flavor` | ✅ | Flavor management |
 | `openstack keypair list` | `get_keypair_list` | ✅ | Empty scoped read completed; member keypair creation/deletion read-back tested separately |
 | `openstack keypair create/delete` | `set_keypair` | ✅ | Explicit member MCP create/delete read-back passed; no successful Claude write workflow claimed |
