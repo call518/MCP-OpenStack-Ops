@@ -660,3 +660,44 @@ an earlier full summary.
   listed volume types through the same server. The server log contained
   neither the credential ID nor the secret. This partial check does not
   update the 105-tool summary above.
+- **Local flavor visibility tests (2026-11-20; uncommitted working tree based on
+  `74de4a4`):** 704/704 (100%) with fastmcp 4.1.6 and the locked openstacksdk
+  4.22.0, run as `uv run --locked --extra dev python -m pytest -q tests`; no
+  failures or skipped tests. 26 new cases cover same-origin GET/HEAD redirect
+  following in the multi-user HTTPS session (relative and default-port
+  targets, hop limit) and refusal of cross-host, cross-port, downgrade and
+  non-GET redirects; flavor extra specs taken from the list, fetched below
+  microversion 2.61, and reported as `null` with an error when unreadable;
+  accelerator parsing; the `get_flavors` filters, ordering and warning; and
+  server flavor name lookup with null sizes when unresolvable. The read-only
+  tool count assertion is now 62.
+- **Targeted flavor visibility check (2026-11-20 UTC; partial; this change
+  applied together with the catalog-endpoint change of PR #89, then
+  unmerged):** the
+  target cloud publishes each service on its own HTTPS hostname, which this
+  revision alone cannot reach, so the server ran from a working tree that
+  combined both changes. Multi-user mode with one project-scoped Application
+  Credential carrying non-admin roles, `ALLOW_MODIFY_OPERATIONS=false`, over
+  Streamable HTTP on `127.0.0.1`. Before this change, compute version
+  discovery received a same-origin redirect (`/v2.1` to `/v2.1/`) that the
+  session refused, so every compute and block-storage request used the base
+  microversion: flavor lists returned no extra specs and servers carried only
+  a flavor ID. After it, the session negotiated compute 2.96, block storage
+  3.71 and placement 1.39. `get_flavors` returned 24 flavors, all with extra
+  specs, and `accelerators_only=true` returned the two PCI-passthrough GPU
+  flavors; `get_instances_by_status` reported a flavor name and sizes for all
+  11 active instances; `search_instances` on `flavor` matched the 6 expected
+  instances, and the term `None` matched none. A run of the 49 read tools
+  without required parameters found no new failures: `get_volume_groups`,
+  which had returned 404, now passed (Cinder groups need microversion 3.13);
+  the other failures were policy denials for non-admin roles, an absent
+  Gnocchi service and APIs this cloud does not serve. `set_instance` with
+  `flavor_contains`, which matches on these names, was not run and is **Live
+  unverified**, as is this change with configured endpoints. This partial
+  check does not update the 105-tool summary above.
+- **Local tests after integrating PR #90 with PR #89 (2026-11-21; merge of
+  `9326358` into PR #90's `b70c778`, before commit):** 721/721 (100%) with
+  fastmcp 4.1.6 and the locked openstacksdk 4.22.0, run as
+  `uv run --locked --extra dev python -m pytest -q tests`; no failures or
+  skipped tests. The merge had documentation conflicts only; no live check was
+  repeated on the merged tree.

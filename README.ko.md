@@ -29,7 +29,7 @@ OpenStack 프로젝트를 조회하고 운영할 수 있게 해 줍니다.
 - **한 번에 하나의 프로젝트**: 서버 하나는 OpenStack 프로젝트 하나 안에서만
   동작하고, 리소스 소유권을 확인합니다.
 - **넓은 범위**: Nova, Neutron, Cinder, Glance, Keystone, Heat, Octavia,
-  Barbican, Gnocchi/Aodh 텔레메트리를 다루는 도구 121개(조회 61개, 관리 60개)를
+  Barbican, Gnocchi/Aodh 텔레메트리를 다루는 도구 122개(조회 62개, 관리 60개)를
   제공합니다.
 
 AI가 생성한 코드 설명은
@@ -207,7 +207,7 @@ modify operations**를 켜고) 서버를 다시 시작하세요. 이 계정이 �
 
 - ✅ **프로젝트 범위 작업**: 모든 도구가 설정된 `OS_PROJECT_NAME`을 적용하고 리소스 소유권을 확인하므로, 작업이 하나의 테넌트 안에서만 이루어집니다.
 - ✅ **안전 장치가 있는 변경 작업**: 변경(`set_*`) 도구는 `ALLOW_MODIFY_OPERATIONS=true`일 때만 등록되므로, 기본 배포는 읽기 전용이고 감사하기 쉽습니다.
-- ✅ **넓은 도구 범위**: 컴퓨트, 네트워크, 스토리지, 이미지, ID, Heat, Octavia 로드밸런싱, Barbican 시크릿, 텔레메트리를 다루는 도구 121개. 프로젝트 리소스는 현재 프로젝트로 범위가 제한되고, 클라우드 전체 관리 API는 OpenStack 정책을 따릅니다.
+- ✅ **넓은 도구 범위**: 컴퓨트, 네트워크, 스토리지, 이미지, ID, Heat, Octavia 로드밸런싱, Barbican 시크릿, 텔레메트리를 다루는 도구 122개. 프로젝트 리소스는 현재 프로젝트로 범위가 제한되고, 클라우드 전체 관리 API는 OpenStack 정책을 따릅니다.
 - ✅ **일괄 작업과 필터 작업**: 인스턴스, 볼륨, 네트워크, 이미지, 스냅샷, 키페어 관리 도구는 쉼표로 구분한 대상이나 필터 조건을 받아 여러 리소스를 한 번에 의도대로 변경합니다.
 - ✅ **작업 후 결과와 비동기 안내**: 관리 도구는 리소스별 결과, 작업 후 다시 읽은 상태, 비동기 작업의 시간 안내를 함께 보고합니다.
 - ✅ **모니터링과 사용량 정보**: `get_service_status`, `get_resource_monitoring`, `get_usage_statistics`, quota 도구는 서비스 점검, 프로젝트 할당량, 별도의 quota 한도, API 기반 컴퓨트 할당 시간을 보고합니다. 이 도구들은 실시간 사용률이나 추세를 수집하지 않습니다. Ceilometer와 Gnocchi가 배포되어 있으면 읽기 전용 `get_gnocchi_*` 도구가 텔레메트리 시계열을 돌려줍니다.
@@ -305,7 +305,7 @@ Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인�
 
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
-| `openstack server list` | `get_instance` | ✅ | 서로 다른 reader 프로젝트가 각각 소유한 VM 정확히 10개를 반환함. 제한된 랩 검증만 수행. 한 번 호출에 최대 `LIST_MAX_LIMIT`개 반환(기본값 100, 이전에는 고정 200. 2026-11-17, 단위 테스트만 거침) |
+| `openstack server list` | `get_instance` | ✅ | 서로 다른 reader 프로젝트가 각각 소유한 VM 정확히 10개를 반환함. 제한된 랩 검증만 수행. 한 번 호출에 최대 `LIST_MAX_LIMIT`개 반환(기본값 100, 이전에는 고정 200. 2026-11-17, 단위 테스트만 거침). 각 인스턴스의 `flavor`는 이름과 크기를 보고함. flavor가 ID로만 주어지면(compute microversion 2.47 미만) 조회하며, 알 수 없는 크기는 0이 아니라 `null` (2026-11-20 targeted check: 나열된 모든 VM의 이름이 채워짐) |
 | `openstack server show` | `get_instance` | ✅ | 자기 프로젝트의 테스트 리소스 조회 완료. 다른 프로젝트의 비공개 ID는 상세 정보를 반환하지 않음. 소유 ID 16개 일괄 조회는 주장하지 않음. 각 인스턴스는 `boot_source`(`image` 또는 `volume`)를 보고함. 요약 모드에서는 볼륨 부팅 인스턴스의 이미지를 unknown으로 표시하고, `detailed=true`이면 부팅 볼륨에서 이미지를 찾음. 2026-11-10 OpenStack 2026.1 점검(3.7.6): 볼륨 부팅 서버는 요약 모드와 상세 모드 모두에서 `volume`, 그 밖에는 `image`. 상세 모드는 부팅 볼륨에서 이미지 이름을 찾음 |
 | `openstack server create` | `set_instance` (action="create") | ✅ | **ENHANCED** - 일괄 생성 지원. 아래 볼륨 옵션을 주지 않으면 이미지를 flavor의 로컬 디스크로 부팅함. 2026-11-10 targeted check: 서버가 ACTIVE에 도달 |
 | `openstack server create --boot-from-volume <size>` | `set_instance` (action="create", `boot_from_volume`, `volume_size`) | ✅ | 루트 디스크를 이미지로 새로 만든 Cinder 볼륨에 둠. 선택적 `volume_type`과 `delete_on_termination`, 일괄 생성 지원. 2026-11-10 targeted check: 한 번의 호출로 만든 서버 3대가 ACTIVE에 도달했고, 각각 `/dev/vda`의 부팅 가능한 10 GB 볼륨을 사용. 2026-11-10 OpenStack 2026.1 점검(3.7.6): `volume_type`을 지정한 1 GB 루트 볼륨. 서버를 삭제하면 루트 볼륨도 삭제되었고, `delete_on_termination=false`이면 유지됨 |
@@ -349,7 +349,8 @@ Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인�
 | `openstack server event list` | `get_server_events` | ✅ | 서버 이름이나 UUID를 `server_id`가 아닌 `instance_name`으로 전달. action 목록에는 완료 시각이 없으므로, `include_event_details=true`로 action별 이벤트 결과를 가져와 마지막 완료 시각을 계산. 상세 조회는 최대 10개 action. 이벤트 노출 범위는 Nova 정책을 따름 |
 | `openstack server group list` | `get_server_groups` | ✅ | 서버 그룹 목록. `member_ids`를 읽고, compute microversion 2.64부터는 `policies` 대신 `policy`를 읽음. 목록 조회 실패를 빈 목록 대신 오류로 보고. 2026-11-10 targeted check: policy와 함께 나열됨 |
 | `openstack server group create/delete` | `set_server_group` | ✅ | 서버 그룹 관리. 2026-11-10 targeted check: create와 show에서 policy와 member가 보고되었고, 이후 그룹이 삭제됨 |
-| `openstack flavor list` | `set_flavor` (action="list") | ✅ | 등록되려면 변경 도구를 켜야 함 |
+| `openstack flavor list --long` | `get_flavors` | ✅ | 읽기 전용. 변경 도구 없이 등록됨. extra spec(compute microversion 2.61 미만에서는 따로 조회, 읽을 수 없으면 `extra_specs_error`와 함께 `null`)과 PCI passthrough·VGPU/PGPU 요청을 요약한 `accelerators`를 보고. `name_contains`, `accelerators_only` 필터. 2026-11-20 targeted check: flavor 24개의 extra spec 확인, GPU flavor 2개 발견 |
+| `openstack flavor list` | `set_flavor` (action="list") | ✅ | 같은 목록. 변경 도구를 켤 때만 등록됨. `get_flavors` 권장 |
 | `openstack flavor create/delete` | `set_flavor` | ✅ | Flavor 관리 |
 | `openstack keypair list` | `get_keypair_list` | ✅ | 범위가 제한된 빈 조회 완료. member 계정의 keypair 생성/삭제 후 재조회는 따로 테스트함 |
 | `openstack keypair create/delete` | `set_keypair` | ✅ | member 계정의 명시적 MCP 생성/삭제 후 재조회 통과. Claude를 통한 쓰기 작업의 성공은 주장하지 않음 |

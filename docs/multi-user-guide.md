@@ -168,9 +168,13 @@ the Keystone catalog endpoint for `OS_INTERFACE`, for clouds whose services have
 their own hostnames. Either way requests use HTTPS with certificate verification
 by default, and catalog endpoints must use the same protocol. The identity URL
 ends in `/v3`. Plaintext SDK requests are rejected unless
-the explicit test-only override below is enabled. Redirected requests are always
-rejected. Existing manual Heat/Octavia probes use the validated configured
-protocol and do not follow redirects. Deployments with HTTP-only internal
+the explicit test-only override below is enabled. Redirects to another origin
+(scheme, host or port) are never followed; the redirect response is returned
+instead. GET and HEAD redirects within the same origin are followed, at most
+three times, because API version discovery depends on them (for example
+`/v2.1` to `/v2.1/`); without them, requests fall back to the base API
+microversion. Existing manual Heat/Octavia probes use the validated configured
+protocol. Deployments with HTTP-only internal
 services cannot use this mode securely without HTTPS endpoints. Standard system
 trust applies if no CA path is set; there is no implicit `verify=False` fallback.
 
@@ -187,7 +191,7 @@ This sends Application Credential secrets and issued tokens in plaintext. Use
 only an isolated test network and a disposable, least-privileged credential with
 a short expiration, then delete it after testing. The option defaults to `false`,
 emits an `INSECURE TEST MODE` warning at startup, and must never be enabled in
-production. Redirects remain disabled in both modes.
+production. Cross-origin redirects stay disabled in both modes.
 
 ## Client compatibility
 
