@@ -194,6 +194,7 @@ OpenWebUI 설정 전체, OpenAI reasoning 모델 설정, 문제 해결 방법이
 | --- | --- |
 | `uvx`, 소스 체크아웃, `mcp-remote`, 원격 커넥터를 쓰는 Claude Desktop | [Claude Desktop 가이드](docs/claude-desktop-guide.ko.md) |
 | Claude Code | [Claude Code 가이드](docs/claude-code-guide.ko.md) |
+| `uvx`나 HTTP 서버를 쓰는 Codex(ChatGPT 데스크톱 앱, CLI, IDE 확장) | [Codex 가이드](docs/codex-guide.ko.md) |
 | MCPO(OpenAPI)를 거치는 OpenWebUI | [OpenWebUI 가이드](docs/openwebui-guide.ko.md) |
 | 사용자마다 자신의 OpenStack Application Credential로 인증 (실험 기능) | [다중 사용자 가이드](docs/multi-user-guide.ko.md) |
 | 여러 프로젝트, HTTPS와 사설 CA, 사용자 지정 endpoint와 포트 | [설정 가이드](docs/configuration.ko.md) |
@@ -238,7 +239,7 @@ modify operations**를 켜고) 서버를 다시 시작하세요. 이 계정이 �
 Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인증합니다. 지원
 여부는 클라이언트마다 다르며, 예를 들어 Claude Desktop 확장 번들은 password만
 지원하고, `claude_desktop_config.json`에서 `mcp-remote`를 쓰는 Claude Desktop은 둘 다
-지원합니다.
+지원합니다. `config.toml`에서 `uvx`로 시작하는 Codex는 password만 지원합니다.
 [클라이언트별 인증 지원 현황](docs/security.ko.md#클라이언트별-인증-지원-현황)을
 참고하세요.
 
@@ -273,6 +274,7 @@ Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인�
 | [OpenWebUI 가이드](docs/openwebui-guide.ko.md) | Docker Compose 스택, 직접 MCP와 MCPO 비교, OpenWebUI 설정, 문제 해결 |
 | [Claude Desktop 가이드](docs/claude-desktop-guide.ko.md) | 확장 번들, `uvx`, 소스 체크아웃, `mcp-remote`, 원격 커넥터 |
 | [Claude Code 가이드](docs/claude-code-guide.ko.md) | Claude Code에 HTTP 서버 등록하기 |
+| [Codex 가이드](docs/codex-guide.ko.md) | `uvx`와 HTTP 서버용 `config.toml` 항목, stdio 변수 전체 목록 |
 | [설정 가이드](docs/configuration.ko.md) | 명령줄 옵션, 환경 변수, [접근 모드별 `.env` 설정](docs/configuration.ko.md#접근-모드별-env-설정), endpoint, HTTPS, 여러 프로젝트, SDK 버전 |
 | [보안 가이드](docs/security.ko.md) | 클라이언트별 인증 지원 현황, 프로젝트 격리, 읽기 전용 기본값, Bearer 인증 |
 | [다중 사용자 가이드](docs/multi-user-guide.ko.md) | 사용자별 Application Credential 인증 (실험 기능) |

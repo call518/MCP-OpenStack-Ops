@@ -196,6 +196,7 @@ troubleshooting.
 | --- | --- |
 | Claude Desktop with `uvx`, a source checkout, `mcp-remote`, or a remote connector | [Claude Desktop guide](docs/claude-desktop-guide.md) |
 | Claude Code | [Claude Code guide](docs/claude-code-guide.md) |
+| Codex (ChatGPT desktop app, CLI, IDE extension) with `uvx` or an HTTP server | [Codex guide](docs/codex-guide.md) |
 | OpenWebUI through MCPO (OpenAPI) | [OpenWebUI guide](docs/openwebui-guide.md) |
 | Each user signs in with their own OpenStack Application Credential (experimental) | [Multi-user guide](docs/multi-user-guide.md) |
 | Several projects, HTTPS and private CAs, custom endpoints and ports | [Configuration guide](docs/configuration.md) |
@@ -241,7 +242,8 @@ Each server authenticates to OpenStack with either one account's password (the
 default) or per-user Application Credentials (multi-user mode, `streamable-http`
 only). Support differs by client; for example, the Claude Desktop extension
 bundle supports only the password, while Claude Desktop with `mcp-remote` in
-`claude_desktop_config.json` supports both. See
+`claude_desktop_config.json` supports both. Codex started with `uvx` from
+`config.toml` supports only the password. See
 [Authentication support by client](docs/security.md#authentication-support-by-client).
 
 ## Compatibility
@@ -274,6 +276,7 @@ To change the SDK version for an older release, see
 | [OpenWebUI guide](docs/openwebui-guide.md) | Docker Compose stack, direct MCP versus MCPO, OpenWebUI settings, troubleshooting |
 | [Claude Desktop guide](docs/claude-desktop-guide.md) | Extension bundle, `uvx`, source checkout, `mcp-remote`, remote connector |
 | [Claude Code guide](docs/claude-code-guide.md) | Registering the HTTP server in Claude Code |
+| [Codex guide](docs/codex-guide.md) | `config.toml` entries for `uvx` and an HTTP server, with every stdio variable |
 | [Configuration guide](docs/configuration.md) | Command-line options, environment variables, [access modes and `.env` settings](docs/configuration.md#access-modes-and-env-settings), endpoints, HTTPS, multiple projects, SDK version |
 | [Security guide](docs/security.md) | Authentication support by client, project isolation, read-only default, Bearer authentication |
 | [Multi-user guide](docs/multi-user-guide.md) | Per-user Application Credential authentication (experimental) |

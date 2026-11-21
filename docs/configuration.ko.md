@@ -36,8 +36,8 @@ Options:
 | `OS_PASSWORD` | OpenStack 비밀번호 | 단일 계정 모드에서 필수 | 다중 사용자 요청 인증에는 쓰이지 않음 |
 | `OS_PROJECT_NAME` | OpenStack 프로젝트 이름 | 단일 계정 모드에서 필수 | 다중 사용자 모드의 범위는 각 Application Credential이 정함 |
 | `OS_IDENTITY_API_VERSION` | Identity API 버전 | `3` | API 버전 |
-| `OS_PROJECT_DOMAIN_NAME` | 프로젝트 도메인 이름 | `default` | 도메인 범위 |
-| `OS_USER_DOMAIN_NAME` | 사용자 도메인 이름 | `default` | 도메인 범위 |
+| `OS_PROJECT_DOMAIN_NAME` | 프로젝트 도메인 이름 | `Default` | 도메인 범위 |
+| `OS_USER_DOMAIN_NAME` | 사용자 도메인 이름 | `Default` | 도메인 범위 |
 | `OS_REGION_NAME` | OpenStack 리전 | `RegionOne` | 리전 범위 |
 | `OS_ENDPOINT_SOURCE` | 서비스 endpoint를 가져오는 곳: `configured` 또는 `catalog` | `configured` | `catalog`는 모든 서비스에 Keystone catalog를 사용; [OpenStack endpoint 구성](#openstack-endpoint-구성) 참고 |
 | `OS_INTERFACE` | Catalog interface: `public`, `internal`, `admin` | `internal` | catalog endpoint를 고름; 클라우드 내부 네트워크 밖에서는 `public` 사용 |
@@ -48,7 +48,7 @@ Options:
 | `OS_IMAGE_PORT` | Image 서비스 포트 | `9292` | Glance endpoint |
 | `OS_PLACEMENT_PORT` | Placement 서비스 포트 | `8780` | Placement endpoint |
 | `OS_HEAT_STACK_PORT` | Heat orchestration 서비스 포트 | `8004` | Heat API endpoint |
-| `OS_HEAT_STACK_CFN_PORT` | Heat CloudFormation 서비스 포트 | `18888` | Heat CFN API endpoint(원래 기본값 8000을 Docker 포트 충돌을 피하려고 변경) |
+| `OS_HEAT_STACK_CFN_PORT` | Heat CloudFormation(CFN) 서비스 포트 | 없음 | 서버가 읽지 않음. 설정해도 효과 없음 |
 | **MCP 서버 설정** |
 | `MCP_LOG_LEVEL` | 로그 수준 | `INFO` | 개발 시 디버깅 |
 | `ALLOW_MODIFY_OPERATIONS` | 변경 작업 허용 | `false` | 상태 변경에 대한 안전 장치 |
@@ -69,6 +69,28 @@ Options:
 | `DOCKER_EXTERNAL_PORT_MCP_SERVER` | MCP 서버 호스트 포트 | `8000` | 직접 MCP 클라이언트 |
 | `DOCKER_EXTERNAL_PORT_MCPO_PROXY` | MCPO 호스트 포트 | `8080` | OpenAPI 프록시와 문서 |
 | `MCPO_CONFIG_FILE` | Compose가 마운트하는 MCPO 설정 | `mcp-config.json.http.local` | Compose를 시작하기 전에 추적되는 HTTP 템플릿을 Git이 무시하는 이 로컬 파일로 복사 |
+
+## 로컬 stdio 클라이언트
+
+Claude Desktop([Claude Desktop 가이드](claude-desktop-guide.ko.md)의 방법 2와 3)과
+[Codex](codex-guide.ko.md)는 서버를 직접 stdio로 시작하고, 설정은 자기 설정 파일의
+`env` 값으로 전달합니다. 변수는 네 묶음으로 나뉩니다.
+
+| 묶음 | 변수 | 생략하면 |
+| --- | --- | --- |
+| 필수 | `OS_AUTH_HOST`, `OS_AUTH_PORT`, `OS_PROJECT_NAME`, `OS_USERNAME`, `OS_PASSWORD` | 서버는 시작되지만 모든 OpenStack 도구 호출이 `Missing required OpenStack environment variables`로 실패 |
+| 선택 | `OS_AUTH_PROTOCOL`, `OS_CACERT`, `OS_USER_DOMAIN_NAME`, `OS_PROJECT_DOMAIN_NAME`, `OS_REGION_NAME`, `OS_IDENTITY_API_VERSION`, `OS_ENDPOINT_SOURCE`, `OS_INTERFACE`, `OS_COMPUTE_PORT`, `OS_NETWORK_PORT`, `OS_VOLUME_PORT`, `OS_IMAGE_PORT`, `OS_PLACEMENT_PORT`, `OS_HEAT_STACK_PORT`, `MCP_LOG_LEVEL`, `ALLOW_MODIFY_OPERATIONS`, `ALLOW_CROSS_PROJECT_READ`, `LIST_MAX_LIMIT`, `INSTANCE_FILTER_MAX_MATCHES` | [환경 변수](#환경-변수)의 기본값이 적용됨 |
+| stdio에서 쓰지 않음 | `FASTMCP_TYPE`, `FASTMCP_HOST`, `FASTMCP_PORT`, `REMOTE_AUTH_ENABLE`, `REMOTE_SECRET_KEY`, `MCP_MULTI_USER`, `MCP_MULTI_USER_ALLOW_INSECURE_HTTP`, Docker Compose 키, `PYTHONPATH` | 넣지 마세요. 전송 방식은 `--type stdio` 인자가 정합니다. 다중 사용자 모드는 `streamable-http`가 필요하므로 `MCP_MULTI_USER=true`이면 서버가 시작되지 않음 |
+| 서버가 읽지 않음 | `OS_HEAT_STACK_CFN_PORT`, `OS_TENANT_NAME`, `OS_ENDPOINT_TYPE`, `OS_AUTH_PLUGIN` | 효과 없음 |
+
+클라이언트 예시에는 필수 변수와 선택 변수를 모두 넣었고, 선택 변수는 기본값으로
+채웠습니다. 클라우드에 맞게 바꿔야 하는 값만 고치면 됩니다. `OS_ENDPOINT_SOURCE`나
+`OS_INTERFACE`가 잘못된 값이면 서버가 시작 단계에서 멈추고, `LIST_MAX_LIMIT`나
+`INSTANCE_FILTER_MAX_MATCHES`가 잘못된 값이면 그 값을 쓰는 호출이 실패합니다.
+
+모든 값은 클라이언트 설정에 넣으세요. 소스 체크아웃에서 실행한 서버는 OpenStack에 처음
+연결할 때 복제본의 `.env`도 읽습니다. 그 파일은 `env`에 없는 변수만 채우며, `env`의
+값이 우선합니다.
 
 ## 접근 모드별 `.env` 설정
 
@@ -105,7 +127,8 @@ OpenWebUI에는 OpenStack 도구가 하나도 나오지 않습니다.
 - 이 키나 MCPO 파일을 바꾼 뒤에는 두 컨테이너를 다시 만듭니다:
   `docker compose up -d --force-recreate mcp-server mcpo-proxy`.
 - Claude Desktop 확장 번들은 이 표를 쓰지 않고 확장 설정 화면에서 값을 받습니다
-  ([Claude Desktop 가이드](claude-desktop-guide.ko.md)).
+  ([Claude Desktop 가이드](claude-desktop-guide.ko.md)). 다른 stdio 클라이언트는
+  [로컬 stdio 클라이언트](#로컬-stdio-클라이언트)를 참고하세요.
 
 ## OpenStack endpoint 구성
 

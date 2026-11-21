@@ -609,3 +609,10 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   4.22.0으로 `uv run --locked --extra dev python -m pytest -q tests`를 실행해
   721/721 (100%)가 통과했고, 실패하거나 건너뛴 테스트는 없었습니다. 병합 충돌은 문서에만
   있었으며, 병합된 트리에서 live 점검은 다시 하지 않았습니다.
+- **Codex 클라이언트 경로 (2026-11-21, partial, 소스 `c47c2f5`, 문서만 변경):**
+  ChatGPT 데스크톱 앱의 Codex가 `~/.codex/config.toml`에서
+  `uvx mcp-openstack-ops --type stdio`로 서버를 시작했습니다. OpenStack 계정은 `env`
+  표에, `startup_timeout_sec = 120`을 두었고 도구를 사용할 수 있었습니다. 앱과 패키지
+  버전, 실행한 호출은 기록하지 않았습니다. Codex CLI, IDE 확장, HTTP `url` 경로는
+  **Live unverified**입니다. 코드 변경이 없어 단위 테스트는 다시 실행하지 않았습니다. 이
+  partial 점검은 위의 105개 도구 요약을 갱신하지 않습니다.

@@ -36,8 +36,8 @@ Options:
 | `OS_PASSWORD` | OpenStack password | Required in single-account mode | Unused for multi-user request authentication |
 | `OS_PROJECT_NAME` | OpenStack project name | Required in single-account mode | Multi-user scope comes from each Application Credential |
 | `OS_IDENTITY_API_VERSION` | Identity API version | `3` | API version |
-| `OS_PROJECT_DOMAIN_NAME` | Project domain name | `default` | Domain scope |
-| `OS_USER_DOMAIN_NAME` | User domain name | `default` | Domain scope |
+| `OS_PROJECT_DOMAIN_NAME` | Project domain name | `Default` | Domain scope |
+| `OS_USER_DOMAIN_NAME` | User domain name | `Default` | Domain scope |
 | `OS_REGION_NAME` | OpenStack region | `RegionOne` | Regional scope |
 | `OS_ENDPOINT_SOURCE` | Where service endpoints come from: `configured` or `catalog` | `configured` | `catalog` uses the Keystone catalog for every service; see [OpenStack endpoint topology](#openstack-endpoint-topology) |
 | `OS_INTERFACE` | Catalog interface: `public`, `internal` or `admin` | `internal` | Selects catalog endpoints; use `public` from outside the cloud's internal network |
@@ -48,7 +48,7 @@ Options:
 | `OS_IMAGE_PORT` | Image service port | `9292` | Glance endpoint |
 | `OS_PLACEMENT_PORT` | Placement service port | `8780` | Placement endpoint |
 | `OS_HEAT_STACK_PORT` | Heat orchestration service port | `8004` | Heat API endpoint |
-| `OS_HEAT_STACK_CFN_PORT` | Heat CloudFormation service port | `18888` | Heat CFN API endpoint (default: 8000, changed to avoid Docker port conflicts) |
+| `OS_HEAT_STACK_CFN_PORT` | Heat CloudFormation (CFN) service port | None | Not read by the server; setting it has no effect |
 | **MCP Server Configuration** |
 | `MCP_LOG_LEVEL` | Logging level | `INFO` | Development debugging |
 | `ALLOW_MODIFY_OPERATIONS` | Enable modify operations | `false` | Safety control for state modifications |
@@ -69,6 +69,31 @@ Options:
 | `DOCKER_EXTERNAL_PORT_MCP_SERVER` | MCP server host port | `8000` | Direct MCP clients |
 | `DOCKER_EXTERNAL_PORT_MCPO_PROXY` | MCPO host port | `8080` | OpenAPI proxy and docs |
 | `MCPO_CONFIG_FILE` | MCPO configuration mounted by Compose | `mcp-config.json.http.local` | Copy the tracked HTTP template to this ignored local file before starting Compose |
+
+## Local stdio clients
+
+Claude Desktop (options 2 and 3 of the [Claude Desktop guide](claude-desktop-guide.md))
+and [Codex](codex-guide.md) start the server themselves over stdio and pass its
+settings as the `env` values in their own configuration file. The variables
+fall into four groups:
+
+| Group | Variables | If omitted |
+| --- | --- | --- |
+| Required | `OS_AUTH_HOST`, `OS_AUTH_PORT`, `OS_PROJECT_NAME`, `OS_USERNAME`, `OS_PASSWORD` | The server starts, but every OpenStack tool call fails with `Missing required OpenStack environment variables` |
+| Optional | `OS_AUTH_PROTOCOL`, `OS_CACERT`, `OS_USER_DOMAIN_NAME`, `OS_PROJECT_DOMAIN_NAME`, `OS_REGION_NAME`, `OS_IDENTITY_API_VERSION`, `OS_ENDPOINT_SOURCE`, `OS_INTERFACE`, `OS_COMPUTE_PORT`, `OS_NETWORK_PORT`, `OS_VOLUME_PORT`, `OS_IMAGE_PORT`, `OS_PLACEMENT_PORT`, `OS_HEAT_STACK_PORT`, `MCP_LOG_LEVEL`, `ALLOW_MODIFY_OPERATIONS`, `ALLOW_CROSS_PROJECT_READ`, `LIST_MAX_LIMIT`, `INSTANCE_FILTER_MAX_MATCHES` | The default in [Environment Variables](#environment-variables) applies |
+| Not used over stdio | `FASTMCP_TYPE`, `FASTMCP_HOST`, `FASTMCP_PORT`, `REMOTE_AUTH_ENABLE`, `REMOTE_SECRET_KEY`, `MCP_MULTI_USER`, `MCP_MULTI_USER_ALLOW_INSECURE_HTTP`, the Docker Compose keys, `PYTHONPATH` | Leave them out. The `--type stdio` argument selects the transport; `MCP_MULTI_USER=true` stops the server from starting, because multi-user mode requires `streamable-http` |
+| Not read by the server | `OS_HEAT_STACK_CFN_PORT`, `OS_TENANT_NAME`, `OS_ENDPOINT_TYPE`, `OS_AUTH_PLUGIN` | No effect |
+
+The client examples list every required and optional variable, with the
+optional ones set to their defaults, so you only change the values your cloud
+needs. An invalid `OS_ENDPOINT_SOURCE` or `OS_INTERFACE` stops the server at
+startup; an invalid `LIST_MAX_LIMIT` or `INSTANCE_FILTER_MAX_MATCHES` makes the
+calls that use it fail.
+
+Put every value in the client configuration. A server run from a source
+checkout also reads the clone's `.env` when it first connects to OpenStack; that
+file fills only variables missing from `env`, and values in `env` take
+precedence.
 
 ## Access modes and `.env` settings
 
@@ -105,6 +130,7 @@ and `INSTANCE_FILTER_MAX_MATCHES`.
   `docker compose up -d --force-recreate mcp-server mcpo-proxy`.
 - The Claude Desktop extension bundle does not use this table; it takes its
   settings from the extension form ([Claude Desktop guide](claude-desktop-guide.md)).
+  Other stdio clients use [Local stdio clients](#local-stdio-clients).
 
 ## OpenStack endpoint topology
 

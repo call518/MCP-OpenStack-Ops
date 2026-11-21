@@ -26,7 +26,7 @@ Single-account mode does not accept an Application Credential; there are no
 `OS_APPLICATION_CREDENTIAL_*` variables. This is tracked as an undecided item in
 the [TODO](../ToDo.md).
 
-Status as of 2026-11-14 (source `6f9157f`):
+Status as of 2026-11-21 (source `c47c2f5`):
 
 | Client | Password | Application Credential | Notes |
 |---|---|---|---|
@@ -35,6 +35,9 @@ Status as of 2026-11-14 (source `6f9157f`):
 | OpenWebUI, Docker Compose | ✅ | ⚠️ Live unverified | Password: one OpenStack account for every OpenWebUI user. Application Credential: only for a private or owner-restricted connection whose headers hold one user's credential; never one shared connection. See [Client compatibility](multi-user-guide.md#client-compatibility) |
 | Claude Code CLI | ✅ | ✅ | The server runs over `streamable-http`. Password: the account stays in the server's environment and Claude Code sends only the Bearer token. Application Credential: version 2.1.312 registered and tested against a real HTTPS MCP server |
 | Claude Code IDE extension | ⚠️ Live unverified | ⚠️ Live unverified | Same registration as the CLI; not separately tested |
+| Codex in the ChatGPT desktop app, `config.toml` with `uvx` | ✅ | ❌ Not implemented | The server runs over stdio with the account in `env`; multi-user mode requires `streamable-http`. Password: checked on 2026-11-21; app and package versions not recorded. See [Codex option 1](codex-guide.md#option-1-pypi-package-with-uvx) |
+| Codex CLI and IDE extension, same `config.toml` with `uvx` | ⚠️ Live unverified | ❌ Not implemented | Same file as the desktop app; not separately tested |
+| Codex, `config.toml` with an HTTP `url` | ⚠️ Live unverified | ⚠️ Live unverified | Bearer token from `bearer_token_env_var`; Application Credential headers from `env_http_headers`. See [Codex option 2](codex-guide.md#option-2-existing-http-server) |
 
 ## Project isolation
 

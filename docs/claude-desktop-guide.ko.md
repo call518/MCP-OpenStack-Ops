@@ -24,7 +24,8 @@ Desktop이 `mcp-remote` 브리지만 시작합니다. MCP 서버는 같은 컴�
 있고(Claude Code는 `mcp__<server>__<tool>`), Claude API는 도구 이름을 64자로
 제한하며, 여기서 가장 긴 도구 이름은 36자입니다. 공개 인터넷에 있는 서버는
 `claude_desktop_config.json`을 쓰지 않는 [원격 사용자 지정 커넥터](#원격-사용자-지정-커넥터)로
-추가할 수도 있습니다.
+추가할 수도 있습니다. ChatGPT 데스크톱 앱의 Codex, Codex CLI, Codex IDE 확장은
+[Codex 가이드](codex-guide.ko.md)를 참고하세요.
 
 ## 방법 1: 데스크톱 확장(.mcpb) (권장)
 
@@ -102,18 +103,36 @@ uvx mcp-openstack-ops --help
         "OS_PROJECT_NAME": "<project>",
         "OS_USERNAME": "<user>",
         "OS_PASSWORD": "<password>",
+        "OS_AUTH_PROTOCOL": "http",
+        "OS_CACERT": "",
         "OS_USER_DOMAIN_NAME": "Default",
         "OS_PROJECT_DOMAIN_NAME": "Default",
         "OS_REGION_NAME": "RegionOne",
-        "ALLOW_MODIFY_OPERATIONS": "false"
+        "OS_IDENTITY_API_VERSION": "3",
+        "OS_ENDPOINT_SOURCE": "configured",
+        "OS_INTERFACE": "internal",
+        "OS_COMPUTE_PORT": "8774",
+        "OS_NETWORK_PORT": "9696",
+        "OS_VOLUME_PORT": "8776",
+        "OS_IMAGE_PORT": "9292",
+        "OS_PLACEMENT_PORT": "8780",
+        "OS_HEAT_STACK_PORT": "8004",
+        "MCP_LOG_LEVEL": "INFO",
+        "ALLOW_MODIFY_OPERATIONS": "false",
+        "ALLOW_CROSS_PROJECT_READ": "false",
+        "LIST_MAX_LIMIT": "100",
+        "INSTANCE_FILTER_MAX_MATCHES": "100"
       }
     }
   }
 }
 ```
 
-클라우드에 필요한 endpoint, HTTPS, 포트 변수는 [환경 변수](configuration.ko.md#환경-변수)에서
-골라 추가하세요. `ALLOW_MODIFY_OPERATIONS=false`이면 조회 도구만 등록됩니다. 추적되는
+처음 다섯 변수는 필수입니다. 나머지는 서버 기본값으로 채워 두었으니, HTTPS를 쓰면
+`OS_AUTH_PROTOCOL`과 `OS_CACERT`, 포트가 다르면 포트처럼 클라우드에 맞게 바꿔야 하는
+값만 고치세요. 각 묶음의 의미와 여기에 해당하지 않는 `.env` 키는
+[로컬 stdio 클라이언트](configuration.ko.md#로컬-stdio-클라이언트)에 정리되어 있습니다.
+`ALLOW_MODIFY_OPERATIONS=false`이면 조회 도구만 등록됩니다. 추적되는
 `mcp-config.json.stdio` 템플릿은 이 프로젝트 컨테이너 안의 소스 경로인
 `PYTHONPATH=/app/src`를 설정합니다. Claude Desktop에는 그 `command`가 아니라 `env`
 값만 사용하세요.
@@ -153,10 +172,25 @@ Windows에서는 명령에 `C:\work\MCP-OpenStack-Ops` 같은 Windows 경로를 
         "OS_PROJECT_NAME": "<project>",
         "OS_USERNAME": "<user>",
         "OS_PASSWORD": "<password>",
+        "OS_AUTH_PROTOCOL": "http",
+        "OS_CACERT": "",
         "OS_USER_DOMAIN_NAME": "Default",
         "OS_PROJECT_DOMAIN_NAME": "Default",
         "OS_REGION_NAME": "RegionOne",
-        "ALLOW_MODIFY_OPERATIONS": "false"
+        "OS_IDENTITY_API_VERSION": "3",
+        "OS_ENDPOINT_SOURCE": "configured",
+        "OS_INTERFACE": "internal",
+        "OS_COMPUTE_PORT": "8774",
+        "OS_NETWORK_PORT": "9696",
+        "OS_VOLUME_PORT": "8776",
+        "OS_IMAGE_PORT": "9292",
+        "OS_PLACEMENT_PORT": "8780",
+        "OS_HEAT_STACK_PORT": "8004",
+        "MCP_LOG_LEVEL": "INFO",
+        "ALLOW_MODIFY_OPERATIONS": "false",
+        "ALLOW_CROSS_PROJECT_READ": "false",
+        "LIST_MAX_LIMIT": "100",
+        "INSTANCE_FILTER_MAX_MATCHES": "100"
       }
     }
   }

@@ -701,3 +701,11 @@ an earlier full summary.
   `uv run --locked --extra dev python -m pytest -q tests`; no failures or
   skipped tests. The merge had documentation conflicts only; no live check was
   repeated on the merged tree.
+- **Codex client path (2026-11-21; partial; source `c47c2f5`, documentation
+  change only):** Codex in the ChatGPT desktop app started the server from
+  `~/.codex/config.toml` with `uvx mcp-openstack-ops --type stdio`, the
+  OpenStack account in the `env` table and `startup_timeout_sec = 120`, and its
+  tools could be used. The app and package versions and the calls made were not
+  recorded. Codex CLI, the IDE extension and the HTTP `url` path are **Live
+  unverified**. No code changed, so no unit tests were rerun. This partial check
+  does not update the 105-tool summary above.

@@ -25,7 +25,8 @@ characters or fewer: clients can prefix it to each tool name (Claude Code uses
 `mcp__<server>__<tool>`), the Claude API limits tool names to 64 characters, and
 the longest tool name here has 36 characters. A server on the public internet can
 instead be added as a [remote custom connector](#remote-custom-connector), which
-does not use `claude_desktop_config.json`.
+does not use `claude_desktop_config.json`. For Codex in the ChatGPT desktop app,
+Codex CLI or the Codex IDE extension, see the [Codex guide](codex-guide.md).
 
 ## Option 1: Desktop extension (.mcpb) (recommended)
 
@@ -106,18 +107,35 @@ same version on every computer, use an exact version such as
         "OS_PROJECT_NAME": "<project>",
         "OS_USERNAME": "<user>",
         "OS_PASSWORD": "<password>",
+        "OS_AUTH_PROTOCOL": "http",
+        "OS_CACERT": "",
         "OS_USER_DOMAIN_NAME": "Default",
         "OS_PROJECT_DOMAIN_NAME": "Default",
         "OS_REGION_NAME": "RegionOne",
-        "ALLOW_MODIFY_OPERATIONS": "false"
+        "OS_IDENTITY_API_VERSION": "3",
+        "OS_ENDPOINT_SOURCE": "configured",
+        "OS_INTERFACE": "internal",
+        "OS_COMPUTE_PORT": "8774",
+        "OS_NETWORK_PORT": "9696",
+        "OS_VOLUME_PORT": "8776",
+        "OS_IMAGE_PORT": "9292",
+        "OS_PLACEMENT_PORT": "8780",
+        "OS_HEAT_STACK_PORT": "8004",
+        "MCP_LOG_LEVEL": "INFO",
+        "ALLOW_MODIFY_OPERATIONS": "false",
+        "ALLOW_CROSS_PROJECT_READ": "false",
+        "LIST_MAX_LIMIT": "100",
+        "INSTANCE_FILTER_MAX_MATCHES": "100"
       }
     }
   }
 }
 ```
 
-Add the endpoint, HTTPS, and port variables your cloud needs from
-[Environment Variables](configuration.md#environment-variables). With
+The first five variables are required. The others are set to the server
+defaults; change the ones your cloud needs, for example `OS_AUTH_PROTOCOL` and
+`OS_CACERT` for HTTPS or the ports. [Local stdio clients](configuration.md#local-stdio-clients)
+explains each group and which `.env` keys do not apply here. With
 `ALLOW_MODIFY_OPERATIONS=false`, only read tools are registered. The tracked
 `mcp-config.json.stdio` template sets `PYTHONPATH=/app/src`, the source path inside
 this project's containers; use its `env` values, not its `command`, for Claude
@@ -161,10 +179,25 @@ differ from option 2:
         "OS_PROJECT_NAME": "<project>",
         "OS_USERNAME": "<user>",
         "OS_PASSWORD": "<password>",
+        "OS_AUTH_PROTOCOL": "http",
+        "OS_CACERT": "",
         "OS_USER_DOMAIN_NAME": "Default",
         "OS_PROJECT_DOMAIN_NAME": "Default",
         "OS_REGION_NAME": "RegionOne",
-        "ALLOW_MODIFY_OPERATIONS": "false"
+        "OS_IDENTITY_API_VERSION": "3",
+        "OS_ENDPOINT_SOURCE": "configured",
+        "OS_INTERFACE": "internal",
+        "OS_COMPUTE_PORT": "8774",
+        "OS_NETWORK_PORT": "9696",
+        "OS_VOLUME_PORT": "8776",
+        "OS_IMAGE_PORT": "9292",
+        "OS_PLACEMENT_PORT": "8780",
+        "OS_HEAT_STACK_PORT": "8004",
+        "MCP_LOG_LEVEL": "INFO",
+        "ALLOW_MODIFY_OPERATIONS": "false",
+        "ALLOW_CROSS_PROJECT_READ": "false",
+        "LIST_MAX_LIMIT": "100",
+        "INSTANCE_FILTER_MAX_MATCHES": "100"
       }
     }
   }
