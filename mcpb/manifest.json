@@ -159,7 +159,7 @@
     "os_placement_port": {
       "type": "string",
       "title": "Placement port (OS_PLACEMENT_PORT)",
-      "description": "Placement API port on the Keystone host",
+      "description": "Placement API port on the Keystone host. No current tool calls the Placement API",
       "default": "8780",
       "required": true
     },
@@ -172,10 +172,10 @@
     },
     "os_heat_stack_cfn_port": {
       "type": "string",
-      "title": "Heat CFN port (OS_HEAT_STACK_CFN_PORT)",
-      "description": "Heat CloudFormation API port on the Keystone host",
+      "title": "Heat CFN port (OS_HEAT_STACK_CFN_PORT, optional)",
+      "description": "Heat CloudFormation API port. Not read by the server; setting it has no effect",
       "default": "18888",
-      "required": true
+      "required": false
     },
     "allow_modify_operations": {
       "type": "boolean",

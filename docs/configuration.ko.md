@@ -46,7 +46,7 @@ Options:
 | `OS_NETWORK_PORT` | Network 서비스 포트 | `9696` | Neutron endpoint |
 | `OS_VOLUME_PORT` | Volume 서비스 포트 | `8776` | Cinder endpoint |
 | `OS_IMAGE_PORT` | Image 서비스 포트 | `9292` | Glance endpoint |
-| `OS_PLACEMENT_PORT` | Placement 서비스 포트 | `8780` | Placement endpoint |
+| `OS_PLACEMENT_PORT` | Placement 서비스 포트 | `8780` | Placement endpoint. 현재 Placement API를 호출하는 도구 없음 |
 | `OS_HEAT_STACK_PORT` | Heat orchestration 서비스 포트 | `8004` | Heat API endpoint |
 | `OS_HEAT_STACK_CFN_PORT` | Heat CloudFormation(CFN) 서비스 포트 | 없음 | 서버가 읽지 않음. 설정해도 효과 없음 |
 | **MCP 서버 설정** |

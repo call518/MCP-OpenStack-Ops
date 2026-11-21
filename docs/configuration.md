@@ -46,7 +46,7 @@ Options:
 | `OS_NETWORK_PORT` | Network service port | `9696` | Neutron endpoint |
 | `OS_VOLUME_PORT` | Volume service port | `8776` | Cinder endpoint |
 | `OS_IMAGE_PORT` | Image service port | `9292` | Glance endpoint |
-| `OS_PLACEMENT_PORT` | Placement service port | `8780` | Placement endpoint |
+| `OS_PLACEMENT_PORT` | Placement service port | `8780` | Placement endpoint. No current tool calls the Placement API |
 | `OS_HEAT_STACK_PORT` | Heat orchestration service port | `8004` | Heat API endpoint |
 | `OS_HEAT_STACK_CFN_PORT` | Heat CloudFormation (CFN) service port | None | Not read by the server; setting it has no effect |
 | **MCP Server Configuration** |

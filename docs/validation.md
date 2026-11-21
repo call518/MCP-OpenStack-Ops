@@ -709,3 +709,10 @@ an earlier full summary.
   recorded. Codex CLI, the IDE extension and the HTTP `url` path are **Live
   unverified**. No code changed, so no unit tests were rerun. This partial check
   does not update the 105-tool summary above.
+- **Local unit tests after the bundle setting descriptions changed (2026-11-21;
+  uncommitted working tree based on `f1ab24f`):** 722/722 (100%) with fastmcp
+  4.1.6 and the locked openstacksdk 4.22.0, run as `uv run pytest -q`; no
+  failures or skipped tests. The Claude Desktop bundle now marks
+  `OS_HEAT_STACK_CFN_PORT` optional and states that the server does not read
+  it, and notes that no current tool calls the Placement API. Server behavior
+  did not change, so no live check was run.
