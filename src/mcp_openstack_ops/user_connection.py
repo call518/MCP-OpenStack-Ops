@@ -25,6 +25,8 @@ from starlette.datastructures import Headers
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from . import settings
+
 logger = logging.getLogger(__name__)
 enabled = False
 
@@ -176,6 +178,8 @@ def authenticate(credential_id: str, secret: str) -> RequestIdentity:
         raise ValueError("Multi-user mode requires OS_AUTH_PROTOCOL=https")
     if any(char in host for char in "/@?#"):
         raise ValueError("OS_AUTH_HOST must be a hostname or IP address")
+    source = settings.endpoint_source()
+    source_interface = settings.endpoint_interface()
     auth = ApplicationCredential(
         auth_url=f"{protocol}://{host}:{port}/v3",
         application_credential_id=credential_id,
@@ -191,25 +195,27 @@ def authenticate(credential_id: str, secret: str) -> RequestIdentity:
         access = auth.get_access(session)
         if not access.project_id or not access.user_id:
             raise ValueError("A user and project-scoped credential is required")
-        # Service endpoints come only from operator configuration, never headers.
+        # Service endpoints come only from operator configuration or the
+        # Keystone catalog, never headers.
         config = {
             **get_defaults(),
             "auth": {},
-            "interface": "internal",
+            "interface": source_interface,
             "region_name": os.getenv("OS_REGION_NAME", "RegionOne"),
             "identity_api_version": "3",
             "block_storage_api_version": "3",
             "orchestration_api_version": "1",
             "identity_endpoint_override": f"{protocol}://{host}:{port}/v3",
         }
-        for service, variable, default, path in (
+        configured = (
             ("compute", "OS_COMPUTE_PORT", "8774", "/v2.1"),
             ("network", "OS_NETWORK_PORT", "9696", "/v2.0"),
             ("block_storage", "OS_VOLUME_PORT", "8776", f"/v3/{access.project_id}"),
             ("image", "OS_IMAGE_PORT", "9292", ""),
             ("placement", "OS_PLACEMENT_PORT", "8780", ""),
             ("orchestration", "OS_HEAT_STACK_PORT", "8004", f"/v1/{access.project_id}"),
-        ):
+        ) if source == "configured" else ()
+        for service, variable, default, path in configured:
             service_port = int(os.getenv(variable, default))
             config[f"{service}_endpoint_override"] = (
                 f"{protocol}://{host}:{service_port}{path}"

@@ -102,6 +102,8 @@ export REMOTE_AUTH_ENABLE=false
 export REMOTE_SECRET_KEY=
 # Optional for a private CA:
 # export OS_CACERT=/path/to/cloud-ca.pem
+# Optional when each service has its own hostname in the Keystone catalog:
+# export OS_ENDPOINT_SOURCE=catalog OS_INTERFACE=public
 uv run --locked python -m mcp_openstack_ops \
   --type streamable-http --host 127.0.0.1 --port 8080
 ```
@@ -150,10 +152,14 @@ ID를 클라이언트 응답과 맞춰 보세요. 클라이언트가 더 새로�
 secret 저장소에 자격 증명을 보관할 수밖에 없으며, 서버의 비저장 규칙은 클라이언트
 저장소에는 적용되지 않습니다.
 
-이 모드는 기존의 설정된 호스트 배포 방식을 따릅니다. compute, network, volume, image,
-placement, Heat endpoint는 `OS_AUTH_HOST`와 기존 `OS_*_PORT` 변수를 쓰며, 기본적으로
-인증서 검증을 하는 HTTPS를 사용합니다. identity URL은 `/v3`로 끝납니다. 다른 SDK
-서비스는 Keystone catalog를 쓰며, 그 endpoint도 같은 프로토콜을 써야 합니다. 아래의
+서비스 endpoint는 단일 계정 모드와 마찬가지로 `OS_ENDPOINT_SOURCE`를 따릅니다
+([OpenStack endpoint 구성](configuration.ko.md#openstack-endpoint-구성) 참고). 기본값
+`configured`에서는 compute, network, volume, image, placement, Heat endpoint가
+`OS_AUTH_HOST`와 기존 `OS_*_PORT` 변수를 쓰고, 다른 SDK 서비스는 Keystone catalog를
+씁니다. `catalog`에서는 서비스마다 자체 호스트 이름이 있는 클라우드를 위해 모든 서비스가
+`OS_INTERFACE`에 해당하는 Keystone catalog endpoint를 씁니다. 어느 쪽이든 요청은
+기본적으로 인증서 검증을 하는 HTTPS를 사용하며, catalog endpoint도 같은 프로토콜을
+써야 합니다. identity URL은 `/v3`로 끝납니다. 아래의
 테스트 전용 예외를 명시적으로 켜지 않는 한 평문 SDK 요청은 거부됩니다. 리다이렉트된
 요청은 항상 거부됩니다. 기존의 수동 Heat/Octavia 점검도 검증된 설정 프로토콜을 쓰며
 리다이렉트를 따르지 않습니다. 내부 서비스가 HTTP만 지원하는 배포에서는 HTTPS endpoint

@@ -542,3 +542,35 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   Python thread 전달이 멈췄습니다. 같은 테스트를 sandbox 밖에서 실행하자 통과했고,
   전체 suite도 124.62초에 완료됐습니다. 실제 Cinder 연결은 변경하지 않았으므로 새
   연결 경로는 **Live unverified**입니다.
+- **Catalog endpoint 로컬 테스트 (2026-11-20, `74de4a4` 기반의 커밋되지 않은 작업
+  트리):** fastmcp 4.1.6과 잠금된 openstacksdk 4.22.0으로
+  `uv run --locked --extra dev python -m pytest -q tests`를 실행해 695/695 (100%)가
+  통과했고, 실패하거나 건너뛴 테스트는 없었습니다. 새 테스트 17개는
+  `OS_ENDPOINT_SOURCE`와 `OS_INTERFACE`의 기본값, 허용되는 값과 거부되는 값, 잘못된
+  값의 시작 시 거부, 두 연결 모드의 catalog endpoint와 변경되지 않은 configured
+  endpoint, catalog URL에 대한 HTTPS 전용 session, catalog 모드의 Cinder 부재 감지를
+  검사합니다.
+- **Catalog endpoint 대상 점검 (2026-11-20 UTC, partial, 같은 작업 트리):**
+  admin이 아닌 role을 가진 프로젝트 범위 Application Credential 하나로 다중 사용자
+  모드를 `ALLOW_MODIFY_OPERATIONS=false`로 실행하고 `127.0.0.1`의 Streamable HTTP로
+  호출했습니다. 대상 클라우드는 서비스마다 자체 HTTPS 호스트 이름을 쓰며, internal
+  catalog endpoint는 클라이언트에서 접근할 수 없는 평문 HTTP 클러스터 주소입니다.
+  기준선으로 release 4.0.4(configured endpoint)는 인증에 성공했지만 compute,
+  network, volume, image, Heat 호출이 설정 포트의 Keystone 호스트로 가서 실패했고,
+  Octavia와 Barbican 호출은 internal catalog endpoint가 HTTP라서 거부됐습니다.
+  `OS_ENDPOINT_SOURCE=catalog`와 `OS_INTERFACE=public`으로는 등록된 도구 61개가 모두
+  목록에 나왔습니다. 필수 매개변수가 없는 도구 48개를 인자 없이 호출했고
+  (`get_instance`는 `all_instances=true`로도 호출), 모든 호출이 의도한 서비스
+  호스트에 도달했습니다. 도구 단위 분류: 31개 통과, 9개는 admin이 아닌 role에 대한
+  클라우드 정책으로 거부(`get_domains`, `get_hypervisor_details`,
+  `get_identity_groups`, `get_key_manager_quotas`, `get_load_balancer_amphorae`,
+  `get_role_assignments`, `get_secret_orders`, `get_user_list`,
+  `get_volume_qos`), `get_resource_monitoring`은 identity 부분이 거부돼 partial,
+  Gnocchi 도구 4개는 metric 서비스 부재를 보고, API 3개는 이 클라우드가 제공하지
+  않음(`get_network_qos_policies`와 `get_volume_groups`는 404,
+  `get_secret_stores`는 단일 secret store backend 보고). 리소스 이름 등 필수 인자가
+  필요한 도구 13개는 호출하지 않았고 변경 도구는 등록되지 않았으므로, 그 경로와 단일
+  계정 모드의 catalog 모드는 **Live unverified**입니다. 이어서 Claude Code CLI
+  프롬프트로 같은 서버를 통해 volume type 목록을 조회했습니다. 서버 로그에는
+  credential ID와 secret이 모두 없었습니다. 이 partial 점검은 위의 105개 도구 요약을
+  갱신하지 않습니다.

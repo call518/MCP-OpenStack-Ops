@@ -6,7 +6,7 @@ from typing import Any, Optional, Dict, List
 from fastmcp import FastMCP
 from fastmcp.server.auth import StaticTokenVerifier
 from starlette.middleware import Middleware as ASGIMiddleware
-from . import user_connection
+from . import settings, user_connection
 
 # Add the current directory to sys.path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -366,6 +366,11 @@ def main(argv: Optional[List[str]] = None) -> None:
         auth_enable = args.auth_enable
     secret_key = args.secret_key or os.getenv("REMOTE_SECRET_KEY", "")
     multi_user = args.multi_user or _parse_bool_env(os.getenv("MCP_MULTI_USER", "false"))
+    try:
+        settings.endpoint_source()
+        settings.endpoint_interface()
+    except ValueError as error:
+        parser.error(str(error))
     if multi_user:
         protocol = os.getenv("OS_AUTH_PROTOCOL", "http").lower()
         allow_insecure_http = _parse_bool_env(

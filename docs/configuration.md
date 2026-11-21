@@ -39,6 +39,8 @@ Options:
 | `OS_PROJECT_DOMAIN_NAME` | Project domain name | `default` | Domain scope |
 | `OS_USER_DOMAIN_NAME` | User domain name | `default` | Domain scope |
 | `OS_REGION_NAME` | OpenStack region | `RegionOne` | Regional scope |
+| `OS_ENDPOINT_SOURCE` | Where service endpoints come from: `configured` or `catalog` | `configured` | `catalog` uses the Keystone catalog for every service; see [OpenStack endpoint topology](#openstack-endpoint-topology) |
+| `OS_INTERFACE` | Catalog interface: `public`, `internal` or `admin` | `internal` | Selects catalog endpoints; use `public` from outside the cloud's internal network |
 | **OpenStack Service Ports** |
 | `OS_COMPUTE_PORT` | Compute service port | `8774` | Nova endpoint |
 | `OS_NETWORK_PORT` | Network service port | `9696` | Neutron endpoint |
@@ -91,8 +93,8 @@ file named by `MCPO_CONFIG_FILE`. If they disagree, the server answers MCPO with
 | `DOCKER_BIND_ADDRESS` | `127.0.0.1` | Reachable address, behind HTTPS | `127.0.0.1`, or a reachable address behind HTTPS | Reachable address, behind HTTPS |
 
 These keys do not depend on the mode: `FASTMCP_TYPE=streamable-http` (always
-for Compose), `OS_AUTH_HOST`, `OS_AUTH_PORT`, `OS_REGION_NAME`, the service
-ports, `ALLOW_MODIFY_OPERATIONS`, `ALLOW_CROSS_PROJECT_READ`, `LIST_MAX_LIMIT`
+for Compose), `OS_AUTH_HOST`, `OS_AUTH_PORT`, `OS_REGION_NAME`,
+`OS_ENDPOINT_SOURCE`, `OS_INTERFACE`, the service ports, `ALLOW_MODIFY_OPERATIONS`, `ALLOW_CROSS_PROJECT_READ`, `LIST_MAX_LIMIT`
 and `INSTANCE_FILTER_MAX_MATCHES`.
 
 - A shared OpenWebUI used by several people should use mode 1 or 2. MCPO sends
@@ -106,30 +108,42 @@ and `INSTANCE_FILTER_MAX_MATCHES`.
 
 ## OpenStack endpoint topology
 
-Single-account and multi-user connections currently construct service URLs from
-one `OS_AUTH_HOST`, `OS_AUTH_PROTOCOL`, and the `OS_*_PORT` values. This works
-for compact deployments, API gateways, and virtual IPs that expose every listed
-service on one host. The server does not currently discover different service
-hosts or custom URL paths from the Keystone service catalog.
+`OS_ENDPOINT_SOURCE` selects how both connection modes find service endpoints.
+Keystone is always reached at `OS_AUTH_PROTOCOL://OS_AUTH_HOST:OS_AUTH_PORT`.
 
-Before starting, confirm that these URLs are reachable from inside the
-`mcp-server` container. If the cloud publishes different service hosts or paths,
-place a gateway or reverse proxy at `OS_AUTH_HOST` that maps the configured ports
-to those endpoints. Do not proceed by entering only the Keystone hostname; the
-MCP server may authenticate successfully and then fail on the first service tool.
+| `OS_ENDPOINT_SOURCE` | Compute, network, volume, image, placement and Heat | Other services | Use when |
+| --- | --- | --- | --- |
+| `configured` (default) | Built from `OS_AUTH_HOST`, `OS_AUTH_PROTOCOL` and the `OS_*_PORT` values | Keystone catalog, `OS_INTERFACE` | Every listed service is exposed on one host: compact deployments, API gateways, virtual IPs |
+| `catalog` | Keystone catalog, `OS_INTERFACE` | Keystone catalog, `OS_INTERFACE` | Services have their own hostnames or URL paths, for example `https://nova.example.com/v2.1` |
 
-`OS_INTERFACE` does not change these explicit endpoint URLs. The current
-single-host configuration uses the internal interface convention.
+`OS_INTERFACE` (`public`, `internal` or `admin`; default `internal`) picks the
+catalog endpoint for `OS_REGION_NAME`. Use the interface that is reachable from
+the MCP server: from a laptop that is usually `public`, the value in the
+project's OpenRC file. With `catalog`, the `OS_*_PORT` settings are ignored.
+List the endpoints with `openstack catalog list` and check that those of the
+chosen interface are reachable; in multi-user mode they must also use HTTPS.
 
-Every service URL is built even when the service is not deployed. If a firewall
-silently drops traffic to such a port (for example `OS_VOLUME_PORT` on a cloud
-without Cinder), calls to that service wait for the connection timeout instead
-of failing immediately. Let the port be refused, or point it at a reachable
-gateway, so that a missing service fails fast with an explicit error.
+### Configured endpoints
 
-Aodh (`alarming`), Gnocchi (`metric`) and Barbican (`key-manager`) have no
-`OS_*_PORT` setting. Their tools use the Keystone catalog endpoint for `OS_INTERFACE` and
-`OS_REGION_NAME`, which must also be reachable from the `mcp-server` container.
+With `configured`, confirm before starting that the built URLs are reachable
+from the MCP server (inside the `mcp-server` container for Docker Compose). If
+the cloud publishes different service hosts or paths, use
+`OS_ENDPOINT_SOURCE=catalog`, or place a gateway or reverse proxy at
+`OS_AUTH_HOST` that maps the configured ports to those endpoints. Do not proceed
+by entering only the Keystone hostname; the MCP server may authenticate
+successfully and then fail on the first service tool.
+
+Every configured service URL is built even when the service is not deployed. If
+a firewall silently drops traffic to such a port (for example `OS_VOLUME_PORT`
+on a cloud without Cinder), calls to that service wait for the connection
+timeout instead of failing immediately. Let the port be refused, or point it at
+a reachable gateway, so that a missing service fails fast with an explicit
+error. With `catalog`, a service missing from the catalog fails immediately.
+
+Aodh (`alarming`), Gnocchi (`metric`), Barbican (`key-manager`) and Octavia
+(`load-balancer`) have no `OS_*_PORT` setting and always use the Keystone
+catalog endpoint for `OS_INTERFACE` and `OS_REGION_NAME`, which must also be
+reachable from the MCP server.
 
 ## HTTPS and private CA setup
 

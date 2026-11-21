@@ -105,6 +105,8 @@ export REMOTE_AUTH_ENABLE=false
 export REMOTE_SECRET_KEY=
 # Optional for a private CA:
 # export OS_CACERT=/path/to/cloud-ca.pem
+# Optional when each service has its own hostname in the Keystone catalog:
+# export OS_ENDPOINT_SOURCE=catalog OS_INTERFACE=public
 uv run --locked python -m mcp_openstack_ops \
   --type streamable-http --host 127.0.0.1 --port 8080
 ```
@@ -157,11 +159,15 @@ swap, and external log collectors separately; application cleanup cannot control
 those systems. Clients necessarily keep credentials in their own configuration
 or secret store; the server's non-persistence rule does not cover client storage.
 
-This follows the existing configured-host deployment layout: compute, network,
-volume, image, placement, and Heat endpoints use `OS_AUTH_HOST` with the existing
-`OS_*_PORT` variables, using HTTPS with certificate verification by default. The
-identity URL ends in `/v3`. Other SDK services use the Keystone catalog, whose
-endpoints must use the same protocol. Plaintext SDK requests are rejected unless
+Service endpoints follow `OS_ENDPOINT_SOURCE`, as in single-account mode (see
+[OpenStack endpoint topology](configuration.md#openstack-endpoint-topology)).
+With the default `configured`, compute, network, volume, image, placement, and
+Heat endpoints use `OS_AUTH_HOST` with the existing `OS_*_PORT` variables, and
+other SDK services use the Keystone catalog. With `catalog`, every service uses
+the Keystone catalog endpoint for `OS_INTERFACE`, for clouds whose services have
+their own hostnames. Either way requests use HTTPS with certificate verification
+by default, and catalog endpoints must use the same protocol. The identity URL
+ends in `/v3`. Plaintext SDK requests are rejected unless
 the explicit test-only override below is enabled. Redirected requests are always
 rejected. Existing manual Heat/Octavia probes use the validated configured
 protocol and do not follow redirects. Deployments with HTTP-only internal

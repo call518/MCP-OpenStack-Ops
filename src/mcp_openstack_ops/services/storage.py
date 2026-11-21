@@ -20,7 +20,12 @@ _URL_PATTERN = re.compile(r"https?://[^\s'\"<>]+")
 
 
 def _volume_port() -> Optional[int]:
+    from ..settings import endpoint_source
     try:
+        if endpoint_source() == 'catalog':
+            # Catalog endpoints do not use OS_VOLUME_PORT; an absent Cinder is
+            # reported as a missing catalog entry instead.
+            return None
         return int(os.environ.get('OS_VOLUME_PORT', '8776'))
     except ValueError:
         return None
@@ -29,9 +34,10 @@ def _volume_port() -> Optional[int]:
 def _mentions_volume_endpoint(text: str) -> bool:
     """True when an error names a URL on the configured Cinder port.
 
-    Both connection modes build the block-storage endpoint override from
-    OS_VOLUME_PORT, so a connection or discovery failure against that port is
-    a failure to reach Cinder rather than another service.
+    With OS_ENDPOINT_SOURCE=configured, both connection modes build the
+    block-storage endpoint override from OS_VOLUME_PORT, so a connection or
+    discovery failure against that port is a failure to reach Cinder rather
+    than another service.
     """
     port = _volume_port()
     for url in _URL_PATTERN.findall(text):
