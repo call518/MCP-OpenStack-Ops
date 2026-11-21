@@ -624,6 +624,42 @@ an earlier full summary.
   test passed outside that sandbox, and the full suite then completed in
   124.62 seconds. No live Cinder association was changed, so the new
   association paths are **Live unverified**.
+- **Local catalog endpoint tests (2026-11-20; uncommitted working tree based on
+  `74de4a4`):** 695/695 (100%) with fastmcp 4.1.6 and the locked openstacksdk
+  4.22.0, run as `uv run --locked --extra dev python -m pytest -q tests`; no
+  failures or skipped tests. 17 new cases cover the `OS_ENDPOINT_SOURCE` and
+  `OS_INTERFACE` defaults, accepted and rejected values, startup rejection of
+  invalid values, catalog and unchanged configured endpoints in both
+  connection modes, the HTTPS-only session for catalog URLs, and Cinder
+  absence detection in catalog mode.
+- **Targeted catalog endpoint check (2026-11-20 UTC; partial; same working
+  tree):** multi-user mode with one project-scoped Application Credential that
+  carries non-admin roles, `ALLOW_MODIFY_OPERATIONS=false`, through Streamable
+  HTTP on `127.0.0.1`. The target cloud publishes each service on its own
+  HTTPS hostname; its internal catalog endpoints are plain-HTTP cluster
+  addresses that cannot be reached from the client. As a baseline, release
+  4.0.4 (configured endpoints) authenticated, but compute, network, volume,
+  image and Heat calls went to the Keystone host on the configured ports and
+  failed, and Octavia and Barbican calls were rejected because their internal
+  catalog endpoints use HTTP. With `OS_ENDPOINT_SOURCE=catalog` and
+  `OS_INTERFACE=public`, all 61 registered tools were listed. The 48 tools
+  without required parameters were called with no arguments
+  (`get_instance` also with `all_instances=true`); every call reached the
+  intended service host. Unique-tool classification: 31 passed; 9 were denied
+  by the cloud's policy for non-admin roles (`get_domains`,
+  `get_hypervisor_details`, `get_identity_groups`, `get_key_manager_quotas`,
+  `get_load_balancer_amphorae`, `get_role_assignments`, `get_secret_orders`,
+  `get_user_list`, `get_volume_qos`); `get_resource_monitoring` was partial
+  because its identity section was denied; 4 Gnocchi tools reported the
+  metric service absent; 3 APIs are not served by this cloud
+  (`get_network_qos_policies` and `get_volume_groups` returned 404,
+  `get_secret_stores` reported a single secret store backend). The 13 tools
+  that need a resource name or other required argument were not called, and
+  no modification tool was registered, so those paths and catalog mode in
+  single-account mode are **Live unverified**. A Claude Code CLI prompt then
+  listed volume types through the same server. The server log contained
+  neither the credential ID nor the secret. This partial check does not
+  update the 105-tool summary above.
 - **Local flavor visibility tests (2026-11-20; uncommitted working tree based on
   `74de4a4`):** 704/704 (100%) with fastmcp 4.1.6 and the locked openstacksdk
   4.22.0, run as `uv run --locked --extra dev python -m pytest -q tests`; no
@@ -636,7 +672,8 @@ an earlier full summary.
   server flavor name lookup with null sizes when unresolvable. The read-only
   tool count assertion is now 62.
 - **Targeted flavor visibility check (2026-11-20 UTC; partial; this change
-  applied together with a separate, unmerged catalog-endpoint change):** the
+  applied together with the catalog-endpoint change of PR #89, then
+  unmerged):** the
   target cloud publishes each service on its own HTTPS hostname, which this
   revision alone cannot reach, so the server ran from a working tree that
   combined both changes. Multi-user mode with one project-scoped Application
@@ -658,3 +695,9 @@ an earlier full summary.
   `flavor_contains`, which matches on these names, was not run and is **Live
   unverified**, as is this change with configured endpoints. This partial
   check does not update the 105-tool summary above.
+- **Local tests after integrating PR #90 with PR #89 (2026-11-21; merge of
+  `9326358` into PR #90's `b70c778`, before commit):** 721/721 (100%) with
+  fastmcp 4.1.6 and the locked openstacksdk 4.22.0, run as
+  `uv run --locked --extra dev python -m pytest -q tests`; no failures or
+  skipped tests. The merge had documentation conflicts only; no live check was
+  repeated on the merged tree.
