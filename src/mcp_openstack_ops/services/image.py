@@ -267,7 +267,9 @@ def set_image(image_name: str, action: str, **kwargs) -> Dict[str, Any]:
             if 'properties' in kwargs:
                 update_params.update(kwargs['properties'])
                 
-            updated_image = conn.image.update_image(image, **update_params)
+            # Pass the ID: a listed Image object makes the SDK's JSON patch
+            # remove every custom property not named in update_params.
+            updated_image = conn.image.update_image(image.id, **update_params)
             return {
                 'success': True,
                 'message': f'Image "{image_name}" updated successfully',

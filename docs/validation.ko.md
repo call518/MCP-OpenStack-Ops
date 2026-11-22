@@ -658,3 +658,25 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   공유 해제를 Neutron이 거부하는지. 두 번의 실행에서 만든 리소스(정책, 네트워크 1개,
   라우터 2개, floating IP 1개)는 모두 삭제하고 없음을 확인했으며, VM port에는 QoS 정책이
   남지 않았습니다. 이 partial check는 위의 105개 도구 요약을 갱신하지 않습니다.
+- **Glance property targeted check (2026-11-22 UTC, partial):** Kolla-Ansible
+  all-in-one OpenStack 2025.1(Glance 30.2.1) 환경이며, 이미지 property는 Glance
+  원시 API로 다시 읽어 확인했습니다. 수정 전 Claude Code 세션에 연결된 MCP 서버(소스
+  revision은 기록하지 않았고, create 메시지는 `b4a1a41` 이후와 같음)로 확인한 결과,
+  `set_image` create는 property를 최상위에 저장했고 `set_image_metadata` set은
+  property를 추가하면서 나머지를 유지했습니다. 그러나 새 property를 넣은 `set_image`
+  update는 openstacksdk의 `owner_specified.openstack.*`를 포함해 다른 사용자 property를
+  모두 삭제했습니다. 원인은 update가 목록에서 가져온 `Image` 객체를 `update_image`에
+  넘겨, SDK의 JSON patch가 요청에 없는 property마다 삭제를 넣은 것입니다. 수정 후
+  (`4916f16` 기반 커밋 전 작업 트리, update가 이미지 ID를 넘김) 작업 트리의 서비스
+  함수를 서버 계정으로 직접 호출했습니다. create, update, metadata set이 각각 property를
+  추가하면서 앞서 넣은 값을 모두 유지했고, delete는 소유 이미지를 삭제했습니다. 테스트용
+  이미지 3개는 모두 삭제했고 404를 확인했습니다. 다른 프로젝트 이미지 거부는 이
+  점검에 포함되지 않았습니다. 이 partial check는 `set_image`와 `set_image_metadata`
+  (고유 도구 2개)를 다루며 위의 105개 도구 요약을 갱신하지 않습니다.
+- **`set_image` update property 수정 후 로컬 단위 테스트 (2026-11-22, 같은 커밋 전
+  작업 트리):** fastmcp 4.1.6과 고정된 openstacksdk 4.22.0으로 `uv run pytest -q`를
+  실행해 736/736 (100%)가 통과했고, 실패하거나 건너뛴 테스트는 없었습니다. 이미지
+  테스트 fixture는 이제 openstacksdk의 `Proxy._get_resource`처럼 리소스를 만들고 JSON
+  patch를 기록합니다. 새 테스트 2건은 `set_image` update와 `set_image_metadata` set이
+  새 property에 대한 `add`만 보내는지 확인합니다. `set_image` 케이스는 수정 전에 기존
+  property의 `remove`가 더해져 실패했습니다.

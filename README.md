@@ -449,13 +449,13 @@ unchanged since.
 | `openstack image show` | `get_image_detail_list` (filtering) | ✅ | Specific image query |
 | `openstack image create` | `set_image` (action="create") | ✅ | Creates the image record with min_disk, min_ram and properties only. No image data is uploaded, so the image stays `queued` and cannot boot servers |
 | `openstack image create --file` / `--import` | — | ❌ Not implemented | No tool uploads or imports image data |
-| `openstack image delete` | `set_image` (action="delete") | ⚠️ Live unverified | Only images owned by the current project; other projects' public, shared or community images are refused (previously allowed). This 2026-11-17 change is unit-tested only |
-| `openstack image set` | `set_image` (action="update") | ⚠️ Live unverified | Only images owned by the current project (previously any visible image). This 2026-11-17 change is unit-tested only |
+| `openstack image delete` | `set_image` (action="delete") | ⚠️ Live unverified | Only images owned by the current project; other projects' public, shared or community images are refused (previously allowed). Deleting an owned image passed a 2026-11-22 targeted check; the refusal is unit-tested only |
+| `openstack image set` | `set_image` (action="update") | ⚠️ Live unverified | Only images owned by the current project (previously any visible image). Adding properties keeps the image's other custom properties (before 2026-11-22 it removed them); this passed a 2026-11-22 targeted check on an owned image. The refusal of other projects' images is unit-tested only |
 | `openstack image save` | — | ❌ Not implemented | `set_image` supports create, delete, update and list only; there is no download action |
 | `openstack image add project` | `set_image_members` (action="add") | ✅ | Add a project to an image with shared visibility |
 | `openstack image member list` | `get_image_members` | ✅ | Image member listing |
 | `openstack image member create` | `set_image_members` | ✅ | Image member management |
-| `openstack image set --property` | `set_image_metadata` | ⚠️ Live unverified | `show` reads any visible image; `set` applies only to images owned by the current project (previously any visible image). This 2026-11-17 change is unit-tested only |
+| `openstack image set --property` | `set_image_metadata` | ⚠️ Live unverified | `show` reads any visible image; `set` applies only to images owned by the current project (previously any visible image). `set` adding a property to an owned image and keeping the others passed a 2026-11-22 targeted check; the refusal of other projects' images is unit-tested only |
 | `openstack image set --public/private` | `set_image_visibility` | ⚠️ Live unverified | `show` reads any visible image; `set` applies only to images owned by the current project (previously any visible image). This 2026-11-17 change is unit-tested only |
 
 ### 5. 👥 **Identity (Keystone)**

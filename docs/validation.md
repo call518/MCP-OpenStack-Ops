@@ -763,3 +763,28 @@ an earlier full summary.
   network, two routers and a floating IP) were deleted and confirmed absent,
   and the VM port was left without a QoS policy. This partial check does not
   update the 105-tool summary above.
+- **Targeted Glance property check (2026-11-22 UTC; partial):** Kolla-Ansible
+  all-in-one OpenStack 2025.1 (Glance 30.2.1), image properties read back from
+  the raw Glance API. Before the fix, through the MCP server connected to the
+  Claude Code session (its source revision was not recorded; its create
+  message matched `b4a1a41` and later): `set_image` create stored a property at the top level and
+  `set_image_metadata` set added one and kept the others, but `set_image`
+  update with a new property removed every other custom property, including
+  openstacksdk's `owner_specified.openstack.*`. Cause: update passed the listed
+  `Image` object to `update_image`, so the SDK's JSON patch removed each
+  property not named in the request. After the fix (uncommitted working tree
+  based on `4916f16`; update passes the image ID), the working-tree service
+  functions were called directly with the server's account: create, update and
+  metadata set each added their property and kept all earlier ones, and delete
+  removed the owned image. All three test images were deleted and returned
+  404. The refusal of other projects' images was not part of this check. This
+  partial check covers `set_image` and `set_image_metadata` (2 unique tools)
+  and does not update the 105-tool summary above.
+- **Local unit tests after the `set_image` update property fix (2026-11-22;
+  same uncommitted working tree):** 736/736 (100%) with fastmcp 4.1.6 and the
+  locked openstacksdk 4.22.0, run as `uv run pytest -q`; no failures or skipped
+  tests. The image test fixture now builds the resource as openstacksdk's
+  `Proxy._get_resource` does and records the JSON patch. Two new cases check
+  that `set_image` update and `set_image_metadata` set send only an `add` for
+  the new property; the `set_image` case failed before the fix with an extra
+  `remove` of the existing property.

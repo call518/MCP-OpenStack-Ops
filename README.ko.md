@@ -447,13 +447,13 @@ Cinder가 없는 OpenStack 2026.1에서 live로 확인했습니다([검증](docs
 | `openstack image show` | `get_image_detail_list` (filtering) | ✅ | 특정 이미지 조회 |
 | `openstack image create` | `set_image` (action="create") | ✅ | min_disk, min_ram, properties를 가진 이미지 레코드만 생성. 이미지 데이터는 업로드하지 않으므로 이미지는 `queued`에 머물고 서버를 부팅할 수 없음 |
 | `openstack image create --file` / `--import` | — | ❌ Not implemented | 이미지 데이터를 업로드하거나 import하는 도구가 없음 |
-| `openstack image delete` | `set_image` (action="delete") | ⚠️ Live unverified | 현재 프로젝트가 소유한 이미지만. 다른 프로젝트의 public, shared, community 이미지는 거부(이전에는 허용). 2026-11-17 변경은 단위 테스트만 거침 |
-| `openstack image set` | `set_image` (action="update") | ⚠️ Live unverified | 현재 프로젝트가 소유한 이미지만(이전에는 보이는 모든 이미지). 2026-11-17 변경은 단위 테스트만 거침 |
+| `openstack image delete` | `set_image` (action="delete") | ⚠️ Live unverified | 현재 프로젝트가 소유한 이미지만. 다른 프로젝트의 public, shared, community 이미지는 거부(이전에는 허용). 소유 이미지 삭제는 2026-11-22 targeted check를 통과했고, 거부는 단위 테스트만 거침 |
+| `openstack image set` | `set_image` (action="update") | ⚠️ Live unverified | 현재 프로젝트가 소유한 이미지만(이전에는 보이는 모든 이미지). property를 추가해도 이미지의 다른 사용자 property가 유지됨(2026-11-22 이전에는 삭제됨). 소유 이미지에서 2026-11-22 targeted check를 통과함. 다른 프로젝트 이미지 거부는 단위 테스트만 거침 |
 | `openstack image save` | — | ❌ Not implemented | `set_image`는 create, delete, update, list만 지원하며 다운로드 action은 없음 |
 | `openstack image add project` | `set_image_members` (action="add") | ✅ | shared 가시성 이미지에 프로젝트 추가 |
 | `openstack image member list` | `get_image_members` | ✅ | 이미지 멤버 목록 |
 | `openstack image member create` | `set_image_members` | ✅ | 이미지 멤버 관리 |
-| `openstack image set --property` | `set_image_metadata` | ⚠️ Live unverified | `show`는 보이는 모든 이미지를 읽음. `set`은 현재 프로젝트가 소유한 이미지에만 적용(이전에는 보이는 모든 이미지). 2026-11-17 변경은 단위 테스트만 거침 |
+| `openstack image set --property` | `set_image_metadata` | ⚠️ Live unverified | `show`는 보이는 모든 이미지를 읽음. `set`은 현재 프로젝트가 소유한 이미지에만 적용(이전에는 보이는 모든 이미지). 소유 이미지에 property를 추가하면서 나머지를 유지하는 `set`은 2026-11-22 targeted check를 통과했고, 다른 프로젝트 이미지 거부는 단위 테스트만 거침 |
 | `openstack image set --public/private` | `set_image_visibility` | ⚠️ Live unverified | `show`는 보이는 모든 이미지를 읽음. `set`은 현재 프로젝트가 소유한 이미지에만 적용(이전에는 보이는 모든 이미지). 2026-11-17 변경은 단위 테스트만 거침 |
 
 ### 5. 👥 **Identity (Keystone)**

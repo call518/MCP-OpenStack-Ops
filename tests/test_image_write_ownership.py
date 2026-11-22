@@ -2,6 +2,7 @@
 
 Public, shared and community images of other projects stay readable, but
 update, delete, metadata set and visibility set must not touch them.
+Updates must also keep the image's other custom properties.
 """
 
 from types import SimpleNamespace
@@ -26,8 +27,22 @@ def conn(monkeypatch):
     value = SimpleNamespace(
         current_project_id='project-a',
         image=create_autospec(ImageProxy, instance=True),
+        patches=[],
     )
-    value.image.update_image.side_effect = lambda image, **attrs: image
+
+    def update_image(image, **attrs):
+        # Build the resource as openstacksdk's Proxy._get_resource does and
+        # record the JSON patch that commit() would send.
+        if isinstance(image, Image):
+            image._update(**attrs)
+            res = image
+        else:
+            res = Image.new(id=image, **attrs)
+        value.patches.append(
+            res._prepare_request(prepend_key=False, patch=True).body)
+        return res
+
+    value.image.update_image.side_effect = update_image
     monkeypatch.setattr(connection, 'get_openstack_connection', lambda: value)
     return value
 
@@ -68,6 +83,24 @@ def test_writes_target_owned_image_over_foreign_namesake(conn, write):
     assert len(calls) == 1
     target = calls[0].args[0]
     assert getattr(target, 'id', target) == 'owned'
+
+
+@pytest.mark.parametrize('write', [
+    lambda: image_service.set_image('img', 'update',
+                                    properties={'new_key': 'v'}),
+    lambda: image_service.set_image_metadata('set', 'img',
+                                             properties={'new_key': 'v'}),
+])
+def test_property_update_keeps_other_properties(conn, write):
+    owned = Image.existing(id='owned', name='img', owner='project-a',
+                           visibility='private', status='queued',
+                           old_key='keep')
+    conn.image.images.return_value = [owned]
+
+    result = write()
+
+    assert result['success'] is True, result
+    assert conn.patches == [[{'op': 'add', 'path': '/new_key', 'value': 'v'}]]
 
 
 def test_ambiguous_owned_name_is_rejected(conn):
