@@ -65,6 +65,21 @@ HTTP에서는 한 사용자의 느린 호출이 다른 모든 사용자를 기�
 | 수정할 테스트 | 테스트 파일 6개에서 도구 함수를 `await`로 호출하는 21곳 |
 | 릴리즈 조건 | Claude Desktop과 OpenWebUI에서 3.9.2와 새 빌드로 같은 요청(단순 로드밸런서, network → subnet → router → 보안 그룹 규칙 연쇄)을 실행하고, 다중 사용자 모드에서 프로젝트 두 개로 동시에 호출. 결과가 하나라도 3.9.2와 다르면 릴리즈하지 않음 |
 
+## Neutron QoS 정책 공유
+
+- [ ] **Neutron RBAC로 특정 프로젝트에만 QoS 정책 공유 (미구현)**
+
+`set_network_qos_policies`는 정책을 모든 프로젝트에만 공유합니다(`shared=true`,
+Glance의 public 이미지와 비슷). Glance 이미지 member처럼 고른 프로젝트에만 공유하려면
+Neutron RBAC(`openstack network rbac create --type qos_policy --action access_as_shared
+--target-project <project>`)가 필요하며, 이를 제공하는 도구는 없습니다.
+
+| 항목 | 내용 |
+|---|---|
+| Action | 프로젝트 소유 정책에 대해 `qos_policy` 유형 RBAC 항목 생성, 조회, 삭제 |
+| 범위 | 대상이 다른 프로젝트의 ID라서 변경 도구의 현재 프로젝트 범위를 넘음. 이를 어떻게 받고 검증할지 결정 필요 |
+| 영향 | 정책의 규칙을 바꾸면 이를 쓰는 대상 프로젝트의 리소스에 즉시 적용됨. 대상 프로젝트가 정책을 쓰는 동안에는 Neutron이 항목 삭제를 거부함 |
+
 ## 서비스 상태 보고
 
 - [ ] **`get_service_status`가 실제 서비스 상태를 보고하도록 개선**

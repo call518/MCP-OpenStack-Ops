@@ -162,6 +162,174 @@ def test_qos_policy_create_and_list(conn):
     conn.network.delete_qos_policy.assert_called_once_with(policy, ignore_missing=False)
 
 
+def _qos_policies(conn, *policies):
+    """Return owned policies for the project query and shared ones otherwise."""
+    def listing(**query):
+        if 'project_id' in query:
+            return [p for p in policies if p.project_id == query['project_id']]
+        return [p for p in policies if p.is_shared]
+    conn.network.qos_policies.side_effect = listing
+    conn.network.get_qos_policy.side_effect = lambda pid: next(
+        p for p in policies if p.id == pid)
+
+
+def test_qos_list_separates_foreign_shared_policies(conn):
+    _qos_policies(
+        conn,
+        QoSPolicy(id='qos-a', name='mine', project_id='project-a'),
+        QoSPolicy(id='qos-b', name='theirs', project_id='project-b', shared=True),
+        QoSPolicy(id='qos-c', name='private', project_id='project-b'),
+    )
+    result = network.set_network_qos_policies('list')
+    assert [p['id'] for p in result['policies']] == ['qos-a']
+    assert [p['id'] for p in result['shared_from_other_projects']] == ['qos-b']
+    shown = network.set_network_qos_policies('show', 'theirs')
+    assert shown['success'] and shown['owned'] is False
+    assert 'warning' in shown
+
+
+def test_qos_create_shared_warns_and_update_keeps_unspecified_share(conn):
+    shared = QoSPolicy(id='qos-a', name='web', project_id='project-a', shared=True)
+    conn.network.create_qos_policy.return_value = shared
+    assert 'warning' in network.set_network_qos_policies('create', 'web', shared=True)
+    _qos_policies(conn, shared)
+    assert network.set_network_qos_policies(
+        'update', 'web', description='d')['success']
+    conn.network.update_qos_policy.assert_called_once_with(shared, description='d')
+    conn.network.update_qos_policy.reset_mock()
+    assert network.set_network_qos_policies('update', 'web', shared=False)['success']
+    conn.network.update_qos_policy.assert_called_once_with(shared, is_shared=False)
+    assert not network.set_network_qos_policies('update', 'web')['success']
+
+
+def test_qos_rules_only_on_owned_policies(conn):
+    _qos_policies(
+        conn,
+        QoSPolicy(id='qos-a', name='mine', project_id='project-a'),
+        QoSPolicy(id='qos-b', name='theirs', project_id='project-b', shared=True),
+    )
+    rule = {'max_kbps': 10000, 'max_burst_kbps': 8000, 'direction': 'egress'}
+    assert not network.set_network_qos_policies(
+        'add_rule', 'theirs', rule_type='bandwidth_limit', rule=rule)['success']
+    conn.network.create_qos_bandwidth_limit_rule.assert_not_called()
+    assert network.set_network_qos_policies(
+        'add_rule', 'mine', rule_type='bandwidth_limit', rule=rule)['success']
+    conn.network.create_qos_bandwidth_limit_rule.assert_called_once()
+    assert conn.network.create_qos_bandwidth_limit_rule.call_args.kwargs == rule
+
+
+@pytest.mark.parametrize('rule_type,rule', [
+    ('unknown', {'max_kbps': 1}),
+    ('dscp_marking', {'max_kbps': 1}),
+    ('bandwidth_limit', {}),
+])
+def test_qos_add_rule_validates_type_and_fields(conn, rule_type, rule):
+    _qos_policies(conn, QoSPolicy(id='qos-a', name='mine', project_id='project-a'))
+    result = network.set_network_qos_policies(
+        'add_rule', 'mine', rule_type=rule_type, rule=rule)
+    assert not result['success']
+    conn.network.create_qos_bandwidth_limit_rule.assert_not_called()
+    conn.network.create_qos_dscp_marking_rule.assert_not_called()
+
+
+def test_qos_update_and_delete_rule_use_type_from_policy(conn):
+    policy = QoSPolicy(id='qos-a', name='mine', project_id='project-a', rules=[
+        {'id': 'rule-d', 'type': 'dscp_marking', 'dscp_mark': 26}])
+    _qos_policies(conn, policy)
+    assert network.set_network_qos_policies(
+        'update_rule', 'mine', rule_id='rule-d', rule={'dscp_mark': 34})['success']
+    conn.network.update_qos_dscp_marking_rule.assert_called_once_with(
+        'rule-d', policy, dscp_mark=34)
+    assert network.set_network_qos_policies(
+        'delete_rule', 'mine', rule_id='rule-d')['success']
+    conn.network.delete_qos_dscp_marking_rule.assert_called_once_with(
+        'rule-d', policy, ignore_missing=False)
+    assert not network.set_network_qos_policies(
+        'delete_rule', 'mine', rule_id='missing')['success']
+
+
+def test_qos_associate_port_confirms_by_read_back(conn):
+    from openstack.network.v2.port import Port
+    _qos_policies(conn, QoSPolicy(id='qos-a', name='mine', project_id='project-a'))
+    port = Port(id='port-a', name='', project_id='project-a')
+    conn.network.ports.return_value = [port]
+    conn.network.get_port.side_effect = [
+        Port(id='port-a', qos_policy_id=None),
+        Port(id='port-a', qos_policy_id='qos-a'),
+    ]
+    result = network.set_network_qos_policies(
+        'associate', 'mine', target_type='port', target='port-a')
+    assert result['success'] and result['confirmed']
+    assert result['previous_qos_policy_id'] is None
+    conn.network.update_port.assert_called_once_with(port, qos_policy_id='qos-a')
+
+
+def test_qos_associate_reports_unconfirmed_read_back(conn):
+    from openstack.network.v2.port import Port
+    _qos_policies(conn, QoSPolicy(id='qos-a', name='mine', project_id='project-a'))
+    conn.network.ports.return_value = [Port(id='port-a', project_id='project-a')]
+    conn.network.get_port.return_value = Port(id='port-a', qos_policy_id=None)
+    result = network.set_network_qos_policies(
+        'associate', 'mine', target_type='port', target='port-a')
+    assert result['accepted'] and not result['confirmed'] and not result['success']
+
+
+def test_qos_associate_rejects_other_projects_targets(conn):
+    from openstack.network.v2.port import Port
+    _qos_policies(conn, QoSPolicy(id='qos-a', name='mine', project_id='project-a'))
+    conn.network.ports.return_value = [Port(id='port-b', project_id='project-b')]
+    assert not network.set_network_qos_policies(
+        'associate', 'mine', target_type='port', target='port-b')['success']
+    assert not network.set_network_qos_policies(
+        'associate', 'mine', target_type='server', target='port-b')['success']
+    conn.network.update_port.assert_not_called()
+
+
+def test_qos_disassociate_requires_current_policy(conn):
+    from openstack.network.v2.floating_ip import FloatingIP
+    _qos_policies(conn, QoSPolicy(id='qos-a', name='mine', project_id='project-a'))
+    ip = FloatingIP(id='fip-a', floating_ip_address='203.0.113.5',
+                    project_id='project-a')
+    conn.network.ips.return_value = [ip]
+    conn.network.get_ip.return_value = FloatingIP(id='fip-a', qos_policy_id='other')
+    assert not network.set_network_qos_policies(
+        'disassociate', 'mine', target_type='floating_ip',
+        target='203.0.113.5')['success']
+    conn.network.update_ip.assert_not_called()
+    conn.network.get_ip.side_effect = [
+        FloatingIP(id='fip-a', qos_policy_id='qos-a'),
+        FloatingIP(id='fip-a', qos_policy_id=None),
+    ]
+    result = network.set_network_qos_policies(
+        'disassociate', 'mine', target_type='floating_ip', target='203.0.113.5')
+    assert result['confirmed']
+    conn.network.update_ip.assert_called_once_with(ip, qos_policy_id=None)
+
+
+def test_qos_associate_router_gateway_keeps_only_network_id(conn):
+    _qos_policies(conn, QoSPolicy(id='qos-a', name='mine', project_id='project-a'))
+    gateway = {'network_id': 'ext', 'enable_snat': True,
+               'external_fixed_ips': [{'ip_address': '203.0.113.1'}]}
+    router = Router(id='router-a', name='r', project_id='project-a',
+                    external_gateway_info=gateway)
+    conn.network.routers.return_value = [router]
+    conn.network.get_router.side_effect = [
+        router,
+        Router(id='router-a', external_gateway_info={
+            **gateway, 'qos_policy_id': 'qos-a'}),
+    ]
+    assert network.set_network_qos_policies(
+        'associate', 'mine', target_type='router', target='r')['confirmed']
+    conn.network.update_router.assert_called_once_with(router, external_gateway_info={
+        'network_id': 'ext', 'qos_policy_id': 'qos-a'})
+    conn.network.routers.return_value = [
+        Router(id='router-b', name='nogw', project_id='project-a')]
+    conn.network.get_router.side_effect = None
+    conn.network.get_router.return_value = Router(id='router-b')
+    assert not network.set_network_qos_policies(
+        'associate', 'mine', target_type='router', target='nogw')['success']
+
+
 @pytest.mark.parametrize('start,end,total', [
     ('192.0.2.10', '192.0.2.19', 10),
     ('192.0.2.10', '192.0.2.10', 1),

@@ -68,6 +68,22 @@ correct behavior comes first.
 | Tests to change | 21 calls in 6 test files that `await` tool functions |
 | Release condition | Run the same requests on 3.9.2 and the new build (simple load balancer, network → subnet → router → security group rule chain) in Claude Desktop and OpenWebUI, plus concurrent calls from two projects in multi-user mode. Do not release if any result differs from 3.9.2 |
 
+## Neutron QoS policy sharing
+
+- [ ] **Share a QoS policy with specific projects through Neutron RBAC (not implemented)**
+
+`set_network_qos_policies` shares a policy only with all projects
+(`shared=true`, like a public Glance image). Sharing with chosen projects, like
+Glance image members, needs Neutron RBAC
+(`openstack network rbac create --type qos_policy --action access_as_shared
+--target-project <project>`), which no tool exposes.
+
+| Item | Detail |
+|---|---|
+| Actions | Create, list and delete RBAC entries of type `qos_policy` for project-owned policies |
+| Scope | The target is another project's ID, which goes beyond the current-project scope of the modification tools; decide how to accept and validate it |
+| Effect | Rule changes on the policy apply at once to the target projects' resources that use it; Neutron refuses to remove an entry while a target project uses the policy |
+
 ## Service status reporting
 
 - [ ] **Report real service state in `get_service_status`**

@@ -716,3 +716,50 @@ an earlier full summary.
   `OS_HEAT_STACK_CFN_PORT` optional and states that the server does not read
   it, and notes that no current tool calls the Placement API. Server behavior
   did not change, so no live check was run.
+- **Local Neutron QoS rule and attachment tests (2026-11-22; uncommitted
+  working tree based on `96ad042`):** 734/734 (100%) with fastmcp 4.1.6 and the
+  locked openstacksdk 4.22.0, run as `uv run pytest -q`; no failures or skipped
+  tests. Twelve new cases cover listing policies shared by other projects
+  separately, the shared-policy warning, `update` keeping an omitted `shared`
+  value, rule changes refused on policies the project does not own, rule type
+  and field validation, `update_rule`/`delete_rule` reading the type from the
+  policy, port association confirmed and not confirmed by read-back, refusal of
+  other projects' targets and unknown target types, floating IP
+  disassociation that requires the named policy, and router gateway
+  association that sends only `network_id` and `qos_policy_id`. The
+  registration test now also checks the new `set_network_qos_policies` actions
+  and their modification guards. No live check was part of this record; see
+  the next record.
+- **Targeted Neutron QoS check (2026-11-21 UTC; partial; same uncommitted
+  working tree):** Kolla-Ansible all-in-one OpenStack 2025.1, ML2/OVS with the
+  hybrid iptables firewall, the QoS service plugin, OVS agent `qos` and L3
+  agent `fip_qos,gateway_ip_qos` extensions. The working-tree server was
+  called through FastMCP's in-memory client as the project administrator with
+  `ALLOW_MODIFY_OPERATIONS=true`; the deployed server was not updated. A
+  scripted run made 64 checks, 62 passed: all 39 MCP calls returned the
+  expected success or error, and 23 of 25 read-back and OVS checks passed.
+  Policy create, show,
+  rename, description, share on and off (the value was kept when omitted)
+  and delete; one rule of each of the five types added, a bandwidth rule
+  updated and a DSCP rule deleted, all read back; refusals of an unknown rule
+  field, an unknown rule type, an unknown rule ID, an empty update, an
+  unknown target type, a router without a gateway, a disassociation of a
+  policy the target does not use, and another project's port, which stayed
+  unchanged. Neutron rejected an invalid DSCP mark. Association and
+  disassociation were confirmed by read-back on a network without ports, an
+  unattached floating IP by address, and a router gateway whose fixed IPs and
+  SNAT stayed unchanged. The two failed checks were in the script, not the
+  tools: it looked for a `tap` OVS port, but with the hybrid firewall the port
+  is `qvo`. A repeated run on the running VM port (`qvo`) passed: a 10 Mbps
+  egress and ingress policy set `ingress_policing_rate` 10000 and
+  `ingress_policing_burst` 8000, and a linux-htb QoS whose queue had
+  `max-rate` 10000000 and `burst` 8000000; after disassociation both were
+  removed. Both QoS tools (2 unique tools) passed. **Live unverified:**
+  measured throughput, enforcement on the ports of an associated network and
+  in the router namespace for floating IP and gateway policies, policies
+  shared by other projects (none existed, so `shared_from_other_projects` was
+  empty), creating a policy with `shared=true`, and Neutron's refusal to
+  unshare a policy in use. All created resources (two runs: policies, a
+  network, two routers and a floating IP) were deleted and confirmed absent,
+  and the VM port was left without a QoS policy. This partial check does not
+  update the 105-tool summary above.

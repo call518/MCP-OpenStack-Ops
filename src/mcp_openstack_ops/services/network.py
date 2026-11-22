@@ -1481,41 +1481,229 @@ def set_subnets(action: str, subnet_name: Optional[str] = None, **kwargs) -> Dic
             'error': str(e)
         }
 
+QOS_RULE_FIELDS = {
+    'bandwidth_limit': {'max_kbps', 'max_burst_kbps', 'direction'},
+    'dscp_marking': {'dscp_mark'},
+    'minimum_bandwidth': {'min_kbps', 'direction'},
+    'packet_rate_limit': {'max_kpps', 'max_burst_kpps', 'direction'},
+    'minimum_packet_rate': {'min_kpps', 'direction'},
+}
+QOS_TARGET_TYPES = {'port', 'network', 'floating_ip', 'router'}
+SHARED_POLICY_WARNING = (
+    'This policy is shared with all projects; rule changes apply immediately '
+    'to every port, network, floating IP and router gateway that uses it, '
+    'including resources in other projects that this tool cannot list.'
+)
+
+
+def _match_one(resources, name_or_id: str, label: str):
+    """Return the single resource matching an ID, else a unique name."""
+    matches = [r for r in resources if r.id == name_or_id]
+    if not matches:
+        matches = [r for r in resources if r.name == name_or_id]
+    if len(matches) != 1:
+        raise ValueError(f'{label} not found or name is ambiguous; use an ID')
+    return matches[0]
+
+
+def _find_qos_target(conn: Any, target_type: str, target: str, project_id: str):
+    """Find a project-owned port, network, floating IP or router."""
+    if target_type == 'floating_ip':
+        ips = [ip for ip in conn.network.ips(project_id=project_id)
+               if ip.project_id == project_id]
+        matches = [ip for ip in ips if target in (ip.id, ip.floating_ip_address)]
+        if len(matches) != 1:
+            raise ValueError('Floating IP not found in the current project')
+        return matches[0]
+    listing = {
+        'port': conn.network.ports, 'network': conn.network.networks,
+        'router': conn.network.routers,
+    }[target_type]
+    resources = [r for r in listing(project_id=project_id)
+                 if r.project_id == project_id]
+    return _match_one(resources, target, target_type.capitalize())
+
+
+def _target_qos_policy_id(conn: Any, target_type: str, target_id: str):
+    """Read back the QoS policy ID currently set on a target."""
+    if target_type == 'router':
+        gateway = conn.network.get_router(target_id).external_gateway_info or {}
+        return gateway.get('qos_policy_id')
+    getter = {
+        'port': conn.network.get_port, 'network': conn.network.get_network,
+        'floating_ip': conn.network.get_ip,
+    }[target_type]
+    return getter(target_id).qos_policy_id
+
+
+def _set_target_qos_policy(conn: Any, target_type: str, resource: Any,
+                           policy_id: Optional[str]) -> None:
+    """Set or clear a target's QoS policy; None clears it."""
+    if target_type == 'router':
+        gateway = resource.external_gateway_info or {}
+        if not gateway.get('network_id'):
+            raise ValueError('Router has no external gateway')
+        # Send only network_id and qos_policy_id, as `openstack router set
+        # --qos-policy` does; fixed IPs and SNAT stay unchanged.
+        conn.network.update_router(resource, external_gateway_info={
+            'network_id': gateway['network_id'], 'qos_policy_id': policy_id,
+        })
+        return
+    updater = {
+        'port': conn.network.update_port, 'network': conn.network.update_network,
+        'floating_ip': conn.network.update_ip,
+    }[target_type]
+    updater(resource, qos_policy_id=policy_id)
+
+
+def _validated_rule_values(rule_type: str, values: Any) -> Dict[str, Any]:
+    """Reject rule fields that the rule type does not define."""
+    if not isinstance(values, dict) or not values:
+        raise ValueError('rule must be a non-empty JSON object')
+    unknown = set(values) - QOS_RULE_FIELDS[rule_type]
+    if unknown:
+        raise ValueError(
+            f'Unsupported fields for {rule_type}: {", ".join(sorted(unknown))}; '
+            f'allowed: {", ".join(sorted(QOS_RULE_FIELDS[rule_type]))}')
+    return values
+
+
+def _policy_result(conn: Any, policy: Any, project_id: str) -> Dict[str, Any]:
+    """Return the policy re-read from Neutron with ownership and share flags."""
+    current = conn.network.get_qos_policy(policy.id)
+    result: Dict[str, Any] = {
+        'success': True, 'policy': current.to_dict(),
+        'owned': current.project_id == project_id,
+    }
+    if current.is_shared:
+        result['warning'] = SHARED_POLICY_WARNING
+    return result
+
+
 def set_network_qos_policies(
     action: str, policy_name: Optional[str] = None, **kwargs
 ) -> Dict[str, Any]:
-    """List, create or delete project-owned Neutron QoS policy containers."""
+    """Manage Neutron QoS policies, their rules and their attachments.
+
+    Policies and rules are changed only when owned by the current project.
+    associate/disassociate also accept policies shared with this project and
+    change only project-owned ports, networks, floating IPs and routers.
+    """
     from ..connection import get_openstack_connection
 
     try:
         action = action.lower()
-        if action not in {'list', 'create', 'delete'}:
-            raise ValueError('Supported actions: list, create, delete')
+        actions = {
+            'list', 'show', 'create', 'update', 'delete', 'add_rule',
+            'update_rule', 'delete_rule', 'associate', 'disassociate',
+        }
+        if action not in actions:
+            raise ValueError(f'Supported actions: {", ".join(sorted(actions))}')
         if action != 'list' and not (policy_name and policy_name.strip()):
             raise ValueError('policy_name is required')
         conn = get_openstack_connection()
         project_id = conn.current_project_id
         if not project_id:
             raise ValueError('A project-scoped connection is required')
+        shared = kwargs.get('shared')
         if action == 'create':
             policy = conn.network.create_qos_policy(
                 name=policy_name, project_id=project_id,
-                description=kwargs.get('description', ''),
-                is_shared=kwargs.get('shared', False),
+                description=kwargs.get('description') or '',
+                is_shared=bool(shared),
             )
-            return {'success': True, 'policy': policy.to_dict()}
-        policies = [p for p in conn.network.qos_policies(project_id=project_id)
-                    if p.project_id == project_id]
+            result = {'success': True, 'policy': policy.to_dict()}
+            if policy.is_shared:
+                result['warning'] = SHARED_POLICY_WARNING
+            return result
+        owned = [p for p in conn.network.qos_policies(project_id=project_id)
+                 if p.project_id == project_id]
+        foreign_shared = [p for p in conn.network.qos_policies(is_shared=True)
+                          if p.is_shared and p.project_id != project_id]
         if action == 'list':
-            return {'success': True, 'policies': [p.to_dict() for p in policies],
-                    'count': len(policies)}
-        matches = [p for p in policies if p.id == policy_name]
-        if not matches:
-            matches = [p for p in policies if p.name == policy_name]
-        if len(matches) != 1:
-            raise ValueError('Policy not found or name is ambiguous; use an ID')
-        conn.network.delete_qos_policy(matches[0], ignore_missing=False)
-        return {'success': True, 'message': 'QoS policy deletion accepted'}
+            return {
+                'success': True, 'policies': [p.to_dict() for p in owned],
+                'count': len(owned),
+                'shared_from_other_projects': [
+                    p.to_dict() for p in foreign_shared],
+            }
+        usable = owned + foreign_shared
+        if action in {'show', 'associate', 'disassociate'}:
+            policy = _match_one(usable, policy_name, 'Policy')
+        else:
+            policy = _match_one(owned, policy_name, 'Project-owned policy')
+
+        if action == 'show':
+            return _policy_result(conn, policy, project_id)
+        if action == 'delete':
+            conn.network.delete_qos_policy(policy, ignore_missing=False)
+            return {'success': True, 'message': 'QoS policy deletion accepted'}
+        if action == 'update':
+            changes: Dict[str, Any] = {}
+            for key in ('new_name', 'description'):
+                if kwargs.get(key) is not None:
+                    changes['name' if key == 'new_name' else key] = kwargs[key]
+            if shared is not None:
+                changes['is_shared'] = shared
+            if not changes:
+                raise ValueError('Provide new_name, description or shared')
+            conn.network.update_qos_policy(policy, **changes)
+            return _policy_result(conn, policy, project_id)
+
+        if action in {'add_rule', 'update_rule', 'delete_rule'}:
+            rule_type = kwargs.get('rule_type') or ''
+            rule_id = kwargs.get('rule_id') or ''
+            if action == 'add_rule':
+                if rule_type not in QOS_RULE_FIELDS:
+                    raise ValueError(
+                        'rule_type must be one of: '
+                        + ', '.join(sorted(QOS_RULE_FIELDS)))
+            else:
+                if not rule_id:
+                    raise ValueError(f'rule_id is required for {action}')
+                existing = [r for r in (policy.rules or [])
+                            if r.get('id') == rule_id]
+                if len(existing) != 1:
+                    raise ValueError('Rule not found in this policy')
+                rule_type = existing[0]['type']
+            method = f'qos_{rule_type}_rule'
+            if action == 'add_rule':
+                values = _validated_rule_values(rule_type, kwargs.get('rule'))
+                getattr(conn.network, 'create_' + method)(policy, **values)
+            elif action == 'update_rule':
+                values = _validated_rule_values(rule_type, kwargs.get('rule'))
+                getattr(conn.network, 'update_' + method)(
+                    rule_id, policy, **values)
+            else:
+                getattr(conn.network, 'delete_' + method)(
+                    rule_id, policy, ignore_missing=False)
+            return _policy_result(conn, policy, project_id)
+
+        target_type = kwargs.get('target_type') or ''
+        target = kwargs.get('target') or ''
+        if target_type not in QOS_TARGET_TYPES:
+            raise ValueError(
+                'target_type must be one of: ' + ', '.join(sorted(QOS_TARGET_TYPES)))
+        if not target.strip():
+            raise ValueError(f'target is required for {action}')
+        resource = _find_qos_target(conn, target_type, target.strip(), project_id)
+        current_id = _target_qos_policy_id(conn, target_type, resource.id)
+        if action == 'disassociate' and current_id != policy.id:
+            raise ValueError(
+                f'{target_type} {resource.id} does not use policy {policy.id}; '
+                f'its current QoS policy is {current_id}')
+        new_id = policy.id if action == 'associate' else None
+        _set_target_qos_policy(conn, target_type, resource, new_id)
+        applied_id = _target_qos_policy_id(conn, target_type, resource.id)
+        confirmed = applied_id == new_id
+        return {
+            'success': confirmed, 'accepted': True, 'confirmed': confirmed,
+            'message': f'QoS {action} '
+                       + ('confirmed' if confirmed else 'not confirmed by read-back'),
+            'policy_id': policy.id, 'target_type': target_type,
+            'target_id': resource.id, 'previous_qos_policy_id': current_id,
+            'qos_policy_id': applied_id,
+        }
     except Exception as exc:
         return {'success': False, 'message': 'Network QoS operation failed',
                 'error': str(exc)}

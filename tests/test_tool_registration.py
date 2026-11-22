@@ -73,6 +73,10 @@ async def verify():
             'set_volume_qos': {
                 'associate', 'disassociate', 'disassociate_all',
             },
+            'set_network_qos_policies': {
+                'show', 'update', 'add_rule', 'update_rule', 'delete_rule',
+                'associate', 'disassociate',
+            },
         }
         for name, actions in expected_actions.items():
             description = tools[name].parameters['properties']['action']['description']
@@ -96,6 +100,14 @@ async def verify():
             'action': 'associate', 'qos_name': 'a', 'volume_type': 'type-a',
         }),
         ('set_network_qos_policies', {'action': 'delete', 'policy_name': 'a'}),
+        ('set_network_qos_policies', {
+            'action': 'add_rule', 'policy_name': 'a',
+            'rule_type': 'bandwidth_limit', 'rule': '{"max_kbps": 1}',
+        }),
+        ('set_network_qos_policies', {
+            'action': 'associate', 'policy_name': 'a',
+            'target_type': 'port', 'target': 'p',
+        }),
         ('set_network_agents', {'action': 'disable', 'agent_id': 'a'}),
         ('set_secret', {'action': 'create_self_signed_tls', 'name': 'a'}),
         ('set_secret_container', {'action': 'delete', 'name': 'a'}),

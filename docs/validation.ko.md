@@ -622,3 +622,39 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   Desktop 번들은 `OS_HEAT_STACK_CFN_PORT`를 선택 항목으로 표시하고 서버가 읽지 않는다고
   명시하며, 현재 Placement API를 호출하는 도구가 없다고 안내합니다. 서버 동작은 바뀌지
   않아 live 점검은 하지 않았습니다.
+- **Neutron QoS 규칙과 연결 로컬 테스트 (2026-11-22, `96ad042` 기반 커밋 전 작업
+  트리):** fastmcp 4.1.6과 잠금된 openstacksdk 4.22.0으로 `uv run pytest -q`를
+  실행해 734/734 (100%)가 통과했고, 실패하거나 건너뛴 테스트는 없었습니다. 새 테스트
+  12건은 다른 프로젝트가 공유한 정책의 분리 나열, 공유 정책 경고, `shared`를 생략한
+  `update`가 현재 값을 유지하는지, 프로젝트가 소유하지 않은 정책의 규칙 변경 거부, 규칙
+  유형과 필드 검사, `update_rule`/`delete_rule`이 정책에서 유형을 읽는지, read-back으로
+  확인된 port 연결과 확인되지 않은 port 연결, 다른 프로젝트 대상과 알 수 없는 대상 유형
+  거부, 지정한 정책을 요구하는 floating IP 연결 해제, `network_id`와
+  `qos_policy_id`만 보내는 라우터 게이트웨이 연결을 다룹니다. 등록 테스트는 새
+  `set_network_qos_policies` action과 변경 차단도 확인합니다. 이 기록에는 live 점검이
+  포함되지 않으며, 다음 기록을 참고하세요.
+- **Neutron QoS targeted 점검 (2026-11-21 UTC, partial, 같은 커밋 전 작업 트리):**
+  Kolla-Ansible all-in-one OpenStack 2025.1, hybrid iptables firewall을 쓰는 ML2/OVS,
+  QoS 서비스 플러그인, OVS agent `qos`와 L3 agent `fip_qos,gateway_ip_qos` 확장
+  환경입니다. 작업 트리의 서버를 FastMCP in-memory 클라이언트로 프로젝트 관리자 계정과
+  `ALLOW_MODIFY_OPERATIONS=true`로 호출했고, 배포된 서버는 갱신하지 않았습니다. 스크립트
+  실행은 64개 점검 중 62개가 통과했습니다. MCP 호출 39개가 모두 기대한 성공 또는
+  오류를 반환했고, 다시 읽기와 OVS 점검 25개 중 23개가 통과했습니다. 정책 생성, 조회, 이름 변경,
+  설명 변경, 공유 켜기와 끄기(생략 시 값 유지), 삭제를 확인했습니다. 다섯 유형의 규칙을
+  하나씩 추가하고, 대역폭 규칙 수정과 DSCP 규칙 삭제를 모두 다시 읽어 확인했습니다.
+  알 수 없는 규칙 필드, 알 수 없는 규칙 유형, 알 수 없는 규칙 ID, 빈 update, 알 수
+  없는 대상 유형, 게이트웨이 없는 라우터, 대상이 쓰지 않는 정책의 연결 해제, 다른
+  프로젝트의 port를 거부했으며, 그 port는 바뀌지 않았습니다. 잘못된 DSCP 값은 Neutron이
+  거부했습니다. port가 없는 네트워크, 주소로 지정한 연결되지 않은 floating IP, fixed
+  IP와 SNAT이 그대로인 라우터 게이트웨이에서 연결과 해제를 다시 읽어 확인했습니다. 실패한
+  2개는 도구가 아니라 스크립트 문제였습니다. `tap` OVS port를 찾았지만 hybrid firewall에서는
+  `qvo` port입니다. 실행 중인 VM port(`qvo`)로 다시 실행한 점검은 통과했습니다. 송수신
+  10 Mbps 정책이 `ingress_policing_rate` 10000, `ingress_policing_burst` 8000과,
+  queue의 `max-rate` 10000000, `burst` 8000000인 linux-htb QoS를 설정했고, 연결 해제 후
+  둘 다 제거되었습니다. QoS 도구 2개(고유 도구 2개)가 모두 통과했습니다. **Live
+  unverified:** 측정 처리량, 연결한 네트워크 소속 port와 floating IP·게이트웨이 정책의
+  라우터 namespace 적용, 다른 프로젝트가 공유한 정책(존재하지 않아
+  `shared_from_other_projects`가 비어 있음), `shared=true`로 정책 생성, 사용 중인 정책의
+  공유 해제를 Neutron이 거부하는지. 두 번의 실행에서 만든 리소스(정책, 네트워크 1개,
+  라우터 2개, floating IP 1개)는 모두 삭제하고 없음을 확인했으며, VM port에는 QoS 정책이
+  남지 않았습니다. 이 partial 점검은 위의 105개 도구 요약을 갱신하지 않습니다.
