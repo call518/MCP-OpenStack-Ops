@@ -95,6 +95,10 @@ environment:
 - **`timeout_mins: 60`.** Amphora boot and member boot count toward the stack
   timeout, and both are slow under TCG.
 
+For more request examples, including one that also creates volume and network
+QoS in the stack, see
+[Full-stack requests in the usage guide](usage-guide.md#heat-request-examples).
+
 ## What the client added on its own
 
 Everything else in the templates was worked out by the client from the request

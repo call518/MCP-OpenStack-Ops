@@ -139,6 +139,61 @@ OpenStack permissions; see the [cross-project reads guide](cross-project-guide.m
 
 **Tools used:** `get_heat_stacks()`, `set_heat_stack()`
 
+<a id="heat-request-examples"></a>
+
+#### Full-stack requests: autoscaling web tier
+
+A request can describe a whole stack in plain language; the client designs
+the templates, creates what the stack needs, and reports the result. The
+[Heat autoscaling tutorial](heat-autoscaling-tutorial.md) walks through what
+the client builds from a basic request like the first one.
+
+Basic request:
+
+```text
+Use the web-01 VM (web server) as the source for a new base image. Create and bring up a Heat stack with a TLS-terminating load balancer and autoscaling web servers.
+Run 2 web servers normally, with a maximum of 4. Scale out by 1 when average CPU utilization stays above 60% for 1 minute, and scale in by 1 when it stays below 40% for 5 minutes, down to 2. Use a 900-second cooldown and set the stack's timeout_mins to 60.
+```
+
+Advanced request, adding storage and network QoS:
+
+```text
+Use the web-01 VM (web server) as the source for a new base image. Create and bring up a Heat stack with a TLS-terminating load balancer and autoscaling web servers.
+Run 2 web servers normally, with a maximum of 4. Scale out by 1 when average CPU utilization stays above 60% for 5 minutes, and scale in by 1 when it stays below 40% for 5 minutes, down to 2. Use a 900-second cooldown and set the stack's timeout_mins to 60.
+
+Base image:
+- Make the base image a Glance image that contains the data, so that root volumes can be created with any volume type.
+
+Storage and network QoS:
+- Create a volume QoS spec and volume type for the web servers' root and data volumes, a bandwidth limit policy for the web server ports, and a DSCP marking policy for the load balancer VIP. Choose the names, rules and values yourself, but use only rules that this environment's Cinder backend and Neutron QoS driver actually enforce.
+- Create these resources in the same Heat stack where possible, so they share the stack's lifecycle and can be identified by the stack name. Do not modify existing QoS policies or volume types.
+- Boot the web servers from volumes, and give each web server a 20 GB root volume and a 5 GB data volume of the new volume type.
+- Apply the bandwidth limit policy to the web server ports. Instances added by scale-out must get the same volume type and QoS automatically.
+- Apply the DSCP marking policy to the load balancer VIP. If Heat cannot set it, apply it after the stack is created through Octavia's vip_qos_policy_id; if the tools cannot do that, give me the command to run. If it still cannot be applied, tell me why.
+
+Completion report:
+- Check load balancer member health only after the members have had time to settle after boot.
+- In the final report, include:
+  1) The names, rules, values and reasons for the new volume QoS spec, volume type and network QoS policies
+  2) The volume type and QoS attachment of each instance
+  3) Whether each port has its QoS policy, including the VIP and VRRP ports
+  4) Anything that could not be applied and why, and any remaining manual steps
+```
+
+Notes for the advanced request:
+
+- The base image is made with `set_volume`: `create` with `source_snapshot`
+  turns the snapshot of a boot-from-volume server into a volume, and
+  `upload_to_image` copies that volume into a Glance image with data.
+- Under Cinder's default policy, creating volume types and QoS specs requires
+  the administrator role.
+- Heat's `OS::Octavia::LoadBalancer` has no QoS property, so the client
+  attaches the VIP policy after the stack is created with `set_load_balancer`
+  (`vip_qos_policy`). With the amphora provider, Octavia applies it to the
+  amphora VRRP ports, which is why the report covers those ports.
+
+**Tools used:** `set_instance()`, `set_volume()`, `set_secret()`, `set_heat_stack()`, `get_heat_stack_details()`, `set_load_balancer()`, `get_load_balancer_details()`, `get_network_qos_policies()`, `get_server_volumes()`
+
 ### ⚖️ Load balancer
 
 ```

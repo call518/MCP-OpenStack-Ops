@@ -91,6 +91,9 @@ test-rockylinux-9 VM(웹서버)으로 새 기준 이미지를 만들어서 TLS �
 - **`timeout_mins: 60`.** amphora 부팅과 멤버 부팅이 스택 timeout에 포함되며,
   TCG에서는 둘 다 느립니다.
 
+볼륨과 네트워크 QoS까지 스택 안에서 만드는 요청을 포함한 더 많은 요청문 예시는
+[사용 가이드의 스택 전체 요청](usage-guide.ko.md#heat-request-examples)을 참고하세요.
+
 ## 클라이언트가 스스로 채운 내용
 
 템플릿의 나머지는 클라이언트가 요청과 이 서버의 도구 설명을 바탕으로 정했습니다.
