@@ -38,6 +38,13 @@ content. `docs/issues/` is outside this rule.
 - Translate prose only. Keep commands, code blocks, configuration keys, tool and
   action names, and the mapping's Status values (`✅`, `⚠️ Live unverified`,
   `❌ Not implemented`, ...) identical in both languages.
+- Exception: write example prompts, the natural-language requests a user types
+  into an MCP client, in the file's language, whether they appear in code
+  blocks, quotes, or prose. Korean files use Korean prompts with the same
+  meaning, values, and targets as the English ones; tool names, parameters, and
+  tool output inside or next to a prompt stay unchanged. Validation records
+  describe the prompts as they were tested; do not present a translated prompt
+  as separately validated.
 - Links in a Korean file point to the Korean version of other documents
   (`*.ko.md`) and to the anchors generated from their Korean headings. After
   editing, check that every relative link and anchor resolves in both languages.

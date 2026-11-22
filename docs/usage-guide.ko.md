@@ -13,14 +13,14 @@ OpenStack CLI 명령은 README의
 같습니다.
 
 ```text
-Show me the overall cluster status
-List all instances in the project
-Find instances in SHUTOFF state
-Show all networks and their subnets
-List all volumes and their status
-Show the vCPUs and memory allocated to my project and the remaining quota
-Show CPU usage of web-01 over the last hour
-Stop all instances with name containing 'test'
+클러스터 전체 상태를 보여줘
+프로젝트의 모든 인스턴스를 나열해줘
+SHUTOFF 상태인 인스턴스를 찾아줘
+모든 네트워크와 서브넷을 보여줘
+모든 볼륨과 상태를 나열해줘
+내 프로젝트에 할당된 vCPU와 메모리, 남은 쿼터를 보여줘
+최근 1시간 동안 web-01의 CPU 사용량을 보여줘
+이름에 'test'가 들어간 인스턴스를 모두 중지해줘
 ```
 
 리소스를 만들거나 바꾸거나 지우는 요청은 변경 도구가 켜져 있을 때만
@@ -38,23 +38,23 @@ Stop all instances with name containing 'test'
 ### 🎯 클러스터 개요와 상태
 
 ```
-"Show me the overall cluster status"
-"Create a comprehensive cluster report"
-"What's the current infrastructure health?"
-"Give me a cluster overview with resource allocation and capacity"
+"클러스터 전체 상태를 보여줘"
+"클러스터 종합 보고서를 만들어줘"
+"현재 인프라 상태는 어때?"
+"리소스 할당과 용량을 포함한 클러스터 개요를 보여줘"
 ```
 
-**사용 도구:** `get_service_status()`, `get_resource_monitoring()`, `get_service_status()`
+**사용 도구:** `get_service_status()`, `get_resource_monitoring()`
 
 ### 🖥️ 인스턴스 관리
 
 ```
-"List all instances in the project"
-"Show details for instance web-server-01"
-"Create an instance named test-vm with flavor m1.small and image ubuntu-20.04"
-"Start instance web-server-01"
-"Stop all instances with name containing 'test'"
-"Delete instance old-server"
+"프로젝트의 모든 인스턴스를 나열해줘"
+"인스턴스 web-server-01의 상세 정보를 보여줘"
+"flavor m1.small, 이미지 ubuntu-20.04로 test-vm이라는 인스턴스를 만들어줘"
+"인스턴스 web-server-01을 시작해줘"
+"이름에 'test'가 들어간 인스턴스를 모두 중지해줘"
+"인스턴스 old-server를 삭제해줘"
 ```
 
 **사용 도구:** `get_instance_details()`, `set_instance()`, `search_instances()`
@@ -62,11 +62,11 @@ Stop all instances with name containing 'test'
 ### 🌐 네트워크 작업
 
 ```
-"Show all networks and their subnets"
-"List floating IPs and their assignments"
-"Create a network named private-net with subnet 192.168.100.0/24"
-"Associate floating IP 203.0.113.10 to instance web-server"
-"Show network topology"
+"모든 네트워크와 서브넷을 보여줘"
+"floating IP와 할당 상태를 나열해줘"
+"서브넷 192.168.100.0/24를 가진 private-net 네트워크를 만들어줘"
+"floating IP 203.0.113.10을 인스턴스 web-server에 연결해줘"
+"네트워크 토폴로지를 보여줘"
 ```
 
 **사용 도구:** `get_network_details()`, `get_floating_ips()`, `set_networks()`, `set_floating_ip()`
@@ -74,11 +74,11 @@ Stop all instances with name containing 'test'
 ### 💾 스토리지 관리
 
 ```
-"List all volumes and their status"
-"Show volume details for data-volume-01"
-"Create a 50GB volume named backup-storage"
-"Attach volume data-vol to instance web-server-01"
-"Create a snapshot of volume database-storage"
+"모든 볼륨과 상태를 나열해줘"
+"볼륨 data-volume-01의 상세 정보를 보여줘"
+"backup-storage라는 50GB 볼륨을 만들어줘"
+"볼륨 data-vol을 인스턴스 web-server-01에 연결해줘"
+"볼륨 database-storage의 스냅샷을 만들어줘"
 ```
 
 **사용 도구:** `get_volume_list()`, `set_volume()`, `set_snapshot()`
@@ -89,18 +89,18 @@ Stop all instances with name containing 'test'
 권한이 필요합니다. [cross-project 조회 가이드](cross-project-guide.ko.md)를 참고하세요.
 
 ```
-"List all projects in the cloud"
-"Show a table of VMs per project"
-"Which projects have SHUTOFF instances?"
-"Find instances named 'web' in every project"
-"List volumes across all projects with size and status"
-"Which project uses the most volume storage?"
-"Show volume snapshots in every project"
-"How many instances and volumes does each project have?"
-"Show the resource counts of project 'dev'"
-"List networks and floating IPs of every project"
-"Show volume backups and server groups in all projects"
-"List load balancers and private images of every project"
+"클라우드의 모든 프로젝트를 나열해줘"
+"프로젝트별 VM을 표로 보여줘"
+"SHUTOFF 인스턴스가 있는 프로젝트는 어디야?"
+"모든 프로젝트에서 이름이 'web'인 인스턴스를 찾아줘"
+"모든 프로젝트의 볼륨을 크기, 상태와 함께 나열해줘"
+"볼륨 스토리지를 가장 많이 쓰는 프로젝트는 어디야?"
+"모든 프로젝트의 볼륨 스냅샷을 보여줘"
+"프로젝트마다 인스턴스와 볼륨이 몇 개야?"
+"'dev' 프로젝트의 리소스 수를 보여줘"
+"모든 프로젝트의 네트워크와 floating IP를 나열해줘"
+"모든 프로젝트의 볼륨 백업과 서버 그룹을 보여줘"
+"모든 프로젝트의 로드밸런서와 private 이미지를 나열해줘"
 ```
 
 **사용 도구:** `get_project_details(all_projects=true)`, `get_instance_details(all_projects=true)`, `get_instances_by_status(all_projects=true)`, `search_instances(all_projects=true)`, `get_volume_list(all_projects=true)`, `get_volume_snapshots(all_projects=true)`, `get_network_details(all_projects=true)`, `get_routers(all_projects=true)`, `get_security_groups(all_projects=true)`, `get_floating_ips(all_projects=true)`, `get_volume_backups(all_projects=true)`, `get_volume_groups(all_projects=true)`, `get_server_groups(all_projects=true)`, `get_image_detail_list(all_projects=true)`, `get_heat_stacks(all_projects=true)`, `get_load_balancer_list(all_projects=true)`
@@ -110,21 +110,21 @@ Stop all instances with name containing 'test'
 ### 🖼️ 이미지 작업
 
 ```
-"List available images"
-"Show details for Ubuntu images"
-"Create an image from instance web-server-01 named custom-web-image"
-"Delete image old-snapshot-image"
+"사용 가능한 이미지를 나열해줘"
+"Ubuntu 이미지의 상세 정보를 보여줘"
+"인스턴스 web-server-01로 custom-web-image라는 이미지를 만들어줘"
+"이미지 old-snapshot-image를 삭제해줘"
 ```
 
 **사용 도구:** `get_image_detail_list()`, `set_image()`
 
-### 👥 ID와 접근 관리
+### 👥 Identity와 접근 관리
 
 ```
-"Show project details and quotas"
-"List users in current project"
-"Show role assignments"
-"Create keypair named my-key"
+"프로젝트 상세 정보와 쿼터를 보여줘"
+"현재 프로젝트의 사용자를 나열해줘"
+"역할 할당을 보여줘"
+"my-key라는 키페어를 만들어줘"
 ```
 
 **사용 도구:** `get_project_details()`, `get_user_list()`, `get_role_assignments()`, `set_keypair()`
@@ -132,10 +132,10 @@ Stop all instances with name containing 'test'
 ### 🔥 오케스트레이션(Heat)
 
 ```
-"List all Heat stacks"
-"Show stack status for production-stack"
-"Create stack from template with parameters"
-"Delete stack old-deployment"
+"모든 Heat 스택을 나열해줘"
+"production-stack의 스택 상태를 보여줘"
+"템플릿과 파라미터로 스택을 만들어줘"
+"스택 old-deployment를 삭제해줘"
 ```
 
 **사용 도구:** `get_heat_stacks()`, `set_heat_stack()`
@@ -143,10 +143,10 @@ Stop all instances with name containing 'test'
 ### ⚖️ 로드밸런서
 
 ```
-"Show load balancer status"
-"List all load balancers and listeners"
-"Create load balancer for web tier"
-"Show health monitor status"
+"로드밸런서 상태를 보여줘"
+"모든 로드밸런서와 리스너를 나열해줘"
+"웹 계층용 로드밸런서를 만들어줘"
+"헬스 모니터 상태를 보여줘"
 ```
 
 **사용 도구:** `get_load_balancer_details()`, `set_load_balancer()`, `get_load_balancer_listeners()`
@@ -154,10 +154,10 @@ Stop all instances with name containing 'test'
 ### 🔐 Barbican 시크릿과 TLS 리스너
 
 ```
-"List Barbican secrets and show which services use web-tls"
-"Create a self-signed TLS secret named web-tls for 192.168.35.169"
-"Add a TERMINATED_HTTPS listener on port 443 to web-lb with certificate web-tls"
-"Show the ACL of secret web-tls"
+"Barbican 시크릿을 나열하고 web-tls를 쓰는 서비스를 보여줘"
+"192.168.35.169용 자체 서명 TLS 시크릿 web-tls를 만들어줘"
+"web-lb에 인증서 web-tls를 쓰는 443 포트 TERMINATED_HTTPS 리스너를 추가해줘"
+"시크릿 web-tls의 ACL을 보여줘"
 ```
 
 **사용 도구:** `get_secrets()`, `set_secret()`, `set_load_balancer_listener()`, `get_secret_acl()`
@@ -168,10 +168,10 @@ Stop all instances with name containing 'test'
 ### 🔍 고급 검색과 필터링
 
 ```
-"Find all instances with 'web' in the name"
-"Search for running instances"
-"Show instances created in the last 7 days"
-"Find volumes larger than 100GB"
+"이름에 'web'이 들어간 인스턴스를 모두 찾아줘"
+"실행 중인 인스턴스를 검색해줘"
+"최근 7일 동안 만든 인스턴스를 보여줘"
+"100GB보다 큰 볼륨을 찾아줘"
 ```
 
 **사용 도구:** `search_instances()`, `get_instances_by_status()`
@@ -179,32 +179,32 @@ Stop all instances with name containing 'test'
 ### 📊 리소스 할당과 용량
 
 ```
-"Show resource allocation and capacity by hypervisor"
-"How many vCPUs and how much RAM are allocated in my project?"
-"Show quota usage and limits"
-"Display storage capacity statistics"
-"Show the vCPUs and memory allocated to my project and the remaining quota"
+"하이퍼바이저별 리소스 할당과 용량을 보여줘"
+"내 프로젝트에 vCPU와 RAM이 얼마나 할당되어 있어?"
+"쿼터 사용량과 한도를 보여줘"
+"스토리지 용량 통계를 보여줘"
+"내 프로젝트에 할당된 vCPU와 메모리, 남은 쿼터를 보여줘"
 ```
 
 **사용 도구:** `get_resource_monitoring()`, `get_quota()`, `get_usage_statistics()`
 
-결과는 할당량, 쿼터, 용량이며 실제 측정한 사용률이 아닙니다.
+결과는 할당(allocation), 쿼터, 용량이며 실제 측정한 사용률이 아닙니다.
 
 ### 📡 텔레메트리 지표(Gnocchi)
 
 ```
-"Monitor CPU and memory usage of web-01"
-"Show the actual CPU utilization trend of web-01"
-"Show the telemetry metrics collected for server web-01"
-"Show memory measures of web-01 since 2026-11-08T00:00:00, resampled hourly"
-"List all Gnocchi metrics in my project"
-"Show the archive policies and supported aggregation methods"
-"Is Gnocchi measure processing backlogged?"
-"Show the latest 10 vcpus measures of web-01"
-"What is the average CPU usage across all instances in my project?"
-"Show the top 5 instances by CPU usage"
-"Show mean memory usage per flavor"
-"Show the memory.usage to flavor memory ratio across my instances"
+"web-01의 CPU와 메모리 사용량을 모니터링해줘"
+"web-01의 실제 CPU 사용률 추이를 보여줘"
+"서버 web-01에 대해 수집된 텔레메트리 지표를 보여줘"
+"2026-11-08T00:00:00 이후 web-01의 메모리 측정값을 1시간 단위로 리샘플링해서 보여줘"
+"내 프로젝트의 모든 Gnocchi 지표를 나열해줘"
+"archive policy와 지원되는 aggregation 방식을 보여줘"
+"Gnocchi 측정값 처리가 밀려 있어?"
+"web-01의 최근 vcpus 측정값 10개를 보여줘"
+"내 프로젝트 전체 인스턴스의 평균 CPU 사용량은 얼마야?"
+"CPU 사용량 상위 5개 인스턴스를 보여줘"
+"flavor별 평균 메모리 사용량을 보여줘"
+"내 인스턴스들의 flavor 메모리 대비 memory.usage 비율을 보여줘"
 ```
 
 **사용 도구:** `get_gnocchi_resources()`, `get_gnocchi_metrics()`, `get_gnocchi_measures()`, `get_gnocchi_aggregates()`, `get_gnocchi_service_info()`
@@ -216,12 +216,12 @@ Stop all instances with name containing 'test'
 ### 🚨 알람(Aodh)
 
 ```
-"List alarms in my project"
-"Create an alarm when web-01 memory.usage exceeds 1500 MB"
-"Create an alarm when web-01 CPU exceeds 80%"
-"Show details and current state of alarm mem-high"
-"Delete alarm mem-high"
-"Create a threshold alarm on the vcpus metric of web-01"
+"내 프로젝트의 알람을 나열해줘"
+"web-01의 memory.usage가 1500 MB를 넘으면 울리는 알람을 만들어줘"
+"web-01의 CPU가 80%를 넘으면 울리는 알람을 만들어줘"
+"알람 mem-high의 상세 정보와 현재 상태를 보여줘"
+"알람 mem-high를 삭제해줘"
+"web-01의 vcpus 지표에 임계값 알람을 만들어줘"
 ```
 
 **사용 도구:** `set_alarms()`(`ALLOW_MODIFY_OPERATIONS=true` 필요), `get_gnocchi_metrics()`
@@ -231,10 +231,10 @@ Stop all instances with name containing 'test'
 ### 🛠️ 문제 해결
 
 ```
-"Check OpenStack service status"
-"Show instance events for server-01"
-"Display hypervisor details"
-"Show network agent status"
+"OpenStack 서비스 상태를 확인해줘"
+"server-01의 인스턴스 이벤트를 보여줘"
+"하이퍼바이저 상세 정보를 보여줘"
+"네트워크 agent 상태를 보여줘"
 ```
 
 **사용 도구:** `get_service_status()`, `get_server_events()`, `get_hypervisor_details()`
@@ -242,10 +242,10 @@ Stop all instances with name containing 'test'
 ### 🔒 보안 작업
 
 ```
-"List security groups and rules"
-"Show keypair information"
-"Display floating IP associations"
-"Check role assignments for current project"
+"보안 그룹과 규칙을 나열해줘"
+"키페어 정보를 보여줘"
+"floating IP 연결 상태를 보여줘"
+"현재 프로젝트의 역할 할당을 확인해줘"
 ```
 
 **사용 도구:** `get_security_groups()`, `get_keypair_list()`, `get_floating_ips()`, `get_role_assignments()`
@@ -253,10 +253,10 @@ Stop all instances with name containing 'test'
 ### 📈 성능과 최적화
 
 ```
-"Show top 10 instances by allocated vCPU and RAM"
-"Display flavor allocation statistics"
-"Monitor network resource counts and status"
-"Check disk I/O telemetry of web-01"
+"할당된 vCPU와 RAM 기준 상위 10개 인스턴스를 보여줘"
+"flavor 할당 통계를 보여줘"
+"네트워크 리소스 수와 상태를 모니터링해줘"
+"web-01의 디스크 I/O 텔레메트리를 확인해줘"
 ```
 
 **사용 도구:** `get_instance_details()`, `get_resource_monitoring()`(할당), `get_gnocchi_measures()`(측정된 I/O, 수집되는 경우)
@@ -264,10 +264,10 @@ Stop all instances with name containing 'test'
 ### 🎛️ 일괄 작업
 
 ```
-"Stop all instances with tag 'development'"
-"Create multiple volumes with names vol-01, vol-02, vol-03"
-"Delete all snapshots older than 30 days"
-"Update all instances with new security group"
+"'development' 태그가 붙은 인스턴스를 모두 중지해줘"
+"vol-01, vol-02, vol-03이라는 볼륨 여러 개를 만들어줘"
+"30일보다 오래된 스냅샷을 모두 삭제해줘"
+"모든 인스턴스에 새 보안 그룹을 적용해줘"
 ```
 
 **사용 도구:** 필터 매개변수와 함께 여러 도구를 조합
@@ -277,7 +277,7 @@ Stop all instances with name containing 'test'
 #### 복잡한 요청을 위한 여러 도구 조합
 
 ```
-"Show complete infrastructure overview" →
+"인프라 전체 개요를 보여줘" →
 1. get_service_status() (service health)
 2. get_resource_monitoring() (allocation and capacity)
 3. get_instance_details() (compute resources)
@@ -287,7 +287,7 @@ Stop all instances with name containing 'test'
 ```
 
 ```
-"Troubleshoot performance issues" →
+"성능 문제를 진단해줘" →
 1. get_instance_details() (instance status & specs)
 2. get_gnocchi_measures() (measured load, if collected)
 3. get_resource_monitoring() + get_hypervisor_details() (allocation and host capacity)
@@ -295,7 +295,7 @@ Stop all instances with name containing 'test'
 ```
 
 ```
-"Security audit report" →
+"보안 감사 보고서를 만들어줘" →
 1. get_security_groups() (security rules)
 2. get_floating_ips() (external access points)
 3. get_keypair_list() (SSH access keys)
@@ -305,12 +305,12 @@ Stop all instances with name containing 'test'
 
 #### 일상 언어를 도구로 옮기는 예
 
-- **"Show me everything"** → 여러 도구를 써서 클러스터 전체 보고서 작성
-- **"What's broken?"** → 서비스 상태 + 리소스 모니터링 + 인스턴스 상태 점검
-- **"Can I create a new VM?"** → 프로젝트 쿼터 + 사용 가능한 flavor + 네트워크 선택지
-- **"Why is my instance slow?"** → 인스턴스 상세 + 리소스 모니터링 + 하이퍼바이저 상태
-- **"Show network connectivity"** → 네트워크 상세 + 보안 그룹 + floating IP + 라우터
-- **"Open public TCP port 80 on security group web"** → `set_security_group_rules(action="create", security_group="web", protocol="tcp", port_range_min=80, port_range_max=80, remote_ip_prefix="0.0.0.0/0")`
+- **"전부 보여줘"** → 여러 도구를 써서 클러스터 전체 보고서 작성
+- **"뭐가 고장 났어?"** → 서비스 상태 + 리소스 모니터링 + 인스턴스 상태 점검
+- **"새 VM을 만들 수 있어?"** → 프로젝트 쿼터 + 사용 가능한 flavor + 네트워크 선택지
+- **"내 인스턴스가 왜 느려?"** → 인스턴스 상세 + 리소스 모니터링 + 하이퍼바이저 상태
+- **"네트워크 연결 상태를 보여줘"** → 네트워크 상세 + 보안 그룹 + floating IP + 라우터
+- **"보안 그룹 web에서 TCP 80 포트를 외부에 열어줘"** → `set_security_group_rules(action="create", security_group="web", protocol="tcp", port_range_min=80, port_range_max=80, remote_ip_prefix="0.0.0.0/0")`
 
 ## 일괄 작업과 필터 기반 대상 지정
 

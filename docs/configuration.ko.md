@@ -178,7 +178,7 @@ OS_CACERT=/etc/pki/tls/certs/ca-bundle.crt
 ```
 
 사설 CA라면 인증서가 `mcp-server` 컨테이너 안에 있어야 합니다. `.env`에 호스트
-경로만 적어서는 안 됩니다.
+경로만 적는 것으로는 충분하지 않습니다.
 
 `docker-compose.yml`의 `mcp-server` 아래에 있는 CA 볼륨 예시의 주석을 풀고 값을
 바꾸세요.
@@ -207,7 +207,7 @@ docker compose logs mcp-server
 ## MCP 클라이언트 설정 템플릿
 
 추적되는 `mcp-config.json.*` 파일은 참조용 템플릿입니다. 자격 증명을 넣기 전에 필요한
-템플릿만 복사하세요. `.local`로 끝나는 파일은 모두 Git이 무시합니다.
+템플릿만 복사하세요. 이에 해당하는 `.local` 파일은 모두 Git이 무시합니다.
 
 ```bash
 cp mcp-config.json.http mcp-config.json.http.local

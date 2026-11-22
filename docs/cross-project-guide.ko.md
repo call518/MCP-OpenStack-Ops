@@ -55,7 +55,7 @@
    Credential(방식 C)을 줍니다.
 4. `ALLOW_CROSS_PROJECT_READ=true`로 기능을 켭니다.
 
-그다음 요청에서 모든 프로젝트를 물어봅니다. 예: "List VMs per project". 그러면
+그다음 요청에서 모든 프로젝트를 물어봅니다. 예: "프로젝트별 VM을 나열해줘". 그러면
 클라이언트가 지원 도구에 `all_projects=true`를 넘깁니다.
 
 ## 지원 도구

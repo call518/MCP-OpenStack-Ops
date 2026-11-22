@@ -290,7 +290,7 @@ override가 남아 있어도 요청이 실패할 수 있습니다.
 모델에게 물어봅니다.
 
 ```text
-Use mcp-openstack-ops to list the instances in my OpenStack project.
+mcp-openstack-ops로 내 OpenStack 프로젝트의 인스턴스를 나열해줘.
 ```
 
 정상 응답이 오면, 채팅에서 고른 연결에 따라 OpenWebUI → MCP 서버 → OpenStack 경로나
@@ -314,7 +314,7 @@ OpenWebUI 0.13에서 자주 나오는 오류:
 | `Function tools with reasoning_effort are not supported ... /v1/chat/completions` | Chat Completions가 함수 도구와 `none`이 아닌 reasoning effort를 함께 받음 | Reasoning Effort를 `none`으로 설정(Quick Start 기본값)하거나, **API Type**을 **Responses**로 바꾸고 Reasoning Effort를 **Default**로 설정 |
 | `Unsupported parameter: reasoning_effort ... moved to reasoning.effort` | OpenWebUI 0.13.0이 **API Type: Responses** 연결로 Chat Completions 파라미터 `reasoning_effort`(`none` 포함)를 보냄 | **API Type**을 **Chat Completions**로 설정(Quick Start 기본값)하거나, **Responses**를 유지하고 모든 범위에서 Reasoning Effort를 **Default**로 설정한 뒤 새 채팅 시작 |
 | MCPO 로그에 `POST http://mcp-server:8000/mcp "404 Not Found"`와 `McpError: Session terminated`, `mcp-server` 로그에 `Rejected request with unknown or expired session ID` | MCP 세션은 실행 중인 `mcp-server` 프로세스 안에만 존재함. `mcp-server`가 재시작된 뒤에도 MCPO는 이전 세션을 유지하고 다시 연결하지 않음. `docker compose restart`는 `mcp-server` health check를 기다리지 않으므로, MCPO가 종료 직전의 이전 프로세스에 연결할 수 있음 | `mcp-server`가 실행 중인 상태에서 `docker compose restart mcpo-proxy`를 실행. 둘 다 재시작하려면 `docker compose restart` 대신 `docker compose up -d --force-recreate mcp-server mcpo-proxy`를 사용. 직접 MCP 클라이언트가 같은 세션 오류를 보고하면 다시 연결 |
-| 모델이 OpenStack 도구가 없다고 답하고, `mcp-server` 로그에 `POST /mcp HTTP/1.1" 401 Unauthorized`가 남음 | `.env` 모드와 MCPO 파일이 맞지 않음. 예: `MCP_MULTI_USER=true`인데 `mcp-config.json.http.local`을 쓰거나, `REMOTE_AUTH_ENABLE=true`인데 맞는 `Authorization` 헤더가 없음. 로그에 `OpenStack authentication rejected ... error_type=NotFound`도 있으면 MCPO 파일의 Application Credential이 더 이상 존재하지 않음 | [접근 모드별 `.env` 설정](configuration.ko.md#접근-모드별-env-설정)의 한 열에 맞춰 키를 설정하고, 자격 증명이 삭제됐으면 새 Application Credential을 만든 뒤 `docker compose up -d --force-recreate mcp-server mcpo-proxy`를 실행하고 새 대화를 시작 |
+| 모델이 OpenStack 도구가 없다고 답하고, `mcp-server` 로그에 `POST /mcp HTTP/1.1" 401 Unauthorized`가 남음 | `.env` 모드와 MCPO 파일이 맞지 않음. 예: `MCP_MULTI_USER=true`인데 `mcp-config.json.http.local`을 쓰거나, `REMOTE_AUTH_ENABLE=true`인데 맞는 `Authorization` 헤더가 없음. 로그에 `OpenStack authentication rejected ... error_type=NotFound`도 있으면 MCPO 파일의 Application Credential이 더 이상 존재하지 않음 | [접근 모드별 `.env` 설정](configuration.ko.md#접근-모드별-env-설정)의 한 열에 맞춰 키를 설정하고, 자격 증명이 삭제됐으면 새 Application Credential을 만든 뒤 `docker compose up -d --force-recreate mcp-server mcpo-proxy`를 실행하고 새 채팅을 시작 |
 
 ## 5. 필요할 때만 변경 작업 켜기
 

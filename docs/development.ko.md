@@ -235,8 +235,8 @@ docker compose up -d
 docker compose logs -f mcp-server
 
 # Test with natural language:
-# "Show me your custom analysis"
-# "Get custom analysis for target_name"
+# "사용자 지정 분석 결과를 보여줘"
+# "target_name에 대한 사용자 지정 분석을 가져와줘"
 ```
 
 도구가 새 OpenStack 서비스를 호출하거나 기존 도구의 동작을 바꾸면, `AGENTS.md`에

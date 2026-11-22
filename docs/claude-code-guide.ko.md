@@ -32,7 +32,7 @@ claude mcp add --transport http --scope user openstack-ops http://127.0.0.1:8000
 Claude Code에서 `/mcp`를 확인하고, 예를 들어 다음과 같이 물어보세요.
 
 ```text
-Use openstack-ops to list all instances in the project.
+openstack-ops로 프로젝트의 모든 인스턴스를 나열해줘.
 ```
 
 더 이상 필요 없으면 등록을 지우세요(서버가 멈추지는 않습니다).

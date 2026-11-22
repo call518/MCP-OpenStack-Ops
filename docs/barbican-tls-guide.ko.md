@@ -68,8 +68,8 @@ openstack secret store --name web-tls -t opaque -e base64 \
 
 테스트나 내부 서비스에는 자체 서명 인증서를 요청할 수 있습니다.
 
-> Create a self-signed TLS secret named web-tls for 192.168.35.169 with SANs
-> 192.168.35.169 and 10.40.40.185.
+> 192.168.35.169용 자체 서명 TLS 시크릿 web-tls를 만들어줘. SAN은
+> 192.168.35.169와 10.40.40.185로 해줘.
 
 `set_secret`(`action="create_self_signed_tls"`)은 `name`, `common_name`,
 `subject_alt_names`(DNS 이름과 IP 주소, 쉼표 구분), `days`(1-3650),
@@ -89,8 +89,8 @@ openstack secret store --name web-tls -t opaque -e base64 \
 이름은 현재 프로젝트에서 href로 변환되며, 시크릿을 먼저 찾고 없으면 certificate
 컨테이너를 찾습니다. 두 파라미터는 `action="set"`에서도 쓸 수 있습니다. 예시:
 
-> On web-lb, add a TERMINATED_HTTPS listener web-listener-https on port 443
-> with certificate web-tls and default pool web-pool.
+> web-lb에 443 포트 TERMINATED_HTTPS 리스너 web-listener-https를 추가해줘.
+> 인증서는 web-tls, 기본 pool은 web-pool로 해줘.
 
 리스너 생성은 비동기입니다. `get_load_balancer_listeners`로 리스너가
 `ACTIVE`/`ONLINE`이 되었는지 확인한 뒤 `curl -vk https://<address>/`로 시험합니다.
@@ -126,7 +126,7 @@ mTLS). Client authentication이 없으면 로드밸런서만 멤버를 검증합
 | 멤버 인증서 검증 | 해당 없음 | ❌ | ✅ 선택 (`ca_tls_container_ref`) |
 | 멤버에 대한 client authentication (mTLS) | 해당 없음 | ❌ | ✅ 선택 (`tls_container_ref`) |
 | 멤버에 인증서 설치 | 불필요 | 필요 | 필요 |
-| 적합한 경우 | 내부망을 신뢰하고 인증서를 로드밸런서에서 일괄 관리 | 인증서를 로드밸런서에 맡길 수 없거나 멤버까지 종단 간 암호화가 필요 | L7 기능과 구간별 암호화가 모두 필요 |
+| 적합한 경우 | 내부망을 신뢰하고 인증서를 로드밸런서에서 일괄 관리 | 인증서를 로드밸런서에 맡길 수 없거나 멤버까지 종단 간 암호화가 필요 | L7 기능과 모든 구간의 암호화가 모두 필요 |
 
 **Non-terminated HTTPS**에는 새 파라미터가 필요 없습니다. `set_load_balancer_listener`로 `HTTPS`
 리스너를, `set_load_balancer_pool`로 `HTTPS` pool을 만듭니다. 헬스 체크는
@@ -222,9 +222,9 @@ openstack secret store --name web-backend-ca -t opaque -e base64 \
 
 **6. MCP로 pool과 멤버를 만듭니다.** `TERMINATED_HTTPS` 리스너 뒤에 둡니다.
 
-> On listener web-listener-https, create pool web-pool-mtls with protocol HTTP,
-> tls_enabled true, client certificate web-lb-client and CA web-backend-ca,
-> then add members 10.40.40.11 and 10.40.40.12 on port 443.
+> 리스너 web-listener-https에 프로토콜 HTTP, tls_enabled true, 클라이언트 인증서
+> web-lb-client, CA web-backend-ca로 pool web-pool-mtls를 만들고, 443 포트로
+> 멤버 10.40.40.11과 10.40.40.12를 추가해줘.
 
 이 요청은 `set_load_balancer_pool`(`tls_enabled="true"`,
 `tls_container_ref="web-lb-client"`, `ca_tls_container_ref="web-backend-ca"`)과

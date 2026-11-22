@@ -1,6 +1,6 @@
 [English](validation.md) | **Korean**
 
-# 검증 기록
+# 검증 근거
 
 이 파일은 도구를 어떻게 검증했는지 기록합니다. 테스트 클라우드에서의 live 점검, Claude
 Code 프롬프트 점검, 로컬 단위 테스트가 포함됩니다. README의
@@ -9,7 +9,7 @@ Status 열은 이 결과를 명령별로 요약한 것이고, 이 파일에는 �
 리비전, 테스트 조건, 결과 수치를 남깁니다.
 
 live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스트 결과는 테스트 케이스
-수로 셉니다. 부분 점검(partial)이나 대상 점검(targeted)은 명시한 경로만 다루며, 이전의
+수로 셉니다. partial check나 targeted check는 명시한 경로만 다루며, 이전의
 전체 요약을 갱신하지 않습니다.
 
 ## 검증 기록
@@ -31,27 +31,27 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   같지는 않습니다. 복합 보고서 5개는 선택 API가 없어 부분 결과였고, 직접 요청 7개는
   해당 클라우드 서비스나 확장 기능이 없어 실행하지 못했으며, 조회성 요청 7개는 비대화형
   Claude 권한 정책 때문에 제한되었습니다.
-- **후속 대상 점검:** `/mcp/.well-known/openid-configuration`은 인증 없이 404를
+- **후속 targeted check:** `/mcp/.well-known/openid-configuration`은 인증 없이 404를
   반환했습니다. 실제 Nova action 목록은 목록에 완료 시각이 없다고 명시적으로 보고했고,
   선택적인 이벤트 상세 조회는 이벤트 결과를 반환해 마지막 완료 시각을 계산했습니다. 새로
   추가된 HTTP 전용 다중 사용자 테스트 예외는 **Live unverified**입니다. 안전하게 실패하는
   기본값, 명시적 opt-in, endpoint 생성, 시작 시 경고만 로컬에서 테스트했습니다.
-- **텔레메트리 대상 점검 (2026-11-08 UTC, 부분 점검, `d954eba` 기반의 커밋되지 않은
+- **텔레메트리 targeted check (2026-11-08 UTC, partial, `d954eba` 기반의 커밋되지 않은
   작업 트리):** 테스트 클라우드에 Ceilometer, Gnocchi, Aodh를 추가한 뒤
-  `set_alarms`와 새 `get_gnocchi_*` 도구 4개만 MCP 서버로 다시 실행했습니다. 이 부분
-  점검은 위의 105개 도구 live 요약을 갱신하지 않습니다. 다섯 도구 모두 최소 한 개의
+  `set_alarms`와 새 `get_gnocchi_*` 도구 4개만 MCP 서버로 다시 실행했습니다. 이 partial
+  check는 위의 105개 도구 live 요약을 갱신하지 않습니다. 다섯 도구 모두 최소 한 개의
   live 경로가 통과했습니다. metric UUID만으로 조회할 때의 metric 소유권 수정은 MCP
   서버를 다시 만든 뒤 live로 재검증했습니다. 테스트 클라우드의 ceilometer-compute
   agent가 시작 시 libvirt에 연결하지 못해 처음에는 polling metric이 없었고, 그 agent를
   재시작한 뒤 `cpu`, `memory.usage`, 디스크 I/O, 네트워크 I/O 측정값을 도구로 읽었습니다.
   Aodh는 `cpu` `rate:mean` 알람을 예상대로 `ok`와 `alarm` 상태로 평가했습니다. 테스트
   알람은 삭제했습니다.
-- **집계 대상 점검 (2026-11-09 UTC, 부분 점검, `a5115d3` 기반의 커밋되지 않은 작업
+- **집계 targeted check (2026-11-09 UTC, partial, `a5115d3` 기반의 커밋되지 않은 작업
   트리):** 새 `get_gnocchi_aggregates` 도구만 MCP 서버로 실행했습니다. 테스트 프로젝트에
   인스턴스가 하나뿐이어서 순위와 그룹화는 각각 시계열 하나를 반환했습니다. 그 실행 후
   null 구간 출력, metric 이름 검증, 실패 힌트를 바꿨고, 이 변경과 핵심 집계 경로를 현재
   작업 트리로 시작한 두 번째 streamable-HTTP MCP 서버로 다시 실행했습니다.
-- **openstacksdk 사용 대상 점검 (2026-11-10 UTC, 부분 점검, PR #83을 병합하고
+- **openstacksdk 사용 targeted check (2026-11-10 UTC, partial, PR #83을 병합하고
   openstacksdk 4.22.0을 고정한 커밋 `c2de34c`):** 그 병합으로 바뀐 경로만 실행했습니다.
   in-process MCP 클라이언트로, 변경 도구를 켜고, 관리자 계정으로, 고정된 의존성
   (openstacksdk 4.22.0, fastmcp 3.4.10)을 사용했습니다. 테스트 클라우드는 단일 노드
@@ -63,11 +63,11 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   점검). 해당 경로를 재검증한 결과 lock/unlock 보고, metadata 설정, rebuild 후 metadata
   유지가 통과했습니다. `get_project_details`는 quota가 아니라 리소스 개수를 보고하므로,
   어떤 등록된 도구도 호출하지 않는 `get_project_info()`의 quota 필드 수정은 확인하지
-  못하며 그 수정은 단위 테스트만 했습니다. 테스트 리소스는 모두 삭제했습니다. 이 부분
-  점검은 위의 105개 도구 요약을 갱신하지 않습니다.
-- **fastmcp 4 의존성 점검 (2026-11-10 UTC, 부분 점검, `aa668de` 기반의 커밋되지 않은
+  못하며 그 수정은 단위 테스트만 했습니다. 테스트 리소스는 모두 삭제했습니다. 이 partial
+  check는 위의 105개 도구 요약을 갱신하지 않습니다.
+- **fastmcp 4 의존성 점검 (2026-11-10 UTC, partial, `aa668de` 기반의 커밋되지 않은
   작업 트리):** `uv.lock`을 fastmcp 4.1.6과 mcp 2.3.0으로 올렸고, `mcp-server` 이미지가
-  이제 `uv.lock`의 패키지를 정확히 그대로 설치합니다. 위와 같은 대상 점검을 이 의존성으로
+  이제 `uv.lock`의 패키지를 정확히 그대로 설치합니다. 위와 같은 targeted check를 이 의존성으로
   in-process MCP 클라이언트를 통해 다시 실행했으며, 테스트 스크립트 오류 3개를 고치고
   `get_project_details` 점검은 뺐습니다. `get_gnocchi_service_info`와
   `get_gnocchi_metrics`도 조회했습니다. 점검 74/74개가 통과했고 테스트 리소스는 모두
@@ -76,7 +76,7 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   조회 도구 13개가 결과를 반환했습니다. 로컬에서 빌드한 `mcpo-proxy` 이미지(mcpo 0.0.20,
   mcp 1.30.0, FastAPI 0.128.0)가 그 서버에 연결해 도구 110개를 노출했고,
   `get_service_status`, `get_gnocchi_resources`, `get_volume_list`가 결과를
-  반환했습니다. 두 이미지 모두 배포하지 않았습니다. 이 부분 점검은 위의 105개 도구
+  반환했습니다. 두 이미지 모두 배포하지 않았습니다. 이 partial check는 위의 105개 도구
   요약을 갱신하지 않습니다.
 - **볼륨 부팅 targeted check (2026-11-10, `set_instance` 볼륨 부팅 변경이 들어간
   `84c346d` 기반 작업 트리를 로컬에서 다시 빌드한 `mcp-server` 이미지로 제공):**
@@ -85,14 +85,14 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   보고했고, `get_server_volumes`는 각각 `/dev/vda`에 연결된 부팅 가능하고 in-use인
   `__DEFAULT__` 타입 10 GB 볼륨을 보고했습니다. 기존 볼륨으로 부팅(`boot_volume`)과
   서버 삭제 시 볼륨 삭제는 확인하지 않았습니다. 서버 3대는 사용자를 위해 실행 상태로
-  두었습니다. 이 부분 점검은 위의 105개 도구 요약을 갱신하지 않습니다.
+  두었습니다. 이 partial check는 위의 105개 도구 요약을 갱신하지 않습니다.
 - **OpenStack 2026.1 live 점검 (2026-11-10 UTC, 일회용 OzarLand
   openstack-quick-lab 클라우드, Kolla-Ansible 22.2.0 all-in-one, compute
-  microversion 최대 2.103, 관리자 계정):** 수정 도구를 켠 채
+  microversion 최대 2.103, 관리자 계정):** 변경 도구를 켠 채
   `scripts/live_tool_check.py`를 openstacksdk 4.22.0과 4.9.0으로 in process 실행했고,
   PyPI 패키지를 서버로 써서 Streamable HTTP로도 실행했습니다. 최종 상태는
   openstacksdk로 폴링했으며 테스트 리소스는 남지 않았습니다.
-  - **릴리스 3.7.3 (`aa668de`), Cinder가 없는 클라우드:** 수정 실행마다 호출
+  - **릴리스 3.7.3 (`aa668de`), Cinder가 없는 클라우드:** 변경 도구 실행마다 호출
     238/242개와 최종 상태 점검 54/54개, 읽기 전용은 호출 72/76개였습니다. 57개 도구가
     통과했고, 5개는 Cinder 부분을 사용할 수 없다고 보고하며 통과했고, 40개는 없는
     서비스가 필요했고, 3개는 오류 경로만 실행했습니다. 실패 4건은 Gnocchi가 없는
@@ -100,14 +100,14 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
     않았습니다(110개 중 109개). 호출한 Cinder 도구 13개는 약
     0.01초 만에 엔드포인트 URL 없이 "Block Storage (Cinder) service is not
     available"을 보고했습니다.
-  - **릴리스 3.7.6 (`f528b03`), Cinder 추가 (LVM, NFS 백업):** 수정 실행마다 호출
+  - **릴리스 3.7.6 (`f528b03`), Cinder 추가 (LVM, NFS 백업):** 변경 도구 실행마다 호출
     248/253개와 최종 상태 점검 59/59개였습니다(PyPI 설치는 fastmcp 4.1.7을 받음).
     74개 도구가 통과했고, 27개는 없는 서비스(Octavia, Aodh, Neutron QoS)가 필요했고,
     3개는 오류 경로만 실행했습니다. `set_volume_backups`는 partial이었고
     `get_gnocchi_*` 도구 4개는 실패했는데, 둘 다 다음 기록에서 고친 테스트 스크립트
     오류 때문이었으며, 다음 기록에서는 `get_gnocchi_measures`도 호출합니다(여기서는
     110개 중 109개 호출).
-  - **3.7.6의 Cinder 및 볼륨 부팅 대상 점검** (openstacksdk 4.22.0과 4.9.0): 연결과
+  - **3.7.6의 Cinder 및 볼륨 부팅 targeted check** (openstacksdk 4.22.0과 4.9.0): 연결과
     분리, 연결된 볼륨의 전체 및 증분 백업, 새 볼륨과 원본 볼륨으로의 복원, 스냅샷,
     transfer, Cinder가 포함된 종합 보고서가 통과했습니다(호출 30/30개, 점검 24/24개).
     `volume_type`을 지정한 새 1 GB 루트 볼륨, 부팅 가능한 기존 볼륨, 한 번의 호출로
@@ -121,7 +121,7 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
     호출했습니다. 75개가 통과했고, 32개는 없는 서비스가 필요했으며(이제 "Metric
     service (Gnocchi) is not available"을 보고하는 `get_gnocchi_*` 도구 5개 포함),
     3개는 오류 경로만 실행했고, partial이나 실패는 없었습니다.
-  - **멀티 유저 HTTP 모드 (PyPI 3.7.6 서버, HTTP 전용 테스트 override):** 프로젝트
+  - **다중 사용자 HTTP 모드 (PyPI 3.7.6 서버, HTTP 전용 테스트 override):** 프로젝트
     2개에 각각 관리자가 아닌 `member` 사용자와 Application Credential을 두었습니다.
     서버의 관리자 `OS_*` 변수가 설정된 상태에서도 없거나 틀리거나 짝이 맞지 않는
     자격 증명은 401을 반환했습니다(fallback 없음). OAuth discovery 경로와
@@ -135,12 +135,12 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   - **Docker:** 게시된 이미지 `call518/mcp-server-openstack-ops:1.0.5`(`uv.lock`과
     같은 fastmcp 4.1.6, mcp 2.3.0, openstacksdk 4.22.0)에 `docker-compose.yml`처럼
     3.7.6 소스를 마운트했습니다. 다음 기록의 live 스크립트로 읽기 전용은 호출
-    78/78개, 수정 도구를 켜면 호출 256/256개와 최종 상태 점검 61/61개였습니다. 테스트
+    78/78개, 변경 도구를 켜면 호출 256/256개와 최종 상태 점검 61/61개였습니다. 테스트
     네트워크의 프록시가 Rocky Linux 미러를 막아 `Dockerfile.MCP-Server`는 다시
     빌드하지 못했습니다.
 
   이 점검은 Octavia, Aodh, Neutron QoS, port forwarding, 데이터가 있는 Gnocchi, 두
-  번째 컴퓨트 호스트가 필요한 경로에 대해서는 부분 점검이며, 위의 105개 도구 요약을
+  번째 컴퓨트 호스트가 필요한 경로에 대해서는 partial이며, 위의 105개 도구 요약을
   갱신하지 않습니다.
 - **로컬 단위 테스트 (2026-11-10, Gnocchi 오류 및 live 스크립트 수정을 넣은
   `f528b03` 기반 작업 트리):** fastmcp 4.1.6과 openstacksdk 4.1.0, 4.9.0, 4.22.0에서
@@ -175,7 +175,7 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   `set_security_group_rules`를 호출하고 제한 CIDR 규칙의 생성과 삭제를 확인하지만, 이번
   통합에서는 해당 harness 경로를 실제 클라우드에서 실행하지 않았으므로 기존 live
   상태는 바뀌지 않습니다.
-- **Octavia 대상 읽기 점검 (2026-11-12, 부분 점검, `05dfd12` 기반의 커밋되지 않은
+- **Octavia targeted read check (2026-11-12, partial, `05dfd12` 기반의 커밋되지 않은
   작업 트리):** Octavia GET 응답은 풀과 헬스 모니터의 관계를 `listeners`,
   `loadbalancers`, `healthmonitor_id`, `pools`로만 보고하며, 생성 전용인
   `listener_id`와 `pool_id`는 `None`이었습니다. 또한 Octavia는
@@ -191,13 +191,13 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   `mcp-server` 컨테이너를 재시작한 뒤에는
   `get_load_balancer_details`도 같은 로드밸런서에 대해 OpenWebUI와 MCP 서버를 거쳐
   성공했습니다. 리소스를 생성하거나 변경하지
-  않았습니다. 이 부분 점검은 위의 105개 도구 요약을 갱신하지 않습니다.
+  않았습니다. 이 partial check는 위의 105개 도구 요약을 갱신하지 않습니다.
 - **로컬 로드밸런서 관계 필드 테스트 (2026-11-12, 같은 작업 트리):** fastmcp 4.1.6과
   고정된 openstacksdk 4.22.0에서 `uv run pytest -q`로 실행해 500/500 (100%)이며,
   실패나 건너뛴 테스트는 없습니다. 새 회귀 테스트 2건은 풀과 헬스 모니터를 Octavia
   GET 응답 형태로 구성하고, 기존 테스트는 풀 목록 조회에 `listener_id` 필터를 보내지
   않는지 확인합니다. 새 회귀 테스트 2건은 이전 코드에서 실패했습니다.
-- **cross-project 조회 대상 점검 (2026-11-13 UTC, 부분 점검, `3882adc` 기반의 커밋되지
+- **cross-project 조회 targeted check (2026-11-13 UTC, partial, `3882adc` 기반의 커밋되지
   않은 작업 트리):** issue #86의 `all_projects` 파라미터를 Kolla-Ansible 단일 노드
   OpenStack Epoxy 클라우드(compute microversion 최대 2.100)에서 openstacksdk 4.22.0,
   fastmcp 4.1.6으로 실행했습니다. 테스트 프로젝트에는 `member` 사용자 1명과 서버,
@@ -218,7 +218,7 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   나타나지 않았습니다. 다루지 않은 범위: 방식 B(전용 Role + policy 재정의), 제한된
   Application Credential(방식 C), 이 클라우드의 정책 규칙 이름과 기본값. 테스트
   프로젝트, 사용자, Application Credential, 리소스는 추가 점검을 위해 남겨 두었습니다.
-  이 부분 점검은 위의 105개 도구 요약을 갱신하지 않습니다.
+  이 partial check는 위의 105개 도구 요약을 갱신하지 않습니다.
 - **로컬 cross-project 조회 테스트 (2026-11-13, 같은 작업 트리):** fastmcp 4.1.6과
   고정된 openstacksdk 4.22.0에서 `uv run pytest -q`로 실행해 523/523 (100%)이며,
   실패나 건너뛴 테스트는 없습니다. 새 테스트 23건은 스위치가 꺼져 있을 때(OpenStack에
@@ -234,7 +234,7 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   모드의 in-process FastMCP 클라이언트가 instructions와 빈 prompt 목록을 받는지
   확인합니다. Claude Code, Claude Desktop, Open WebUI가 instructions를 모델에
   보여 주는지는 live로 확인하지 않았습니다.
-- **cross-project 정책·방식 C 대상 점검 (2026-11-13 UTC, 부분 점검, 소스 `cb2ae87`,
+- **cross-project 정책·방식 C targeted check (2026-11-13 UTC, partial, 소스 `cb2ae87`,
   코드 변경 없음):** 같은 Kolla-Ansible 클라우드의 컨트롤러에서
   `oslopolicy-policy-generator`로 Nova, Cinder, Keystone의 기본 정책을 읽었고, 정책
   override는 없었습니다. 규칙은 [cross-project 조회 가이드](cross-project-guide.ko.md#참고-정책-규칙과-위임-가능-여부)에
@@ -256,9 +256,9 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
     credential도 같은 이유로 실패해 교체했습니다.
 
   다루지 않은 것: 방식 B, 그리고 `service_type`을 바꾼 뒤의 Cinder 방식 C. 두
-  credential은 추가 점검을 위해 남겨 두었습니다. 이 부분 점검은 위의 105개 도구
+  credential은 추가 점검을 위해 남겨 두었습니다. 이 partial check는 위의 105개 도구
   요약을 갱신하지 않습니다.
-- **다른 프로젝트 상세 대상 점검 (2026-11-13 UTC, 부분 점검, `babe32b` 기반의 커밋되지
+- **다른 프로젝트 상세 targeted check (2026-11-13 UTC, partial, `babe32b` 기반의 커밋되지
   않은 작업 트리):** 이제 `all_projects=true`와 한 프로젝트의 이름으로 호출한
   `get_project_details`는 그 프로젝트의 상세를 반환합니다. 같은 클라우드에서 고정
   자격 증명 모드로 도구 함수를 프로세스 안에서 호출했습니다. 관리자로 본 테스트
@@ -268,14 +268,14 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   모든 `all_projects` 호출이 Keystone 정책 거부 실패를 반환했고, `all_projects` 없는
   호출은 member의 프로젝트를 반환했습니다. 9건 모두 기대한 결과였습니다. 다루지 않은
   것: 프로젝트 목록은 볼 수 있지만 Nova나 Cinder를 여러 프로젝트에 걸쳐 읽을 수 없는
-  자격 증명. 이 부분 점검은 위의 105개 도구 요약을 갱신하지 않습니다.
+  자격 증명. 이 partial check는 위의 105개 도구 요약을 갱신하지 않습니다.
 - **로컬 다른 프로젝트 상세 테스트 (2026-11-13, 같은 작업 트리):** fastmcp 4.1.6과
   고정된 openstacksdk 4.22.0에서 `uv run pytest -q`로 실행해 532/532 (100%)이며,
   실패나 건너뛴 테스트는 없습니다. 새 테스트 1건은 현재 프로젝트 상세를
   `all_projects` 없이 호출하는지 고정하며 변경 전에도 통과했습니다. 추가 5건은 다른
   프로젝트 상세의 이름·ID 조회, 모호한 이름, Nova 정책 거부, Cinder의 좁혀진 결과를
   다룹니다. server instructions가 바뀌었고 4,096자 이내입니다.
-- **Neutron cross-project 조회 대상 점검 (2026-11-13 UTC, 부분 점검, `83b5d9a` 기반의
+- **Neutron cross-project 조회 targeted check (2026-11-13 UTC, partial, `83b5d9a` 기반의
   커밋되지 않은 작업 트리):** `get_network_details`, `get_routers`,
   `get_security_groups`, `get_floating_ips`에 `all_projects`를 추가했습니다. 같은
   클라우드에서 고정 자격 증명 모드로 관리자와 `member`로 도구 함수를 프로세스 안에서
@@ -290,7 +290,7 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   리소스와, 네트워크의 경우 다른 프로젝트의 공유 외부 네트워크를 받았고, 모든 결과에
   `scope.warning`이 붙었으며, 프로젝트 목록을 볼 수 없어 행에는 프로젝트 ID가
   표시되었습니다. 변경된 코드로 호출한 32건 모두 기대한 결과였습니다. 테스트 라우터와
-  floating IP는 추가 점검을 위해 남겨 두었습니다. 이 부분 점검은 위의 105개 도구
+  floating IP는 추가 점검을 위해 남겨 두었습니다. 이 partial check는 위의 105개 도구
   요약을 갱신하지 않습니다.
 - **로컬 Neutron cross-project 조회 테스트 (2026-11-13, 같은 작업 트리):** fastmcp
   4.1.6과 고정된 openstacksdk 4.22.0에서 `uv run pytest -q`로 실행해 550/550
@@ -299,7 +299,7 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   프로젝트의 행과 이름, 소유자를 알 수 없는 항목, 경고의 공유 리소스 규칙, 도구 응답을
   다룹니다. 기존 테스트가 네트워크 도구의 서비스 기본 호출이 바뀐 것을 잡아냈고, 이를
   원래대로 되돌렸습니다.
-- **백업, 볼륨 그룹, 서버 그룹 cross-project 조회 대상 점검 (2026-11-14 UTC, 부분 점검,
+- **백업, 볼륨 그룹, 서버 그룹 cross-project 조회 targeted check (2026-11-14 UTC, partial,
   `e9cd4ac` 기반의 커밋되지 않은 작업 트리):** `get_volume_backups`,
   `get_volume_groups`, `get_server_groups`에 `all_projects`를 추가했습니다.
   `member` 사용자가 테스트 프로젝트에 서버 그룹, 자기 볼륨의 백업, generic 볼륨 그룹을
@@ -317,7 +317,7 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   결과에는 별도의 경고가 붙습니다. `member`의 경우 백업과 그룹 목록은 소유자 없이 그
   경고와 함께 자기 항목을 반환했고, 서버 그룹 목록은 좁혀진 결과 경고와 함께 자기
   그룹을 반환했습니다. 최종 코드로 호출한 18건 모두 기대한 결과였습니다. 테스트
-  리소스와 group type은 추가 점검을 위해 남겨 두었습니다. 이 부분 점검은 위의 105개
+  리소스와 group type은 추가 점검을 위해 남겨 두었습니다. 이 partial check는 위의 105개
   도구 요약을 갱신하지 않습니다.
 - **로컬 백업, 볼륨 그룹, 서버 그룹 테스트 (2026-11-14, 같은 작업 트리):** fastmcp
   4.1.6과 고정된 openstacksdk 4.22.0에서 `uv run pytest -q`로 실행해 565/565
@@ -325,7 +325,7 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   호출과 결과를 고정하며 변경 전에도 통과했습니다. 추가 12건은 비활성 스위치, 다른
   프로젝트의 행, 정책 거부, 좁혀진 결과와 소유자가 숨겨진 경우의 경고, microversion
   3.58로 읽는 그룹 소유자를 다룹니다.
-- **이미지, Heat, 로드밸런서 cross-project 조회 대상 점검 (2026-11-14 UTC, 부분 점검,
+- **이미지, Heat, 로드밸런서 cross-project 조회 targeted check (2026-11-14 UTC, partial,
   `cc45211` 기반의 커밋되지 않은 작업 트리):** `get_image_detail_list`,
   `get_heat_stacks`, `get_load_balancer_list`에 `all_projects`를 추가했습니다. 먼저
   컨트롤러에서 Glance, Heat, Octavia의 기본 목록 정책을 읽었습니다. Glance는 다른
@@ -345,7 +345,7 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   넘기지 않으면 직접 보낸 요청의 오류 응답을 그대로 반환하고, keystoneauth의
   `Forbidden`은 거부로 인식되지 않았기 때문입니다. 둘 다 고쳤고 볼륨 그룹 소유자 요청에도
   적용했습니다. 최종 코드로 호출한 18건 모두 기대한 결과였습니다. 실패한
-  로드밸런서와 그 amphora를 포함한 테스트 리소스는 그대로 두었습니다. 이 부분 점검은
+  로드밸런서와 그 amphora를 포함한 테스트 리소스는 그대로 두었습니다. 이 partial check는
   위의 105개 도구 요약을 갱신하지 않습니다.
 - **로컬 이미지, Heat, 로드밸런서 테스트 (2026-11-14, 같은 작업 트리):** fastmcp
   4.1.6과 고정된 openstacksdk 4.22.0에서 `uv run pytest -q`로 실행해 576/576
@@ -354,7 +354,7 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   프로젝트의 행, 범위 판단에서의 public 이미지, Heat의 `global_tenant` 요청과
   keystoneauth `Forbidden`을 통한 거부, 페이지 전체 기준의 로드밸런서 scope, 좁혀진
   결과의 경고를 다룹니다.
-- **정책 override를 적용한 방식 B·C 대상 점검 (2026-11-14 UTC, 부분 점검, 소스
+- **정책 override를 적용한 방식 B·C targeted check (2026-11-14 UTC, partial, 소스
   `4dfd71f`, 코드 변경 없음):** Kolla-Ansible로 테스트 클라우드를 바꿨습니다. 새
   `cross_project_reader` Role을 추가하는 Nova(`servers:*:get_all_tenants`),
   Keystone(`identity:list_projects`), Heat(`stacks:global_index`) 정책 override와,
@@ -374,9 +374,9 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   조회했고(두 프로젝트의 볼륨과 다른 프로젝트의 스냅샷 포함), `set_volume`과
   `set_keypair` 생성 시험은 HTTP 401로 거부되어 아무것도 만들지 않았습니다. 모든 호출이
   기대한 결과였습니다(방식 B: 사용자마다 도구 8개, 리소스 추가 뒤 3개 재호출. 방식 C:
-  조회 7건과 시험 2건). override, Role, 테스트 리소스는 그대로 두었습니다. 이 부분
-  점검은 위의 105개 도구 요약을 갱신하지 않습니다.
-- **`mcp-remote`를 통한 Claude Desktop 다중 사용자 대상 점검 (2026-11-14 UTC, 부분 점검,
+  조회 7건과 시험 2건). override, Role, 테스트 리소스는 그대로 두었습니다. 이 partial
+  check는 위의 105개 도구 요약을 갱신하지 않습니다.
+- **`mcp-remote`를 통한 Claude Desktop 다중 사용자 targeted check (2026-11-14 UTC, partial,
   소스 `6f9157f`, 코드 변경 없음):** Docker Compose `mcp-server`를
   `MCP_MULTI_USER=true`, HTTP 전용 테스트 override, `ALLOW_CROSS_PROJECT_READ=true`로,
   Bearer 인증 없이 실행했습니다. Windows의 Claude Desktop이
@@ -392,7 +392,7 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   72번째 글자를 바꾸면 거부되었습니다. Keystone의 기본 `password_hash_algorithm`이
   bcrypt이고, bcrypt가 86글자 secret의 앞 72바이트만 쓰기 때문입니다. 이는 Keystone의
   동작이며, 서버는 secret을 바꾸지 않고 그대로 전달합니다. 다루지 않은 것: secret 헤더가
-  빠진 경우, credential 헤더와 Bearer 인증의 동시 사용, HTTPS. 이 부분 점검은 위의 105개 도구 요약을 갱신하지
+  빠진 경우, credential 헤더와 Bearer 인증의 동시 사용, HTTPS. 이 partial check는 위의 105개 도구 요약을 갱신하지
   않습니다.
 - **로컬 Heat 스택 입력 테스트 (2026-11-15, `3dcc6b2` 기반의 커밋되지 않은 작업
   트리):** fastmcp 4.1.6과 고정된 openstacksdk 4.22.0에서 `uv run pytest -q`로 실행해
@@ -404,7 +404,7 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   `/validate`에 보내는지, 잘못된 `files`를 거부하는지, `get_heat_stack_details`가
   `nested_depth`를 넘기는지를 다룹니다. 이 코드로 live 스택을 생성·수정·검증하지
   않았으므로 이 경로는 **Live unverified**로 남습니다.
-- **Heat 오토스케일링 대상 점검 (2026-11-15, 부분 점검, 릴리스 3.9.1, 소스
+- **Heat 오토스케일링 targeted check (2026-11-15, partial, 릴리스 3.9.1, 소스
   `4125321`):** 단일 노드 Kolla 테스트 클라우드(QEMU TCG)에서 MCP 클라이언트가
   Octavia 로드밸런서와 `OS::Heat::AutoScalingGroup`(최소 2, 최대 4)을 만들었습니다.
   멤버(서버와 pool member)는 `OS::Heat::Stack` 없이 `files`로 넘긴 중첩 템플릿으로
@@ -417,8 +417,8 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   되었습니다. 그 뒤 스택 상태는 complete였고, `timeout_mins`는 90으로 조회되었으며, pool에는
   남은 멤버 2개만 ONLINE으로 있었습니다. 이전에 멤버가 `OS::Heat::Stack` 리소스였을 때는 확장이 HTTP 403(trust
   재위임)으로 실패했습니다. 결과는 사용자가 관찰한 것이며 저장된 명령 출력은 없습니다.
-  확인하지 않은 것: 스택 이벤트의 실패 여부, `environment`, `existing=true`인 `update`, `nested_depth`. 이 항목은 **Live
-  unverified**로 남습니다. 이 부분 점검은 위의 105개 도구 요약을 갱신하지 않습니다.
+  확인하지 않은 것: 스택 이벤트의 실패 여부, `environment`, `existing=true`인 `update`, `nested_depth`. 이 경로들은 **Live
+  unverified**로 남습니다. 이 partial check는 위의 105개 도구 요약을 갱신하지 않습니다.
 - **로컬 Barbican과 TLS 리스너·pool 테스트 (2026-11-15, `e161831` 기반의 커밋되지
   않은 작업 트리):** fastmcp 4.1.6, 고정된 openstacksdk 4.22.0, cryptography 50.0.0에서
   `uv run --frozen pytest -q`로 실행해 608/608 (100%)이며, 실패나 건너뛴 테스트는
@@ -468,7 +468,7 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   force-complete는 "initiated"로 표시합니다. 새 테스트 15개가 Octavia 쓰기 경로 4개,
   인스턴스 액션 13개, 볼륨 생성을 검사합니다. 이 변경에 대한 라이브 점검은 실행하지
   않았습니다.
-- **Barbican, TLS 리스너, 상태, 쿼터 대상 점검 (2026-11-15, 2026-11-16, 부분 점검,
+- **Barbican, TLS 리스너, 상태, 쿼터 targeted check (2026-11-15, 2026-11-16, partial,
   `e161831` 기반의 커밋되지 않은 작업 트리):** 단일 노드 Kolla 테스트 클라우드에서
   Docker Compose 스택을 단일 계정 모드와 관리자 계정으로 실행했습니다. OpenWebUI를
   통해 `set_secret`(`create_self_signed_tls`)이 IP SAN 2개를 가진 시크릿을 만들었고,
@@ -480,7 +480,7 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   상태 필드가 없어 모델이 완료를 확인하지 못했습니다. 수정 후 컨테이너에서 호출한
   `set_load_balancer` `status`는 같은 상태를 트리로 반환했습니다. `get_quota`는
   `m1.small` 서버 2대에 대해 vCPU 2, 4096 MB를 보고했습니다(수정 전에는 0과 0).
-  같은 날 이후 사용자가 같은 요청을 Claude 클라이언트로 실행해, 같은 방식으로 새
+  2026-11-15 늦게 사용자가 같은 요청을 Claude 클라이언트로 실행해, 같은 방식으로 새
   시크릿(인증서 유효 시작 16:09:37 UTC, 생성 시각보다 5분 앞)과 리스너를 만들었습니다.
   멤버 VM에서 floating IP와 VIP에 보낸 `curl -vk`는 그 자체 서명 인증서(CN과 issuer
   192.168.35.169)로 TLSv1.3 핸드셰이크(`TLS_AES_256_GCM_SHA384`, h2 협상)를 마쳤고,
@@ -488,10 +488,10 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   공유했습니다. 클라이언트의 리스너 상태 반복 조회 결과는 공유되지 않았습니다.
   확인하지 않은 것: 관리자가 아닌 계정의 Barbican 정책,
   `sni_container_refs`, 나머지 Barbican 도구, pool의 backend re-encryption,
-  MCP 클라이언트가 읽은 리스너 상태 필드. 이 부분 점검은 위의 105개 도구 요약을 갱신하지
+  MCP 클라이언트가 읽은 리스너 상태 필드. 이 partial check는 위의 105개 도구 요약을 갱신하지
   않습니다.
 - **무시되던 파라미터 수정 로컬 테스트 (2026-11-17, `568b098` 기반의 커밋되지 않은
-  작업 트리):** fastmcp 4.1.6과 잠금된 openstacksdk 4.22.0으로 `uv run pytest -q`를
+  작업 트리):** fastmcp 4.1.6과 고정된 openstacksdk 4.22.0으로 `uv run pytest -q`를
   실행해 639/639 (100%)였고, 실패나 건너뛴 테스트는 없었습니다. 새 테스트 13개:
   `set_subnets` 생성은 지정하지 않은 `gateway_ip`를 보내지 않고, 명시한 값과
   `description`은 전달합니다. `set_network_ports` 생성은 지정하지 않은
@@ -504,7 +504,7 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   도구 스크립트는 action="list"만 호출합니다. 2026-11-04 요약의 `set_server_dump`
   서술을 바로잡았으며 수치는 바뀌지 않았습니다.
 - **Glance 소유권과 일괄 상한 로컬 테스트 (2026-11-17, `b0bcada` 기반의 커밋되지
-  않은 작업 트리):** fastmcp 4.1.6과 잠금된 openstacksdk 4.22.0으로
+  않은 작업 트리):** fastmcp 4.1.6과 고정된 openstacksdk 4.22.0으로
   `uv run pytest -q`를 실행해 652/652 (100%)였고, 실패나 건너뛴 테스트는
   없었습니다. 새 테스트 13개: `set_image` update와 delete, `set_image_metadata`
   set, `set_image_visibility` set은 다른 프로젝트의 public 이미지를 거부하고,
@@ -516,7 +516,7 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   public, shared, community 이미지도 받아들이는 조회를 썼습니다. live 점검은
   실행하지 않았으므로 이 이미지 쓰기 경로는 **Live unverified**입니다.
 - **쿼터 사용률, 목록 상한, 인스턴스 필터 로컬 테스트와 정리 (2026-11-17, 같은
-  커밋되지 않은 작업 트리):** fastmcp 4.1.6과 잠금된 openstacksdk 4.22.0으로
+  커밋되지 않은 작업 트리):** fastmcp 4.1.6과 고정된 openstacksdk 4.22.0으로
   `uv run pytest -q`를 실행해 674/674 (100%)였고, 실패나 건너뛴 테스트는
   없었습니다. 새 테스트 26개. `get_quota`는 `usage_percent`를 보고하며, 한도가
   무제한이거나 0이거나 없을 때와 사용량을 모를 때는 null입니다. 백업이나 보안 그룹
@@ -533,24 +533,24 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   (`services/core.py`)의 테스트 2개는 삭제했습니다. live 점검은 실행하지
   않았습니다.
 - **Cinder QoS 연결 로컬 테스트 (2026-11-17, `b4a1a41` 기반의 커밋되지 않은
-  작업 트리):** 잠금된 openstacksdk 4.22.0으로 `.venv/bin/python -m pytest -q`를
+  작업 트리):** 고정된 openstacksdk 4.22.0으로 `.venv/bin/python -m pytest -q`를
   실행해 679/679 (100%)가 통과했고, 실패하거나 건너뛴 테스트는 없었습니다.
   QoS와 등록 targeted 테스트 7개는 associate, 수락됐지만 아직 확인되지 않은 상태
   보고, disassociate, disassociate-all, 연결 목록, 없거나 이름이 모호한 Volume
   Type, 변경 비활성화 등록 guard를 검사했습니다. `compileall`도 통과했습니다.
   제한된 Codex sandbox에서는 독립적인 `asyncio.to_thread(lambda: 42)`를 포함해 모든
-  Python thread 전달이 멈췄습니다. 같은 테스트를 sandbox 밖에서 실행하자 통과했고,
+  Python thread 전달이 멈췄습니다. 앞서 멈췄던 같은 테스트를 sandbox 밖에서 실행하자 통과했고,
   전체 suite도 124.62초에 완료됐습니다. 실제 Cinder 연결은 변경하지 않았으므로 새
   연결 경로는 **Live unverified**입니다.
 - **Catalog endpoint 로컬 테스트 (2026-11-20, `74de4a4` 기반의 커밋되지 않은 작업
-  트리):** fastmcp 4.1.6과 잠금된 openstacksdk 4.22.0으로
+  트리):** fastmcp 4.1.6과 고정된 openstacksdk 4.22.0으로
   `uv run --locked --extra dev python -m pytest -q tests`를 실행해 695/695 (100%)가
   통과했고, 실패하거나 건너뛴 테스트는 없었습니다. 새 테스트 17개는
   `OS_ENDPOINT_SOURCE`와 `OS_INTERFACE`의 기본값, 허용되는 값과 거부되는 값, 잘못된
   값의 시작 시 거부, 두 연결 모드의 catalog endpoint와 변경되지 않은 configured
   endpoint, catalog URL에 대한 HTTPS 전용 session, catalog 모드의 Cinder 부재 감지를
   검사합니다.
-- **Catalog endpoint 대상 점검 (2026-11-20 UTC, partial, 같은 작업 트리):**
+- **Catalog endpoint targeted check (2026-11-20 UTC, partial, 같은 작업 트리):**
   admin이 아닌 role을 가진 프로젝트 범위 Application Credential 하나로 다중 사용자
   모드를 `ALLOW_MODIFY_OPERATIONS=false`로 실행하고 `127.0.0.1`의 Streamable HTTP로
   호출했습니다. 대상 클라우드는 서비스마다 자체 HTTPS 호스트 이름을 쓰며, internal
@@ -572,10 +572,10 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   필요한 도구 13개는 호출하지 않았고 변경 도구는 등록되지 않았으므로, 그 경로와 단일
   계정 모드의 catalog 모드는 **Live unverified**입니다. 이어서 Claude Code CLI
   프롬프트로 같은 서버를 통해 volume type 목록을 조회했습니다. 서버 로그에는
-  credential ID와 secret이 모두 없었습니다. 이 partial 점검은 위의 105개 도구 요약을
+  credential ID와 secret이 모두 없었습니다. 이 partial check는 위의 105개 도구 요약을
   갱신하지 않습니다.
 - **Flavor 표시 로컬 테스트 (2026-11-20, `74de4a4` 기반의 커밋되지 않은 작업
-  트리):** fastmcp 4.1.6과 잠금된 openstacksdk 4.22.0으로
+  트리):** fastmcp 4.1.6과 고정된 openstacksdk 4.22.0으로
   `uv run --locked --extra dev python -m pytest -q tests`를 실행해 704/704 (100%)가
   통과했고, 실패하거나 건너뛴 테스트는 없었습니다. 새 테스트 26개는 다중 사용자 HTTPS
   session에서 같은 origin의 GET/HEAD 리다이렉트를 따르는 동작(상대 경로와 기본 포트
@@ -584,7 +584,7 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   `null`로 보고하는 flavor extra spec, accelerator 해석, `get_flavors`의 필터·정렬·경고,
   그리고 서버 flavor 이름 조회와 알 수 없는 크기의 `null` 보고를 검사합니다. 읽기 전용
   도구 수 검사는 이제 62개입니다.
-- **Flavor 표시 대상 점검 (2026-11-20 UTC, partial, 당시 병합 전이던 PR #89의
+- **Flavor 표시 targeted check (2026-11-20 UTC, partial, 당시 병합 전이던 PR #89의
   catalog endpoint 변경과 함께 적용):** 대상 클라우드는 서비스마다 자체 HTTPS 호스트
   이름을 쓰므로 이 리비전만으로는 접근할 수 없어, 두 변경을 합친 작업 트리에서 서버를
   실행했습니다. admin이 아닌 role을 가진 프로젝트 범위 Application Credential 하나로 다중
@@ -603,9 +603,9 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   대한 정책 거부, Gnocchi 서비스 부재, 이 클라우드가 제공하지 않는 API였습니다. 이
   이름으로 일치시키는 `set_instance`의 `flavor_contains`는 실행하지 않았으므로 **Live
   unverified**이며, configured endpoint에서의 이 변경도 마찬가지입니다. 이 partial
-  점검은 위의 105개 도구 요약을 갱신하지 않습니다.
+  check는 위의 105개 도구 요약을 갱신하지 않습니다.
 - **PR #90과 PR #89 통합 후 로컬 테스트 (2026-11-21, PR #90의 `b70c778`에
-  `9326358`을 병합한 커밋 전 작업 트리):** fastmcp 4.1.6과 잠금된 openstacksdk
+  `9326358`을 병합한 커밋 전 작업 트리):** fastmcp 4.1.6과 고정된 openstacksdk
   4.22.0으로 `uv run --locked --extra dev python -m pytest -q tests`를 실행해
   721/721 (100%)가 통과했고, 실패하거나 건너뛴 테스트는 없었습니다. 병합 충돌은 문서에만
   있었으며, 병합된 트리에서 live 점검은 다시 하지 않았습니다.
@@ -615,15 +615,15 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   표에, `startup_timeout_sec = 120`을 두었고 도구를 사용할 수 있었습니다. 앱과 패키지
   버전, 실행한 호출은 기록하지 않았습니다. Codex CLI, IDE 확장, HTTP `url` 경로는
   **Live unverified**입니다. 코드 변경이 없어 단위 테스트는 다시 실행하지 않았습니다. 이
-  partial 점검은 위의 105개 도구 요약을 갱신하지 않습니다.
+  partial check는 위의 105개 도구 요약을 갱신하지 않습니다.
 - **번들 설정 설명을 바꾼 후 로컬 단위 테스트 (2026-11-21, `f1ab24f` 기반 커밋 전
-  작업 트리):** fastmcp 4.1.6과 잠금된 openstacksdk 4.22.0으로 `uv run pytest -q`를
+  작업 트리):** fastmcp 4.1.6과 고정된 openstacksdk 4.22.0으로 `uv run pytest -q`를
   실행해 722/722 (100%)가 통과했고, 실패하거나 건너뛴 테스트는 없었습니다. 이제 Claude
   Desktop 번들은 `OS_HEAT_STACK_CFN_PORT`를 선택 항목으로 표시하고 서버가 읽지 않는다고
   명시하며, 현재 Placement API를 호출하는 도구가 없다고 안내합니다. 서버 동작은 바뀌지
   않아 live 점검은 하지 않았습니다.
 - **Neutron QoS 규칙과 연결 로컬 테스트 (2026-11-22, `96ad042` 기반 커밋 전 작업
-  트리):** fastmcp 4.1.6과 잠금된 openstacksdk 4.22.0으로 `uv run pytest -q`를
+  트리):** fastmcp 4.1.6과 고정된 openstacksdk 4.22.0으로 `uv run pytest -q`를
   실행해 734/734 (100%)가 통과했고, 실패하거나 건너뛴 테스트는 없었습니다. 새 테스트
   12건은 다른 프로젝트가 공유한 정책의 분리 나열, 공유 정책 경고, `shared`를 생략한
   `update`가 현재 값을 유지하는지, 프로젝트가 소유하지 않은 정책의 규칙 변경 거부, 규칙
@@ -633,7 +633,7 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   `qos_policy_id`만 보내는 라우터 게이트웨이 연결을 다룹니다. 등록 테스트는 새
   `set_network_qos_policies` action과 변경 차단도 확인합니다. 이 기록에는 live 점검이
   포함되지 않으며, 다음 기록을 참고하세요.
-- **Neutron QoS targeted 점검 (2026-11-21 UTC, partial, 같은 커밋 전 작업 트리):**
+- **Neutron QoS targeted check (2026-11-21 UTC, partial, 같은 커밋 전 작업 트리):**
   Kolla-Ansible all-in-one OpenStack 2025.1, hybrid iptables firewall을 쓰는 ML2/OVS,
   QoS 서비스 플러그인, OVS agent `qos`와 L3 agent `fip_qos,gateway_ip_qos` 확장
   환경입니다. 작업 트리의 서버를 FastMCP in-memory 클라이언트로 프로젝트 관리자 계정과
@@ -657,4 +657,4 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   `shared_from_other_projects`가 비어 있음), `shared=true`로 정책 생성, 사용 중인 정책의
   공유 해제를 Neutron이 거부하는지. 두 번의 실행에서 만든 리소스(정책, 네트워크 1개,
   라우터 2개, floating IP 1개)는 모두 삭제하고 없음을 확인했으며, VM port에는 QoS 정책이
-  남지 않았습니다. 이 partial 점검은 위의 105개 도구 요약을 갱신하지 않습니다.
+  남지 않았습니다. 이 partial check는 위의 105개 도구 요약을 갱신하지 않습니다.

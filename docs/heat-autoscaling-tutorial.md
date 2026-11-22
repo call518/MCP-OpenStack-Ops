@@ -70,7 +70,7 @@ Prepare these outside the stack. They are deployment and account settings.
 
 ## The request
 
-The following request was given to the MCP client as-is:
+The following request was given to the MCP client:
 
 ```text
 Use the test-rockylinux-9 VM (web server) as the source for a new base image. Create and bring up a Heat stack with a TLS-terminating load balancer and autoscaling web servers.
@@ -512,8 +512,7 @@ for the members' CPU over the last hour at 1-minute intervals made the MCP
 client read the members' Gnocchi `cpu` measures through this server's tools.
 The client then drew the chart, the interval summary and the CSV itself,
 converting each value to percent of one vCPU (`cpu` ns per minute ÷ 60e9 ×
-100). The session was in Korean; the screenshot shows it translated into
-English.
+100).
 
 ![Per-member CPU queried in natural language](../img/screenshot-heat-99-claude-code-cpu-query-eng.png)
 

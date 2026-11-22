@@ -82,7 +82,7 @@ INSTANCE_FILTER_MAX_MATCHES = "100"
 또는 `codex mcp list`로 서버를 확인한 뒤, 예를 들어 다음과 같이 물어보세요.
 
 ```text
-Use MCP-OpenStack-Ops to list all instances in the project.
+MCP-OpenStack-Ops로 프로젝트의 모든 인스턴스를 나열해줘.
 ```
 
 ## 방법 2: 기존 HTTP 서버 사용

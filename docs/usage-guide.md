@@ -43,7 +43,7 @@ the ones the client typically calls.
 "Give me a cluster overview with resource allocation and capacity"
 ```
 
-**Tools used:** `get_service_status()`, `get_resource_monitoring()`, `get_service_status()`
+**Tools used:** `get_service_status()`, `get_resource_monitoring()`
 
 ### 🖥️ Instance management
 
