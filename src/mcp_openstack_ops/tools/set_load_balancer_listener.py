@@ -2,6 +2,7 @@
 
 import json
 from datetime import datetime
+from typing import Optional
 from ..functions import set_load_balancer_listener as _set_load_balancer_listener
 from ..mcp_main import (
     _is_modify_operation_allowed,
@@ -18,7 +19,7 @@ async def set_load_balancer_listener(
     protocol: str = "",
     protocol_port: int = 0,
     description: str = "",
-    admin_state_up: bool = True,
+    admin_state_up: Optional[bool] = None,
     connection_limit: int = 0,
     default_pool_id: str = "",
     default_tls_container_ref: str = "",
@@ -54,7 +55,8 @@ async def set_load_balancer_listener(
             load balancer), TCP, UDP, SCTP (required for create)
         protocol_port: Port number for listener (required for create)
         description: Description for listener
-        admin_state_up: Administrative state (default: True)
+        admin_state_up: Administrative state. create defaults to True; set
+            changes it only when given
         connection_limit: Maximum number of connections (0 = unlimited)
         default_pool_id: Default pool ID for the listener
         default_tls_container_ref: Default server certificate for TERMINATED_HTTPS

@@ -503,33 +503,36 @@ Octavia 도구는 openstacksdk의 속성 이름(`is_admin_state_up`, `is_enabled
 `load_balancer_id`, L7 규칙의 `rule_value`, 복수형 quota 필드)을 읽고, 풀 멤버는
 `members(pool)`로 나열하며, L7 규칙은 `create_l7_rule(policy, ...)`로 만들고,
 리스너를 로드밸런서별로 필터링합니다. 이 수정 사항은 실제 openstacksdk 리소스
-객체로 단위 테스트만 했고, 어떤 live 테스트 클라우드에도 Octavia가 없었습니다.
+객체로 단위 테스트만 했는데, 당시에는 어떤 live 테스트 클라우드에도 Octavia가
+없었습니다. ✅로 표시된 행은 이후 Octavia가 있는 Kolla-Ansible 클라우드에서 비고에
+적힌 대로 라이브로 확인했습니다.
 
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
 | `openstack loadbalancer list` | `get_load_balancer_list` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 페이지 처리를 지원하는 로드밸런서 목록. 한 번 호출에 최대 `LIST_MAX_LIMIT`개 반환(기본값 100, 이전에는 고정 200) |
-| `openstack loadbalancer show` | `get_load_balancer_details` | ✅ | 2026-11-12 Octavia targeted read check 통과. 로드밸런서 상세 정보. 풀은 각 풀의 `listeners` 참조로 리스너에 연결 |
-| `openstack loadbalancer create` | `set_load_balancer` (action="create") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서 생성 |
-| `openstack loadbalancer delete` | `set_load_balancer` (action="delete") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서 삭제 |
-| `openstack loadbalancer set` | `set_load_balancer` (action="update") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서 속성 변경 |
+| `openstack loadbalancer show` | `get_load_balancer_details` | ✅ | 2026-11-12 Octavia targeted read check 통과. `vip_qos_policy_id`를 포함한 로드밸런서 상세 정보. 풀은 각 풀의 `listeners` 참조로 리스너에 연결. 2026-11-22 UTC targeted check: `vip_qos_policy_id`가 표시됨 |
+| `openstack loadbalancer create` | `set_load_balancer` (action="create") | ✅ | 로드밸런서 생성. `admin_state_up` 기본값은 true. 2026-11-22 UTC targeted check: amphora 로드밸런서 하나가 586초(TCG) 만에 ACTIVE가 됨. `provider`, `flavor_id`, `availability_zone`은 확인하지 않음 |
+| `openstack loadbalancer delete` | `set_load_balancer` (action="delete") | ✅ | 로드밸런서 삭제. 2026-11-22 UTC targeted check: cascade 삭제가 수락되었고 로드밸런서가 없음을 확인. cascade 없는 삭제는 확인하지 않음 |
+| `openstack loadbalancer set` | `set_load_balancer` (action="set"/"update") | ✅ | `name`, `description`, `admin_state_up`, `vip_qos_policy`. `admin_state_up`은 지정했을 때만 보냄. 2026-11-22 이전에는 모든 `set`이 `admin_state_up=true`도 보내 비활성화된 로드밸런서를 다시 활성화할 수 있었음. 2026-11-22 UTC targeted check: `admin_state_up=false`로 비활성화한 뒤 description만 바꾼 `set` 후에도 비활성 상태가 유지됨. 이름 변경은 확인하지 않음 |
 | `openstack loadbalancer stats show` | `set_load_balancer` (action="stats") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서 통계 |
 | `openstack loadbalancer status show` | `set_load_balancer` (action="status") | ✅ | Octavia 상태 트리(`GET /lbaas/loadbalancers/{id}/status`): 리스너, pool, 멤버, 헬스 모니터와 각 상태. 이전에는 로드밸런서 자체 상태만 반환했음. 2026-11-16 targeted check: 멤버 2개인 pool 하나를 공유하는 리스너 2개와 로드밸런서가 모두 ACTIVE/ONLINE으로 반환됨 |
 | `openstack loadbalancer failover` | `set_load_balancer` (action="failover") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서 failover |
-| `openstack loadbalancer unset` | `set_load_balancer` (action="unset") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서 속성 해제 |
+| `openstack loadbalancer unset` | `set_load_balancer` (action="unset") | ⚠️ Live unverified | `description` 또는 `vip_qos_policy`를 해제(다음 행 참고). `description` 해제는 라이브로 확인하지 않음 |
+| `openstack loadbalancer create/set/unset --vip-qos-policy-id` | `set_load_balancer` (action="create"/"set"/"unset", `vip_qos_policy`) | ✅ Partial | 프로젝트가 소유하거나 공유받은 Neutron QoS policy를 이름 또는 ID로 지정하며, Octavia의 `vip_qos_policy_id`로 보냄. amphora provider에서는 Octavia가 VIP port가 아니라 amphora VRRP port에 적용하며 규칙 유형은 검사하지 않음. `unset`은 현재 연결된 policy를 지정해야 하며 `warning`을 반환. Heat의 `OS::Octavia::LoadBalancer`(2025.1)에는 QoS 속성이 없으므로 스택 생성 후 이 도구로 연결. 2026-11-22 UTC targeted check(Octavia 16.1.1, amphora 1대, ML2/OVS): DSCP policy를 지정한 `create`와 대역폭 policy로 바꾼 `set`이 각각 ACTIVE가 되었고, 로드밸런서와 VRRP port 모두에서 해당 policy를 다시 읽어 확인. 없는 policy와 연결되지 않은 policy의 `unset`은 거부됨. `unset`은 로드밸런서의 `vip_qos_policy_id`를 비웠지만 VRRP port에는 대역폭 policy가 남음: Octavia의 update flow가 새 값을 저장하기 전에 QoS를 적용하면서 저장된 policy로 대체하기 때문. DSCP 마킹과 속도는 측정하지 않았으며, 다른 프로젝트가 공유한 policy는 **Live unverified** |
 | **리스너 관리** | | | |
 | `openstack loadbalancer listener list` | `get_load_balancer_listeners` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서의 리스너 목록. `provisioning_status`, `operating_status`, `default_tls_container_ref`, `sni_container_refs` 표시 |
 | `openstack loadbalancer listener create` | `set_load_balancer_listener` (action="create") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 리스너 생성(HTTP/HTTPS/TCP/UDP) |
 | `openstack loadbalancer listener create --protocol TERMINATED_HTTPS --default-tls-container-ref --sni-container-refs` | `set_load_balancer_listener` (action="create"/"set", `default_tls_container_ref`, `sni_container_refs`) | ✅ | Barbican 시크릿 또는 certificate 컨테이너를 이름, ID, href로 지정(이름은 href로 변환). `TERMINATED_HTTPS`에서는 `default_tls_container_ref` 필수. 인증서 오류에는 사전 조건 안내가 붙음. [Barbican과 TLS 가이드](docs/barbican-tls-guide.ko.md) 참고. 2026-11-15 targeted check(OpenWebUI, 단일 계정): 자체 서명 시크릿을 이름으로, 기존 HTTP pool을 지정한 443 포트 `TERMINATED_HTTPS` 리스너가 HTTP 리스너와 함께 ACTIVE/ONLINE이 됨. 같은 날 Claude 클라이언트로 같은 방식의 시크릿과 리스너를 새로 만든 실행에서, floating IP와 VIP에 대한 `curl -vk`가 그 인증서로 TLSv1.3 핸드셰이크를 마치고(h2 협상) HTTP 멤버 2대 각각에서 HTTP 200을 받음. 확인하지 않은 것: `sni_container_refs`, `set`. |
 | `openstack loadbalancer listener delete` | `set_load_balancer_listener` (action="delete") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 리스너 삭제 |
 | `openstack loadbalancer listener show` | `get_load_balancer_listeners` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 리스너 상세 정보 |
-| `openstack loadbalancer listener set` | `set_load_balancer_listener` (action="update") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 리스너 속성 변경 |
+| `openstack loadbalancer listener set` | `set_load_balancer_listener` (action="set"/"update") | ✅ | 리스너 속성 변경. 지정한 값만 보냄(2026-11-22 이전에는 모든 update가 `admin_state_up=true`도 보냈음). 2026-11-22 UTC targeted check: 비활성화된 리스너에 이름만 바꾼 `set` 후에도 비활성 상태가 유지됨. 다른 속성은 확인하지 않음 |
 | `openstack loadbalancer listener stats show` | `set_load_balancer_listener` (action="stats") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 리스너 통계 |
 | `openstack loadbalancer listener unset` | `set_load_balancer_listener` (action="unset") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 리스너 속성 해제 |
 | **풀 관리** | | | |
 | `openstack loadbalancer pool list` | `get_load_balancer_pools` | ✅ | 2026-11-12 Octavia targeted read check 통과. 풀 목록(전체 또는 리스너별). Octavia 응답의 `listener_ids`, `loadbalancer_ids`, `health_monitor_id` 표시 |
 | `openstack loadbalancer pool create` | `set_load_balancer_pool` (action="create") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 알고리즘을 지정한 풀 생성 |
 | `openstack loadbalancer pool delete` | `set_load_balancer_pool` (action="delete") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 풀 삭제 |
-| `openstack loadbalancer pool set` | `set_load_balancer_pool` (action="set") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 풀 속성 변경 |
+| `openstack loadbalancer pool set` | `set_load_balancer_pool` (action="set") | ✅ | 풀 속성 변경. 지정한 값만 보내며 바꿀 값이 없는 `set`은 거부(2026-11-22 이전에는 모든 update가 `admin_state_up=true`와 `lb_algorithm=ROUND_ROBIN`도 보냈음). 2026-11-22 UTC targeted check: 이름만 바꾼 `set` 후에도 `LEAST_CONNECTIONS`와 비활성 상태가 유지되었고, 빈 `set`은 거부됨 |
 | `openstack loadbalancer pool create/set --enable-tls --ca-tls-container-ref --crl-container-ref --tls-version --tls-ciphers --alpn-protocol` | `set_load_balancer_pool` (action="create"/"set", `tls_enabled`, `ca_tls_container_ref`, `crl_container_ref`, `tls_versions`, `tls_ciphers`, `alpn_protocols`) | ⚠️ Live unverified | 단위 테스트만 수행. Backend re-encryption. 인증서 참조는 Barbican 이름, ID, href로 지정. pool 결과에 이 필드들이 표시됨. [Barbican과 TLS 가이드](docs/barbican-tls-guide.ko.md#멤버까지의-tls) 참고 |
 | `openstack loadbalancer pool create/set --tls-container-ref` | `set_load_balancer_pool` (`tls_container_ref`) | ⚠️ Live unverified | 단위 테스트만 수행. Backend re-encryption의 client authentication: mutual TLS(mTLS)를 요구하는 멤버에 제시할 클라이언트 인증서. openstacksdk 4.22.0의 pool에는 이 필드가 없어 이 값이 있는 요청은 Octavia API로 직접 보냄. `show`는 Octavia 응답에서 읽음 |
 | `openstack loadbalancer pool show` | `get_load_balancer_pools` | ✅ | 2026-11-12 Octavia targeted read check 통과. 풀 상세 정보(`listener_ids`, `loadbalancer_ids`, `health_monitor_id` 포함) |
@@ -539,14 +542,14 @@ Octavia 도구는 openstacksdk의 속성 이름(`is_admin_state_up`, `is_enabled
 | `openstack loadbalancer member list` | `get_load_balancer_pool_members` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 풀 멤버 목록 |
 | `openstack loadbalancer member create` | `set_load_balancer_pool_member` (action="create") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 풀 멤버 생성 |
 | `openstack loadbalancer member delete` | `set_load_balancer_pool_member` (action="delete") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 풀 멤버 삭제 |
-| `openstack loadbalancer member set` | `set_load_balancer_pool_member` (action="set") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 풀 멤버 속성 변경 |
+| `openstack loadbalancer member set` | `set_load_balancer_pool_member` (action="set") | ✅ | 풀 멤버 속성 변경. 지정한 값만 보내고 `weight=0`을 허용하며 바꿀 값이 없는 `set`은 거부(2026-11-22 이전에는 모든 update가 `admin_state_up=true`, `backup=false`, 그리고 지정하지 않으면 `weight=1`도 보냈음). 2026-11-22 UTC targeted check: 이름만 바꾼 `set` 후에도 weight 10, 비활성 상태, `backup=true`가 유지되었고, `weight=0`이 적용됨 |
 | `openstack loadbalancer member show` | `get_load_balancer_pool_members` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 풀 멤버 상세 정보 |
 | `openstack loadbalancer member unset` | N/A | ❌ Not implemented | 이 CLI 작업에 해당하는 등록된 도구/action이 없음 |
 | **헬스 모니터 관리** | | | |
 | `openstack loadbalancer healthmonitor list` | `get_load_balancer_health_monitors` | ✅ | 2026-11-12 Octavia targeted read check 통과. 헬스 모니터 목록(전체 또는 풀별). Octavia 응답의 `pool_ids` 표시 |
 | `openstack loadbalancer healthmonitor create` | `set_load_balancer_health_monitor` (action="create") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 헬스 모니터 생성. non-terminated HTTPS(TLS passthrough) pool용 `TLS-HELLO` 타입 포함 |
 | `openstack loadbalancer healthmonitor delete` | `set_load_balancer_health_monitor` (action="delete") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 헬스 모니터 삭제 |
-| `openstack loadbalancer healthmonitor set` | `set_load_balancer_health_monitor` (action="set") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 헬스 모니터 변경 |
+| `openstack loadbalancer healthmonitor set` | `set_load_balancer_health_monitor` (action="set") | ✅ | 헬스 모니터 변경. 지정한 값만 보내며 바꿀 값이 없는 `set`은 거부(2026-11-22 이전에는 모든 update가 `admin_state_up=true`와 기본 주기 및 HTTP 값도 보냈음). 2026-11-22 UTC targeted check: 이름만 바꾼 `set` 후에도 delay 30, timeout 7, 재시도 4/5, `HEAD /health`, `200-204`, 비활성 상태가 유지됨 |
 | `openstack loadbalancer healthmonitor show` | `get_load_balancer_health_monitors` | ✅ | 2026-11-12 Octavia targeted read check 통과. 헬스 모니터 상세 정보(`pool_ids` 포함) |
 | `openstack loadbalancer healthmonitor unset` | N/A | ❌ Not implemented | 이 CLI 작업에 해당하는 등록된 도구/action이 없음 |
 | **L7 정책 관리** | | | |

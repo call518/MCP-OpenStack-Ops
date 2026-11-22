@@ -6,7 +6,7 @@ including creating, updating, deleting, and querying health monitors.
 """
 
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from ...connection import get_openstack_connection
 from .pools import resource_ref_ids
 
@@ -92,10 +92,12 @@ def get_load_balancer_health_monitors(pool_name_or_id: str = "") -> Dict[str, An
 
 def set_load_balancer_health_monitor(action: str, monitor_name_or_id: str = "", name: str = "",
                                    pool_name_or_id: str = "", monitor_type: str = "HTTP",
-                                   delay: int = 10, timeout: int = 5, max_retries: int = 3,
-                                   max_retries_down: int = 3, admin_state_up: bool = True,
-                                   http_method: str = "GET", url_path: str = "/",
-                                   expected_codes: str = "200") -> Dict[str, Any]:
+                                   delay: Optional[int] = None, timeout: Optional[int] = None,
+                                   max_retries: Optional[int] = None,
+                                   max_retries_down: Optional[int] = None,
+                                   admin_state_up: Optional[bool] = None,
+                                   http_method: str = "", url_path: str = "",
+                                   expected_codes: str = "") -> Dict[str, Any]:
     """
     Manage load balancer health monitor operations.
     
@@ -105,14 +107,16 @@ def set_load_balancer_health_monitor(action: str, monitor_name_or_id: str = "", 
         name: Name for the monitor
         pool_name_or_id: Pool name or ID (required for create)
         monitor_type: Monitor type (HTTP, HTTPS, TLS-HELLO, TCP, PING, UDP-CONNECT, SCTP)
-        delay: Delay between health checks in seconds
-        timeout: Timeout for health check in seconds
-        max_retries: Maximum retries before marking unhealthy
-        max_retries_down: Maximum retries before marking down
-        admin_state_up: Administrative state
-        http_method: HTTP method for HTTP/HTTPS monitors
-        url_path: URL path for HTTP/HTTPS monitors
-        expected_codes: Expected HTTP status codes
+        delay: Delay between health checks in seconds (create default 10)
+        timeout: Timeout for health check in seconds (create default 5)
+        max_retries: Maximum retries before marking unhealthy (create default 3)
+        max_retries_down: Maximum retries before marking down (create default 3)
+        admin_state_up: Administrative state (create default True)
+        http_method: HTTP method for HTTP/HTTPS monitors (create default GET)
+        url_path: URL path for HTTP/HTTPS monitors (create default /)
+        expected_codes: Expected HTTP status codes (create default 200)
+
+        set sends only the values given (None or empty leaves a field unchanged).
         
     Returns:
         Dictionary with operation results
@@ -143,11 +147,11 @@ def set_load_balancer_health_monitor(action: str, monitor_name_or_id: str = "", 
             # Create health monitor
             monitor_attrs = {
                 'type': monitor_type.upper(),
-                'delay': delay,
-                'timeout': timeout,
-                'max_retries': max_retries,
-                'max_retries_down': max_retries_down,
-                'admin_state_up': admin_state_up,
+                'delay': 10 if delay is None else delay,
+                'timeout': 5 if timeout is None else timeout,
+                'max_retries': 3 if max_retries is None else max_retries,
+                'max_retries_down': 3 if max_retries_down is None else max_retries_down,
+                'admin_state_up': True if admin_state_up is None else admin_state_up,
                 'pool_id': pool.id
             }
             
@@ -156,9 +160,9 @@ def set_load_balancer_health_monitor(action: str, monitor_name_or_id: str = "", 
             
             # HTTP/HTTPS specific attributes
             if monitor_type.upper() in ['HTTP', 'HTTPS']:
-                monitor_attrs['http_method'] = http_method.upper()
-                monitor_attrs['url_path'] = url_path
-                monitor_attrs['expected_codes'] = expected_codes
+                monitor_attrs['http_method'] = (http_method or 'GET').upper()
+                monitor_attrs['url_path'] = url_path or '/'
+                monitor_attrs['expected_codes'] = expected_codes or '200'
                 
             monitor = conn.load_balancer.create_health_monitor(**monitor_attrs)
             
@@ -273,15 +277,12 @@ def set_load_balancer_health_monitor(action: str, monitor_name_or_id: str = "", 
             update_attrs = {}
             if name:
                 update_attrs['name'] = name
-            if delay > 0:
-                update_attrs['delay'] = delay
-            if timeout > 0:
-                update_attrs['timeout'] = timeout
-            if max_retries > 0:
-                update_attrs['max_retries'] = max_retries
-            if max_retries_down > 0:
-                update_attrs['max_retries_down'] = max_retries_down
-            update_attrs['admin_state_up'] = admin_state_up
+            for key, value in (('delay', delay), ('timeout', timeout),
+                               ('max_retries', max_retries),
+                               ('max_retries_down', max_retries_down),
+                               ('admin_state_up', admin_state_up)):
+                if value is not None:
+                    update_attrs[key] = value
             
             # HTTP/HTTPS specific attributes
             if monitor.type in ['HTTP', 'HTTPS']:
@@ -291,7 +292,13 @@ def set_load_balancer_health_monitor(action: str, monitor_name_or_id: str = "", 
                     update_attrs['url_path'] = url_path
                 if expected_codes:
                     update_attrs['expected_codes'] = expected_codes
-            
+
+            if not update_attrs:
+                return {
+                    'success': False,
+                    'message': 'No update parameters provided'
+                }
+
             updated_monitor = conn.load_balancer.update_health_monitor(monitor, **update_attrs)
             
             return {

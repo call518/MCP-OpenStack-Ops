@@ -680,3 +680,58 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   patch를 기록합니다. 새 테스트 2건은 `set_image` update와 `set_image_metadata` set이
   새 property에 대한 `add`만 보내는지 확인합니다. `set_image` 케이스는 수정 전에 기존
   property의 `remove`가 더해져 실패했습니다.
+- **Octavia VIP QoS targeted check (2026-11-22 UTC, partial, `unset` 경고를 추가하기
+  전의 `0009b39` 기반 커밋 전 작업 트리):** Kolla-Ansible all-in-one OpenStack
+  2025.1(Octavia 16.1.1, SINGLE 토폴로지의 amphora provider, ML2/OVS), TCG 전용
+  환경입니다. 작업 트리 서버를 FastMCP 인메모리 클라이언트로 프로젝트 관리자 계정과
+  `ALLOW_MODIFY_OPERATIONS=true`로 호출했고, amphora VRRP port는 Neutron에서 직접
+  읽었습니다. 스크립트로 17개 항목을 점검해 16개가 통과했습니다. DSCP 정책을
+  `vip_qos_policy`로 지정한 `set_load_balancer` `create`는 수락되어 586초 뒤 ACTIVE가
+  되었고, 로드밸런서와 VRRP port 모두 그 정책을 다시 읽어 확인했으며
+  `get_load_balancer_details`도 이를 표시했습니다. 대역폭 정책으로 바꾼 `set`도
+  ACTIVE가 되었고 두 곳 모두 새 정책을 다시 읽어 확인했습니다. 없는 정책과 연결되지
+  않은 정책의 `unset`은 거부되었습니다. 연결된 정책의 `unset`은 ACTIVE가 되어
+  로드밸런서의 `vip_qos_policy_id`를 비웠지만, VRRP port에는 대역폭 정책이
+  남았습니다(실패한 항목). Octavia의 update flow는 `UpdateLoadbalancerInDB`보다
+  `ApplyQos`를 먼저 실행하고, `ApplyQos`는 요청이 정책을 비우면 저장된 정책으로
+  대체합니다. 이제 `unset`은 이에 대한 `warning`을 반환하며, 이는 단위 테스트로만
+  확인했습니다. `admin_state_up=false`로 바꾼 뒤 description만 바꾼 `set` 후에도
+  false가 유지되었습니다. cascade 삭제로 로드밸런서를 지웠고 없음을 확인했습니다.
+  **Live unverified:** 트래픽의 DSCP 마킹과 속도, 다른 프로젝트가 공유한 정책, 다른
+  provider와 ACTIVE_STANDBY 토폴로지. 이 partial check는 `set_load_balancer`와
+  `get_load_balancer_details`(고유 도구 2개)를 다루며 위의 105개 도구 요약을 갱신하지
+  않습니다.
+- **Octavia VIP QoS 변경 후 로컬 단위 테스트 (2026-11-22, `unset` 경고를 포함한 같은
+  커밋 전 작업 트리):** fastmcp 4.1.6과 고정된 openstacksdk 4.22.0으로
+  `uv run pytest -q`를 실행해 742/742 (100%)가 통과했고, 실패하거나 건너뛴 테스트는
+  없었습니다. 새 테스트 6건은 `create`가 정책 이름을 `vip_qos_policy_id`로 바꾸는지,
+  다른 프로젝트가 공유한 정책으로 `set`하는지, 없는 정책을 거부하는지, `unset`이
+  연결되지 않은 정책을 거부한 뒤 `vip_qos_policy_id=None`과 `warning`을 보내는지,
+  `get_load_balancer_details`가 `vip_qos_policy_id`를 표시하는지, description만 바꾸는
+  `set`에서 도구가 `admin_state_up`을 빼는지 확인합니다.
+- **Octavia 부분 update 수정 후 로컬 단위 테스트 (2026-11-22, 같은 커밋 전 작업
+  트리):** fastmcp 4.1.6과 고정된 openstacksdk 4.22.0으로 `uv run pytest -q`를
+  실행해 749/749 (100%)가 통과했고, 실패하거나 건너뛴 테스트는 없었습니다. 새 테스트
+  7건은 pool, 멤버, 헬스 모니터에서 이름만 바꾸는 `set`이 이름만 보내는지, 빈 `set`이
+  거부되는지, 멤버 `weight=0`이 전송되는지, `create`가 기존 기본값을 유지하는지,
+  그리고 리스너, pool, 멤버, 헬스 모니터 도구가 생략된 값을 지정하지 않은 값으로
+  넘기는지 확인합니다. 기존 mTLS pool 테스트 하나는 PUT body에
+  `admin_state_up: true`가 있기를 기대했는데 이것이 결함이었으므로, 이제
+  `tls_container_ref`만 기대합니다.
+- **Octavia 부분 update targeted check (2026-11-22 UTC, partial, 같은 커밋 전 작업
+  트리):** Kolla-Ansible all-in-one OpenStack 2025.1(Octavia 16.1.1, amphora
+  provider), TCG 전용 환경입니다. 작업 트리 서버를 FastMCP 인메모리 클라이언트로
+  프로젝트 관리자 계정과 `ALLOW_MODIFY_OPERATIONS=true`로 호출했고, 값은 Octavia에서
+  다시 읽었습니다. 테스트 로드밸런서에 비활성 HTTP 리스너, 비활성
+  `LEAST_CONNECTIONS` pool, weight 10인 비활성 backup 멤버, 비활성 HTTP 헬스
+  모니터(delay 30, timeout 7, 재시도 4/5, `HEAD /health`, `200-204`)를 만들었습니다.
+  네 리소스 각각에 이름만 바꾸는 `set`이 수락되었고, 나머지 값은 모두 바뀌지 않은
+  채로 다시 읽혔습니다. 멤버 `weight=0`이 적용되었고 빈 pool `set`은 거부되었습니다.
+  12개 항목이 모두 통과했으며, cascade 삭제한 로드밸런서가 없음을 확인했습니다. 같은
+  날 앞선 두 번의 시도는 `set` 호출이 수락된 뒤, lab 호스트에 부하가 걸린 상태에서
+  작업 환경에서 Octavia API로 가는 조회가 `RemoteDisconnected`로 끝나 멈췄습니다. 그
+  시도들의 재조회는 끝나지 않았으므로 집계하지 않았습니다. 통과한 실행은 이런 조회를
+  재시도하도록 했습니다(재시도는 필요 없었음). 이 partial check는
+  `set_load_balancer_listener`, `set_load_balancer_pool`,
+  `set_load_balancer_pool_member`, `set_load_balancer_health_monitor`(고유 도구
+  4개)를 다루며 위의 105개 도구 요약을 갱신하지 않습니다.

@@ -2,6 +2,7 @@
 
 import json
 from datetime import datetime
+from typing import Optional
 from ..mcp_main import (
     conditional_tool,
     logger,
@@ -15,9 +16,9 @@ async def set_load_balancer_pool_member(
     name: str = "",
     address: str = "",
     protocol_port: int = 0,
-    weight: int = 1,
-    admin_state_up: bool = True,
-    backup: bool = False,
+    weight: Optional[int] = None,
+    admin_state_up: Optional[bool] = None,
+    backup: Optional[bool] = None,
     monitor_address: str = "",
     monitor_port: int = 0
 ) -> str:
@@ -43,9 +44,11 @@ async def set_load_balancer_pool_member(
         name: Name for the member
         address: IP address of the member (required for create)
         protocol_port: Port number (required for create)
-        weight: Member weight (1-256, default: 1)
-        admin_state_up: Administrative state (default: True)
-        backup: Backup member flag (default: False)
+        weight: Member weight (0-256; 0 stops new traffic). create defaults
+            to 1
+        admin_state_up: Administrative state. create defaults to True
+        backup: Backup member flag. create defaults to False
+        set changes weight, admin_state_up and backup only when given.
         monitor_address: Monitor IP address
         monitor_port: Monitor port
         

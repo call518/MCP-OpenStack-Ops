@@ -9,11 +9,22 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 from ...connection import get_openstack_connection
+from ..network import find_usable_qos_policy
 from .listeners import listener_belongs_to_load_balancer
 from .pools import resource_ref_ids
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+# Observed with Octavia 16.1.1 (2025.1, amphora provider): the update flow
+# applies QoS to the VRRP ports before saving the new value and falls back to
+# the stored policy when the request clears it.
+VIP_QOS_UNSET_WARNING = (
+    'Octavia clears vip_qos_policy_id on the load balancer, but the amphora '
+    'provider (observed in Octavia 16.1.1) can keep the previous policy on '
+    'the amphora VRRP ports, so VIP traffic may still be limited; an '
+    'administrator should check those ports'
+)
 
 
 def get_load_balancer_list(limit: int = 50, offset: int = 0, include_all: bool = False,
@@ -189,6 +200,7 @@ def get_load_balancer_details(lb_name_or_id: str) -> Dict[str, Any]:
             'vip_port_id': lb.vip_port_id,
             'vip_subnet_id': lb.vip_subnet_id,
             'vip_network_id': lb.vip_network_id,
+            'vip_qos_policy_id': lb.vip_qos_policy_id,
             'provisioning_status': lb.provisioning_status,
             'operating_status': lb.operating_status,
             'admin_state_up': lb.is_admin_state_up,
@@ -297,6 +309,9 @@ def set_load_balancer(action: str, **kwargs) -> Dict[str, Any]:
             
             # Remove None values
             lb_params = {k: v for k, v in lb_params.items() if v is not None}
+            if kwargs.get('vip_qos_policy'):
+                lb_params['vip_qos_policy_id'] = find_usable_qos_policy(
+                    conn, kwargs['vip_qos_policy']).id
             
             lb = conn.load_balancer.create_load_balancer(**lb_params)
             
@@ -307,6 +322,7 @@ def set_load_balancer(action: str, **kwargs) -> Dict[str, Any]:
                     'id': lb.id,
                     'name': lb.name,
                     'vip_address': lb.vip_address,
+                    'vip_qos_policy_id': lb.vip_qos_policy_id,
                     'provisioning_status': lb.provisioning_status,
                     'operating_status': lb.operating_status
                 }
@@ -352,6 +368,9 @@ def set_load_balancer(action: str, **kwargs) -> Dict[str, Any]:
             for key in ['name', 'description', 'admin_state_up']:
                 if key in kwargs:
                     update_params[key] = kwargs[key]
+            if kwargs.get('vip_qos_policy'):
+                update_params['vip_qos_policy_id'] = find_usable_qos_policy(
+                    conn, kwargs['vip_qos_policy']).id
             
             if not update_params:
                 return {
@@ -368,6 +387,7 @@ def set_load_balancer(action: str, **kwargs) -> Dict[str, Any]:
                     'name': updated_lb.name,
                     'description': updated_lb.description,
                     'admin_state_up': updated_lb.is_admin_state_up,
+                    'vip_qos_policy_id': updated_lb.vip_qos_policy_id,
                     'provisioning_status': getattr(updated_lb, 'provisioning_status', None)
                 }
             }
@@ -391,13 +411,38 @@ def set_load_balancer(action: str, **kwargs) -> Dict[str, Any]:
             # Unset operations: clear description
             if kwargs.get('description'):
                 unset_params['description'] = ''
+            if kwargs.get('vip_qos_policy'):
+                policy = find_usable_qos_policy(conn, kwargs['vip_qos_policy'])
+                if lb.vip_qos_policy_id != policy.id:
+                    return {
+                        'success': False,
+                        'message': (
+                            f'Load balancer {lb.id} does not use QoS policy '
+                            f'{policy.id}; its current VIP QoS policy is '
+                            f'{lb.vip_qos_policy_id}'
+                        )
+                    }
+                unset_params['vip_qos_policy_id'] = None
             
             if unset_params:
                 updated_lb = conn.load_balancer.update_load_balancer(lb.id, **unset_params)
-                return {
+                result = {
                     'success': True,
-                    'message': f'Load balancer settings cleared: {updated_lb.name}'
+                    'message': (
+                        f'Load balancer unset accepted: {updated_lb.name}; '
+                        'check provisioning_status before use'
+                    ),
+                    'load_balancer': {
+                        'id': updated_lb.id,
+                        'description': updated_lb.description,
+                        'vip_qos_policy_id': updated_lb.vip_qos_policy_id,
+                        'provisioning_status': getattr(
+                            updated_lb, 'provisioning_status', None),
+                    }
                 }
+                if 'vip_qos_policy_id' in unset_params:
+                    result['warning'] = VIP_QOS_UNSET_WARNING
+                return result
             else:
                 return {
                     'success': False,

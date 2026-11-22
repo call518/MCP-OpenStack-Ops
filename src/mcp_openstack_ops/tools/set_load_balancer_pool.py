@@ -2,6 +2,7 @@
 
 import json
 from datetime import datetime
+from typing import Optional
 from ..mcp_main import (
     conditional_tool,
     logger,
@@ -14,9 +15,9 @@ async def set_load_balancer_pool(
     name: str = "",
     listener_name_or_id: str = "",
     protocol: str = "",
-    lb_algorithm: str = "ROUND_ROBIN",
+    lb_algorithm: str = "",
     description: str = "",
-    admin_state_up: bool = True,
+    admin_state_up: Optional[bool] = None,
     tls_enabled: str = "",
     tls_container_ref: str = "",
     ca_tls_container_ref: str = "",
@@ -58,9 +59,12 @@ async def set_load_balancer_pool(
         listener_name_or_id: Listener name or ID (required for create)
         protocol: Pool protocol - HTTP, HTTPS, TCP, UDP (required for create).
             Use HTTP with tls_enabled=true for backend re-encryption
-        lb_algorithm: Load balancing algorithm (ROUND_ROBIN, LEAST_CONNECTIONS, SOURCE_IP)
+        lb_algorithm: Load balancing algorithm (ROUND_ROBIN, LEAST_CONNECTIONS,
+            SOURCE_IP). create defaults to ROUND_ROBIN; set changes it only
+            when given
         description: Description for the pool
-        admin_state_up: Administrative state (default: True)
+        admin_state_up: Administrative state. create defaults to True; set
+            changes it only when given
         tls_enabled: true or false to turn backend re-encryption on or off
             (create/set); empty leaves it unchanged
         tls_container_ref: Client authentication: the client certificate the

@@ -1556,6 +1556,24 @@ def _set_target_qos_policy(conn: Any, target_type: str, resource: Any,
     updater(resource, qos_policy_id=policy_id)
 
 
+def _qos_policy_groups(conn: Any, project_id: str):
+    """Return (project-owned, shared-from-other-projects) QoS policies."""
+    owned = [p for p in conn.network.qos_policies(project_id=project_id)
+             if p.project_id == project_id]
+    foreign_shared = [p for p in conn.network.qos_policies(is_shared=True)
+                      if p.is_shared and p.project_id != project_id]
+    return owned, foreign_shared
+
+
+def find_usable_qos_policy(conn: Any, name_or_id: str):
+    """Find a QoS policy owned by or shared with the current project."""
+    project_id = conn.current_project_id
+    if not project_id:
+        raise ValueError('A project-scoped connection is required')
+    owned, foreign_shared = _qos_policy_groups(conn, project_id)
+    return _match_one(owned + foreign_shared, name_or_id, 'QoS policy')
+
+
 def _validated_rule_values(rule_type: str, values: Any) -> Dict[str, Any]:
     """Reject rule fields that the rule type does not define."""
     if not isinstance(values, dict) or not values:
@@ -1616,10 +1634,7 @@ def set_network_qos_policies(
             if policy.is_shared:
                 result['warning'] = SHARED_POLICY_WARNING
             return result
-        owned = [p for p in conn.network.qos_policies(project_id=project_id)
-                 if p.project_id == project_id]
-        foreign_shared = [p for p in conn.network.qos_policies(is_shared=True)
-                          if p.is_shared and p.project_id != project_id]
+        owned, foreign_shared = _qos_policy_groups(conn, project_id)
         if action == 'list':
             return {
                 'success': True, 'policies': [p.to_dict() for p in owned],

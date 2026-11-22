@@ -402,7 +402,7 @@ def test_mtls_pool_set_puts_only_updatable_fields(conn):
     conn.load_balancer.update_pool.assert_not_called()
     assert conn.load_balancer.put.call_args.args[0] == '/lbaas/pools/pool-1'
     assert conn.load_balancer.put.call_args.kwargs['json'] == {
-        'pool': {'admin_state_up': True, 'tls_container_ref': SECRET_REF}}
+        'pool': {'tls_container_ref': SECRET_REF}}
 
 
 def test_pool_set_without_client_cert_uses_sdk(conn):

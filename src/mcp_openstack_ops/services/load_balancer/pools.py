@@ -177,8 +177,8 @@ def get_load_balancer_pools(listener_name_or_id: str = None) -> Dict[str, Any]:
 
 def set_load_balancer_pool(action: str, pool_name_or_id: str = "", name: str = "", 
                           listener_name_or_id: str = "", protocol: str = "", 
-                          lb_algorithm: str = "ROUND_ROBIN", description: str = "",
-                          admin_state_up: bool = True,
+                          lb_algorithm: str = "", description: str = "",
+                          admin_state_up: Optional[bool] = None,
                           tls_enabled: Optional[bool] = None,
                           tls_container_ref: str = "",
                           ca_tls_container_ref: str = "",
@@ -195,9 +195,12 @@ def set_load_balancer_pool(action: str, pool_name_or_id: str = "", name: str = "
         name: Name for new pool (required for create)
         listener_name_or_id: Listener name or ID (required for create)
         protocol: Pool protocol - HTTP, HTTPS, TCP, UDP (required for create)
-        lb_algorithm: Load balancing algorithm (ROUND_ROBIN, LEAST_CONNECTIONS, SOURCE_IP)
+        lb_algorithm: Load balancing algorithm (ROUND_ROBIN, LEAST_CONNECTIONS,
+            SOURCE_IP); create defaults to ROUND_ROBIN, set leaves it unchanged
+            when empty
         description: Description for the pool
-        admin_state_up: Administrative state
+        admin_state_up: Administrative state; create defaults to True, set
+            leaves it unchanged when None
         tls_enabled .. alpn_protocols: Backend re-encryption settings (create/set);
             certificate references accept Barbican names, IDs or hrefs
 
@@ -236,8 +239,8 @@ def set_load_balancer_pool(action: str, pool_name_or_id: str = "", name: str = "
                 'name': name,
                 'listener_id': listener.id,
                 'protocol': protocol.upper(),
-                'lb_algorithm': lb_algorithm.upper(),
-                'admin_state_up': admin_state_up
+                'lb_algorithm': (lb_algorithm or 'ROUND_ROBIN').upper(),
+                'admin_state_up': True if admin_state_up is None else admin_state_up
             }
             
             if description:
@@ -378,8 +381,14 @@ def set_load_balancer_pool(action: str, pool_name_or_id: str = "", name: str = "
                 update_attrs['description'] = description
             if lb_algorithm:
                 update_attrs['lb_algorithm'] = lb_algorithm.upper()
-            update_attrs['admin_state_up'] = admin_state_up
+            if admin_state_up is not None:
+                update_attrs['admin_state_up'] = admin_state_up
             update_attrs.update(tls_attrs)
+            if not update_attrs:
+                return {
+                    'success': False,
+                    'message': 'No update parameters provided'
+                }
 
             if 'tls_container_ref' in update_attrs:
                 updated_pool = _write_raw_pool(
@@ -489,8 +498,9 @@ def get_load_balancer_pool_members(pool_name_or_id: str) -> Dict[str, Any]:
 
 def set_load_balancer_pool_member(action: str, pool_name_or_id: str, member_id: str = "", 
                                  name: str = "", address: str = "", protocol_port: int = 0,
-                                 weight: int = 1, admin_state_up: bool = True, 
-                                 backup: bool = False, monitor_address: str = "",
+                                 weight: Optional[int] = None,
+                                 admin_state_up: Optional[bool] = None,
+                                 backup: Optional[bool] = None, monitor_address: str = "",
                                  monitor_port: int = 0) -> Dict[str, Any]:
     """
     Manage load balancer pool member operations.
@@ -502,9 +512,11 @@ def set_load_balancer_pool_member(action: str, pool_name_or_id: str, member_id: 
         name: Name for the member
         address: IP address of the member (required for create)
         protocol_port: Port number (required for create)
-        weight: Member weight (1-256)
-        admin_state_up: Administrative state
-        backup: Backup member flag
+        weight: Member weight (0-256; 0 stops new traffic); create default 1
+        admin_state_up: Administrative state; create default True
+        backup: Backup member flag; create default False
+
+        set sends only the values given (None leaves a field unchanged).
         monitor_address: Monitor IP address
         monitor_port: Monitor port
         
@@ -538,9 +550,9 @@ def set_load_balancer_pool_member(action: str, pool_name_or_id: str, member_id: 
             member_attrs = {
                 'address': address,
                 'protocol_port': protocol_port,
-                'weight': weight,
-                'admin_state_up': admin_state_up,
-                'backup': backup
+                'weight': 1 if weight is None else weight,
+                'admin_state_up': True if admin_state_up is None else admin_state_up,
+                'backup': False if backup is None else backup
             }
             
             if name:
@@ -648,15 +660,21 @@ def set_load_balancer_pool_member(action: str, pool_name_or_id: str, member_id: 
             update_attrs = {}
             if name:
                 update_attrs['name'] = name
-            if weight > 0:
-                update_attrs['weight'] = weight
-            update_attrs['admin_state_up'] = admin_state_up
-            update_attrs['backup'] = backup
+            for key, value in (('weight', weight), ('admin_state_up', admin_state_up),
+                               ('backup', backup)):
+                if value is not None:
+                    update_attrs[key] = value
             if monitor_address:
                 update_attrs['monitor_address'] = monitor_address
             if monitor_port > 0:
                 update_attrs['monitor_port'] = monitor_port
-            
+
+            if not update_attrs:
+                return {
+                    'success': False,
+                    'message': 'No update parameters provided'
+                }
+
             updated_member = conn.load_balancer.update_member(member, pool, **update_attrs)
             
             return {

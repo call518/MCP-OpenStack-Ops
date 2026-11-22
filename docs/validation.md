@@ -788,3 +788,65 @@ an earlier full summary.
   that `set_image` update and `set_image_metadata` set send only an `add` for
   the new property; the `set_image` case failed before the fix with an extra
   `remove` of the existing property.
+- **Targeted Octavia VIP QoS check (2026-11-22 UTC; partial; uncommitted
+  working tree based on `0009b39`, before the `unset` warning was added):**
+  Kolla-Ansible all-in-one OpenStack 2025.1 (Octavia 16.1.1, amphora provider
+  in SINGLE topology, ML2/OVS), TCG only. The working-tree server was called
+  through FastMCP's in-memory client as the project administrator with
+  `ALLOW_MODIFY_OPERATIONS=true`; the amphora VRRP ports were read from Neutron
+  directly. A scripted run made 17 checks, 16 passed. `set_load_balancer`
+  `create` with `vip_qos_policy` naming a DSCP policy was accepted and reached
+  ACTIVE after 586 s; the load balancer and the VRRP port read back that
+  policy, and `get_load_balancer_details` reported it. `set` to a bandwidth
+  policy reached ACTIVE and both read back the new policy. An unknown policy
+  and `unset` of a policy that was not attached were refused. `unset` of the
+  attached policy reached ACTIVE and cleared the load balancer's
+  `vip_qos_policy_id`, but the VRRP port kept the bandwidth policy (the failed
+  check). Octavia's update flow runs `ApplyQos` before
+  `UpdateLoadbalancerInDB`, and `ApplyQos` falls back to the stored policy
+  when the request clears it; `unset` now returns a `warning` about this, which
+  is unit-tested only. `admin_state_up=false` was set, and a later
+  description-only `set` kept it false. Cascade delete removed the load
+  balancer, confirmed absent. **Live unverified:** DSCP marking and rates on
+  traffic, policies shared by other projects, other providers and the
+  ACTIVE_STANDBY topology. This partial check covers `set_load_balancer` and
+  `get_load_balancer_details` (2 unique tools) and does not update the
+  105-tool summary above.
+- **Local unit tests after the Octavia VIP QoS change (2026-11-22; same
+  uncommitted working tree, with the `unset` warning):** 742/742 (100%) with
+  fastmcp 4.1.6 and the locked openstacksdk 4.22.0, run as
+  `uv run pytest -q`; no failures or skipped tests. Six new cases cover
+  `create` resolving a policy name to `vip_qos_policy_id`, `set` with a policy
+  shared by another project, refusal of an unknown policy, `unset` refusing a
+  policy that is not attached and then sending `vip_qos_policy_id=None` with a
+  `warning`, `get_load_balancer_details` reporting `vip_qos_policy_id`, and the
+  tool omitting `admin_state_up` from a description-only `set`.
+- **Local unit tests after the Octavia partial-update fix (2026-11-22; same
+  uncommitted working tree):** 749/749 (100%) with fastmcp 4.1.6 and the
+  locked openstacksdk 4.22.0, run as `uv run pytest -q`; no failures or
+  skipped tests. Seven new cases check that a name-only `set` sends only the
+  name for pools, members and health monitors, that an empty `set` is refused,
+  that member `weight=0` is sent, that `create` keeps the previous defaults,
+  and that the listener, pool, member and health monitor tools pass omitted
+  values as unset. One existing mTLS pool test expected `admin_state_up: true`
+  in the PUT body, which was the defect, and now expects only
+  `tls_container_ref`.
+- **Targeted Octavia partial-update check (2026-11-22 UTC; partial; same
+  uncommitted working tree):** Kolla-Ansible all-in-one OpenStack 2025.1
+  (Octavia 16.1.1, amphora provider), TCG only. The working-tree server was
+  called through FastMCP's in-memory client as the project administrator with
+  `ALLOW_MODIFY_OPERATIONS=true`, and values were read back from Octavia. A
+  test load balancer got a disabled HTTP listener, a disabled
+  `LEAST_CONNECTIONS` pool, a disabled backup member with weight 10 and a
+  disabled HTTP health monitor (delay 30, timeout 7, retries 4/5,
+  `HEAD /health`, `200-204`). A name-only `set` on each of the four was
+  accepted, and every other value was read back unchanged; member `weight=0`
+  was applied and an empty pool `set` was refused. All 12 checks passed, and
+  the cascade-deleted load balancer was confirmed absent. Two earlier attempts
+  on the same day stopped after the `set` calls were accepted, when reads from
+  the workspace to the Octavia API ended with `RemoteDisconnected` while the
+  lab host was loaded; their read-back was not completed and is not counted.
+  The passing run retried such reads (none was needed). This partial check
+  covers `set_load_balancer_listener`, `set_load_balancer_pool`,
+  `set_load_balancer_pool_member` and `set_load_balancer_health_monitor`
+  (4 unique tools) and does not update the 105-tool summary above.

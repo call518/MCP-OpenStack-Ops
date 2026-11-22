@@ -488,3 +488,226 @@ def test_amphora_reports_loadbalancer_id(conn):
     conn.load_balancer.amphorae.assert_called_once_with(loadbalancer_id='lb-1')
     assert shown['amphora']['loadbalancer_id'] == 'lb-1'
     assert legacy_shown['amphora']['load_balancer_id'] == 'lb-1'
+
+
+def _qos_network(conn):
+    from openstack.network.v2._proxy import Proxy as NetworkProxy
+    from openstack.network.v2.qos_policy import QoSPolicy
+
+    owned = QoSPolicy.existing(
+        id='qos-1', name='lb-dscp', project_id='project-a', is_shared=False)
+    shared = QoSPolicy.existing(
+        id='qos-2', name='shared-bw', project_id='project-b', is_shared=True)
+    conn.network = create_autospec(NetworkProxy, instance=True)
+    conn.network.qos_policies.side_effect = lambda **query: (
+        [shared] if query.get('is_shared') else [owned])
+
+
+def test_load_balancer_create_resolves_vip_qos_policy_name(conn):
+    _qos_network(conn)
+    conn.load_balancer.create_load_balancer.return_value = _lb(
+        vip_qos_policy_id='qos-1', provisioning_status='PENDING_CREATE')
+
+    result = core.set_load_balancer(
+        'create', name='web-lb', vip_subnet_id='subnet-1', vip_qos_policy='lb-dscp')
+
+    assert result['success'] is True, result
+    assert result['load_balancer']['vip_qos_policy_id'] == 'qos-1'
+    _, kwargs = conn.load_balancer.create_load_balancer.call_args
+    created = LoadBalancer.new(**kwargs)
+    assert created.vip_qos_policy_id == 'qos-1'
+    assert created.is_admin_state_up is True
+
+
+def test_load_balancer_set_accepts_shared_vip_qos_policy(conn):
+    _qos_network(conn)
+    conn.load_balancer.find_load_balancer.return_value = _lb()
+    conn.load_balancer.update_load_balancer.return_value = _lb(
+        vip_qos_policy_id='qos-2', provisioning_status='PENDING_UPDATE')
+
+    result = core.set_load_balancer('set', lb_name_or_id='web-lb', vip_qos_policy='shared-bw')
+
+    assert result['success'] is True, result
+    assert 'accepted' in result['message']
+    assert result['load_balancer']['vip_qos_policy_id'] == 'qos-2'
+    assert result['load_balancer']['provisioning_status'] == 'PENDING_UPDATE'
+    conn.load_balancer.update_load_balancer.assert_called_once_with(
+        'lb-1', vip_qos_policy_id='qos-2')
+
+
+def test_load_balancer_set_rejects_unknown_vip_qos_policy(conn):
+    _qos_network(conn)
+    conn.load_balancer.find_load_balancer.return_value = _lb()
+
+    result = core.set_load_balancer('set', lb_name_or_id='web-lb', vip_qos_policy='missing')
+
+    assert result['success'] is False
+    conn.load_balancer.update_load_balancer.assert_not_called()
+
+
+def test_load_balancer_unset_vip_qos_policy_requires_current_policy(conn):
+    _qos_network(conn)
+    conn.load_balancer.find_load_balancer.return_value = _lb(vip_qos_policy_id='qos-1')
+    conn.load_balancer.update_load_balancer.return_value = _lb(
+        vip_qos_policy_id=None, provisioning_status='PENDING_UPDATE')
+
+    mismatch = core.set_load_balancer('unset', lb_name_or_id='web-lb', vip_qos_policy='shared-bw')
+    assert mismatch['success'] is False and 'qos-1' in mismatch['message']
+    conn.load_balancer.update_load_balancer.assert_not_called()
+
+    result = core.set_load_balancer('unset', lb_name_or_id='web-lb', vip_qos_policy='lb-dscp')
+
+    assert result['success'] is True, result
+    assert result['load_balancer']['vip_qos_policy_id'] is None
+    assert result['load_balancer']['provisioning_status'] == 'PENDING_UPDATE'
+    assert 'VRRP' in result['warning']
+    conn.load_balancer.update_load_balancer.assert_called_once_with(
+        'lb-1', vip_qos_policy_id=None)
+
+
+def test_load_balancer_details_report_vip_qos_policy(conn):
+    conn.load_balancer.find_load_balancer.return_value = _lb(vip_qos_policy_id='qos-1')
+    conn.load_balancer.listeners.return_value = []
+    conn.load_balancer.pools.return_value = []
+
+    result = core.get_load_balancer_details('web-lb')
+
+    assert result['load_balancer']['vip_qos_policy_id'] == 'qos-1'
+
+
+def test_set_load_balancer_tool_omits_admin_state_unless_given(monkeypatch):
+    # A description-only set must not re-enable a disabled load balancer.
+    import asyncio
+    import json
+
+    from mcp_openstack_ops.tools import set_load_balancer as tool_module
+
+    calls = []
+    monkeypatch.setattr(tool_module, '_is_modify_operation_allowed', lambda: True)
+    monkeypatch.setattr(
+        tool_module, '_set_load_balancer',
+        lambda action, **kwargs: calls.append(kwargs) or {'success': True})
+    tool = getattr(tool_module.set_load_balancer, 'fn', tool_module.set_load_balancer)
+
+    json.loads(asyncio.run(tool('set', lb_name_or_id='web-lb', description='x')))
+    json.loads(asyncio.run(tool(
+        'set', lb_name_or_id='web-lb', admin_state_up=False, vip_qos_policy='lb-dscp')))
+
+    assert 'admin_state_up' not in calls[0]
+    assert calls[1]['admin_state_up'] is False
+    assert calls[1]['vip_qos_policy'] == 'lb-dscp'
+
+
+def test_pool_set_sends_only_given_values(conn):
+    conn.load_balancer.pools.return_value = [_pool(lb_algorithm='LEAST_CONNECTIONS')]
+    conn.load_balancer.listeners.return_value = [_listener()]
+    conn.load_balancer.update_pool.return_value = _pool(name='renamed')
+    conn.load_balancer.create_pool.return_value = _pool()
+
+    renamed = pools.set_load_balancer_pool('set', pool_name_or_id='web-pool', name='renamed')
+    empty = pools.set_load_balancer_pool('set', pool_name_or_id='web-pool')
+    pools.set_load_balancer_pool('create', name='p', listener_name_or_id='http', protocol='http')
+
+    assert renamed['success'] is True, renamed
+    _, kwargs = conn.load_balancer.update_pool.call_args
+    assert kwargs == {'name': 'renamed'}
+    assert empty['success'] is False
+    assert conn.load_balancer.update_pool.call_count == 1
+    _, kwargs = conn.load_balancer.create_pool.call_args
+    assert Pool.new(**kwargs).lb_algorithm == 'ROUND_ROBIN'
+    assert Pool.new(**kwargs).is_admin_state_up is True
+
+
+def test_member_set_sends_only_given_values_and_allows_zero_weight(conn):
+    pool = _pool()
+    conn.load_balancer.pools.return_value = [pool]
+    conn.load_balancer.get_member.return_value = _member(backup=True)
+    conn.load_balancer.update_member.return_value = _member(backup=True)
+    conn.load_balancer.create_member.return_value = _member()
+
+    renamed = pools.set_load_balancer_pool_member(
+        'set', 'web-pool', member_id='mem-1', name='web-1b')
+    drained = pools.set_load_balancer_pool_member(
+        'set', 'web-pool', member_id='mem-1', weight=0)
+    empty = pools.set_load_balancer_pool_member('set', 'web-pool', member_id='mem-1')
+    pools.set_load_balancer_pool_member(
+        'create', 'web-pool', address='10.0.0.22', protocol_port=80)
+
+    assert renamed['success'] is True and drained['success'] is True
+    first, second = conn.load_balancer.update_member.call_args_list
+    assert first.kwargs == {'name': 'web-1b'}
+    assert second.kwargs == {'weight': 0}
+    assert empty['success'] is False
+    created = Member.new(**conn.load_balancer.create_member.call_args.kwargs)
+    assert (created.weight, created.is_admin_state_up, created.backup) == (1, True, False)
+
+
+def test_health_monitor_set_sends_only_given_values(conn):
+    monitor = HealthMonitor.existing(
+        id='hm-1', name='hm', type='HTTP', delay=30, timeout=7, max_retries=4,
+        max_retries_down=4, is_admin_state_up=False, url_path='/health',
+        expected_codes='200-204', http_method='HEAD', pools=[{'id': 'pool-1'}],
+    )
+    conn.load_balancer.health_monitors.return_value = [monitor]
+    conn.load_balancer.update_health_monitor.return_value = monitor
+    conn.load_balancer.pools.return_value = [_pool()]
+    conn.load_balancer.create_health_monitor.return_value = monitor
+
+    renamed = health_monitors.set_load_balancer_health_monitor(
+        'set', monitor_name_or_id='hm', name='hm2')
+    empty = health_monitors.set_load_balancer_health_monitor('set', monitor_name_or_id='hm')
+    health_monitors.set_load_balancer_health_monitor('create', pool_name_or_id='web-pool')
+
+    assert renamed['success'] is True, renamed
+    args, kwargs = conn.load_balancer.update_health_monitor.call_args
+    assert args == (monitor,) and kwargs == {'name': 'hm2'}
+    assert empty['success'] is False
+    assert conn.load_balancer.update_health_monitor.call_count == 1
+    created = HealthMonitor.new(**conn.load_balancer.create_health_monitor.call_args.kwargs)
+    assert (created.delay, created.timeout, created.max_retries, created.max_retries_down,
+            created.is_admin_state_up, created.http_method, created.url_path,
+            created.expected_codes) == (10, 5, 3, 3, True, 'GET', '/', '200')
+
+
+@pytest.mark.parametrize('tool_name, target, call_args, unset_keys', [
+    ('set_load_balancer_listener', '_set_load_balancer_listener',
+     {'action': 'set', 'listener_name_or_id': 'http', 'name': 'x'}, ['admin_state_up']),
+    ('set_load_balancer_pool', 'functions.set_load_balancer_pool',
+     {'action': 'set', 'pool_name_or_id': 'web-pool', 'name': 'x'},
+     ['admin_state_up', 'lb_algorithm']),
+    ('set_load_balancer_pool_member', 'functions.set_load_balancer_pool_member',
+     {'action': 'set', 'pool_name_or_id': 'web-pool', 'member_id': 'm', 'name': 'x'},
+     ['admin_state_up', 'weight', 'backup']),
+    ('set_load_balancer_health_monitor', '_set_load_balancer_health_monitor',
+     {'action': 'set', 'monitor_name_or_id': 'hm', 'name': 'x'},
+     ['admin_state_up', 'delay', 'timeout', 'max_retries', 'max_retries_down',
+      'http_method', 'url_path', 'expected_codes']),
+])
+def test_lb_set_tools_leave_omitted_values_unset(monkeypatch, tool_name, target,
+                                                 call_args, unset_keys):
+    # An omitted value must not reach the service as a default that
+    # overwrites the current setting.
+    import asyncio
+    import importlib
+
+    from mcp_openstack_ops import functions
+
+    module = importlib.import_module(f'mcp_openstack_ops.tools.{tool_name}')
+    calls = []
+
+    def fake(**kwargs):
+        calls.append(kwargs)
+        return {'success': True}
+
+    if hasattr(module, '_is_modify_operation_allowed'):
+        monkeypatch.setattr(module, '_is_modify_operation_allowed', lambda: True)
+    if target.startswith('functions.'):
+        monkeypatch.setattr(functions, target.split('.', 1)[1], fake)
+    else:
+        monkeypatch.setattr(module, target, fake)
+    tool = getattr(module, tool_name)
+    asyncio.run(getattr(tool, 'fn', tool)(**call_args))
+
+    [kwargs] = calls
+    for key in unset_keys:
+        assert kwargs.get(key) in (None, ''), (key, kwargs)

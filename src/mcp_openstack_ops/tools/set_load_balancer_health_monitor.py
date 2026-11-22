@@ -2,6 +2,7 @@
 
 import json
 from datetime import datetime
+from typing import Optional
 from ..functions import set_load_balancer_health_monitor as _set_load_balancer_health_monitor
 from ..mcp_main import (
     _is_modify_operation_allowed,
@@ -16,14 +17,14 @@ async def set_load_balancer_health_monitor(
     name: str = "",
     pool_name_or_id: str = "",
     monitor_type: str = "HTTP",
-    delay: int = 10,
-    timeout: int = 5,
-    max_retries: int = 3,
-    max_retries_down: int = 3,
-    admin_state_up: bool = True,
-    http_method: str = "GET",
-    url_path: str = "/",
-    expected_codes: str = "200"
+    delay: Optional[int] = None,
+    timeout: Optional[int] = None,
+    max_retries: Optional[int] = None,
+    max_retries_down: Optional[int] = None,
+    admin_state_up: Optional[bool] = None,
+    http_method: str = "",
+    url_path: str = "",
+    expected_codes: str = ""
 ) -> str:
     """
     Comprehensive health monitor management operations (create, delete, set, show).
@@ -49,14 +50,15 @@ async def set_load_balancer_health_monitor(
         monitor_type: Monitor type (HTTP, HTTPS, TLS-HELLO, TCP, PING, UDP-CONNECT,
             SCTP). TLS-HELLO checks only the TLS handshake, suited to
             non-terminated HTTPS (TLS passthrough) pools
-        delay: Delay between health checks in seconds (default: 10)
-        timeout: Timeout for health check in seconds (default: 5)
-        max_retries: Maximum retries before marking unhealthy (default: 3)
-        max_retries_down: Maximum retries before marking down (default: 3)
-        admin_state_up: Administrative state (default: True)
-        http_method: HTTP method for HTTP/HTTPS monitors (default: GET)
-        url_path: URL path for HTTP/HTTPS monitors (default: /)
-        expected_codes: Expected HTTP status codes (default: 200)
+        delay: Delay between health checks in seconds (create default: 10)
+        timeout: Timeout for health check in seconds (create default: 5)
+        max_retries: Maximum retries before marking unhealthy (create default: 3)
+        max_retries_down: Maximum retries before marking down (create default: 3)
+        admin_state_up: Administrative state (create default: True)
+        http_method: HTTP method for HTTP/HTTPS monitors (create default: GET)
+        url_path: URL path for HTTP/HTTPS monitors (create default: /)
+        expected_codes: Expected HTTP status codes (create default: 200)
+        set changes only the values given; omitted values stay unchanged.
         
     Returns:
         JSON string with operation results and health monitor details
