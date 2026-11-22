@@ -850,3 +850,35 @@ an earlier full summary.
   covers `set_load_balancer_listener`, `set_load_balancer_pool`,
   `set_load_balancer_pool_member` and `set_load_balancer_health_monitor`
   (4 unique tools) and does not update the 105-tool summary above.
+- **Local unit tests after `set_volume` snapshot source and image upload
+  (2026-11-22; uncommitted working tree based on `9931271`):** 759/759 (100%) with fastmcp
+  4.1.6 and the locked openstacksdk 4.22.0, run as `uv run pytest -q`; no
+  failures or skipped tests. Ten new cases cover create from a snapshot by
+  name (size omitted unless larger) and refusal of another project's
+  snapshot; `upload_to_image` passing only the given options, reporting the
+  image and volume status read after the request, reporting a failed status
+  read as null with the error, refusing a missing `image_name`, an in-use
+  volume without `force`, a volume in error and another project's volume, and
+  allowing an in-use volume with `force`; and the tool passing the options,
+  refusing several volumes, and marking the result asynchronous. The result
+  handler now also marks `set_volume` `snapshot` results asynchronous.
+- **Targeted `set_volume` snapshot-to-image check (2026-11-22 UTC; partial;
+  same uncommitted working tree based on `9931271`):** Kolla-Ansible all-in-one OpenStack 2025.1,
+  Cinder LVM, TCG only. The working-tree server was called through FastMCP's
+  in-memory client as the project administrator with
+  `ALLOW_MODIFY_OPERATIONS=true`. The source was an existing 20 GB Cinder
+  snapshot (type `__DEFAULT__`) behind a 0-byte boot-from-volume server
+  snapshot image, read only. An unknown `source_snapshot` was refused; create
+  from the snapshot reached available in 15 s with the snapshot's size and ID;
+  `upload_to_image` with `disk_format=qcow2` was accepted with the image
+  `queued` and the volume `uploading`, and was marked asynchronous; the image
+  reached `active` in 90 s with 849,084,416 bytes (qcow2/bare), and the volume
+  returned to available. A `vt-qos-test-fe-pergb-min` volume created from the
+  image by a direct SDK call (not a tool path) was available and bootable.
+  All 9 checks passed; both test volumes and the test image were deleted and
+  confirmed absent. **Live unverified:** `visibility`, `protected`,
+  `container_format`, `force` on an in-use volume, booting a server from the
+  image, and a `volume_type` that differs from the snapshot's. An earlier
+  attempt stopped before creating anything because its source snapshot had
+  been deleted. This partial check covers `set_volume` (1 unique tool) and
+  does not update the 105-tool summary above.

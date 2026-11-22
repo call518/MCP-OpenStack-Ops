@@ -62,8 +62,9 @@ def handle_operation_result(result: Dict[str, Any], operation_name: str, details
                 "verify_cmd": f"Show instance status for {resource_name}"
             },
             "Volume Management": {
-                "async_actions": ["create", "delete", "extend", "attach", "detach"],
-                "timing": "10-30 seconds", 
+                "async_actions": ["create", "delete", "extend", "attach", "detach",
+                                  "snapshot", "upload_to_image"],
+                "timing": "10-30 seconds; upload_to_image can take minutes", 
                 "verify_cmd": "List all volumes"
             },
             "Network Management": {

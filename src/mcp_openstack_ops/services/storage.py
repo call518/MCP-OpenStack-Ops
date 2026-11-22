@@ -281,6 +281,22 @@ def set_volume(volume_name: str, action: str, **kwargs) -> Dict[str, Any]:
                 'description': description
             }
             
+            if kwargs.get('source_snapshot'):
+                from ..connection import find_resource_by_name_or_id
+                snapshot = find_resource_by_name_or_id(
+                    conn.volume.snapshots(), kwargs['source_snapshot'], "Snapshot")
+                if not snapshot:
+                    return {
+                        'success': False,
+                        'message': (f'Snapshot "{kwargs["source_snapshot"]}" not found '
+                                    'or not accessible in current project')
+                    }
+                snapshot_id = snapshot.id
+                # Cinder sizes the volume from the snapshot when size is omitted;
+                # a smaller size would be rejected.
+                if int(size) <= int(getattr(snapshot, 'size', 0) or 0):
+                    del create_params['size']
+
             if volume_type:
                 create_params['volume_type'] = volume_type
             if image_id:
@@ -461,10 +477,14 @@ def set_volume(volume_name: str, action: str, **kwargs) -> Dict[str, Any]:
                 }
             }
             
+        elif action.lower() == 'upload_to_image':
+            return _upload_volume_to_image(conn, volume_name, **kwargs)
+
         else:
             return {
                 'success': False,
-                'message': f'Unknown action "{action}". Supported: create, delete, extend, attach, detach, snapshot, list'
+                'message': (f'Unknown action "{action}". Supported: create, delete, '
+                            'extend, attach, detach, snapshot, upload_to_image, list')
             }
             
     except Exception as e:
@@ -475,6 +495,69 @@ def set_volume(volume_name: str, action: str, **kwargs) -> Dict[str, Any]:
             'message': f'Failed to manage volume: {error}',
             'error': error
         }
+
+
+def _upload_volume_to_image(conn: Any, volume_name: str, **kwargs) -> Dict[str, Any]:
+    """Ask Cinder to copy a project volume into a new Glance image.
+
+    Cinder writes the data to Glance itself; no image bytes pass through this
+    server. The copy is asynchronous: the volume shows ``uploading`` and the
+    image ``queued``/``saving`` until it becomes ``active``.
+    """
+    from ..connection import find_resource_by_name_or_id
+
+    image_name = (kwargs.get('image_name') or '').strip()
+    if not image_name:
+        return {'success': False, 'message': 'image_name is required for upload_to_image'}
+    volume = find_resource_by_name_or_id(conn.volume.volumes(), volume_name, "Volume")
+    if not volume:
+        return {
+            'success': False,
+            'message': f'Volume "{volume_name}" not found or not accessible in current project'
+        }
+    force = bool(kwargs.get('force', False))
+    if volume.status != 'available' and not (force and volume.status == 'in-use'):
+        return {
+            'success': False,
+            'message': (f'Volume "{volume_name}" is {volume.status}; upload_to_image needs '
+                        'an available volume, or an in-use one with force=True (the image '
+                        'may then be inconsistent)')
+        }
+
+    options = {key: kwargs[key] for key in
+               ('disk_format', 'container_format', 'visibility', 'protected')
+               if kwargs.get(key) is not None}
+    upload = conn.volume.upload_volume_to_image(
+        volume, image_name, force=force, **options)
+    image_id = upload.get('image_id')
+
+    image: Dict[str, Any] = {
+        'id': image_id, 'name': upload.get('image_name', image_name),
+        'disk_format': upload.get('disk_format'),
+        'container_format': upload.get('container_format'),
+        'visibility': upload.get('visibility'),
+        'protected': upload.get('protected'),
+    }
+    try:
+        image['status'] = conn.image.get_image(image_id).status
+    except Exception as exc:  # noqa: BLE001 - report the read failure, not a status
+        image['status'] = None
+        image['status_error'] = str(exc)
+    try:
+        volume_status = conn.volume.get_volume(volume.id).status
+    except Exception as exc:  # noqa: BLE001
+        volume_status = None
+        image['volume_status_error'] = str(exc)
+
+    return {
+        'success': True,
+        'accepted': True,
+        'message': (f'Upload of volume "{volume_name}" to image "{image_name}" accepted; '
+                    'the image is usable only when its status is active and the volume '
+                    'returns to its previous status'),
+        'image': image,
+        'volume': {'id': volume.id, 'name': volume.name, 'status': volume_status},
+    }
 
 
 def get_volume_types() -> List[Dict[str, Any]]:

@@ -735,3 +735,29 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   `set_load_balancer_listener`, `set_load_balancer_pool`,
   `set_load_balancer_pool_member`, `set_load_balancer_health_monitor`(고유 도구
   4개)를 다루며 위의 105개 도구 요약을 갱신하지 않습니다.
+- **`set_volume` 스냅샷 원본과 이미지 업로드 추가 후 로컬 단위 테스트 (2026-11-22,
+  `9931271` 기반 커밋 전 작업 트리):** fastmcp 4.1.6과 고정된 openstacksdk 4.22.0으로
+  `uv run pytest -q`를 실행해 759/759 (100%)가 통과했고, 실패하거나 건너뛴 테스트는
+  없었습니다. 새 테스트 10건은 스냅샷 이름으로 만드는 create(더 클 때만 size 전송)와
+  다른 프로젝트 스냅샷 거부, `upload_to_image`가 지정한 옵션만 보내는지, 요청 뒤 읽은
+  이미지와 볼륨 상태를 보고하는지, 상태 조회 실패를 오류와 함께 null로 보고하는지,
+  `image_name` 누락, `force` 없는 in-use 볼륨, error 상태 볼륨, 다른 프로젝트 볼륨을
+  거부하는지, `force`가 있으면 in-use 볼륨을 허용하는지, 그리고 도구가 옵션을
+  전달하고 여러 볼륨을 거부하며 결과를 비동기로 표시하는지 확인합니다. 결과 처리기는
+  이제 `set_volume` `snapshot` 결과도 비동기로 표시합니다.
+- **`set_volume` 스냅샷→이미지 targeted check (2026-11-22 UTC, partial, `9931271`
+  기반의 같은 커밋 전 작업 트리):** Kolla-Ansible all-in-one OpenStack 2025.1, Cinder LVM, TCG 전용
+  환경입니다. 작업 트리 서버를 FastMCP 인메모리 클라이언트로 프로젝트 관리자 계정과
+  `ALLOW_MODIFY_OPERATIONS=true`로 호출했습니다. 원본은 0바이트 볼륨 부팅 서버 스냅샷
+  이미지가 가리키는 기존 20 GB Cinder 스냅샷(타입 `__DEFAULT__`)이며 읽기만 했습니다.
+  없는 `source_snapshot`은 거부되었고, 스냅샷에서 만든 볼륨은 15초 만에 스냅샷의
+  크기와 ID로 available이 되었습니다. `disk_format=qcow2`로 `upload_to_image`를
+  요청하자 이미지 `queued`, 볼륨 `uploading` 상태로 수락되었고 비동기로 표시되었으며,
+  이미지는 90초 만에 849,084,416바이트(qcow2/bare)로 `active`가 되었고 볼륨은
+  available로 돌아왔습니다. 그 이미지로 SDK를 직접 호출해(도구 경로 아님) 만든
+  `vt-qos-test-fe-pergb-min` 볼륨은 available이고 부팅 가능으로 표시되었습니다. 9개
+  항목이 모두 통과했고, 테스트 볼륨 2개와 테스트 이미지는 삭제 후 없음을 확인했습니다.
+  **Live unverified:** `visibility`, `protected`, `container_format`, in-use 볼륨의
+  `force`, 이미지로 서버 부팅, 스냅샷과 다른 `volume_type`. 앞선 한 번의 시도는 원본
+  스냅샷이 이미 삭제되어 있어 아무것도 만들기 전에 멈췄습니다. 이 partial check는
+  `set_volume`(고유 도구 1개)을 다루며 위의 105개 도구 요약을 갱신하지 않습니다.

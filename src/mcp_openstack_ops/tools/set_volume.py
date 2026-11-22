@@ -1,6 +1,8 @@
 """Tool implementation for set_volume."""
 
 import json
+from typing import Optional
+
 from ..functions import set_volume as _set_volume
 from ..mcp_main import (
     _get_resource_status_by_name,
@@ -15,7 +17,10 @@ async def set_volume(volume_names: str, action: str, size: int = 1, instance_nam
                    snapshot_name: str = "", transfer_name: str = "", host: str = "",
                    description: str = "", volume_type: str = "", availability_zone: str = "",
                    force: bool = False, incremental: bool = False, force_host_copy: bool = False,
-                   lock_volume: bool = False) -> str:
+                   lock_volume: bool = False, source_snapshot: str = "",
+                   image_name: str = "", disk_format: str = "",
+                   container_format: str = "", visibility: str = "",
+                   protected: Optional[bool] = None) -> str:
     """
     Manages project-scoped OpenStack volumes and attachments.
     Supports both single volume and bulk operations.
@@ -26,6 +31,10 @@ async def set_volume(volume_names: str, action: str, size: int = 1, instance_nam
     - List all volumes with detailed status information
     - Extend volumes to larger sizes
     - Create volume snapshots
+    - Create volumes from a project snapshot (source_snapshot)
+    - Copy a volume into a new Glance image (upload_to_image), e.g. to turn the
+      Cinder snapshot behind a boot-from-volume server snapshot into a
+      bootable image with data
     - Bulk operations: Apply action to multiple volumes at once
     
     Use for volume lifecycle tasks. Use set_volume_backups for backups.
@@ -36,7 +45,8 @@ async def set_volume(volume_names: str, action: str, size: int = 1, instance_nam
                      - Single: "volume1" 
                      - Multiple: "volume1,volume2,volume3" or "volume1, volume2, volume3"
                      - List format: '["volume1", "volume2", "volume3"]'
-        action: Management action (create, delete, list, extend, attach, detach, snapshot)
+        action: Management action (create, delete, list, extend, attach, detach,
+            snapshot, upload_to_image)
         size: Volume size in GB (default: 1); fallback for extend if new_size is omitted
         instance_name: Instance name or ID (required for attach)
         new_size: Target size for extend; takes precedence over size when positive
@@ -46,9 +56,31 @@ async def set_volume(volume_names: str, action: str, size: int = 1, instance_nam
         transfer_name: Not implemented (transfer); a value is rejected
         host: Not implemented (migration); a value is rejected
         description: Description for create/snapshot operations
-        volume_type: Volume type for create operations
+        volume_type: Volume type for create operations. With source_snapshot,
+            Cinder may reject a type other than the snapshot's ("requested type
+            is not compatible"); omit it, then upload_to_image and create the
+            volume from that image with the desired type
         availability_zone: Availability zone for create operations
-        force: Force operations even when volume is attached
+        force: Force operations even when volume is attached. For
+            upload_to_image it allows an in-use volume, whose image may be
+            inconsistent
+        source_snapshot: Project snapshot name or ID to create the volume from
+            (create). size is sent only when larger than the snapshot;
+            otherwise the volume takes the snapshot's size
+        image_name: Name of the new image (required for upload_to_image; one
+            volume per call)
+        disk_format: Image disk format for upload_to_image (e.g. raw, qcow2);
+            Cinder's default is raw
+        container_format: Image container format for upload_to_image (default bare)
+        visibility: Image visibility for upload_to_image (private, shared,
+            community, public); Glance policy decides who may set public
+        protected: Mark the new image protected (upload_to_image)
+
+    upload_to_image is asynchronous: Cinder copies the data to Glance itself
+    (no image data passes through this server). The result carries the image
+    ID with its current status; confirm that the image reached active with
+    get_image_detail_list before using it. Glance needs room for a full copy
+    of the volume.
         incremental: Not implemented; true is rejected. Use set_volume_backups
         force_host_copy: Not implemented (migration); true is rejected
         lock_volume: Not implemented (migration); true is rejected
@@ -139,6 +171,9 @@ async def set_volume(volume_names: str, action: str, size: int = 1, instance_nam
         if not name_list:
             return "Error: No valid volume names provided"
             
+        if action == 'upload_to_image' and len(name_list) != 1:
+            return "Error: upload_to_image takes exactly one volume per call"
+
         # Prepare kwargs for set_volume function
         kwargs = {
             'size': size,
@@ -154,7 +189,13 @@ async def set_volume(volume_names: str, action: str, size: int = 1, instance_nam
             'force': force,
             'incremental': incremental,
             'force_host_copy': force_host_copy,
-            'lock_volume': lock_volume
+            'lock_volume': lock_volume,
+            'source_snapshot': source_snapshot.strip() or None,
+            'image_name': image_name.strip() or None,
+            'disk_format': disk_format.strip() or None,
+            'container_format': container_format.strip() or None,
+            'visibility': visibility.strip() or None,
+            'protected': protected,
         }
         if instance_name:
             kwargs['instance_name'] = instance_name.strip()
