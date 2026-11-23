@@ -43,6 +43,49 @@ claude mcp remove --scope user openstack-ops
 unset OPENSTACK_MCP_TOKEN
 ```
 
-This Bearer configuration uses the server's configured OpenStack account. For
-experimental per-user authentication, see the [multi-user guide](multi-user-guide.md).
+This Bearer configuration uses the server's configured OpenStack account.
+
+## Multi-user mode: Application Credential headers
+
+When the server runs in multi-user mode (`MCP_MULTI_USER=true`; see the
+[multi-user guide](multi-user-guide.md)), every request must carry your own
+OpenStack Application Credential in two headers. Without them the server answers
+HTTP 401 with `Application credential headers are required`, and `/mcp` shows the
+connection as failed.
+
+`/mcp` cannot add or edit headers: it only connects with the registration as it
+is saved. Put the headers in the registration with `claude mcp add-json`, then
+reconnect in `/mcp`. The VS Code extension reads the same user-scope
+registration as the CLI.
+
+1. Create an Application Credential for the user and project you want the tools
+   to act as. Keystone shows the secret only once:
+
+   ```bash
+   openstack application credential create openstack-ops-mcp
+   ```
+
+2. Replace the registration with one that includes both credential headers. Keep
+   the `Authorization` header when the server has `REMOTE_AUTH_ENABLE=true`; with
+   authentication disabled the server ignores it:
+
+   ```bash
+   claude mcp remove --scope user openstack-ops
+   claude mcp add-json --scope user openstack-ops '{"type":"http","url":"http://127.0.0.1:8000/mcp","headers":{"Authorization":"Bearer <shared-mcp-token>","X-OpenStack-Application-Credential-ID":"<application-credential-id>","X-OpenStack-Application-Credential-Secret":"<application-credential-secret>"}}'
+   ```
+
+3. In Claude Code, open `/mcp` and reconnect `openstack-ops`.
+
+The values are stored in plain text in your user configuration, and a command
+line with them stays in shell history unless you prevent it. The `${VARIABLE}`
+form shown above for the Bearer token also works for these headers when the
+variables are exported in the environment of the process that runs Claude Code;
+for the VS Code extension that is the VS Code (or VS Code Server) process, not a
+terminal, and this form was not checked with the extension. Delete the
+Application Credential when you no longer need it:
+
+```bash
+openstack application credential delete openstack-ops-mcp
+```
+
 See also the [Claude Code MCP documentation](https://code.claude.com/docs/en/mcp).

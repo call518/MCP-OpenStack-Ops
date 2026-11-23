@@ -44,7 +44,7 @@ def get_load_balancer_l7_policies(listener_name_or_id: str = "") -> Dict[str, An
         for policy in policies:
             policy_info = {
                 'id': policy.id,
-                'name': policy.name or 'N/A',
+                'name': policy.name,
                 'description': policy.description or '',
                 'listener_id': policy.listener_id,
                 'action': policy.action,
@@ -210,7 +210,7 @@ def get_load_balancer_l7_rules(policy_name_or_id: str) -> Dict[str, Any]:
             'success': True,
             'l7_policy': {
                 'id': policy.id,
-                'name': policy.name or 'N/A'
+                'name': policy.name
             },
             'l7_rules': rule_details,
             'rule_count': len(rule_details)

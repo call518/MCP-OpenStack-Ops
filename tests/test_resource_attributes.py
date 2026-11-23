@@ -328,6 +328,25 @@ def test_heat_stacks_report_sdk_owner_id(conn):
     assert stacks[0]['owner'] == 'parent-1'
 
 
+def test_heat_stacks_keep_missing_values_null_and_omit_timeout(conn):
+    conn.orchestration.stacks.return_value = [_stack()]
+
+    [stack] = orchestration.get_heat_stacks()
+
+    # Heat's list has no timeout_mins; unset values are null, not "unknown".
+    assert 'timeout_mins' not in stack
+    assert stack['owner'] is None
+    assert stack['creation_time'] is None and stack['updated_time'] is None
+
+
+def test_heat_stacks_missing_service_raises_instead_of_placeholder(conn):
+    conn.orchestration.stacks.side_effect = AttributeError(
+        "'NoneType' object has no attribute 'catalog_url'")
+
+    with pytest.raises(AttributeError):
+        orchestration.get_heat_stacks()
+
+
 def test_heat_stack_update_reports_sdk_status(conn):
     conn.orchestration.stacks.return_value = [_stack()]
     conn.orchestration.update_stack.return_value = Stack.existing(

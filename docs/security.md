@@ -26,7 +26,7 @@ Single-account mode does not accept an Application Credential; there are no
 `OS_APPLICATION_CREDENTIAL_*` variables. This is tracked as an undecided item in
 the [TODO](../ToDo.md).
 
-Status as of 2026-11-21 (source `c47c2f5`):
+Status as of 2026-11-23 (source `91f2df1`; only the Claude Code IDE extension row was rechecked that day, the other rows as of 2026-11-21, source `c47c2f5`):
 
 | Client | Password | Application Credential | Notes |
 |---|---|---|---|
@@ -34,7 +34,7 @@ Status as of 2026-11-21 (source `c47c2f5`):
 | Claude Desktop, `claude_desktop_config.json` with `mcp-remote` | ✅ | ✅ | The server runs over `streamable-http`; `mcp-remote` on the user's computer sends the headers. Password: checked with an MCP client running the same `mcp-remote` command. Application Credential: tested on 2026-11-14 with `mcp-remote@0.15.2` in Claude Desktop on Windows against the Docker Compose server over HTTP (test override). See [Claude Desktop option 4](claude-desktop-guide.md#multi-user-mode-each-users-application-credential) |
 | OpenWebUI, Docker Compose | ✅ | ⚠️ Live unverified | Password: one OpenStack account for every OpenWebUI user. Application Credential: only for a private or owner-restricted connection whose headers hold one user's credential; never one shared connection. See [Client compatibility](multi-user-guide.md#client-compatibility) |
 | Claude Code CLI | ✅ | ✅ | The server runs over `streamable-http`. Password: the account stays in the server's environment and Claude Code sends only the Bearer token. Application Credential: version 2.1.312 registered and tested against a real HTTPS MCP server |
-| Claude Code IDE extension | ⚠️ Live unverified | ⚠️ Live unverified | Same registration as the CLI; not separately tested |
+| Claude Code IDE extension | ✅ | ✅ | Same registration as the CLI. Password: checked on 2026-11-23 with the VS Code extension 2.1.330 (Linux, remote workspace), registered with an HTTP `url` to the Docker Compose server over `streamable-http`; tools were called through it. The server had `REMOTE_AUTH_ENABLE=false`, so Bearer token enforcement was not part of that check. Application Credential: checked the same day with the server in multi-user mode over HTTP (test override) and both credential headers in the user-scope registration; `/mcp` cannot add headers, see [Claude Code: Application Credential headers](claude-code-guide.md#multi-user-mode-application-credential-headers) |
 | Codex in the ChatGPT desktop app, `config.toml` with `uvx` | ✅ | ❌ Not implemented | The server runs over stdio with the account in `env`; multi-user mode requires `streamable-http`. Password: checked on 2026-11-21; app and package versions not recorded. See [Codex option 1](codex-guide.md#option-1-pypi-package-with-uvx) |
 | Codex CLI and IDE extension, same `config.toml` with `uvx` | ⚠️ Live unverified | ❌ Not implemented | Same file as the desktop app; not separately tested |
 | Codex, `config.toml` with an HTTP `url` | ⚠️ Live unverified | ⚠️ Live unverified | Bearer token from `bearer_token_env_var`; Application Credential headers from `env_http_headers`. See [Codex option 2](codex-guide.md#option-2-existing-http-server) |

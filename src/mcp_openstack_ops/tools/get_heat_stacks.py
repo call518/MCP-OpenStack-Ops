@@ -16,8 +16,9 @@ async def get_heat_stacks(all_projects: bool = False) -> str:
 
     Functions:
     - Query Heat stacks and their current status
-    - Display stack creation and update timestamps
+    - Display stack creation and update timestamps (null when Heat has none)
     - Use get_heat_stack_details for templates, resources, events, or outputs
+    - Heat's stack list does not include timeout_mins, so it is not reported
     - Provide orchestration deployment information
 
     Use when user requests stack information, orchestration queries, or infrastructure-as-code status.

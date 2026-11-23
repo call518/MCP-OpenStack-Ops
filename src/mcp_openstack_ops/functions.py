@@ -3,7 +3,7 @@ import logging
 from typing import Dict, List, Any, Optional
 from openstack import connection
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Import connection management from separate module
 from .connection import get_openstack_connection, reset_connection_cache
@@ -22,133 +22,179 @@ def _service_zone(service, default='unknown'):
     return (getattr(service, 'availability_zone', None)
             or getattr(service, 'zone', None) or default)
 
-def get_service_status() -> List[Dict[str, Any]]:
+def _api_probe(binary: str, service_type: str, probe) -> Dict[str, Any]:
+    """Run a one-item list against a service API and describe the result.
+
+    A probe row is not a service record: it only says whether the API
+    answered, so host and updated_at are null and checked_at is UTC.
     """
-    Returns detailed service status information for compute and network services.
-    
-    Returns:
-        List of service status dictionaries with comprehensive information.
+    row = {
+        'binary': binary, 'service_type': service_type, 'check': 'api_probe',
+        'host': None, 'status': None, 'updated_at': None,
+        'checked_at': datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        probe()
+        row['state'] = 'up'
+    except Exception as e:
+        logger.warning(f"{binary} API probe failed: {e}")
+        row['state'] = 'unknown'
+        row['error'] = str(e)
+    return row
+
+
+def _adapter_probe(conn, service_type: str, path: str):
+    """Return a probe that GETs path from a service without an SDK proxy."""
+    from keystoneauth1.adapter import Adapter
+
+    def probe():
+        Adapter(
+            session=conn.session, service_type=service_type,
+            interface=conn.config.get_interface(),
+            region_name=conn.config.region_name,
+        ).get(path, raise_exc=True)
+    return probe
+
+
+def _in_catalog(conn, service_type: str) -> bool:
+    """Whether the service catalog has an endpoint for service_type.
+
+    openstacksdk's has_service() is False for types without an SDK proxy,
+    such as alarming and metric, even when the catalog lists them.
     """
     try:
-        conn = get_openstack_connection()
-        services = []
-        
-        # Get compute services
-        try:
-            for service in conn.compute.services():
-                services.append({
-                    'binary': service.binary,
-                    'host': service.host,
-                    'status': service.status,
-                    'state': service.state,
-                    'zone': _service_zone(service),
-                    'updated_at': str(getattr(service, 'updated_at', 'unknown')),
-                    'disabled_reason': getattr(service, 'disabled_reason', None),
-                    'service_type': 'compute'
-                })
-        except Exception as e:
-            logger.warning(f"Failed to get compute services: {e}")
-            services.append({
-                'binary': 'nova-compute', 'service_type': 'compute',
-                'status': 'unknown', 'state': 'unknown', 'error': str(e),
-            })
-            
-        # Get network services if available
-        try:
-            for agent in conn.network.agents():
-                services.append({
-                    'binary': agent.binary,
-                    'host': agent.host,
-                    'status': ('unknown' if agent.is_admin_state_up is None else
-                               'enabled' if agent.is_admin_state_up else 'disabled'),
-                    'state': ('unknown' if agent.is_alive is None else
-                              'up' if agent.is_alive else 'down'),
-                    'zone': getattr(agent, 'availability_zone', 'unknown'),
-                    'updated_at': str(getattr(agent, 'last_heartbeat_at', 'unknown')),
-                    'agent_type': agent.agent_type,
-                    'service_type': 'network'
-                })
-        except Exception as e:
-            logger.warning(f"Failed to get network agents: {e}")
-            services.append({
-                'binary': 'neutron-agent', 'service_type': 'network',
-                'status': 'unknown', 'state': 'unknown', 'error': str(e),
-            })
-            
-        # Get volume services (Cinder)
-        try:
-            for service in conn.volume.services():
-                services.append({
-                    'binary': service.binary,
-                    'host': service.host,
-                    'status': service.status,
-                    'state': service.state,
-                    'zone': _service_zone(service),
-                    'updated_at': str(getattr(service, 'updated_at', 'unknown')),
-                    'disabled_reason': getattr(service, 'disabled_reason', None),
-                    'service_type': 'volume'
-                })
-        except Exception as e:
-            logger.warning(f"Failed to get volume services: {e}")
-            services.append({
-                'binary': 'cinder-volume', 'service_type': 'volume',
-                'status': 'unknown', 'state': 'unknown', 'error': str(e),
-            })
-            
-        # Get image service status (Glance) - Check if service catalog is available
-        try:
-            # Test if image service is available by trying to list images (with limit)
-            list(conn.image.images(limit=1))
-            services.append({
-                'binary': 'glance-api',
-                'host': 'unknown',  # Default host name
-                'status': 'enabled',
-                'state': 'up',
-                'zone': 'internal',
-                'updated_at': datetime.now().isoformat(),
-                'disabled_reason': None,
-                'service_type': 'image'
-            })
-        except Exception as e:
-            logger.warning(f"Image service (Glance) probe failed: {e}")
-            services.append({
-                'binary': 'glance-api',
-                'host': 'unknown',
-                'status': 'unknown',
-                'state': 'unknown',
-                'zone': 'internal',
-                'updated_at': 'unknown',
-                'disabled_reason': f'Service check failed: {str(e)}',
-                'service_type': 'image'
-            })
-            
-        try:
-            list(conn.orchestration.stacks(limit=1))
-            services.append({
-                'binary': 'heat-api', 'host': 'unknown',
-                'status': 'enabled', 'state': 'up',
-                'service_type': 'orchestration',
-                'updated_at': datetime.now().isoformat(),
-            })
-        except Exception as e:
-            services.append({
-                'binary': 'heat-api', 'host': 'unknown',
-                'status': 'unknown', 'state': 'unknown',
-                'service_type': 'orchestration', 'error': str(e),
-            })
+        return bool(conn.session.get_endpoint(
+            service_type=service_type, interface=conn.config.get_interface(),
+            region_name=conn.config.region_name))
+    except Exception:
+        return False
 
-        return services
 
+def _heat_engine_services(conn) -> List[Dict[str, Any]]:
+    """Read heat-engine records from Heat's service API (usually admin-only)."""
+    try:
+        response = conn.orchestration.get('/services')
+        response.raise_for_status()
     except Exception as e:
-        logger.error(f"Failed to get service status: {e}")
-        return [
-            {'binary': 'nova-compute', 'host': 'unknown', 'status': 'unknown',
-                'state': 'unknown', 'zone': 'nova', 'service_type': 'compute',
-                    'error': str(e)},
-            {'binary': 'neutron-server', 'host': 'unknown', 'status': 'unknown',
-                'state': 'unknown', 'zone': 'internal', 'service_type': 'network',
-                    'error': str(e)}
-        ]
+        logger.warning(f"Failed to get Heat engine services: {e}")
+        return [{
+            'binary': 'heat-engine', 'service_type': 'orchestration',
+            'status': 'unknown', 'state': 'unknown', 'error': str(e),
+        }]
+    return [{
+        'binary': service.get('binary'),
+        'host': service.get('host'),
+        # Heat has no enable flag; its status is the engine's liveness.
+        'status': None,
+        'state': service.get('status'),
+        'zone': None,
+        'updated_at': service.get('updated_at'),
+        'engine_id': service.get('engine_id'),
+        'service_type': 'orchestration',
+    } for service in response.json().get('services', [])]
+
+
+def get_service_status() -> List[Dict[str, Any]]:
+    """
+    Report Nova and Cinder services, Neutron agents and Heat engines from
+    their service APIs, and probe the Glance and Heat APIs and, when they are
+    in the catalog, the Octavia, Barbican, Aodh and Gnocchi APIs.
+
+    Returns:
+        List of service rows; API probe rows carry check="api_probe".
+
+    Raises:
+        Exception: when the connection itself fails; no placeholder rows
+        are returned in that case.
+    """
+    conn = get_openstack_connection()
+    services = []
+
+    # Nova compute services
+    try:
+        for service in conn.compute.services():
+            services.append({
+                'binary': service.binary,
+                'host': service.host,
+                'status': service.status,
+                'state': service.state,
+                'zone': _service_zone(service),
+                'updated_at': getattr(service, 'updated_at', None),
+                'disabled_reason': getattr(service, 'disabled_reason', None),
+                'service_type': 'compute'
+            })
+    except Exception as e:
+        logger.warning(f"Failed to get compute services: {e}")
+        services.append({
+            'binary': 'nova-compute', 'service_type': 'compute',
+            'status': 'unknown', 'state': 'unknown', 'error': str(e),
+        })
+
+    # Neutron agents
+    try:
+        for agent in conn.network.agents():
+            services.append({
+                'binary': agent.binary,
+                'host': agent.host,
+                'status': ('unknown' if agent.is_admin_state_up is None else
+                           'enabled' if agent.is_admin_state_up else 'disabled'),
+                'state': ('unknown' if agent.is_alive is None else
+                          'up' if agent.is_alive else 'down'),
+                'zone': getattr(agent, 'availability_zone', None),
+                'updated_at': getattr(agent, 'last_heartbeat_at', None),
+                'agent_type': agent.agent_type,
+                'service_type': 'network'
+            })
+    except Exception as e:
+        logger.warning(f"Failed to get network agents: {e}")
+        services.append({
+            'binary': 'neutron-agent', 'service_type': 'network',
+            'status': 'unknown', 'state': 'unknown', 'error': str(e),
+        })
+
+    # Cinder services
+    try:
+        for service in conn.volume.services():
+            services.append({
+                'binary': service.binary,
+                'host': service.host,
+                'status': service.status,
+                'state': service.state,
+                'zone': _service_zone(service),
+                'updated_at': getattr(service, 'updated_at', None),
+                'disabled_reason': getattr(service, 'disabled_reason', None),
+                'service_type': 'volume'
+            })
+    except Exception as e:
+        logger.warning(f"Failed to get volume services: {e}")
+        services.append({
+            'binary': 'cinder-volume', 'service_type': 'volume',
+            'status': 'unknown', 'state': 'unknown', 'error': str(e),
+        })
+
+    # Heat engines (service records) and API probes for services without a
+    # service list. Glance and Heat are always probed; the others only when
+    # the catalog has them.
+    services.append(_api_probe(
+        'glance-api', 'image', lambda: list(conn.image.images(limit=1))))
+    services.append(_api_probe(
+        'heat-api', 'orchestration', lambda: list(conn.orchestration.stacks(limit=1))))
+    services.extend(_heat_engine_services(conn))
+    optional = (
+        ('octavia-api', 'load-balancer',
+         lambda: list(conn.load_balancer.providers())),
+        ('barbican-api', 'key-manager',
+         lambda: next(iter(conn.key_manager.secrets(limit=1)), None)),
+        ('aodh-api', 'alarming',
+         _adapter_probe(conn, 'alarming', '/v2/alarms?limit=1')),
+        ('gnocchi-api', 'metric',
+         _adapter_probe(conn, 'metric', '/v1/resource/generic?limit=1')),
+    )
+    for binary, service_type, probe in optional:
+        if _in_catalog(conn, service_type):
+            services.append(_api_probe(binary, service_type, probe))
+
+    return services
 
 # =============================================================================
 # Compute (Nova) Functions - Enhanced

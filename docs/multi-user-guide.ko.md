@@ -189,7 +189,7 @@ export OS_AUTH_PROTOCOL=http
 | 클라이언트 | 초기 상태 |
 | --- | --- |
 | Claude Code CLI | 버전 2.1.312를 등록하고 실제 HTTPS MCP 서버로 테스트함 |
-| Claude Code IDE 통합 | 따로 테스트하지 않음 |
+| Claude Code IDE 통합 | 2026-11-23에 VS Code 확장 2.1.330으로, user 범위 등록 정보에 credential 헤더를 넣고 HTTP(테스트 override)의 Docker Compose 서버에 대해 테스트함. `/mcp`에서는 헤더를 넣을 수 없음. [Claude Code: Application Credential 헤더](claude-code-guide.ko.md#다중-사용자-모드-application-credential-헤더) 참고 |
 | Claude Desktop, 사용자마다 자기 `claude_desktop_config.json`의 `mcp-remote` | 2026-11-14에 Windows에서 `mcp-remote@0.15.2`로 테스트함. 각 사용자의 컴퓨터에는 자기 credential만 있음. [Claude Desktop 방법 4](claude-desktop-guide.ko.md#다중-사용자-모드-사용자별-application-credential) 참고 |
 | Claude Desktop 원격 사용자 지정 커넥터 | 요청 헤더 기능을 쓸 수 있고 각자 소유한 자격 증명 설정이 가능할 때만 조건부로 가능. 검증하지 않음 |
 | Claude Desktop 조직 공유 고정 헤더 | 사용자별 계정에는 맞지 않음. 한 사람의 자격 증명을 공유하지 말 것 |
@@ -199,7 +199,7 @@ export OS_AUTH_PROTOCOL=http
 | OpenWebUI/MCPO, 여러 사용자가 공유하는 연결 하나 | 맞지 않음. 고정된 upstream 헤더 때문에 모든 UI 사용자가 같은 OpenStack 계정을 쓰게 됨 |
 | OAuth가 필요한 클라이언트 | 이 사용자 지정 인증 모드에서는 지원하지 않음 |
 
-Claude Code 예시(사용자 설정, 자리표시자만 사용):
+Claude Code 예시(사용자 설정, 자리표시자만 사용). 등록 명령은 [Claude Code: Application Credential 헤더](claude-code-guide.ko.md#다중-사용자-모드-application-credential-헤더)를 참고하세요:
 
 ```json
 {

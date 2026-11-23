@@ -986,3 +986,58 @@ an earlier full summary.
   were not retested live, because they need a load balancer. All test
   resources were deleted. This partial check covers 6 unique tools and does not
   update the 105-tool summary above.
+- **Local unit tests after the service status and placeholder fixes
+  (2026-11-23; uncommitted working tree based on `91f2df1`):** 793/793 (100%)
+  with fastmcp 4.2.2 and the locked openstacksdk 4.24.0, run as
+  `uv run pytest -q`; no failures or skipped tests (788/788 before). Five new
+  cases check that `get_service_status` marks API probe rows, reads Heat engine
+  records, probes optional services only when the catalog lists them, and
+  counts probes apart from service records in the summary, and that
+  `get_heat_stacks` omits `timeout_mins`, keeps unset values `null`, and raises
+  instead of returning a placeholder stack. The case that expected fixed rows
+  after a connection failure now expects the error. The new cases fail against
+  the `91f2df1` source.
+- **Second targeted check of Live unverified paths (2026-11-23 UTC; partial;
+  same uncommitted working tree):** same test cloud, called through FastMCP's
+  in-memory client (fastmcp 4.2.2, openstacksdk 4.24.0) as the project
+  administrator unless noted. 23 unique tools were called, and all passed the
+  paths named here. `get_service_status` returned Nova, Cinder and Heat engine
+  records, Neutron agents and six API probes; with the Glance API container
+  stopped, its probe reported the error. Port forwarding traffic was sent from a
+  network namespace attached to the external bridge to the floating IP and
+  reached a new instance on the private network only (the earlier test
+  instances also have an external port, which made replies bypass the router):
+  HTTP 200 after `create`, HTTPS 200 after `set` to internal port 443, and no
+  answer after `delete`. A proxy in front of Neutron that answered only the
+  port listing with 503 made `get_routers` return `null` interfaces with
+  `interfaces_error`. With Barbican's `enable_multiple_secret_stores` turned on
+  through a Kolla override and reconfigure, `get_secret_stores` listed the
+  store; the override was then removed and Barbican reconfigured again. An
+  `rsa` container was created with `set_secret_container`. As a `reader` user,
+  `get_service_status` returned 403 rows for Nova, Cinder and Heat engines, a
+  403 Barbican probe and no Neutron agents (an empty list, not an error),
+  `get_resource_monitoring` returned capacity `null` with the 403 reason and a
+  failed identity section, and `get_user_list` failed explicitly. On a load
+  balancer in front of an instance serving HTTP, HTTPS and HTTPS with required
+  client certificates from a test CA, 20 scripted checks ran and 19 passed: re-encryption with the
+  trusted CA returned 200, another CA 503, a CRL revoking the member
+  certificate 503 and an empty CRL 200; the mTLS member returned 200 with the
+  client certificate's CN after `tls_container_ref` was set; HTTPS passthrough
+  served the member's certificate and a `TLS-HELLO` monitor marked the member
+  `ONLINE`; `TERMINATED_HTTPS` served the default certificate without SNI and
+  the `sni_container_refs` certificate with SNI, and listener `set` replaced
+  the default certificate; listener `show` reported `connection_limit`, a new
+  load balancer reported `updated_at` as `null`, and amphora `configure`
+  reported "accepted". The failed check expected 503 for the mTLS member
+  without a client certificate; HAProxy returned 502 for that rejected
+  handshake, so the request was refused as intended and the check's expectation
+  was wrong. `set_load_balancer` `set` to a QoS policy shared by another
+  project reached ACTIVE, and the amphora VRRP port, listed under the `service`
+  project by `set_network_ports` with `all_projects=true`, read it back.
+  **Not achieved:** server evacuation. A second `nova-compute` with the fake
+  driver, started next to the lab's one with a copy of its configuration, never
+  registered because its RPC calls to the conductor timed out; it was removed,
+  and no service record was left. All test resources, the namespace, the test
+  certificates and the configuration copies were deleted, and Barbican returned
+  to its original configuration. This partial check does not update the
+  105-tool summary above.

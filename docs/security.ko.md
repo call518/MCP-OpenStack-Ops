@@ -25,7 +25,7 @@ OpenStack 계정은 [다중 사용자 가이드](multi-user-guide.ko.md)를 참�
 `OS_APPLICATION_CREDENTIAL_*` 변수도 없습니다. 이 사항은 [TODO](../ToDo.ko.md)에
 미결정 항목으로 기록되어 있습니다.
 
-2026-11-21 기준 현황 (소스 `c47c2f5`):
+2026-11-23 기준 현황 (소스 `91f2df1`. 이날은 Claude Code IDE 확장 행만 다시 확인했으며, 나머지 행은 2026-11-21, 소스 `c47c2f5` 기준):
 
 | 클라이언트 | Password | Application Credential | 비고 |
 |---|---|---|---|
@@ -33,7 +33,7 @@ OpenStack 계정은 [다중 사용자 가이드](multi-user-guide.ko.md)를 참�
 | Claude Desktop, `claude_desktop_config.json`과 `mcp-remote` | ✅ | ✅ | 서버는 `streamable-http`로 실행. 사용자 컴퓨터의 `mcp-remote`가 헤더를 보냄. Password: 같은 `mcp-remote` 명령을 MCP 클라이언트로 실행해 확인함. Application Credential: 2026-11-14에 Windows의 Claude Desktop에서 `mcp-remote@0.15.2`로 Docker Compose 서버에 HTTP(테스트 override)로 연결해 테스트함. [Claude Desktop 방법 4](claude-desktop-guide.ko.md#다중-사용자-모드-사용자별-application-credential) 참고 |
 | OpenWebUI, Docker Compose | ✅ | ⚠️ Live unverified | Password: 모든 OpenWebUI 사용자가 OpenStack 계정 하나를 씀. Application Credential: 헤더에 사용자 한 명의 credential만 담긴 개인용 또는 소유자 제한 연결에서만 사용. 공유 연결 하나로는 사용하지 않음. [클라이언트 호환성](multi-user-guide.ko.md#클라이언트-호환성) 참고 |
 | Claude Code CLI | ✅ | ✅ | 서버는 `streamable-http`로 실행. Password: 계정은 서버 환경에만 있고 Claude Code는 Bearer 토큰만 보냄. Application Credential: 버전 2.1.312로 실제 HTTPS MCP 서버에 등록해 테스트함 |
-| Claude Code IDE 확장 | ⚠️ Live unverified | ⚠️ Live unverified | CLI와 같은 등록 방식이며 별도로 테스트하지 않음 |
+| Claude Code IDE 확장 | ✅ | ✅ | CLI와 같은 등록 방식. Password: 2026-11-23에 VS Code 확장 2.1.330(Linux, 원격 작업 공간)으로 확인. Docker Compose 서버에 `streamable-http`의 HTTP `url`로 등록하고 이를 통해 도구를 호출함. 서버가 `REMOTE_AUTH_ENABLE=false`였으므로 Bearer 토큰 검사는 이 확인에 포함되지 않음. Application Credential: 같은 날 서버를 HTTP(테스트 override)의 다중 사용자 모드로 두고 user 범위 등록 정보에 credential 헤더 두 개를 넣어 확인. `/mcp`에서는 헤더를 넣을 수 없음. [Claude Code: Application Credential 헤더](claude-code-guide.ko.md#다중-사용자-모드-application-credential-헤더) 참고 |
 | ChatGPT 데스크톱 앱의 Codex, `config.toml`과 `uvx` | ✅ | ❌ Not implemented | 서버는 계정을 `env`에 둔 채 stdio로 실행. 다중 사용자 모드는 `streamable-http`가 필요함. Password: 2026-11-21에 확인함. 앱과 패키지 버전은 기록하지 않음. [Codex 방법 1](codex-guide.ko.md#방법-1-uvx로-pypi-패키지-실행) 참고 |
 | Codex CLI와 IDE 확장, 같은 `config.toml`과 `uvx` | ⚠️ Live unverified | ❌ Not implemented | 데스크톱 앱과 같은 파일이며 별도로 테스트하지 않음 |
 | Codex, HTTP `url`을 쓰는 `config.toml` | ⚠️ Live unverified | ⚠️ Live unverified | Bearer 토큰은 `bearer_token_env_var`, Application Credential 헤더는 `env_http_headers`에서 읽음. [Codex 방법 2](codex-guide.ko.md#방법-2-기존-http-서버-사용) 참고 |

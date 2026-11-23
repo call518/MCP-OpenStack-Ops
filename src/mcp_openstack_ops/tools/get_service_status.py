@@ -11,17 +11,19 @@ from ..mcp_main import (
 @mcp.tool()
 async def get_service_status() -> str:
     """
-    Report the state of Nova and Cinder services and Neutron agents, and whether
-    the Glance and Heat APIs answer.
+    Report OpenStack service state from service APIs, plus API probes.
 
     Functions:
-    - List Nova and Cinder services and Neutron agents with status and state
-    - Probe the Glance and Heat APIs with a one-item list; these rows have
-      host "unknown" and no service record behind them
+    - List Nova and Cinder services, Neutron agents and Heat engines with
+      status, state and heartbeat (Heat's service API is usually admin-only)
+    - Probe the Glance and Heat APIs, and the Octavia, Barbican, Aodh and
+      Gnocchi APIs when the catalog has them, with a one-item request. Probe
+      rows have check "api_probe", null host and updated_at, and checked_at
+      in UTC; state "up" only means the API answered
     - Report a section that failed as a row with an error
 
-    Other services (for example Keystone, Octavia, Barbican, Aodh, Gnocchi)
-    and the Keystone endpoint catalog are not covered.
+    summary.running_services counts service records only; summary.api_probes
+    counts probes. Keystone and the Keystone endpoint catalog are not covered.
 
     Use when user requests service status, API status, health checks, or service troubleshooting.
     
@@ -32,18 +34,24 @@ async def get_service_status() -> str:
         logger.info("Fetching OpenStack service status")
         services = _get_service_status()
         
-        # services is a list, not a dict
-        enabled_services = [s for s in services if s.get('status') == 'enabled']
-        running_services = [s for s in services if s.get('state') == 'up']
-        
+        # services is a list, not a dict; probes are not service records.
+        records = [s for s in services if s.get('check') != 'api_probe']
+        probes = [s for s in services if s.get('check') == 'api_probe']
+        enabled_services = [s for s in records if s.get('status') == 'enabled']
+        running_services = [s for s in records if s.get('state') == 'up']
+
         result = {
             "timestamp": datetime.now().isoformat(),
             "service_status": services,
             "summary": {
-                "total_services": len(services),
+                "total_services": len(records),
                 "enabled_services": len(enabled_services),
                 "running_services": len(running_services),
-                "service_types": list(set(s.get('service_type', 'unknown') for s in services))
+                "api_probes": {
+                    "total": len(probes),
+                    "answered": sum(s.get('state') == 'up' for s in probes),
+                },
+                "service_types": sorted(set(s.get('service_type', 'unknown') for s in services))
             }
         }
         

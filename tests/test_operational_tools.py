@@ -1,6 +1,8 @@
 """Regression tests for real API operations and honest monitoring output."""
 
+import importlib
 import inspect
+import json
 from types import SimpleNamespace
 from unittest.mock import Mock, create_autospec
 
@@ -443,26 +445,96 @@ def test_usage_api_failure_has_no_snapshot_fallback(conn):
     conn.compute.servers.assert_not_called()
 
 
-def test_service_connection_failure_never_reports_up(conn, monkeypatch):
+def test_service_connection_failure_raises_without_placeholder_rows(
+        conn, monkeypatch):
+    # Previously fixed nova-compute and neutron-server rows were returned.
     monkeypatch.setattr(functions, 'get_openstack_connection',
         Mock(side_effect=RuntimeError('offline')))
-    assert all(s['state'] == 'unknown' for s in functions.get_service_status())
+    with pytest.raises(RuntimeError, match='offline'):
+        functions.get_service_status()
+
+
+def _service_status_conn(conn):
+    conn.session.get_endpoint.return_value = None
+    conn.compute.services.return_value = []
+    conn.network.agents.return_value = []
+    conn.block_storage.services.return_value = []
+    conn.image.images.return_value = []
+    conn.orchestration.stacks.return_value = []
+    conn.orchestration.get.return_value.json.return_value = {'services': []}
+    return conn
 
 
 def test_failed_component_is_in_service_results(conn):
+    _service_status_conn(conn)
     conn.compute.services.side_effect = RuntimeError('denied')
     conn.network.agents.return_value = [Agent(
         id='agent-a', binary='neutron-agent', host='host', alive=True,
             admin_state_up=True,
     )]
-    conn.block_storage.services.return_value = []
-    conn.image.images.return_value = []
-    conn.orchestration.stacks.return_value = []
     result = functions.get_service_status()
     assert next(s for s in result if s['service_type'] == 'compute')[
         'state'] == 'unknown'
     assert next(s for s in result if s['service_type'] == 'network')['state'] == 'up'
     conn.orchestration.stacks.assert_called_once_with(limit=1)
+
+
+def test_service_status_marks_api_probes_and_reads_heat_engines(conn):
+    _service_status_conn(conn)
+    conn.orchestration.get.return_value.json.return_value = {'services': [{
+        'binary': 'heat-engine', 'host': 'ctl', 'status': 'up',
+        'updated_at': '2026-11-23T08:00:00.000000', 'engine_id': 'e1'}]}
+    conn.image.images.side_effect = RuntimeError('glance down')
+
+    result = functions.get_service_status()
+
+    conn.orchestration.get.assert_called_once_with('/services')
+    engine = next(s for s in result if s['binary'] == 'heat-engine')
+    assert (engine['host'], engine['state'], engine['updated_at']) == (
+        'ctl', 'up', '2026-11-23T08:00:00.000000')
+    glance = next(s for s in result if s['binary'] == 'glance-api')
+    heat_api = next(s for s in result if s['binary'] == 'heat-api')
+    for probe in (glance, heat_api):
+        assert probe['check'] == 'api_probe'
+        assert probe['host'] is None and probe['updated_at'] is None
+        assert probe['checked_at'].endswith('+00:00')
+    assert glance['state'] == 'unknown' and 'glance down' in glance['error']
+    assert heat_api['state'] == 'up'
+    # Optional services are probed only when the catalog has them.
+    assert not any(s['binary'] == 'octavia-api' for s in result)
+
+
+def test_service_status_probes_catalog_services(conn):
+    _service_status_conn(conn)
+    conn.session.get_endpoint.side_effect = lambda service_type, **_: (
+        'https://lb.example:9876' if service_type == 'load-balancer' else None)
+    conn.load_balancer = Mock()
+    conn.load_balancer.providers.return_value = []
+
+    result = functions.get_service_status()
+
+    octavia = next(s for s in result if s['binary'] == 'octavia-api')
+    assert (octavia['check'], octavia['state']) == ('api_probe', 'up')
+    assert not any(s['binary'] in ('barbican-api', 'aodh-api', 'gnocchi-api')
+                   for s in result)
+
+
+@pytest.mark.asyncio
+async def test_service_status_summary_counts_records_not_probes(monkeypatch):
+    module = importlib.import_module('mcp_openstack_ops.tools.get_service_status')
+    monkeypatch.setattr(module, '_get_service_status', Mock(return_value=[
+        {'binary': 'nova-compute', 'status': 'enabled', 'state': 'up',
+         'service_type': 'compute'},
+        {'binary': 'glance-api', 'check': 'api_probe', 'status': None,
+         'state': 'up', 'service_type': 'image'},
+        {'binary': 'heat-api', 'check': 'api_probe', 'status': None,
+         'state': 'unknown', 'service_type': 'orchestration'},
+    ]))
+    handler = module.get_service_status
+    summary = json.loads(await getattr(handler, 'fn', handler)())['summary']
+    assert summary['total_services'] == 1
+    assert summary['running_services'] == 1
+    assert summary['api_probes'] == {'total': 2, 'answered': 1}
 
 
 @pytest.mark.parametrize(

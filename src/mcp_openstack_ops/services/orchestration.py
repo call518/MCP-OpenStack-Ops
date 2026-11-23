@@ -81,11 +81,11 @@ def _get_global_heat_stacks() -> List[Dict[str, Any]]:
             'status': stack.get('stack_status'),
             'stack_status': stack.get('stack_status'),
             'stack_status_reason': stack.get('stack_status_reason', ''),
-            'creation_time': str(stack.get('creation_time', 'unknown')),
-            'updated_time': str(stack.get('updated_time', 'unknown')),
+            'creation_time': stack.get('creation_time'),
+            'updated_time': stack.get('updated_time'),
             'description': stack.get('description', ''),
             'tags': stack.get('tags') or [],
-            'owner': stack.get('stack_owner') or 'unknown',
+            'owner': stack.get('stack_owner'),
             'project_id': project_id,
             'project_name': names.get(project_id),
         })
@@ -110,50 +110,33 @@ def get_heat_stacks(all_projects: bool = False) -> List[Dict[str, Any]]:
         from ..connection import get_openstack_connection
         conn = get_openstack_connection()
         
-        # Check if Heat service is available
-        try:
-            # Test Heat service availability
-            stacks_iterator = conn.orchestration.stacks()
-            current_project_id = conn.current_project_id
-            if not current_project_id:
-                raise ValueError('A project-scoped connection is required')
-            stacks = []
-            
-            for stack in stacks_iterator:
-                if _heat_stack_is_owned(stack, current_project_id):
-                    stacks.append({
-                        'id': stack.id,
-                        'name': stack.name,
-                        'status': stack.status,
-                        'stack_status': stack.status,
-                        'stack_status_reason': getattr(stack, 'status_reason', ''),
-                        'creation_time': str(getattr(stack, 'created_at', 'unknown')),
-                        'updated_time': str(getattr(stack, 'updated_at', 'unknown')),
-                        'description': getattr(stack, 'description', ''),
-                        'tags': getattr(stack, 'tags', []),
-                        'timeout_mins': getattr(stack, 'timeout_mins', None),
-                        'owner': getattr(stack, 'owner_id', None) or 'unknown',
-                        'project_id': current_project_id
-                    })
-            
-            logger.info(f"Retrieved {len(stacks)} stacks for project {current_project_id}")
-            return stacks
-            
-        except AttributeError as attr_error:
-            if "catalog_url" in str(attr_error):
-                logger.error(f"Heat service not available in service catalog: {attr_error}")
-                return [{
-                    'id': 'heat-service-unavailable',
-                    'name': 'Heat Service Not Available',
-                    'status': 'SERVICE_UNAVAILABLE',
-                    'stack_status': 'SERVICE_UNAVAILABLE',
-                    'description': 'Heat orchestration service is not available or not configured in service catalog',
-                    'error': 'Heat service endpoint not found in service catalog',
-                    'recommendation': 'Please ensure Heat service is installed and properly configured in OpenStack'
-                }]
-            else:
-                raise
-        
+        stacks_iterator = conn.orchestration.stacks()
+        current_project_id = conn.current_project_id
+        if not current_project_id:
+            raise ValueError('A project-scoped connection is required')
+        stacks = []
+
+        # Heat's stack list carries no timeout_mins, so it is not reported
+        # here; values Heat leaves unset stay null instead of "unknown".
+        for stack in stacks_iterator:
+            if _heat_stack_is_owned(stack, current_project_id):
+                stacks.append({
+                    'id': stack.id,
+                    'name': stack.name,
+                    'status': stack.status,
+                    'stack_status': stack.status,
+                    'stack_status_reason': getattr(stack, 'status_reason', ''),
+                    'creation_time': getattr(stack, 'created_at', None),
+                    'updated_time': getattr(stack, 'updated_at', None),
+                    'description': getattr(stack, 'description', ''),
+                    'tags': getattr(stack, 'tags', []),
+                    'owner': getattr(stack, 'owner_id', None),
+                    'project_id': current_project_id
+                })
+
+        logger.info(f"Retrieved {len(stacks)} stacks for project {current_project_id}")
+        return stacks
+
     except Exception as e:
         logger.error(f"Failed to get stacks: {e}")
         # Do not return a placeholder stack that is counted as a real one.

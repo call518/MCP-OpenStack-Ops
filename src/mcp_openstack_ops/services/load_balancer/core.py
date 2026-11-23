@@ -125,9 +125,9 @@ def get_load_balancer_list(limit: int = 50, offset: int = 0, include_all: bool =
                 lb_details.append({
                     'id': lb.id,
                     'name': lb.name,
-                    'vip_address': getattr(lb, 'vip_address', 'N/A'),
-                    'provisioning_status': getattr(lb, 'provisioning_status', 'Unknown'),
-                    'operating_status': getattr(lb, 'operating_status', 'Unknown'),
+                    'vip_address': getattr(lb, 'vip_address', None),
+                    'provisioning_status': getattr(lb, 'provisioning_status', None),
+                    'operating_status': getattr(lb, 'operating_status', None),
                     'project_id': getattr(lb, 'project_id', current_project_id),
                     'error': f'Failed to fetch details: {str(e)}'
                 })

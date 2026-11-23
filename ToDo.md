@@ -86,39 +86,25 @@ Glance image members, needs Neutron RBAC
 
 ## Service status reporting
 
-- [ ] **Report real service state in `get_service_status`**
-  - Glance and Heat rows are not service records: they come from a list probe,
-    with `host: unknown` and `updated_at` set to the server's local time, while
-    Nova, Neutron and Cinder rows carry UTC heartbeats.
-  - heat-engine, Octavia and Aodh are not reported. In a 2026-11-14 lab
-    failure, heat-engine lost its database connection while `heat-api` was
-    reported as up.
-  - `running_services` counts the probe rows as running.
-  - When an unexpected error escapes the per-service blocks, the tool returns
-    fixed `nova-compute` and `neutron-server` rows with status `unknown`
-    instead of the error alone.
+- [ ] **Report the state of services that have no service list API**
+  - Since 2026-11-23 `get_service_status` reads Nova, Cinder and Heat engine
+    records and Neutron agents, and only probes the Glance, Heat, Octavia,
+    Barbican, Aodh and Gnocchi APIs. Octavia (health manager, amphora
+    health), Aodh (evaluator, notifier) and Gnocchi (metricd) workers are not
+    reported, because those services offer no service list API.
+  - A `reader` gets an empty Neutron agent list without an error, so an empty
+    agent section does not mean that no agents exist.
 
 ## Barbican and TLS listeners
 
-- [ ] **Live-check the Barbican tools and `TERMINATED_HTTPS` listeners**
-  - Checked live on 2026-11-15 (admin account): `set_secret`
-    `create_self_signed_tls`, and a `TERMINATED_HTTPS` listener created with
-    `default_tls_container_ref` by name that reached `ACTIVE`/`ONLINE` and
-    served HTTPS (`curl -vk`: TLSv1.3, HTTP 200 from both members).
-  - Checked live on 2026-11-23 (admin account): the other Barbican tools and
-    actions except a successful `get_secret_stores` listing (the lab has one
-    secret store) and `rsa` containers created through `set_secret_container`,
-    and the pool backend re-encryption parameters except `crl_container_ref`
-    (see [validation](docs/validation.md)).
-  - Still unit-tested only: `sni_container_refs`, listener `set` with TLS
-    references, `crl_container_ref`, and a member that requires the client
-    certificate (`tls_container_ref`).
-  - Also check non-terminated HTTPS (`HTTPS` listener and pool, `TLS-HELLO`
-    monitor) and backend re-encryption with a CA-verified member, with and
-    without client authentication.
-  - Check on a cloud with Barbican: the role a project `member` needs to create
-    secrets, whether Octavia grants its own ACL at listener creation (the
-    2026-11-15 check used an admin account).
+- [ ] **Check Barbican and TLS listeners with a project `member` account**
+  - Checked live with an admin account on 2026-11-15 and 2026-11-23: every
+    Barbican tool, `TERMINATED_HTTPS` with `sni_container_refs` and listener
+    `set`, non-terminated HTTPS with a `TLS-HELLO` monitor, and backend
+    re-encryption with CA verification, a CRL and client authentication (see
+    [validation](docs/validation.md)).
+  - Still to check: the role a project `member` needs to create secrets, and
+    whether Octavia grants its own ACL at listener creation for a `member`.
 
 ## [Issue #73](https://github.com/call518/MCP-OpenStack-Ops/issues/73) follow-up
 

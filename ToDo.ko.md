@@ -82,34 +82,23 @@ Neutron RBAC(`openstack network rbac create --type qos_policy --action access_as
 
 ## 서비스 상태 보고
 
-- [ ] **`get_service_status`가 실제 서비스 상태를 보고하도록 개선**
-  - Glance와 Heat 행은 서비스 레코드가 아닙니다. 목록 조회 성공 여부로 만든 행이라
-    `host`가 `unknown`이고 `updated_at`은 서버의 로컬 시각입니다. Nova, Neutron,
-    Cinder 행은 UTC heartbeat를 씁니다.
-  - heat-engine, Octavia, Aodh는 보고하지 않습니다. 2026-11-14 랩 장애에서
-    heat-engine이 데이터베이스 연결을 잃었는데도 `heat-api`는 up으로 보고됐습니다.
-  - `running_services`가 조회 결과로 만든 행도 실행 중으로 셉니다.
-  - 서비스별 블록 밖으로 예상하지 못한 오류가 나가면, 오류만 반환하지 않고 상태가
-    `unknown`인 고정된 `nova-compute`와 `neutron-server` 행을 반환합니다.
+- [ ] **서비스 목록 API가 없는 서비스의 상태 보고**
+  - 2026-11-23부터 `get_service_status`는 Nova, Cinder, Heat engine 레코드와 Neutron
+    agent를 읽고, Glance, Heat, Octavia, Barbican, Aodh, Gnocchi API는 probe만 합니다.
+    Octavia(health manager, amphora 상태), Aodh(evaluator, notifier), Gnocchi(metricd)
+    워커는 이 서비스들에 서비스 목록 API가 없어서 보고하지 않습니다.
+  - `reader`는 오류 없이 빈 Neutron agent 목록을 받으므로, agent 섹션이 비어 있어도
+    agent가 없다는 뜻은 아닙니다.
 
 ## Barbican과 TLS 리스너
 
-- [ ] **Barbican 도구와 `TERMINATED_HTTPS` 리스너 라이브 검증**
-  - 2026-11-15 라이브 확인(admin 계정): `set_secret` `create_self_signed_tls`, 그리고
-    `default_tls_container_ref`를 이름으로 지정해 만든 `TERMINATED_HTTPS` 리스너가
-    `ACTIVE`/`ONLINE`이 되고 HTTPS를 제공함(`curl -vk`: TLSv1.3, 두 멤버 모두 HTTP 200).
-  - 2026-11-23 라이브 확인(admin 계정): 나머지 Barbican 도구와 액션(성공적인
-    `get_secret_stores` 목록 조회와 `set_secret_container`로 만드는 `rsa` 컨테이너는
-    제외. 랩에는 secret store가 하나뿐임), 그리고 `crl_container_ref`를 뺀 pool의
-    backend re-encryption 파라미터([검증 기록](docs/validation.ko.md) 참고).
-  - 아직 단위 테스트만 수행한 것: `sni_container_refs`, TLS 참조를 쓰는 리스너
-    `set`, `crl_container_ref`, 클라이언트 인증서(`tls_container_ref`)를 요구하는 멤버.
-  - Non-terminated HTTPS(`HTTPS` 리스너와 pool, `TLS-HELLO` 모니터)와, CA로 멤버를
-    검증하는 backend re-encryption을 client authentication이 있을 때와 없을 때 모두
-    확인합니다.
-  - Barbican이 있는 클라우드에서 확인할 것: 프로젝트 `member`가 시크릿을 만들 때
-    필요한 역할, 리스너 생성 시 Octavia가 ACL을 직접 부여하는지(2026-11-15 점검은 admin
-    계정으로 수행).
+- [ ] **프로젝트 `member` 계정으로 Barbican과 TLS 리스너 확인**
+  - 2026-11-15와 2026-11-23에 admin 계정으로 라이브 확인: 모든 Barbican 도구,
+    `sni_container_refs`와 리스너 `set`을 포함한 `TERMINATED_HTTPS`, `TLS-HELLO` 모니터를
+    쓰는 non-terminated HTTPS, CA 검증·CRL·client authentication을 포함한 backend
+    re-encryption([검증 기록](docs/validation.ko.md) 참고).
+  - 아직 확인할 것: 프로젝트 `member`가 시크릿을 만드는 데 필요한 역할, `member`의 리스너
+    생성 시 Octavia가 자체 ACL을 부여하는지.
 
 ## [Issue #73](https://github.com/call518/MCP-OpenStack-Ops/issues/73) 후속 작업
 

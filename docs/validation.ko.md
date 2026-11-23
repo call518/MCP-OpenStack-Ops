@@ -852,3 +852,48 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   `connection_limit`, Octavia 시각, amphora `configure` 메시지는 로드밸런서가 필요해
   live로 다시 확인하지 않았습니다. 테스트 리소스는 모두 삭제했습니다. 이 partial
   check는 고유 도구 6개를 다루며 위의 105개 도구 요약을 갱신하지 않습니다.
+- **서비스 상태와 placeholder 수정 후 로컬 단위 테스트 (2026-11-23, `91f2df1` 기반
+  커밋 전 작업 트리):** fastmcp 4.2.2와 고정된 openstacksdk 4.24.0으로
+  `uv run pytest -q`를 실행해 793/793 (100%)가 통과했고, 실패하거나 건너뛴 테스트는
+  없었습니다(변경 전 788/788). 새 테스트 5건은 `get_service_status`가 API probe 행을
+  표시하는지, Heat engine 레코드를 읽는지, 카탈로그에 있을 때만 선택 서비스를
+  probe하는지, 요약에서 probe를 서비스 레코드와 따로 세는지, 그리고 `get_heat_stacks`가
+  `timeout_mins`를 빼고, 정해지지 않은 값을 `null`로 두며, 가짜 스택 대신 오류를
+  올리는지 확인합니다. 연결 실패 후 고정된 행을 기대하던 테스트는 이제 오류를
+  기대합니다. 새 테스트는 `91f2df1` 소스에서 실패합니다.
+- **Live unverified 경로 두 번째 targeted check (2026-11-23 UTC, partial, 같은 커밋 전
+  작업 트리):** 같은 테스트 클라우드에서, 따로 적지 않으면 프로젝트 관리자로 FastMCP의
+  in-memory 클라이언트(fastmcp 4.2.2, openstacksdk 4.24.0)를 통해 호출했습니다. 고유
+  도구 23개를 호출했고, 모두 여기 적은 경로를 통과했습니다. `get_service_status`는
+  Nova, Cinder, Heat engine 레코드와 Neutron agent, API probe 6개를 반환했고, Glance API
+  컨테이너를 멈춘 동안에는 해당 probe가 오류를 보고했습니다. 외부 브리지에 붙인 network
+  namespace에서 floating IP로 보낸 port forwarding 트래픽이 사설 네트워크에만 연결된 새
+  인스턴스에 도달했습니다(기존 테스트 인스턴스는 외부 port도 있어 응답이 라우터를 거치지
+  않았음): `create` 후 HTTP 200, 내부 포트 443으로 바꾼 `set` 후 HTTPS 200, `delete` 후
+  응답 없음. Neutron 앞에 port 목록 요청에만 503을 반환하는 프록시를 두자 `get_routers`가
+  `null` 인터페이스와 `interfaces_error`를 반환했습니다. Kolla override와 reconfigure로
+  Barbican의 `enable_multiple_secret_stores`를 켜자 `get_secret_stores`가 store를
+  나열했고, 이후 override를 지우고 Barbican을 다시 reconfigure했습니다.
+  `set_secret_container`로 `rsa` 컨테이너를 만들었습니다. `reader` 사용자로는
+  `get_service_status`가 Nova, Cinder, Heat engine에 대해 403 행, Barbican probe 403을
+  반환했고 Neutron agent는 반환하지 않았습니다(오류가 아니라 빈 목록).
+  `get_resource_monitoring`은 403 이유와 함께 용량 `null`과 실패한 identity 섹션을
+  반환했고, `get_user_list`는 명시적으로 실패했습니다. 테스트 CA의 인증서로 HTTP, HTTPS,
+  클라이언트 인증서를 요구하는 HTTPS를 제공하는 인스턴스 앞의 로드밸런서에서 스크립트로
+  20개 점검을 실행했고 19개가 통과했습니다: 신뢰하는 CA의 재암호화는 200, 다른 CA는 503,
+  멤버 인증서를 폐기한 CRL은 503, 빈 CRL은 200. mTLS 멤버는 `tls_container_ref`를 지정한
+  뒤 클라이언트 인증서의 CN과 함께 200을 반환. HTTPS passthrough는 멤버의 인증서를
+  제공했고 `TLS-HELLO` 모니터가 멤버를 `ONLINE`으로 표시. `TERMINATED_HTTPS`는 SNI가
+  없으면 기본 인증서, SNI가 있으면 `sni_container_refs` 인증서를 제공했고, 리스너 `set`이
+  기본 인증서를 교체. 리스너 `show`가 `connection_limit`을 보고했고, 새 로드밸런서의
+  `updated_at`은 `null`이었으며, amphora `configure`는 "accepted"를 보고했습니다. 실패한
+  점검은 클라이언트 인증서 없는 mTLS 멤버에서 503을 기대했지만, HAProxy가 거부된
+  핸드셰이크에 502를 반환했습니다. 요청은 의도대로 거부되었고 점검의 기대값이
+  틀렸습니다. 다른 프로젝트가 공유한 QoS 정책으로 바꾼 `set_load_balancer` `set`이
+  ACTIVE가 되었고, `all_projects=true`인 `set_network_ports`로 `service` 프로젝트 아래
+  나열된 amphora VRRP port에서 그 정책을 다시 읽었습니다. **달성하지 못한 것:** 서버
+  evacuation. 랩의 `nova-compute` 옆에 설정 사본으로 fake driver를 쓰는 두 번째
+  `nova-compute`를 띄웠지만, conductor로 보낸 RPC가 시간 초과되어 등록되지 않았습니다.
+  이를 제거했고 서비스 레코드는 남지 않았습니다. 테스트 리소스, namespace, 테스트 인증서,
+  설정 사본은 모두 삭제했고 Barbican은 원래 설정으로 돌아갔습니다. 이 partial check는
+  위의 105개 도구 요약을 갱신하지 않습니다.

@@ -198,7 +198,7 @@ production. Cross-origin redirects stay disabled in both modes.
 | Client | Initial status |
 | --- | --- |
 | Claude Code CLI | Version 2.1.312 registered and tested against a real HTTPS MCP server |
-| Claude Code IDE integration | Not separately tested |
+| Claude Code IDE integration | VS Code extension 2.1.330 tested on 2026-11-23 against the Docker Compose server over HTTP (test override), with the credential headers in the user-scope registration. `/mcp` cannot add headers; see [Claude Code: Application Credential headers](claude-code-guide.md#multi-user-mode-application-credential-headers) |
 | Claude Desktop, `mcp-remote` in each user's `claude_desktop_config.json` | Tested on 2026-11-14 on Windows with `mcp-remote@0.15.2`; each user's own computer holds only their credential. See [Claude Desktop option 4](claude-desktop-guide.md#multi-user-mode-each-users-application-credential) |
 | Claude Desktop remote custom connector | Conditional on request-header availability and an independently owned credential configuration; unverified |
 | Claude Desktop organization-shared fixed headers | Not suitable for per-user identities; do not share one person's credential |
@@ -208,7 +208,7 @@ production. Cross-origin redirects stay disabled in both modes.
 | OpenWebUI/MCPO, one shared connection for multiple users | Not suitable: its fixed upstream headers would give every UI user the same OpenStack identity |
 | Clients requiring OAuth | Not supported by this custom authentication mode |
 
-Claude Code example (user configuration; placeholders only):
+Claude Code example (user configuration; placeholders only). For the registration commands, see [Claude Code: Application Credential headers](claude-code-guide.md#multi-user-mode-application-credential-headers):
 
 ```json
 {
