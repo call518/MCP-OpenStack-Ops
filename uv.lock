@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 2
 requires-python = "==3.12.*"
 
 [manifest]
@@ -770,7 +770,7 @@ requires-dist = [
     { name = "fastmcp", specifier = ">=4.1.6" },
     { name = "gnocchiclient", specifier = ">=7.2.0,<8" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.28.1" },
-    { name = "openstacksdk", specifier = ">=4.1.0,<=4.22.0" },
+    { name = "openstacksdk", specifier = ">=4.1.0,<=4.24.0" },
     { name = "pre-commit", specifier = ">=4.6.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.0" },
@@ -824,7 +824,7 @@ wheels = [
 
 [[package]]
 name = "openstacksdk"
-version = "4.22.0"
+version = "4.24.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
@@ -839,10 +839,11 @@ dependencies = [
     { name = "platformdirs" },
     { name = "psutil" },
     { name = "pyyaml" },
+    { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/36/de/da119a0fd6ad3794ccc55c4723a50e6db415d495f77ae083622a275d94a3/openstacksdk-4.22.0.tar.gz", hash = "sha256:757f399346f804d0a70b83fead919c498521e509889cd8973ece5cf7a640e6f9", size = 1473175, upload-time = "2026-10-22T13:33:28.491Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1d/be/6444d563987a6996a82e5046cd010457bc3aa170020bc4d040ba75515a72/openstacksdk-4.24.0.tar.gz", hash = "sha256:fb551350f7dfb80a5afd9dbf4d0e7cc6fa40517da58e5dcd27ae7b2f684e7c5b", size = 1181029, upload-time = "2026-11-19T23:42:10.989Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/39/ce/62e8f3a5ffc6769dcc666826178a7bf572b8e01b41a74dc893203ed1d5ec/openstacksdk-4.22.0-py3-none-any.whl", hash = "sha256:e5aafe38e4c338bcb3844f1f446d7761c68477db8cec0e4bb91f4de9d35877c1", size = 2057402, upload-time = "2026-10-22T13:33:26.678Z" },
+    { url = "https://files.pythonhosted.org/packages/1b/37/c0c9893d71cd6eede7dc882c241fffc9608d0f46aae601625f4141088e7f/openstacksdk-4.24.0-py3-none-any.whl", hash = "sha256:da55702625d413c11deec38071739e26c50a4ee879847e4b84f9a71c30cd6e5d", size = 2052585, upload-time = "2026-11-19T23:42:09.476Z" },
 ]
 
 [[package]]

@@ -909,3 +909,11 @@ an earlier full summary.
   and `octavia.conf` (`[service_auth]` project `service`, no `[neutron]` auth),
   read only; the lab had no load balancer, so no live port was read.
   **Live unverified.**
+- **Local unit tests after locking openstacksdk 4.24.0 (2026-11-23;
+  uncommitted working tree based on `9d32402`):** 777/777 (100%) with fastmcp
+  4.1.6 and the locked openstacksdk 4.24.0, run as `uv run pytest -q`; no
+  failures or skipped tests. Dependabot PR #91 raised the `pyproject.toml`
+  bound to `<=4.24.0` without updating `uv.lock`, so `uv sync --locked`
+  failed in CI; `uv lock --upgrade-package openstacksdk` changed only
+  openstacksdk (4.22.0 to 4.24.0). Live checks recorded above used 4.22.0 or
+  earlier; no live check has run with 4.24.0.

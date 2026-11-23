@@ -1,7 +1,9 @@
 version: 2
 updates:
-  # Python dependencies (pyproject.toml, requirements files)
-  - package-ecosystem: "pip"
+  # Python dependencies (pyproject.toml and uv.lock). The "uv" ecosystem
+  # updates uv.lock with pyproject.toml; "pip" changed only pyproject.toml,
+  # which broke `uv sync --locked` in CI.
+  - package-ecosystem: "uv"
     directory: "/"
     schedule:
       interval: "weekly"

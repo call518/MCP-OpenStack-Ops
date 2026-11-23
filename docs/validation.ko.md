@@ -786,3 +786,11 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   (`_plug_amphora_vip`이 `project_id`를 보내지 않음)와 `octavia.conf`(`[service_auth]`
   프로젝트 `service`, `[neutron]` 인증 없음)를 읽기만 해서 확인했습니다. 랩에
   로드밸런서가 없어 실제 port는 조회하지 않았습니다. **Live unverified.**
+- **openstacksdk 4.24.0 고정 후 로컬 단위 테스트 (2026-11-23, `9d32402` 기반 커밋 전
+  작업 트리):** fastmcp 4.1.6과 고정된 openstacksdk 4.24.0으로 `uv run pytest -q`를
+  실행해 777/777 (100%)가 통과했고, 실패하거나 건너뛴 테스트는 없었습니다.
+  Dependabot PR #91이 `uv.lock`을 갱신하지 않고 `pyproject.toml`의 상한만
+  `<=4.24.0`으로 올려 CI의 `uv sync --locked`가 실패했습니다.
+  `uv lock --upgrade-package openstacksdk`는 openstacksdk만 바꿨습니다(4.22.0에서
+  4.24.0). 위에 기록된 live check는 4.22.0 이하로 수행했으며, 4.24.0으로 실행한 live
+  check는 없습니다.

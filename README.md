@@ -258,7 +258,7 @@ bundle supports only the password, while Claude Desktop with `mcp-remote` in
 **OpenStackSDK Version Reference:**
 | OpenStack Release | Recommended SDK Version | Notes |
 |-------------------|------------------------|-------|
-| Epoxy (2025.1) | `>=4.1.0,<=4.22.0` | Current default range; `uv.lock` pins 4.22.0. Unit tests pass with 4.1.0, 4.9.0 and 4.22.0 |
+| Epoxy (2025.1) | `>=4.1.0,<=4.24.0` | Current default range; `uv.lock` pins 4.24.0. Unit tests pass with 4.1.0, 4.9.0, 4.22.0 and 4.24.0 (4.24.0 on 2026-11-23; live checks used 4.22.0 or earlier) |
 | Dalmatian (2024.2) | `>=3.2.0` | Fully compatible |
 | Caracal (2024.1) | `>=3.1.0` | May require testing |
 | Bobcat (2023.2) | `>=3.0.0` | May require testing |
