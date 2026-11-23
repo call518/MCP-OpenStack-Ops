@@ -225,6 +225,7 @@ def get_user_list() -> List[Dict[str, Any]]:
                     'id': user.id,
                     'name': user.name,
                     'email': getattr(user, 'email', 'N/A'),
+                    'description': getattr(user, 'description', None),
                     'enabled': user.is_enabled,
                     'domain_id': getattr(user, 'domain_id', 'N/A'),
                     'created_at': str(getattr(user, 'created_at', 'N/A')),

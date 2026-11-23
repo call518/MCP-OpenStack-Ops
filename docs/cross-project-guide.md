@@ -78,6 +78,7 @@ Some list tools accept `all_projects=true`, like the OpenStack CLI's
 | `get_heat_stacks` | Stacks of every project through Heat's `global_tenant` query. Heat's default `stacks:global_index` policy denies it to everyone, administrators included |
 | `get_load_balancer_list` | Load balancers of every visible project, each with `project_id` and `project_name`; `result.scope` covers every page |
 | `get_network_details`, `get_routers`, `get_security_groups`, `get_floating_ips` | Networks, routers, security groups or floating IPs that Neutron shows the credential, each with `project_id` and `project_name`. Neutron never denies a list and shows other projects' shared and external resources to everyone, so `scope.warning` appears unless another project's unshared resource is in the result |
+| `set_network_ports` (action `list`) | Ports that Neutron shows the credential, each with `project_id` and `project_name`, including Octavia amphora VRRP ports, which belong to the project Octavia uses for its Neutron calls. Registered only when `ALLOW_MODIFY_OPERATIONS=true`; `show` stays in the current project |
 | `get_project_details` | A summary (ID, name, domain, enabled, `is_current`) of every visible project. With a `project_name` or ID that matches one project, that project's details and resource counts; network counts include only resources the credential can see |
 
 ## How it behaves

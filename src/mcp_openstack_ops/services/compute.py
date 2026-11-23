@@ -254,6 +254,7 @@ def get_instance_details(
                 instance_data = {
                     'id': server.id,
                     'name': getattr(server, 'name', 'unnamed'),
+                    'description': getattr(server, 'description', None),
                     'status': getattr(server, 'status', 'unknown'),
                     'power_state': getattr(server, 'power_state', 0),
                     'task_state': getattr(server, 'task_state', None),

@@ -20,7 +20,7 @@ async def get_load_balancer_list(
     
     Functions:
     - Lists all load balancers in the OpenStack cluster
-    - Provides detailed load balancer information including VIP, status, listeners
+    - Provides detailed load balancer information including VIP, vip_qos_policy_id, status, listeners
     - Supports pagination for large environments (limit/offset)
     - Shows listener count and basic listener information for each load balancer
     - Displays provisioning and operating status for troubleshooting

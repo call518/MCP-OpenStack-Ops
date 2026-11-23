@@ -17,9 +17,8 @@ async def get_routers(all_projects: bool = False) -> str:
 
     Functions:
     - Query routers and their external gateway configurations
-    - Display router interfaces and connected networks
-    - Show routing table entries and static routes
-    - Provide comprehensive network routing information
+    - Display router interfaces (port, subnet and IP address)
+    - Show static routes (routes)
 
     Use when user requests router information, network connectivity queries, or routing configuration.
 
@@ -30,7 +29,9 @@ async def get_routers(all_projects: bool = False) -> str:
             returns only what the credential may see, so check scope.warning.
 
     Returns:
-        List of routers with detailed configuration in JSON format.
+        List of routers with detailed configuration in JSON format. When the
+        interface lookup fails, interfaces and interface_count are null and
+        interfaces_error gives the reason.
     """
     try:
         logger.info("Fetching routers")

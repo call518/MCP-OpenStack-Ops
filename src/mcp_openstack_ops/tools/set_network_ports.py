@@ -14,7 +14,8 @@ async def set_network_ports(
     network_id: str = "",
     description: str = "",
     admin_state_up: bool = True,
-    security_groups: str = "[]"
+    security_groups: str = "[]",
+    all_projects: bool = False
 ) -> str:
     """
     Manage OpenStack network ports for VM and network connectivity
@@ -27,9 +28,19 @@ async def set_network_ports(
         admin_state_up: Administrative state (default: True)
         security_groups: JSON array of security group IDs (e.g., '["sg1", "sg2"]');
             if omitted or empty, Neutron applies the project's default group
+        all_projects: list only. list and show return only ports owned by
+            the current project. If True, list every port Neutron shows the
+            credential in any project, such as Octavia amphora VRRP ports,
+            which belong to the project Octavia uses for its Neutron calls,
+            not to the load balancer's project. Requires
+            ALLOW_CROSS_PROJECT_READ=true on the server; rows then carry
+            project_name, and the result has a scope (check scope.warning).
         
     Returns:
-        JSON string with port management operation results
+        JSON string with port management operation results. list and show
+        include project_id, qos_policy_id (the policy attached to the port) and
+        qos_network_policy_id (the policy inherited from its network); a
+        null value means no policy.
     """
     
     if not _is_modify_operation_allowed() and action.lower() in ['create', 'delete']:
@@ -53,6 +64,7 @@ async def set_network_ports(
             network_id=network_id if network_id else None,
             description=description,
             admin_state_up=admin_state_up,
+            all_projects=all_projects,
             **optional
         )
         return json.dumps(result, indent=2)

@@ -19,9 +19,13 @@ from openstack.block_storage.v3._proxy import Proxy as StorageProxy
 from openstack.network.v2._proxy import Proxy as NetworkProxy
 from openstack.network.v2.floating_ip import FloatingIP
 from openstack.network.v2.network import Network
+from openstack.network.v2.port import Port
+from openstack.network.v2.router import Router
+from openstack.network.v2.security_group import SecurityGroup
+from openstack.network.v2.subnet import Subnet
 
 from mcp_openstack_ops import connection
-from mcp_openstack_ops.services import storage
+from mcp_openstack_ops.services import network, storage
 import mcp_openstack_ops.mcp_main  # Register tools before importing tool modules.
 
 CINDER = 'Block Storage (Cinder) service is not available in this cloud'
@@ -134,6 +138,67 @@ async def test_get_network_details_all_and_found_still_return_json(conn):
 
     assert empty['network_details'] == []
     assert [row['id'] for row in found['network_details']] == ['ext-net']
+
+
+@pytest.mark.parametrize('network_name', ['all', 'public'])
+def test_network_details_report_qos_policy_and_description(conn, network_name):
+    conn.network.networks.return_value = [Network.existing(
+        id='ext-net', name='public', project_id='admin', is_router_external=True,
+        description='uplink', qos_policy_id='qos-net')]
+
+    [row] = network.get_network_details(network_name=network_name)
+
+    assert row['qos_policy_id'] == 'qos-net'
+    assert row['description'] == 'uplink'
+
+
+def test_security_group_rules_report_description(conn):
+    conn.network.security_groups.return_value = [SecurityGroup.existing(
+        id='sg-1', name='web', project_id='project-a', security_group_rules=[
+            {'id': 'r1', 'direction': 'ingress', 'protocol': 'tcp',
+             'ethertype': 'IPv4', 'description': 'https from office'}])]
+
+    [group] = network.get_security_groups()
+
+    assert group['rules'][0]['description'] == 'https from office'
+
+
+def _router():
+    return Router.existing(id='r1', name='edge', project_id='project-a',
+                           routes=[{'destination': '10.9.0.0/16',
+                                    'nexthop': '10.0.0.254'}])
+
+
+def test_routers_report_static_routes_and_interfaces(conn):
+    conn.network.routers.return_value = [_router()]
+    conn.network.ports.return_value = [Port.existing(
+        id='p1', device_id='r1', device_owner='network:router_interface',
+        fixed_ips=[{'subnet_id': 'subnet-1', 'ip_address': '10.0.0.1'}])]
+
+    [row] = network.get_routers()
+
+    assert row['routes'] == [{'destination': '10.9.0.0/16', 'nexthop': '10.0.0.254'}]
+    assert row['interface_count'] == 1
+    assert 'interfaces_error' not in row
+
+
+def test_routers_report_failed_interface_lookup_as_null(conn):
+    conn.network.routers.return_value = [_router()]
+    conn.network.ports.side_effect = sdk_exceptions.HttpException('port list failed')
+
+    [row] = network.get_routers()
+
+    assert row['interfaces'] is None
+    assert row['interface_count'] is None
+    assert 'port list failed' in row['interfaces_error']
+
+
+def test_floating_ips_report_qos_policy(conn):
+    conn.network.ips.return_value = [_floating_ip(qos_policy_id='qos-fip')]
+
+    [row] = network.get_floating_ips()
+
+    assert row['qos_policy_id'] == 'qos-fip'
 
 
 # --- 3./4. block storage absent ----------------------------------------------
@@ -313,6 +378,93 @@ async def test_port_create_security_group_default_and_description(
     params = conn.network.create_port.call_args.kwargs
     assert params.get('security_group_ids', 'absent') == expected
     assert params['description'] == 'd'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('action,key', [('list', 'ports'), ('show', 'port')])
+async def test_port_read_reports_qos_policies_and_description(conn, action, key):
+    _, handler = _tool('set_network_ports')
+    conn.network.ports.return_value = [Port.existing(
+        id='port-1', name='p', network_id='net-1', project_id='project-a',
+        description='vip', qos_policy_id='qos-port',
+        qos_network_policy_id='qos-net')]
+
+    result = json.loads(await handler(action=action, port_name='p'))
+
+    assert result['success'] is True, result
+    port = result[key][0] if action == 'list' else result[key]
+    assert port['qos_policy_id'] == 'qos-port'
+    assert port['qos_network_policy_id'] == 'qos-net'
+    assert port['description'] == 'vip'
+    assert port['project_id'] == 'project-a'
+    conn.network.ports.assert_called_once_with(project_id='project-a')
+
+
+def _vrrp_port():
+    # Octavia creates amphora VRRP ports with its own service credential.
+    return Port.existing(id='vrrp-1', name='octavia-lb-vrrp-amp-1',
+                         network_id='net-1', project_id='service-project',
+                         device_owner='Octavia', qos_policy_id='qos-vip')
+
+
+@pytest.mark.asyncio
+async def test_port_list_all_projects_requires_switch(conn, monkeypatch):
+    monkeypatch.delenv('ALLOW_CROSS_PROJECT_READ', raising=False)
+    _, handler = _tool('set_network_ports')
+
+    result = json.loads(await handler(action='list', all_projects=True))
+
+    assert result['success'] is False
+    assert 'ALLOW_CROSS_PROJECT_READ=true' in result['error']
+    conn.network.ports.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_port_list_all_projects_shows_other_project_ports(conn, monkeypatch):
+    monkeypatch.setenv('ALLOW_CROSS_PROJECT_READ', 'true')
+    conn.identity = Mock()
+    conn.identity.projects.return_value = [
+        SimpleNamespace(id='project-a', name='admin'),
+        SimpleNamespace(id='service-project', name='service')]
+    conn.network.ports.return_value = [_vrrp_port()]
+    _, handler = _tool('set_network_ports')
+
+    result = json.loads(await handler(action='list', all_projects=True))
+
+    assert result['success'] is True, result
+    conn.network.ports.assert_called_once_with()
+    [row] = result['ports']
+    assert (row['project_id'], row['project_name']) == ('service-project', 'service')
+    assert row['qos_policy_id'] == 'qos-vip'
+    assert result['scope'] == {'all_projects': True, 'projects_in_result': 1}
+
+
+@pytest.mark.asyncio
+async def test_port_show_rejects_all_projects(conn, monkeypatch):
+    monkeypatch.setenv('ALLOW_CROSS_PROJECT_READ', 'true')
+    _, handler = _tool('set_network_ports')
+
+    result = json.loads(await handler(action='show', port_name='vrrp-1',
+                                      all_projects=True))
+
+    assert result['success'] is False
+    assert 'only to list' in result['error']
+    conn.network.ports.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('action,key', [('list', 'subnets'), ('show', 'subnet')])
+async def test_subnet_read_reports_description(conn, action, key):
+    _, handler = _tool('set_subnets')
+    conn.network.subnets.return_value = [Subnet.existing(
+        id='subnet-1', name='s', network_id='net-1', cidr='10.0.0.0/24',
+        description='app tier')]
+
+    result = json.loads(await handler(action=action, subnet_name='s'))
+
+    assert result['success'] is True, result
+    subnet = result[key][0] if action == 'list' else result[key]
+    assert subnet['description'] == 'app tier'
 
 
 # --- 6. unimplemented set_volume parameters ----------------------------------

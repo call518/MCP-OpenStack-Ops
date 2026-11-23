@@ -18,15 +18,16 @@ from ..mcp_main import (
 @mcp.tool()
 async def get_network_details(network_name: str = "all", all_projects: bool = False) -> str:
     """
-    Provides detailed information for OpenStack networks, subnets, routers, and security groups.
+    Provides detailed information for OpenStack networks and their subnets.
     
     Functions:
     - Query configuration information for specified network or all networks
     - Check subnet configuration and IP allocation status per network
-    - Collect router connection status and gateway configuration
-    - Analyze security group rules and port information
     
-    Use when user requests network information, subnet details, router configuration, or network troubleshooting.
+    Use when user requests network or subnet information. For routers use
+    get_routers, for security groups get_security_groups, and for ports
+    set_network_ports (action list or show; registered only when
+    ALLOW_MODIFY_OPERATIONS=true).
     
     Args:
         network_name: Name of network to query or "all" for all networks (default: "all")
@@ -37,7 +38,8 @@ async def get_network_details(network_name: str = "all", all_projects: bool = Fa
             what the credential may see, so check scope.warning.
 
     Returns:
-        Network detailed information in JSON format with networks, subnets, routers, and security groups.
+        Network detailed information in JSON format with networks and their subnets.
+        Each network includes qos_policy_id (null when no QoS policy is attached).
     """
     if all_projects and network_name.lower() != "all":
         raise ToolError("get_network_details: all_projects=true lists every "

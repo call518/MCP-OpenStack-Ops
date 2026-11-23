@@ -83,6 +83,39 @@ def _member(**overrides):
     return Member.existing(**attrs)
 
 
+def test_load_balancer_list_reports_vip_qos_policy(conn):
+    conn.load_balancer.load_balancers.return_value = [
+        _lb(vip_qos_policy_id='qos-vip')]
+    conn.load_balancer.listeners.return_value = []
+
+    [lb] = core.get_load_balancer_list()['load_balancers']
+
+    assert lb['vip_qos_policy_id'] == 'qos-vip'
+
+
+def test_load_balancer_list_and_details_report_flavor_and_zone(conn):
+    lb = _lb(flavor_id='flavor-1', availability_zone='az-1')
+    conn.load_balancer.load_balancers.return_value = [lb]
+    conn.load_balancer.find_load_balancer.return_value = lb
+    conn.load_balancer.listeners.return_value = []
+
+    [listed] = core.get_load_balancer_list()['load_balancers']
+    details = core.get_load_balancer_details('web-lb')['load_balancer']
+
+    for row in (listed, details):
+        assert row['flavor_id'] == 'flavor-1'
+        assert row['availability_zone'] == 'az-1'
+
+
+def test_listener_list_reports_connection_limit(conn):
+    conn.load_balancer.find_load_balancer.return_value = _lb()
+    conn.load_balancer.listeners.return_value = [_listener(connection_limit=500)]
+
+    listed = listeners.get_load_balancer_listeners('web-lb')
+
+    assert listed['listeners'][0]['connection_limit'] == 500
+
+
 def test_load_balancer_list_reads_is_admin_state_up_and_filters_listeners(conn):
     conn.load_balancer.load_balancers.return_value = [
         _lb(), _lb(id='lb-other-project', project_id='project-b'),

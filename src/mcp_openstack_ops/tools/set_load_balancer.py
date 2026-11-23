@@ -68,8 +68,11 @@ async def set_load_balancer(
             returns a warning: the amphora provider (observed in Octavia
             16.1.1) can keep the previous policy on the VRRP ports.
             Octavia does not check rule types; whether a rule takes effect
-            depends on the Neutron ML2 driver.
-        
+            depends on the Neutron ML2 driver. The VRRP ports belong to the
+            project Octavia uses for its Neutron calls, not to the load
+            balancer's project, so checking their qos_policy_id needs
+            set_network_ports list with all_projects=true.
+
     Returns:
         JSON string with operation results and load balancer details
     """

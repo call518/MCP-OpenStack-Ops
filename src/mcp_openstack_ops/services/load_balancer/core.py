@@ -104,11 +104,14 @@ def get_load_balancer_list(limit: int = 50, offset: int = 0, include_all: bool =
                     'vip_port_id': lb.vip_port_id,
                     'vip_subnet_id': lb.vip_subnet_id,
                     'vip_network_id': lb.vip_network_id,
+                    'vip_qos_policy_id': lb.vip_qos_policy_id,
                     'provisioning_status': lb.provisioning_status,
                     'operating_status': lb.operating_status,
                     'admin_state_up': lb.is_admin_state_up,
                     'project_id': lb.project_id,
                     'provider': getattr(lb, 'provider', 'Unknown'),
+                    'flavor_id': lb.flavor_id,
+                    'availability_zone': lb.availability_zone,
                     'created_at': str(lb.created_at) if hasattr(lb, 'created_at') else 'N/A',
                     'updated_at': str(lb.updated_at) if hasattr(lb, 'updated_at') else 'N/A',
                     'listeners': listener_summary,
@@ -206,6 +209,8 @@ def get_load_balancer_details(lb_name_or_id: str) -> Dict[str, Any]:
             'admin_state_up': lb.is_admin_state_up,
             'project_id': lb.project_id,
             'provider': getattr(lb, 'provider', 'Unknown'),
+            'flavor_id': lb.flavor_id,
+            'availability_zone': lb.availability_zone,
             'created_at': str(lb.created_at) if hasattr(lb, 'created_at') else 'N/A',
             'updated_at': str(lb.updated_at) if hasattr(lb, 'updated_at') else 'N/A'
         }

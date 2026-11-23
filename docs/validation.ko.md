@@ -761,3 +761,28 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   `force`, 이미지로 서버 부팅, 스냅샷과 다른 `volume_type`. 앞선 한 번의 시도는 원본
   스냅샷이 이미 삭제되어 있어 아무것도 만들기 전에 멈췄습니다. 이 partial check는
   `set_volume`(고유 도구 1개)을 다루며 위의 105개 도구 요약을 갱신하지 않습니다.
+- **조회 필드 수정 후 로컬 단위 테스트 (2026-11-23, `afde6f7` 기반 커밋 전 작업
+  트리):** fastmcp 4.1.6과 고정된 openstacksdk 4.22.0으로 `uv run pytest -q`를 실행해
+  774/774 (100%)가 통과했고, 실패하거나 건너뛴 테스트는 없었습니다. 이제 조회 도구가
+  변경 도구로 설정하지만 조회 결과에서 빠져 있던 값을 보고합니다. 새 테스트 15건은
+  port의 `qos_policy_id`와 `qos_network_policy_id`, 네트워크와 floating IP의
+  `qos_policy_id`, 로드밸런서의 `vip_qos_policy_id`, `flavor_id`,
+  `availability_zone`, 리스너의 `connection_limit`, port·네트워크·서브넷·보안 그룹
+  규칙·인스턴스·사용자의 `description`, 라우터의 `routes`, 그리고 라우터 인터페이스
+  조회 실패를 빈 목록 대신 `null`과 `interfaces_error`로 보고하는지 확인합니다.
+  15건 모두 `afde6f7` 소스에서는 실패했고 지금은 통과합니다. port와 네트워크 테스트는
+  `description` 확인이 더해지면서 기존 테스트 이름 2개가 바뀌었습니다. 이 필드들은
+  **Live unverified**이며, 이번 변경에 대해 live check는 실행하지 않았습니다.
+- **`set_network_ports` 조회 범위 제한 후 로컬 단위 테스트 (2026-11-23, 같은 커밋 전
+  작업 트리):** fastmcp 4.1.6과 고정된 openstacksdk 4.22.0으로 `uv run pytest -q`를
+  실행해 777/777 (100%)가 통과했고, 실패하거나 건너뛴 테스트는 없었습니다. 이제
+  `list`와 `show`는 Neutron에 현재 프로젝트의 port만 요청합니다. `list`에
+  `all_projects=true`를 주면 자격 증명이 볼 수 있는 모든 port를 나열하며
+  `ALLOW_CROSS_PROJECT_READ=true`가 필요합니다. 새 테스트 3건은 스위치가 꺼졌을 때,
+  다른 프로젝트의 Octavia VRRP port에 프로젝트 정보를 붙이고 `scope`를 반환하는
+  전체 프로젝트 list, `show`가 `all_projects`를 거부하는지를 확인합니다. 기존 port
+  조회 테스트는 `project_id`와 프로젝트 필터도 확인합니다. 이 테스트들은 `afde6f7`
+  소스에서 실패합니다. VRRP port의 소유 프로젝트는 랩의 Octavia 16.1.1 소스
+  (`_plug_amphora_vip`이 `project_id`를 보내지 않음)와 `octavia.conf`(`[service_auth]`
+  프로젝트 `service`, `[neutron]` 인증 없음)를 읽기만 해서 확인했습니다. 랩에
+  로드밸런서가 없어 실제 port는 조회하지 않았습니다. **Live unverified.**

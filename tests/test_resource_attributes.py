@@ -20,7 +20,9 @@ from openstack.compute.v2.server_group import ServerGroup
 from openstack.compute.v2.volume_attachment import VolumeAttachment
 from openstack.identity.v3._proxy import Proxy as IdentityProxy
 from openstack.identity.v3.project import Project
+from openstack.identity.v3.role_assignment import RoleAssignment
 from openstack.identity.v3.service import Service
+from openstack.identity.v3.user import User
 from openstack.network.v2._proxy import Proxy as NetworkProxy
 from openstack.network.v2.agent import Agent
 from openstack.network.v2.quota import Quota
@@ -71,6 +73,14 @@ def test_instance_details_reports_sdk_is_locked(conn):
     result = compute.get_instance_details(enrich_images=False)
 
     assert result['instances'][0]['locked'] is True
+
+
+def test_instance_details_reports_description(conn):
+    conn.compute.servers.return_value = [_server(description='batch worker')]
+
+    result = compute.get_instance_details(enrich_images=False)
+
+    assert result['instances'][0]['description'] == 'batch worker'
 
 
 def test_server_groups_list_reports_sdk_member_ids(conn):
@@ -362,3 +372,16 @@ def test_service_logs_list_reports_sdk_agent_admin_state(conn):
     network = [s for s in result['services'] if s['type'] == 'network']
     assert network == [{'name': 'L3 agent', 'type': 'network', 'host': 'net1',
                         'status': 'disabled', 'state': 'up'}]
+
+
+# --- identity users --------------------------------------------------------
+
+def test_user_list_reports_description(conn):
+    conn.identity.role_assignments.return_value = [RoleAssignment.existing(
+        scope={'project': {'id': 'project-a'}}, user={'id': 'u1'})]
+    conn.identity.users.return_value = [User.existing(
+        id='u1', name='ops', description='on-call operator', is_enabled=True)]
+
+    [user] = identity.get_user_list()
+
+    assert user['description'] == 'on-call operator'

@@ -31,6 +31,7 @@ async def get_floating_ips(all_projects: bool = False) -> str:
 
     Returns:
         List of floating IPs with detailed association information in JSON format.
+        Each floating IP includes qos_policy_id (null when no QoS policy is attached).
     """
     try:
         logger.info("Fetching floating IPs")

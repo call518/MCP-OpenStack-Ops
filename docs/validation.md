@@ -882,3 +882,30 @@ an earlier full summary.
   attempt stopped before creating anything because its source snapshot had
   been deleted. This partial check covers `set_volume` (1 unique tool) and
   does not update the 105-tool summary above.
+- **Local unit tests after the read-field fixes (2026-11-23; uncommitted
+  working tree based on `afde6f7`):** 774/774 (100%) with fastmcp 4.1.6 and the
+  locked openstacksdk 4.22.0, run as `uv run pytest -q`; no failures or skipped
+  tests. Read tools now report values that write tools set but reads omitted.
+  Fifteen new cases check `qos_policy_id` and `qos_network_policy_id` on ports,
+  `qos_policy_id` on networks and floating IPs, `vip_qos_policy_id`,
+  `flavor_id` and `availability_zone` on load balancers, a listener's
+  `connection_limit`, `description` on ports, networks, subnets, security group
+  rules, instances and users, router `routes`, and a failed router interface
+  lookup reported as `null` with `interfaces_error` instead of an empty list.
+  All fifteen failed against the `afde6f7` source and pass now. Two existing
+  test names changed when their port and network cases gained `description`.
+  These fields are **Live unverified**; no live check was run for this change.
+- **Local unit tests after scoping `set_network_ports` reads (2026-11-23;
+  same uncommitted working tree):** 777/777 (100%) with fastmcp 4.1.6 and the
+  locked openstacksdk 4.22.0, run as `uv run pytest -q`; no failures or skipped
+  tests. `list` and `show` now ask Neutron for the current project's ports
+  only; `list` with `all_projects=true` lists every port the credential sees
+  and requires `ALLOW_CROSS_PROJECT_READ=true`. Three new cases check the
+  disabled switch, an all-projects list that labels another project's Octavia
+  VRRP port and returns `scope`, and `show` refusing `all_projects`; the port
+  read case now also checks `project_id` and the project filter. These cases
+  fail against the `afde6f7` source. The VRRP port owner was established from
+  the lab's Octavia 16.1.1 source (`_plug_amphora_vip` sends no `project_id`)
+  and `octavia.conf` (`[service_auth]` project `service`, no `[neutron]` auth),
+  read only; the lab had no load balancer, so no live port was read.
+  **Live unverified.**
