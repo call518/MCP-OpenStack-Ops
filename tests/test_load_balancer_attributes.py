@@ -116,6 +116,15 @@ def test_listener_list_reports_connection_limit(conn):
     assert listed['listeners'][0]['connection_limit'] == 500
 
 
+def test_listener_show_reports_connection_limit(conn):
+    conn.load_balancer.find_listener.return_value = _listener(connection_limit=500)
+
+    shown = listeners.set_load_balancer_listener(
+        'show', listener_name_or_id='http')
+
+    assert shown['listener']['connection_limit'] == 500
+
+
 def test_load_balancer_list_reads_is_admin_state_up_and_filters_listeners(conn):
     conn.load_balancer.load_balancers.return_value = [
         _lb(), _lb(id='lb-other-project', project_id='project-b'),

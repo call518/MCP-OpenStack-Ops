@@ -69,8 +69,8 @@ def get_load_balancer_health_monitors(pool_name_or_id: str = "") -> Dict[str, An
                 'http_method': getattr(monitor, 'http_method', None),
                 'url_path': getattr(monitor, 'url_path', None),
                 'expected_codes': getattr(monitor, 'expected_codes', None),
-                'created_at': str(monitor.created_at) if hasattr(monitor, 'created_at') else 'N/A',
-                'updated_at': str(monitor.updated_at) if hasattr(monitor, 'updated_at') else 'N/A'
+                'created_at': getattr(monitor, 'created_at', None),
+                'updated_at': getattr(monitor, 'updated_at', None)
             }
             monitor_details.append(monitor_info)
         
@@ -248,8 +248,8 @@ def set_load_balancer_health_monitor(action: str, monitor_name_or_id: str = "", 
                     'http_method': getattr(monitor, 'http_method', None),
                     'url_path': getattr(monitor, 'url_path', None),
                     'expected_codes': getattr(monitor, 'expected_codes', None),
-                    'created_at': str(monitor.created_at) if hasattr(monitor, 'created_at') else 'N/A',
-                    'updated_at': str(monitor.updated_at) if hasattr(monitor, 'updated_at') else 'N/A'
+                    'created_at': getattr(monitor, 'created_at', None),
+                    'updated_at': getattr(monitor, 'updated_at', None)
                 }
             }
             

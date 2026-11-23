@@ -154,8 +154,8 @@ def get_load_balancer_pools(listener_name_or_id: str = None) -> Dict[str, Any]:
                 **_pool_tls_info(pool),
                 'members': member_summary,
                 'member_count': len(member_summary),
-                'created_at': str(pool.created_at) if hasattr(pool, 'created_at') else 'N/A',
-                'updated_at': str(pool.updated_at) if hasattr(pool, 'updated_at') else 'N/A'
+                'created_at': getattr(pool, 'created_at', None),
+                'updated_at': getattr(pool, 'updated_at', None)
             }
             pool_details.append(pool_info)
         
@@ -348,8 +348,8 @@ def set_load_balancer_pool(action: str, pool_name_or_id: str = "", name: str = "
                     **_with_client_cert(conn, pool, _pool_tls_info(pool)),
                     'members': members,
                     'member_count': len(members),
-                    'created_at': str(pool.created_at) if hasattr(pool, 'created_at') else 'N/A',
-                    'updated_at': str(pool.updated_at) if hasattr(pool, 'updated_at') else 'N/A'
+                    'created_at': getattr(pool, 'created_at', None),
+                    'updated_at': getattr(pool, 'updated_at', None)
                 }
             }
             
@@ -471,8 +471,8 @@ def get_load_balancer_pool_members(pool_name_or_id: str) -> Dict[str, Any]:
                 'backup': getattr(member, 'backup', False),
                 'monitor_address': getattr(member, 'monitor_address', None),
                 'monitor_port': getattr(member, 'monitor_port', None),
-                'created_at': str(member.created_at) if hasattr(member, 'created_at') else 'N/A',
-                'updated_at': str(member.updated_at) if hasattr(member, 'updated_at') else 'N/A'
+                'created_at': getattr(member, 'created_at', None),
+                'updated_at': getattr(member, 'updated_at', None)
             }
             member_details.append(member_info)
         
@@ -635,8 +635,8 @@ def set_load_balancer_pool_member(action: str, pool_name_or_id: str, member_id: 
                     'monitor_address': getattr(member, 'monitor_address', None),
                     'monitor_port': getattr(member, 'monitor_port', None),
                     'pool_id': pool.id,
-                    'created_at': str(member.created_at) if hasattr(member, 'created_at') else 'N/A',
-                    'updated_at': str(member.updated_at) if hasattr(member, 'updated_at') else 'N/A'
+                    'created_at': getattr(member, 'created_at', None),
+                    'updated_at': getattr(member, 'updated_at', None)
                 }
             }
             

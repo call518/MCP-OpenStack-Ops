@@ -11,14 +11,18 @@ from ..mcp_main import (
 @mcp.tool()
 async def get_service_status() -> str:
     """
-    Provides status and health check information for each OpenStack service.
-    
+    Report the state of Nova and Cinder services and Neutron agents, and whether
+    the Glance and Heat APIs answer.
+
     Functions:
-    - Check active status of all OpenStack services
-    - Verify API endpoint responsiveness for each service
-    - Collect detailed status and version information per service
-    - Detect and report service failures or error conditions
-    
+    - List Nova and Cinder services and Neutron agents with status and state
+    - Probe the Glance and Heat APIs with a one-item list; these rows have
+      host "unknown" and no service record behind them
+    - Report a section that failed as a row with an error
+
+    Other services (for example Keystone, Octavia, Barbican, Aodh, Gnocchi)
+    and the Keystone endpoint catalog are not covered.
+
     Use when user requests service status, API status, health checks, or service troubleshooting.
     
     Returns:

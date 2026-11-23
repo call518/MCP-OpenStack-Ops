@@ -224,12 +224,13 @@ def get_user_list() -> List[Dict[str, Any]]:
                 users.append({
                     'id': user.id,
                     'name': user.name,
-                    'email': getattr(user, 'email', 'N/A'),
+                    'email': getattr(user, 'email', None),
                     'description': getattr(user, 'description', None),
                     'enabled': user.is_enabled,
                     'domain_id': getattr(user, 'domain_id', 'N/A'),
-                    'created_at': str(getattr(user, 'created_at', 'N/A')),
-                    'updated_at': str(getattr(user, 'updated_at', 'N/A'))
+                    # Keystone returns no user timestamps; keep null, not "N/A".
+                    'created_at': getattr(user, 'created_at', None),
+                    'updated_at': getattr(user, 'updated_at', None)
                 })
         
         return users

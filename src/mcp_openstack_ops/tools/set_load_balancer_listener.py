@@ -54,11 +54,15 @@ async def set_load_balancer_listener(
             passthrough), TERMINATED_HTTPS (TLS-terminated HTTPS: TLS ends on the
             load balancer), TCP, UDP, SCTP (required for create)
         protocol_port: Port number for listener (required for create)
-        description: Description for listener
+        description: Description for listener. For unset, any non-empty value
+            clears the description
         admin_state_up: Administrative state. create defaults to True; set
             changes it only when given
-        connection_limit: Maximum number of connections (0 = unlimited)
-        default_pool_id: Default pool ID for the listener
+        connection_limit: Maximum number of connections. 0 leaves it out:
+            create then uses Octavia's default (unlimited) and set keeps the
+            current value. For unset, any value above 0 resets it to unlimited
+        default_pool_id: Default pool ID for the listener. For unset, any
+            non-empty value removes the default pool
         default_tls_container_ref: Default server certificate for TERMINATED_HTTPS
             (create/set). A Barbican secret holding a PKCS#12 bundle, or a
             certificate container, given as name, ID or href; names are resolved

@@ -376,6 +376,18 @@ def test_monitoring_separates_capacity_quota_and_allocations(conn):
     assert result['used_vcpus'] == 2
     assert result['used_disk_gb'] == 11.0625
     assert result['usage_basis'] == 'flavor_allocations_not_live_utilization'
+    assert result['capacity_error'] is None
+
+
+def test_capacity_omitted_by_nova_is_null_with_reason(conn):
+    # From compute microversion 2.88 hypervisor details omit the sizes.
+    conn.compute.hypervisors.return_value = [Hypervisor(id='hv', name='hv')]
+    result = monitoring.get_resource_monitoring()['monitoring_data']['compute']
+    assert result['total_hypervisors'] == 1
+    assert result['total_vcpus'] is None
+    assert result['total_memory_mb'] is None
+    assert 'vcpus, memory_mb, local_gb' in result['capacity_error']
+    assert '2.88' in result['capacity_error']
 
 
 def test_unavailable_capacity_stays_unknown(conn):
@@ -728,6 +740,20 @@ def test_cinder_qos_associate_and_disassociate(
     api.get.assert_called_with('/qos-specs/qos-a/associations')
     operation_response.raise_for_status.assert_called_once()
     association_response.raise_for_status.assert_called_once()
+    # Private volume types are listed only with the string "None".
+    api.types.assert_called_once_with(is_public='None')
+
+
+def test_get_volume_types_includes_private_types(conn):
+    conn.volume.types.return_value = [
+        SimpleNamespace(id='type-p', name='private-type', is_public=False),
+    ]
+
+    result = storage.get_volume_types()
+
+    conn.volume.types.assert_called_once_with(is_public='None')
+    assert result[0]['name'] == 'private-type'
+    assert result[0]['is_public'] is False
 
 
 def test_cinder_qos_disassociate_all_and_list_associations(conn):

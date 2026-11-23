@@ -37,10 +37,14 @@ async def set_floating_ip_port_forwarding(
     - "List port forwarding rules for floating IP [ip]"
     - "Show port forwarding rule [id] details"
     - "Update port forwarding rule [id] description to [text]"
-    
+
+    Every action needs the floating IP, by ID or address, and works only on
+    floating IPs owned by the current project.
+
     Args:
         action: Action to perform (create, delete, list, show, set)
-        floating_ip_id: Floating IP ID (alternative to floating_ip_address)
+        floating_ip_id: Floating IP ID (alternative to floating_ip_address);
+            the floating IP must belong to the current project
         floating_ip_address: Floating IP address (alternative to floating_ip_id)
         port_forwarding_id: Port forwarding rule ID (for delete/show/set actions)
         protocol: Protocol for port forwarding (tcp, udp, icmp) - default: tcp

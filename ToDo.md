@@ -94,6 +94,9 @@ Glance image members, needs Neutron RBAC
     failure, heat-engine lost its database connection while `heat-api` was
     reported as up.
   - `running_services` counts the probe rows as running.
+  - When an unexpected error escapes the per-service blocks, the tool returns
+    fixed `nova-compute` and `neutron-server` rows with status `unknown`
+    instead of the error alone.
 
 ## Barbican and TLS listeners
 
@@ -102,10 +105,14 @@ Glance image members, needs Neutron RBAC
     `create_self_signed_tls`, and a `TERMINATED_HTTPS` listener created with
     `default_tls_container_ref` by name that reached `ACTIVE`/`ONLINE` and
     served HTTPS (`curl -vk`: TLSv1.3, HTTP 200 from both members).
-  - Still unit-tested only: the other Barbican tools and actions,
-    `sni_container_refs`, listener `set` with TLS references, and the pool
-    backend re-encryption parameters (including the client authentication
-    `tls_container_ref`, sent through the Octavia API).
+  - Checked live on 2026-11-23 (admin account): the other Barbican tools and
+    actions except a successful `get_secret_stores` listing (the lab has one
+    secret store) and `rsa` containers created through `set_secret_container`,
+    and the pool backend re-encryption parameters except `crl_container_ref`
+    (see [validation](docs/validation.md)).
+  - Still unit-tested only: `sni_container_refs`, listener `set` with TLS
+    references, `crl_container_ref`, and a member that requires the client
+    certificate (`tls_container_ref`).
   - Also check non-terminated HTTPS (`HTTPS` listener and pool, `TLS-HELLO`
     monitor) and backend re-encryption with a CA-verified member, with and
     without client authentication.

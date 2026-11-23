@@ -794,3 +794,61 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   `uv lock --upgrade-package openstacksdk`는 openstacksdk만 바꿨습니다(4.22.0에서
   4.24.0). 위에 기록된 live check는 4.22.0 이하로 수행했으며, 4.24.0으로 실행한 live
   check는 없습니다.
+- **Live unverified 경로 targeted check (2026-11-23 UTC, partial, 소스
+  `20318dc`):** Kolla-Ansible all-in-one OpenStack 2025.1(Octavia 16.1.1, SINGLE
+  topology의 amphora provider, secret store가 하나인 Barbican, ML2/OVS), TCG
+  전용입니다. 실행 중인 Docker Compose `mcp-server` 컨테이너를 통해 Claude Code에서
+  도구를 호출했습니다. 이 컨테이너의 `src/`는 마운트된 작업 트리이며(컨테이너
+  패키지 fastmcp 4.1.6, openstacksdk 4.24.0), 단일 계정 모드의 프로젝트 관리자로
+  `ALLOW_MODIFY_OPERATIONS=true`와 `ALLOW_CROSS_PROJECT_READ=true`를 사용했습니다.
+  이번 점검을 위해 운영자가 Neutron의 `port_forwarding` 서비스 플러그인과 L3 agent
+  extension을 활성화했습니다. 두 번째 프로젝트에 public 이미지, 공유 QoS 정책,
+  네트워크, floating IP를 두었습니다. Octavia flavor·가용 영역 profile과 PEM CA·클라이언트
+  인증서 시크릿은 이를 만드는 도구가 없어 API로 만들었습니다. 결과는 도구와
+  Neutron, Cinder, Heat, Octavia, Barbican API로 다시 읽어 확인했고, Octavia 상태는
+  5초 간격으로 최대 10분까지 폴링했습니다. 로드밸런서 VIP로 보내는 HTTP 요청은 라우터
+  namespace에서 보냈습니다. 고유 도구 58개를 호출했습니다. 57개는 live 경로를
+  하나 이상 통과했고, `get_secret_stores`는 랩에 secret store가 하나뿐이어서 문서에
+  적힌 오류에만 도달했습니다. 로드밸런서 생성에는 약 6분, amphora failover에는 470초,
+  로드밸런서 failover에는 390초가 걸렸으며, 각각의 뒤에도 HTTP 트래픽과 L7
+  리다이렉트가 동작했습니다. 발견한 결함(다음 두 기록에서 수정): port forwarding의
+  `delete`, `show`, `set`이 floating IP 주소를 받지 않았고, 모든 action이 다른 프로젝트의
+  floating IP를 받아들였습니다. `set_volume_qos`와 `get_volume_types`가 비공개 볼륨
+  유형을 찾지 못했습니다. Heat 리소스의 `nested_depth`가 버려졌습니다.
+  `get_resource_monitoring`에서 Nova가 빼는 용량이 이유 없이 `null`이었습니다. 리스너
+  `show`에 `connection_limit`이 없었습니다. Octavia 시각이 문자열 "None"이었고, port
+  forwarding과 사용자 시각은 "unknown" 또는 "N/A"였습니다. amphora `configure`가 받아들여진
+  비동기 요청을 "updated"로 보고했습니다. `get_user_list` 설명이 도메인의 모든 사용자를
+  반환한다고 주장했습니다. 매핑이 endpoint를 읽지 않는 `get_service_status`에
+  `openstack endpoint list`를 연결했습니다. **Live unverified:** 포워딩된 트래픽(랩
+  호스트에서 외부 네트워크에 접근할 수 없음), 라우터 `interfaces_error` 경로,
+  `crl_container_ref`, mTLS를 요구하는 멤버, 전체 프로젝트 port 목록의 amphora VRRP
+  port, `get_secret_stores`의 성공적인 목록 조회, 두 번째 compute 호스트가 필요한 서버
+  evacuation. 테스트 리소스는 모두 삭제하고 없어진 것을 확인했으며, 기존 VM에 설정한
+  description은 지웠습니다. 이 partial check는 위의 105개 도구 요약을 갱신하지 않습니다.
+- **live check 결함 수정 후 로컬 단위 테스트 (2026-11-23, `20318dc` 기반 커밋 전 작업
+  트리):** fastmcp 4.2.2와 고정된 openstacksdk 4.24.0으로 `uv run pytest -q`를 실행해
+  788/788 (100%)가 통과했고, 실패하거나 건너뛴 테스트는 없었습니다(변경 전 777/777).
+  새 테스트 11건은 port forwarding의 `show`, `set`, `delete`가 floating IP 주소로
+  동작하는지, 다섯 action 모두 다른 프로젝트의 floating IP를 거부하는지,
+  `get_volume_types`가 Cinder에 비공개 유형을 요청하는지, 리스너 `show`가
+  `connection_limit`을 보고하는지, `get_resource_monitoring`이 빠진 용량이 `null`인 이유를
+  보고하는지 확인합니다. 기존 테스트는 이제 `set_volume_qos`가 비공개 유형을
+  요청하는지, `nested_depth`를 준 Heat 리소스 조회가 Heat API를 읽고
+  `parent_resource`를 보고하는지(이전 테스트는 버려지는 파라미터를 기대함), 사용자
+  email과 시각이 `null`인지 확인합니다. 새 테스트와 바뀐 테스트는 `20318dc` 소스에서
+  실패합니다. Octavia 시각, amphora `configure` 메시지, `get_user_list`·
+  `get_service_status`·리스너 파라미터 설명은 새 테스트 없이 바뀌었습니다.
+- **live check 결함 수정 재검증 (2026-11-23 UTC, partial, 같은 커밋 전 작업 트리):**
+  같은 테스트 클라우드, 관리자입니다. 작업 트리 서버를 FastMCP의 in-memory
+  클라이언트(fastmcp 4.2.2, openstacksdk 4.24.0)와 저장소의 `.env`로 호출했으며, 실행
+  중인 컨테이너는 재시작하지 않았습니다. 19/19 점검이 통과했습니다: floating IP
+  주소로 지정한 port forwarding create, set, show, delete, `show`의 `null` 시각, 이후
+  빈 목록, 다섯 action 모두의 다른 프로젝트 floating IP 거부, `get_volume_types`의
+  비공개 유형 나열, `set_volume_qos`로 그 유형을 이름으로 연결하고 해제, `nested_depth=1`
+  Heat 리소스 조회가 `parent_resource`와 함께 중첩 리소스를 반환하고 depth 0은 최상위만
+  반환, `get_resource_monitoring`의 `capacity_error`에 담긴 microversion 2.88 이유,
+  `get_user_list`가 반환한 description과 `null` email·시각. 리스너 `show`의
+  `connection_limit`, Octavia 시각, amphora `configure` 메시지는 로드밸런서가 필요해
+  live로 다시 확인하지 않았습니다. 테스트 리소스는 모두 삭제했습니다. 이 partial
+  check는 고유 도구 6개를 다루며 위의 105개 도구 요약을 갱신하지 않습니다.

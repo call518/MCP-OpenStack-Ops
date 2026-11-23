@@ -317,8 +317,23 @@ def get_heat_stack_details(stack_name: str, section: str = 'resources',
         if nested_depth < 0:
             raise ValueError('nested_depth must be 0 or greater')
         query = {'nested_depth': nested_depth} if nested_depth else {}
-        if section == 'resources':
-            data = [r.to_dict() for r in api.resources(stack, **query)]
+        if section == 'resources' and nested_depth:
+            # openstacksdk's Resource has no nested_depth query parameter and
+            # drops it, so read the Heat API directly.
+            from urllib.parse import quote
+            from openstack.orchestration.v1.resource import Resource
+            path = '/stacks/' + quote(stack.name, safe='') + '/' + quote(stack.id,
+                safe='') + '/resources'
+            response = api.get(path, params=query)
+            response.raise_for_status()
+            data = []
+            for item in response.json()['resources']:
+                resource = Resource.existing(**item).to_dict()
+                if item.get('parent_resource'):
+                    resource['parent_resource'] = item['parent_resource']
+                data.append(resource)
+        elif section == 'resources':
+            data = [r.to_dict() for r in api.resources(stack)]
         elif section == 'events':
             data = [e.to_dict() for e in api.stack_events(stack, **query)]
         elif section == 'template':

@@ -89,6 +89,15 @@ def get_resource_monitoring() -> Dict[str, Any]:
                                             if data.get(a) is not None), None))
                     if hypervisors and all(value is not None for value in values):
                         physical[key] = sum(values)
+                missing = [key for key, value in physical.items() if value is None]
+                if not hypervisors:
+                    capacity_error = 'No hypervisors are visible to this credential'
+                elif missing:
+                    # Nova omits these sizes from hypervisor details from
+                    # compute microversion 2.88; Placement holds the inventory.
+                    capacity_error = (
+                        'Hypervisor details omit ' + ', '.join(missing)
+                        + ' (removed at compute microversion 2.88); capacity is unknown')
             except Exception as exc:
                 capacity_error = str(exc)
             quota_limits = None

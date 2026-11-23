@@ -13,14 +13,16 @@ from ..mcp_main import (
 @mcp.tool()
 async def get_user_list() -> str:
     """
-    Get list of OpenStack users in the current domain.
-    
+    Get the OpenStack users that have a role assignment in the current project.
+
+    Users without a role in the current project, such as other projects'
+    users and service users, are not listed.
+
     Functions:
     - Query user accounts and their basic information
     - Display user status (enabled/disabled)
-    - Show user email and domain information
-    - Provide user creation and modification timestamps
-    
+    - Show user email, description and domain information
+
     Use when user requests user management information, identity queries, or user administration tasks.
     
     Returns:

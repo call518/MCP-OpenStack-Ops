@@ -917,3 +917,72 @@ an earlier full summary.
   failed in CI; `uv lock --upgrade-package openstacksdk` changed only
   openstacksdk (4.22.0 to 4.24.0). Live checks recorded above used 4.22.0 or
   earlier; no live check has run with 4.24.0.
+- **Targeted check of Live unverified paths (2026-11-23 UTC; partial; source
+  `20318dc`):** Kolla-Ansible all-in-one OpenStack 2025.1 (Octavia 16.1.1,
+  amphora provider in SINGLE topology, Barbican with one secret store, ML2/OVS),
+  TCG only. The tools were called from Claude Code through the running Docker
+  Compose `mcp-server` container, whose `src/` is the mounted working tree
+  (container packages fastmcp 4.1.6, openstacksdk 4.24.0), as the
+  project administrator in single-account mode with
+  `ALLOW_MODIFY_OPERATIONS=true` and `ALLOW_CROSS_PROJECT_READ=true`. For this
+  run the operator enabled Neutron's `port_forwarding` service plugin and L3
+  agent extension; a second project held a public image, a shared QoS policy,
+  a network and a floating IP; Octavia flavor and availability zone profiles
+  and PEM CA and client certificate secrets were created through the APIs,
+  because no tool creates them. Results were read back with the tools and from
+  the Neutron, Cinder, Heat, Octavia and Barbican APIs, and Octavia states were
+  polled every 5 s for up to 10 min. HTTP requests were sent to the load
+  balancer VIP from the router namespace. 58 unique tools were called: 57
+  passed at least one live path, and `get_secret_stores` reached only its
+  documented error because the lab has one secret store. Load balancer
+  creation took about 6 min, and an amphora failover 470 s and a load balancer
+  failover 390 s; HTTP traffic and an L7 redirect worked after each. Defects
+  found, fixed in the next two records: port forwarding `delete`, `show` and
+  `set` took no floating IP address, and every action accepted another
+  project's floating IP; `set_volume_qos` and `get_volume_types` missed private
+  volume types; `nested_depth` was dropped for Heat resources; capacity that
+  Nova omits was `null` without a reason in `get_resource_monitoring`; listener
+  `show` lacked `connection_limit`; Octavia timestamps were the string "None",
+  port forwarding and user timestamps were "unknown" or "N/A"; amphora
+  `configure` reported "updated" for an accepted asynchronous request; the
+  `get_user_list` description claimed every user of the domain; the mapping
+  listed `openstack endpoint list` under `get_service_status`, which reads no
+  endpoints. **Live unverified:** forwarded traffic (the lab host cannot reach
+  the external network), the router `interfaces_error` path, `crl_container_ref`,
+  a member that requires mTLS, amphora VRRP ports in the all-projects port
+  list, a successful `get_secret_stores` listing, and server evacuation, which
+  needs a second compute host. All test resources were deleted and confirmed
+  absent, and a description set on an existing VM was cleared. This partial
+  check does not update the 105-tool summary above.
+- **Local unit tests after the live-check fixes (2026-11-23; uncommitted working
+  tree based on `20318dc`):** 788/788 (100%) with fastmcp 4.2.2 and the locked
+  openstacksdk 4.24.0, run as `uv run pytest -q`; no failures or skipped tests
+  (777/777 before the change). Eleven new cases check port forwarding `show`,
+  `set` and `delete` by floating IP address and the refusal of another
+  project's floating IP for all five actions, `get_volume_types` asking Cinder
+  for private types, listener `show` reporting `connection_limit`, and
+  `get_resource_monitoring` reporting why omitted capacity is `null`. Existing
+  cases now check that `set_volume_qos` asks for private types, that Heat
+  resources with `nested_depth` read the Heat API and report
+  `parent_resource` (the old case expected the dropped parameter), and that
+  user email and timestamps are `null`. The new and changed cases fail against
+  the `20318dc` source. Octavia timestamps, the amphora `configure` message and
+  the `get_user_list`, `get_service_status` and listener parameter
+  descriptions changed without new cases.
+- **Targeted retest of the live-check fixes (2026-11-23 UTC; partial; same
+  uncommitted working tree):** same test cloud, administrator. The working-tree
+  server was called through FastMCP's in-memory client (fastmcp 4.2.2,
+  openstacksdk 4.24.0) with the repository `.env`; the running container was
+  not restarted. 19/19 checks passed: port forwarding create, set, show and
+  delete by floating IP address, `show` reporting `null` timestamps, an empty
+  list afterwards, and all five actions refusing another project's floating
+  IP; `get_volume_types` listing a private type, and `set_volume_qos`
+  associating and disassociating it by name; Heat resources with
+  `nested_depth=1` returning the nested resource with `parent_resource`, and
+  depth 0 only the top level; `get_resource_monitoring` reporting the
+  microversion 2.88 reason in `capacity_error`; and `get_user_list` returning a
+  description with `null` email and timestamps. Listener `show`
+  `connection_limit`, Octavia timestamps and the amphora `configure` message
+  were not retested live, because they need a load balancer. All test
+  resources were deleted. This partial check covers 6 unique tools and does not
+  update the 105-tool summary above.

@@ -112,8 +112,8 @@ def get_load_balancer_list(limit: int = 50, offset: int = 0, include_all: bool =
                     'provider': getattr(lb, 'provider', 'Unknown'),
                     'flavor_id': lb.flavor_id,
                     'availability_zone': lb.availability_zone,
-                    'created_at': str(lb.created_at) if hasattr(lb, 'created_at') else 'N/A',
-                    'updated_at': str(lb.updated_at) if hasattr(lb, 'updated_at') else 'N/A',
+                    'created_at': getattr(lb, 'created_at', None),
+                    'updated_at': getattr(lb, 'updated_at', None),
                     'listeners': listener_summary,
                     'listener_count': len(listener_summary)
                 }
@@ -211,8 +211,8 @@ def get_load_balancer_details(lb_name_or_id: str) -> Dict[str, Any]:
             'provider': getattr(lb, 'provider', 'Unknown'),
             'flavor_id': lb.flavor_id,
             'availability_zone': lb.availability_zone,
-            'created_at': str(lb.created_at) if hasattr(lb, 'created_at') else 'N/A',
-            'updated_at': str(lb.updated_at) if hasattr(lb, 'updated_at') else 'N/A'
+            'created_at': getattr(lb, 'created_at', None),
+            'updated_at': getattr(lb, 'updated_at', None)
         }
         
         # Get listeners

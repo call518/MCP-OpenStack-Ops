@@ -307,8 +307,8 @@ Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인�
 
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
-| `openstack server list` | `get_instance` | ✅ | 서로 다른 reader 프로젝트가 각각 소유한 VM 정확히 10개를 반환함. 제한된 랩 검증만 수행. 한 번 호출에 최대 `LIST_MAX_LIMIT`개 반환(기본값 100, 이전에는 고정 200. 2026-11-17, 단위 테스트만 거침). 각 인스턴스의 `flavor`는 이름과 크기를 보고함. flavor가 ID로만 주어지면(compute microversion 2.47 미만) 조회하며, 알 수 없는 크기는 0이 아니라 `null` (2026-11-20 targeted check: 나열된 모든 VM의 이름이 채워짐). 인스턴스마다 `description`을 표시(2026-11-23 추가, 단위 테스트만 거침. **Live unverified**) |
-| `openstack server show` | `get_instance` | ✅ | 자기 프로젝트의 테스트 리소스 조회 완료. 다른 프로젝트의 비공개 ID는 상세 정보를 반환하지 않음. 소유 ID 16개 일괄 조회는 주장하지 않음. 각 인스턴스는 `boot_source`(`image` 또는 `volume`)를 보고함. 요약 모드에서는 볼륨 부팅 인스턴스의 이미지를 unknown으로 표시하고, `detailed=true`이면 부팅 볼륨에서 이미지를 찾음. 2026-11-10 OpenStack 2026.1 점검(3.7.6): 볼륨 부팅 서버는 요약 모드와 상세 모드 모두에서 `volume`, 그 밖에는 `image`. 상세 모드는 부팅 볼륨에서 이미지 이름을 찾음. 결과의 `description`은 **Live unverified**(2026-11-23 추가, 단위 테스트만 거침) |
+| `openstack server list` | `get_instance` | ✅ | 서로 다른 reader 프로젝트가 각각 소유한 VM 정확히 10개를 반환함. 제한된 랩 검증만 수행. 한 번 호출에 최대 `LIST_MAX_LIMIT`개 반환(기본값 100, 이전에는 고정 200. 2026-11-17, 단위 테스트만 거침). 각 인스턴스의 `flavor`는 이름과 크기를 보고함. flavor가 ID로만 주어지면(compute microversion 2.47 미만) 조회하며, 알 수 없는 크기는 0이 아니라 `null` (2026-11-20 targeted check: 나열된 모든 VM의 이름이 채워짐). 상세 모드(`detailed=true`)에서는 인스턴스마다 `description`을 표시하며 요약 모드에서는 생략. 2026-11-23 UTC targeted check: VM에 설정한 description을 다시 읽어 확인 |
+| `openstack server show` | `get_instance` | ✅ | 자기 프로젝트의 테스트 리소스 조회 완료. 다른 프로젝트의 비공개 ID는 상세 정보를 반환하지 않음. 소유 ID 16개 일괄 조회는 주장하지 않음. 각 인스턴스는 `boot_source`(`image` 또는 `volume`)를 보고함. 요약 모드에서는 볼륨 부팅 인스턴스의 이미지를 unknown으로 표시하고, `detailed=true`이면 부팅 볼륨에서 이미지를 찾음. 2026-11-10 OpenStack 2026.1 점검(3.7.6): 볼륨 부팅 서버는 요약 모드와 상세 모드 모두에서 `volume`, 그 밖에는 `image`. 상세 모드는 부팅 볼륨에서 이미지 이름을 찾음. `description`(상세 모드): 2026-11-23 UTC targeted check에서 VM에 설정한 description을 다시 읽어 확인 |
 | `openstack server create` | `set_instance` (action="create") | ✅ | **ENHANCED** - 일괄 생성 지원. 아래 볼륨 옵션을 주지 않으면 이미지를 flavor의 로컬 디스크로 부팅함. 2026-11-10 targeted check: 서버가 ACTIVE에 도달 |
 | `openstack server create --boot-from-volume <size>` | `set_instance` (action="create", `boot_from_volume`, `volume_size`) | ✅ | 루트 디스크를 이미지로 새로 만든 Cinder 볼륨에 둠. 선택적 `volume_type`과 `delete_on_termination`, 일괄 생성 지원. 2026-11-10 targeted check: 한 번의 호출로 만든 서버 3대가 ACTIVE에 도달했고, 각각 `/dev/vda`의 부팅 가능한 10 GB 볼륨을 사용. 2026-11-10 OpenStack 2026.1 점검(3.7.6): `volume_type`을 지정한 1 GB 루트 볼륨. 서버를 삭제하면 루트 볼륨도 삭제되었고, `delete_on_termination=false`이면 유지됨 |
 | `openstack server create --volume` | `set_instance` (action="create", `boot_volume`) | ✅ | 사용 가능하고 부팅 가능한 기존 볼륨으로 이미지 없이 서버 1대를 부팅함. 2026-11-10 OpenStack 2026.1 점검(3.7.6): 서버가 그 볼륨으로 ACTIVE에 도달함. 사용 중이거나 부팅할 수 없거나 없는 볼륨, 그리고 서버 이름 2개는 서버를 만들지 않고 거부됨 |
@@ -363,16 +363,16 @@ Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인�
 
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
-| `openstack network list` | `get_network_details` | ✅ | reader마다 소유한 비공개 네트워크 2개와 정책상 보이는 공유 외부 네트워크 1개. 다른 테스트 프로젝트의 비공개 네트워크는 반환하지 않음. 네트워크마다 `qos_policy_id`와 `description`을 표시(2026-11-23 추가, 단위 테스트만 거침. **Live unverified**) |
-| `openstack network show` | `get_network_details` (network_name) | ✅ | 다른 프로젝트 ID 조회가 실패하는 것을 확인. 일치하는 이름이 없으면 명시적 오류를 반환(이전에는 빈 성공). 2026-11-10 targeted check (관리자): 이름 조회는 네트워크를 반환했고 없는 이름은 오류를 반환. reader 역할로 두 프로젝트에서 성공 조회하는 것은 아직 확인하지 않음. 결과의 `qos_policy_id`와 `description`은 **Live unverified**(2026-11-23 추가, 단위 테스트만 거침) |
+| `openstack network list` | `get_network_details` | ✅ | reader마다 소유한 비공개 네트워크 2개와 정책상 보이는 공유 외부 네트워크 1개. 다른 테스트 프로젝트의 비공개 네트워크는 반환하지 않음. 네트워크마다 `qos_policy_id`와 `description`을 표시. 2026-11-23 UTC targeted check: 테스트 네트워크에서 둘 다 다시 읽어 확인 |
+| `openstack network show` | `get_network_details` (network_name) | ✅ | 다른 프로젝트 ID 조회가 실패하는 것을 확인. 일치하는 이름이 없으면 명시적 오류를 반환(이전에는 빈 성공). 2026-11-10 targeted check (관리자): 이름 조회는 네트워크를 반환했고 없는 이름은 오류를 반환. reader 역할로 두 프로젝트에서 성공 조회하는 것은 아직 확인하지 않음. 결과의 `qos_policy_id`와 `description`: 2026-11-23 UTC targeted check에서 둘 다 다시 읽어 확인 |
 | `openstack network create` | `set_networks` (action="create") | ✅ | 기본 mtu=0이면 해당 필드를 보내지 않음. 백엔드 MTU 1450 확인. 명시한 1400은 두 member 프로젝트 모두에서 유지 |
 | `openstack network delete` | `set_networks` (action="delete") | ✅ | 기본 MTU와 지정 MTU 테스트 네트워크를 실제 TCP MCP로 삭제했고 API에서 사라진 것을 확인 |
 | `openstack network set` | `set_networks` (action="update") | ✅ | **ENHANCED** - 일괄 업데이트 |
 | `openstack subnet list` | `get_network_details` (includes subnets) | ✅ | 소유 네트워크와 공유 외부 네트워크의 서브넷을 반환. 테스트 reader마다 보이는 서브넷 3개 |
-| `openstack subnet create/delete` | `set_subnets` | ⚠️ Live unverified | 생성 시 지정하지 않은 `gateway_ip`는 보내지 않으므로 Neutron이 CIDR의 첫 주소를 할당(이전에는 null을 보내 게이트웨이 없는 서브넷이 생성됨). `description`도 전달(이전에는 버려짐). 2026-11-17 변경은 단위 테스트만 거침. 이전 live 점검: member 계정의 TCP MCP로 서브넷을 만들고 재조회. 삭제 후 두 프로젝트 모두에서 상위 네트워크를 제거할 수 있었음. `list`와 `show`가 `description`을 표시(2026-11-23 추가, 단위 테스트만 거침) |
-| `openstack router list` | `get_routers` | ⚠️ Live unverified | 이번에는 복합 오류 요청의 일부로만 호출되었고, reader 결과를 따로 확인하지 않음. 정적 `routes`를 표시. 인터페이스 조회에 실패하면 `interfaces`와 `interface_count`가 `null`이고 `interfaces_error`에 이유가 담김(이전에는 빈 목록). 둘 다 2026-11-23 추가, 단위 테스트만 거침 |
+| `openstack subnet create/delete` | `set_subnets` | ✅ | 생성 시 지정하지 않은 `gateway_ip`는 보내지 않으므로 Neutron이 CIDR의 첫 주소를 할당(이전에는 null을 보내 게이트웨이 없는 서브넷이 생성됨). `description`도 전달(이전에는 버려짐)하며 `list`와 `show`가 `description`을 표시. 2026-11-23 UTC targeted check: `gateway_ip` 없이 만든 서브넷이 첫 주소를 받았고 description을 다시 읽어 확인. 라우터 인터페이스가 서브넷을 쓰는 동안 삭제는 Neutron의 409를 반환했고, 인터페이스를 제거한 뒤 삭제됨. 이전 live 점검: member 계정의 TCP MCP로 서브넷을 만들고 재조회. 삭제 후 두 프로젝트 모두에서 상위 네트워크를 제거할 수 있었음 |
+| `openstack router list` | `get_routers` | ✅ | 정적 `routes`를 표시. 인터페이스 조회에 실패하면 `interfaces`와 `interface_count`가 `null`이고 `interfaces_error`에 이유가 담김(이전에는 빈 목록). 2026-11-23 UTC targeted check(관리자): 라우터가 인터페이스, 정적 라우트와 함께 나열됨. `interfaces_error` 경로는 **Live unverified**(인터페이스 조회 실패를 유도할 수 없었음)이며, reader 결과는 따로 확인하지 않음 |
 | `openstack router create/delete` | `set_routers` | ✅ | 프로젝트 소유 라우터. 연결된 interface는 자동으로 제거하지 않음 |
-| `openstack floating ip list` | `get_floating_ips` | ✅ | Floating IP 목록. 조회에 실패하면 가짜 주소 대신 오류를 반환. 2026-11-10 targeted check: 나열됨. Floating IP마다 `qos_policy_id`를 표시(2026-11-23 추가, 단위 테스트만 거침. **Live unverified**) |
+| `openstack floating ip list` | `get_floating_ips` | ✅ | Floating IP 목록. 조회에 실패하면 가짜 주소 대신 오류를 반환. 2026-11-10 targeted check: 나열됨. Floating IP마다 `qos_policy_id`를 표시. 2026-11-23 UTC targeted check: 다시 읽어 확인 |
 | `openstack floating ip create` | `set_floating_ip` (action="create") | ✅ | Floating IP 생성. `description`, `port_id`, `floating_ip_address`를 전달(이전에는 버려짐). 2026-11-10 targeted check: description과 함께 생성됨. 생성 시 `port_id`와 `floating_ip_address`는 live 테스트하지 않음 |
 | `openstack floating ip delete` | `set_floating_ip` (action="delete") | ✅ | Floating IP 삭제. 2026-11-10 targeted check: 반납됨 |
 | `openstack floating ip set` | `set_floating_ip` (action="set") | ✅ | Floating IP 속성 설정 |
@@ -380,20 +380,20 @@ Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인�
 | `openstack floating ip unset --port` | `set_floating_ip` (action="disassociate"), `set_server_floating_ip` (action="remove") | ✅ | port 연결을 끊고 floating IP는 유지. `set_server_floating_ip` (action="remove")는 `openstack server remove floating ip`와 같은 경로이며, `disassociate`는 별도의 날짜 기록이 있는 live 점검이 없음 |
 | `openstack floating ip unset --tag` / `--all-tag` | — | ❌ Not implemented | floating IP의 tag를 지우는 도구가 없음. `set_floating_ip` (action="unset")은 무엇을 지울지 고르는 파라미터가 없어 항상 오류를 반환하므로, port 연결 해제에는 `disassociate`를, QoS policy 해제에는 `set_network_qos_policies` (action="disassociate")를 사용 |
 | `openstack floating ip pool list` | `get_floating_ip_pools` | ✅ | 전역 풀의 남은 용량은 알 수 없음(`available_ips=null`). 조회에 실패하면 가짜 풀 대신 오류를 반환. 2026-11-10 targeted check: 외부 네트워크 풀이 나열됨 |
-| `openstack floating ip port forwarding create` | `set_floating_ip_port_forwarding` (action="create") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼의 port-forwarding endpoint가 HTTP 404를 반환 |
-| `openstack floating ip port forwarding delete` | `set_floating_ip_port_forwarding` (action="delete") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼의 port-forwarding endpoint가 HTTP 404를 반환 |
-| `openstack floating ip port forwarding list` | `set_floating_ip_port_forwarding` (action="list") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼의 port-forwarding endpoint가 HTTP 404를 반환 |
-| `openstack floating ip port forwarding set` | `set_floating_ip_port_forwarding` (action="set") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼의 port-forwarding endpoint가 HTTP 404를 반환 |
-| `openstack floating ip port forwarding show` | `set_floating_ip_port_forwarding` (action="show") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼의 port-forwarding endpoint가 HTTP 404를 반환 |
-| `openstack security group list` | `get_security_groups` | ✅ | 범위가 제한된 reader 목록 조회 완료. default와 테스트 그룹이 보임. 조회에 실패하면 가짜 `default` 그룹 대신 오류를 반환. 규칙마다 `description`을 표시(2026-11-23 추가, 단위 테스트만 거침. **Live unverified**) |
+| `openstack floating ip port forwarding create` | `set_floating_ip_port_forwarding` (action="create") | ✅ | 규칙 생성. 현재 프로젝트가 소유한 Floating IP를 ID 또는 주소로 지정(2026-11-23부터. 이전에는 `delete`, `show`, `set`이 ID만 받았고, 관리자는 다른 프로젝트의 Floating IP에도 작업할 수 있었음). 2026-11-23 UTC targeted check(Neutron `port_forwarding` 서비스 플러그인과 L3 agent extension 활성화): create, list, set(description), show, delete가 통과했고 DNAT 규칙이 라우터 namespace에 생겼다가 사라짐. 수정 후 모든 action이 다른 프로젝트의 Floating IP를 거부함. 포워딩된 트래픽은 측정하지 않음: 랩 호스트에서 외부 네트워크에 접근할 수 없음 |
+| `openstack floating ip port forwarding delete` | `set_floating_ip_port_forwarding` (action="delete") | ✅ | 규칙 삭제. 현재 프로젝트가 소유한 Floating IP를 ID 또는 주소로 지정(2026-11-23부터. 이전에는 `delete`, `show`, `set`이 ID만 받았고, 관리자는 다른 프로젝트의 Floating IP에도 작업할 수 있었음). 2026-11-23 UTC targeted check(Neutron `port_forwarding` 서비스 플러그인과 L3 agent extension 활성화): create, list, set(description), show, delete가 통과했고 DNAT 규칙이 라우터 namespace에 생겼다가 사라짐. 수정 후 모든 action이 다른 프로젝트의 Floating IP를 거부함. 포워딩된 트래픽은 측정하지 않음: 랩 호스트에서 외부 네트워크에 접근할 수 없음 |
+| `openstack floating ip port forwarding list` | `set_floating_ip_port_forwarding` (action="list") | ✅ | Floating IP 하나의 규칙 목록. 현재 프로젝트가 소유한 Floating IP를 ID 또는 주소로 지정(2026-11-23부터. 이전에는 `delete`, `show`, `set`이 ID만 받았고, 관리자는 다른 프로젝트의 Floating IP에도 작업할 수 있었음). 2026-11-23 UTC targeted check(Neutron `port_forwarding` 서비스 플러그인과 L3 agent extension 활성화): create, list, set(description), show, delete가 통과했고 DNAT 규칙이 라우터 namespace에 생겼다가 사라짐. 수정 후 모든 action이 다른 프로젝트의 Floating IP를 거부함. 포워딩된 트래픽은 측정하지 않음: 랩 호스트에서 외부 네트워크에 접근할 수 없음 |
+| `openstack floating ip port forwarding set` | `set_floating_ip_port_forwarding` (action="set") | ✅ | 설명 또는 내부 대상 변경. 현재 프로젝트가 소유한 Floating IP를 ID 또는 주소로 지정(2026-11-23부터. 이전에는 `delete`, `show`, `set`이 ID만 받았고, 관리자는 다른 프로젝트의 Floating IP에도 작업할 수 있었음). 2026-11-23 UTC targeted check(Neutron `port_forwarding` 서비스 플러그인과 L3 agent extension 활성화): create, list, set(description), show, delete가 통과했고 DNAT 규칙이 라우터 namespace에 생겼다가 사라짐. 수정 후 모든 action이 다른 프로젝트의 Floating IP를 거부함. 포워딩된 트래픽은 측정하지 않음: 랩 호스트에서 외부 네트워크에 접근할 수 없음 |
+| `openstack floating ip port forwarding show` | `set_floating_ip_port_forwarding` (action="show") | ✅ | 규칙 하나를 조회. Neutron은 규칙의 시각을 반환하지 않으므로 `created_at`과 `updated_at`은 `null`(이전에는 "unknown"). 현재 프로젝트가 소유한 Floating IP를 ID 또는 주소로 지정(2026-11-23부터. 이전에는 `delete`, `show`, `set`이 ID만 받았고, 관리자는 다른 프로젝트의 Floating IP에도 작업할 수 있었음). 2026-11-23 UTC targeted check(Neutron `port_forwarding` 서비스 플러그인과 L3 agent extension 활성화): create, list, set(description), show, delete가 통과했고 DNAT 규칙이 라우터 namespace에 생겼다가 사라짐. 수정 후 모든 action이 다른 프로젝트의 Floating IP를 거부함. 포워딩된 트래픽은 측정하지 않음: 랩 호스트에서 외부 네트워크에 접근할 수 없음 |
+| `openstack security group list` | `get_security_groups` | ✅ | 범위가 제한된 reader 목록 조회 완료. default와 테스트 그룹이 보임. 조회에 실패하면 가짜 `default` 그룹 대신 오류를 반환. 규칙마다 `description`을 표시. 2026-11-23 UTC targeted check: 다시 읽어 확인 |
 | `openstack security group create/delete` | `set_security_groups` | ✅ | 프로젝트 소유 보안 그룹 |
-| `openstack security group rule create/delete` | `set_security_group_rules` | ⚠️ Live unverified | 프로젝트 소유 그룹에 대해 구현됨. 생성 시 명시적인 CIDR 또는 프로젝트 소유 원격 그룹이 필요하며, 삭제 시 규칙이 선택한 그룹 소속인지 확인. 이번 변경에서는 live 테스트하지 않음 |
-| `openstack port list/show` | `set_network_ports` (action="list"/"show") | ⚠️ Live unverified | 구현된 list와 show action은 변경 도구가 등록되어야 사용 가능. 이번에 실행하지 않음. 2026-11-23부터 두 action 모두 현재 프로젝트 소유 port만 반환(이전에는 관리자 자격 증명이면 다른 프로젝트의 port도 모두 반환). 단위 테스트만 거침. 두 action 모두 `description`, `qos_policy_id`(port에 연결된 정책)와 `qos_network_policy_id`(네트워크에서 상속된 정책)를 표시하며, 2026-11-23에 추가되어 단위 테스트만 거침 |
-| `openstack port create/delete` | `set_network_ports` | ⚠️ Live unverified | 생성 시 지정하지 않은 `security_groups`는 보내지 않으므로 Neutron이 프로젝트의 default 그룹을 적용(이전에는 빈 목록을 보내 보안 그룹 없는 port가 생성됨). `description`도 전달(이전에는 버려짐). 2026-11-17 변경은 단위 테스트만 거침 |
-| `openstack network qos policy list` | `get_network_qos_policies`, `set_network_qos_policies` (action="list") | ✅ | 프로젝트 소유 정책을 규칙과 함께 나열하고, 다른 프로젝트가 공유한 정책은 `shared_from_other_projects`에 따로 나열. 2026-11-21 UTC targeted check: 소유 정책이 규칙과 함께 나열됨. 정책을 공유한 다른 프로젝트가 없어 `shared_from_other_projects`는 빈 목록이었으며 이 경로는 **Live unverified** |
-| `openstack network qos policy show` | `get_network_qos_policies` (policy_name), `set_network_qos_policies` (action="show") | ✅ | 소유 정책과 다른 프로젝트가 공유한 정책. 규칙, `owned`, 공유 정책이면 `warning`을 반환. 2026-11-21 UTC targeted check: 소유 정책이 규칙과 함께 조회됨. 다른 프로젝트의 공유 정책 조회는 **Live unverified** |
+| `openstack security group rule create/delete` | `set_security_group_rules` | ✅ | 프로젝트 소유 그룹에 대해 구현됨. 생성 시 명시적인 CIDR 또는 프로젝트 소유 원격 그룹이 필요하며, 삭제 시 규칙이 선택한 그룹 소속인지 확인. 2026-11-23 UTC targeted check: CIDR과 description을 지정한 규칙을 만들고 다시 읽어 확인. CIDR이나 원격 그룹이 없는 규칙은 거부됨. 다른 그룹을 지정한 규칙 삭제는 거부되었고, 규칙이 속한 그룹으로는 삭제됨 |
+| `openstack port list/show` | `set_network_ports` (action="list"/"show") | ✅ | 변경 도구가 등록되어야 사용 가능. 두 action 모두 현재 프로젝트 소유 port만 반환(2026-11-23부터. 이전에는 관리자 자격 증명이면 다른 프로젝트의 port도 모두 반환)하며 `description`, `qos_policy_id`(port에 연결된 정책)와 `qos_network_policy_id`(네트워크에서 상속된 정책)를 표시. 2026-11-23 UTC targeted check(관리자): 자격 증명에는 port 13개가 보였지만 list는 프로젝트의 port 9개만 반환했고, port 하나에서 description과 서로 다른 QoS 정책 ID 두 개를 다시 읽어 확인 |
+| `openstack port create/delete` | `set_network_ports` | ✅ | 생성 시 지정하지 않은 `security_groups`는 보내지 않으므로 Neutron이 프로젝트의 default 그룹을 적용(이전에는 빈 목록을 보내 보안 그룹 없는 port가 생성됨). `description`도 전달(이전에는 버려짐). 2026-11-23 UTC targeted check: `security_groups` 없이 만든 port가 프로젝트의 default 그룹과 description을 가짐. 삭제가 성공했고 port가 사라진 것을 확인 |
+| `openstack network qos policy list` | `get_network_qos_policies`, `set_network_qos_policies` (action="list") | ✅ | 프로젝트 소유 정책을 규칙과 함께 나열하고, 다른 프로젝트가 공유한 정책은 `shared_from_other_projects`에 따로 나열. 2026-11-21 UTC targeted check: 소유 정책이 규칙과 함께 나열됨. 2026-11-23 UTC targeted check: 다른 프로젝트가 공유한 정책이 규칙과 함께 `shared_from_other_projects`에 나열됨 |
+| `openstack network qos policy show` | `get_network_qos_policies` (policy_name), `set_network_qos_policies` (action="show") | ✅ | 소유 정책과 다른 프로젝트가 공유한 정책. 규칙, `owned`, 공유 정책이면 `warning`을 반환. 2026-11-21 UTC targeted check: 소유 정책이 규칙과 함께 조회됨. 2026-11-23 UTC targeted check: 다른 프로젝트의 공유 정책이 `owned: false`, `warning`과 함께 조회되었고 그 정책의 변경은 거부됨 |
 | `openstack network qos policy create` | `set_network_qos_policies` (action="create") | ✅ | `shared=true`는 정책을 모든 프로젝트에 공유하며 `warning`을 반환. 2026-11-21 UTC targeted check: 생성됨. 공유는 생성 시점이 아니라 `update`로 확인 |
-| `openstack network qos policy set` | `set_network_qos_policies` (action="update") | ✅ | 프로젝트 소유 정책의 `new_name`, `description`, `shared`(`--share`/`--no-share`). `shared`를 생략하면 현재 값을 유지. 2026-11-21 UTC targeted check: 이름, 설명, 공유 켜기와 끄기를 다시 읽어 확인했고, 생략 시 공유 값이 유지됨. 다른 프로젝트가 사용 중인 정책의 공유 해제를 Neutron이 거부하는지는 **Live unverified** |
+| `openstack network qos policy set` | `set_network_qos_policies` (action="update") | ✅ | 프로젝트 소유 정책의 `new_name`, `description`, `shared`(`--share`/`--no-share`). `shared`를 생략하면 현재 값을 유지. 2026-11-21 UTC targeted check: 이름, 설명, 공유 켜기와 끄기를 다시 읽어 확인했고, 생략 시 공유 값이 유지됨. 2026-11-23 UTC targeted check: 다른 프로젝트의 네트워크가 사용하는 소유 정책의 공유 해제는 Neutron의 409가 오류로 반환됨 |
 | `openstack network qos policy delete` | `set_network_qos_policies` (action="delete") | ✅ | 프로젝트 소유 정책만. 2026-11-21 UTC targeted check: 삭제 후 없음을 확인 |
 | `openstack network qos rule create/set/delete` | `set_network_qos_policies` (action="add_rule"/"update_rule"/"delete_rule") | ✅ | 프로젝트 소유 정책만. `rule_type`: bandwidth_limit, dscp_marking, minimum_bandwidth, packet_rate_limit, minimum_packet_rate. `rule`은 JSON 객체이며 필드를 유형별로 검사. update와 delete는 `rule_id`로 정책에서 유형을 읽음. QoS 드라이버가 지원하지 않는 규칙 유형은 Neutron이 거부. 공유 정책의 규칙을 바꾸면 다른 프로젝트 리소스에도 즉시 적용됨. 2026-11-21 UTC targeted check: 다섯 유형의 규칙을 하나씩 추가하고, 대역폭 규칙 수정과 DSCP 규칙 삭제를 모두 다시 읽어 확인. 잘못된 DSCP 값은 Neutron이 거부 |
 | `openstack network qos rule list` | `set_network_qos_policies` (action="show") | ✅ | 규칙은 정책과 함께 반환됨. 2026-11-21 UTC targeted check: 규칙을 다시 읽어 확인 |
@@ -401,8 +401,8 @@ Credential(다중 사용자 모드, `streamable-http` 전용) 중 하나로 인�
 | `openstack network set/unset --qos-policy` | `set_network_qos_policies` (action="associate"/"disassociate", target_type="network") | ✅ | port와 같은 규칙. port 단위 정책이 없는 네트워크의 모든 port에 적용됨. 2026-11-21 UTC targeted check: port가 없는 네트워크에서 연결과 해제를 다시 읽어 확인. 소속 port에 대한 적용은 확인하지 않음 |
 | `openstack floating ip set/unset --qos-policy` | `set_network_qos_policies` (action="associate"/"disassociate", target_type="floating_ip") | ✅ | floating IP ID나 주소로 지정. L3 agent가 `fip_qos` 확장을 로드해야 함. 2026-11-21 UTC targeted check: port에 연결되지 않은 floating IP에서 주소로 연결과 해제를 다시 읽어 확인. 라우터 namespace에서의 적용은 확인하지 않음 |
 | `openstack router set --qos-policy` / `--no-qos-policy` | `set_network_qos_policies` (action="associate"/"disassociate", target_type="router") | ✅ | 라우터 외부 게이트웨이. `network_id`와 `qos_policy_id`만 보내므로 fixed IP와 SNAT은 바뀌지 않음. 게이트웨이가 없는 라우터는 실패. L3 agent가 `gateway_ip_qos` 확장을 로드해야 함. 2026-11-21 UTC targeted check: 연결과 해제를 다시 읽어 확인했고, 게이트웨이 fixed IP와 SNAT은 그대로였으며, 게이트웨이 없는 라우터는 거부됨. 라우터 namespace에서의 적용은 확인하지 않음 |
-| `openstack network agent list` | `get_service_status` (includes agents) | ⚠️ Live unverified | reader에게는 서비스 정책 제한이 있으며, 일부 데이터만으로는 전체 상태를 증명하지 못함. 2026-11-10 targeted check는 관리자로만 agent를 반환함 |
-| `openstack network agent set` | `set_network_agents` | ⚠️ Live unverified | 클라우드 전체 agent 켜기/끄기. 보통 관리자 전용. live 도구 점검은 action="list"만 호출했고 enable과 disable은 실행하지 않음 |
+| `openstack network agent list` | `get_service_status` (includes agents) | ⚠️ Live unverified | reader에게는 서비스 정책 제한이 있으며, 일부 데이터만으로는 전체 상태를 증명하지 못함. 2026-11-10과 2026-11-23 targeted check는 관리자로만 agent를 반환함(2026-11-23: 랩의 agent 4개 모두) |
+| `openstack network agent set` | `set_network_agents` | ✅ | 클라우드 전체 agent 켜기/끄기. 보통 관리자 전용. 2026-11-23 UTC targeted check(관리자): metadata agent를 껐다가 다시 켰고 `is_admin_state_up`이 false, 그다음 true로 조회됨 |
 
 ### 3. 💾 **Storage (Cinder)**
 
@@ -422,7 +422,7 @@ Cinder가 없는 OpenStack 2026.1에서 live로 확인했습니다([검증](docs
 | `openstack volume create --source`, `openstack volume migrate`, `openstack volume transfer request create` | — | ❌ Not implemented | `set_volume`은 `source_volume`, `transfer_name`, `host`, `force_host_copy`, `lock_volume`, `backup_name`, `incremental`을 API 호출 전에 거부(이전에는 무시한 채 action을 실행). 백업은 `set_volume_backups` 사용 |
 | `openstack volume set --size` | `set_volume` (action="extend") | ✅ | 양수 new_size가 size보다 우선하며 size는 대체값으로 남음. 테스트 볼륨이 요청한 크기와 available 상태에 도달. API가 요청을 받은 것만으로는 완료가 아님 |
 | `openstack volume set` (other properties) | — | ❌ Not implemented | set_volume에는 modify/update action이 없으므로 이 미지원 action을 보내지 말 것 |
-| `openstack volume type list` | `get_volume_types` | ✅ | 볼륨 유형 목록. 조회에 실패하면 가짜 `standard` 유형 대신 오류를 반환. 2026-11-10 targeted check: 나열됨 |
+| `openstack volume type list` | `get_volume_types` | ✅ | 볼륨 유형 목록이며 비공개 유형도 포함(2026-11-23부터. Cinder는 따로 요청하지 않으면 관리자에게 공개 유형만 반환하므로 비공개 유형이 빠졌음). 조회에 실패하면 가짜 `standard` 유형 대신 오류를 반환. 2026-11-10 targeted check: 나열됨. 2026-11-23 UTC targeted check: 수정 후 비공개 유형이 나열됨 |
 | `openstack volume type create/delete` | `set_volume_types` | ✅ | 볼륨 유형 관리. 보통 관리자 전용 |
 | `openstack volume snapshot list` | `get_volume_snapshots` | ✅ | reader마다 소유한 기본 스냅샷 2개. API 최종 상태 확인 |
 | `openstack volume snapshot create/delete` | `set_snapshot` | ✅ | member 계정의 명시적 MCP 스냅샷이 available에 도달했고 삭제됨. 작업 후 상태는 알 수 없는 리소스 유형으로 보고하지 않고 스냅샷을 찾아 확인. 복원/I/O는 주장하지 않음. 2026-11-10 targeted check (관리자): available에 도달했고 삭제됨 |
@@ -435,11 +435,11 @@ Cinder가 없는 OpenStack 2026.1에서 live로 확인했습니다([검증](docs
 | `openstack volume group list` | `get_volume_groups` | ✅ | Cinder generic group(API >= 3.13) 필요 |
 | `openstack volume group create` | `set_volume_groups` | ✅ | Create/list/show/delete. 생성에는 group_type과 volume_types 필요 |
 | `openstack volume qos list` | `get_volume_qos` | ✅ | Cinder QoS 사양. 클라우드 정책을 따름 |
-| `openstack volume qos show` | `get_volume_qos` (`qos_name`) | ⚠️ Live unverified | 사양 하나와 현재 Volume Type 연결을 표시. 2026-11-17 추가, 단위 테스트만 수행 |
+| `openstack volume qos show` | `get_volume_qos` (`qos_name`) | ✅ | 사양 하나와 현재 Volume Type 연결을 표시. 2026-11-23 UTC targeted check: 테스트 유형 2개의 연결을 다시 읽어 확인 |
 | `openstack volume qos create` | `set_volume_qos` | ✅ | 사양 Create/list/show/set/delete. 생성 시 Volume Type을 자동 연결하지 않으며 명시적 `associate` action을 사용 |
-| `openstack volume qos associate` | `set_volume_qos` (action="associate") | ⚠️ Live unverified | 이름 또는 ID로 사양을 Volume Type에 연결한 뒤 연결을 다시 읽고 `accepted`와 `confirmed`를 구분해 보고. 2026-11-17 추가, 단위 테스트만 수행 |
-| `openstack volume qos disassociate` | `set_volume_qos` (action="disassociate") | ⚠️ Live unverified | 이름 또는 ID로 Volume Type 하나의 연결을 해제하고 연결을 다시 읽음. 2026-11-17 추가, 단위 테스트만 수행 |
-| `openstack volume qos disassociate --all` | `set_volume_qos` (action="disassociate_all") | ⚠️ Live unverified | 모든 Volume Type 연결을 해제하고 연결을 다시 읽음. 2026-11-17 추가, 단위 테스트만 수행 |
+| `openstack volume qos associate` | `set_volume_qos` (action="associate") | ✅ | 이름 또는 ID로 사양을 Volume Type에 연결한 뒤 연결을 다시 읽고 `accepted`와 `confirmed`를 구분해 보고. 2026-11-23부터 비공개 Volume Type도 찾음(이전에는 공개 유형만). 2026-11-23 UTC targeted check: 이름과 ID로 한 연결이 확인되었고, 수정 후 비공개 유형도 이름으로 연결됨 |
+| `openstack volume qos disassociate` | `set_volume_qos` (action="disassociate") | ✅ | 이름 또는 ID로 Volume Type 하나의 연결을 해제하고 연결을 다시 읽음. 2026-11-23 UTC targeted check: 연결 2개 중 하나를 해제하고 확인. 수정 후 비공개 유형도 해제됨 |
+| `openstack volume qos disassociate --all` | `set_volume_qos` (action="disassociate_all") | ✅ | 모든 Volume Type 연결을 해제하고 연결을 다시 읽음. 2026-11-23 UTC targeted check: 연결 2개가 모두 해제된 것을 확인 |
 
 ### 4. 🖼️ **Image (Glance)**
 
@@ -449,21 +449,21 @@ Cinder가 없는 OpenStack 2026.1에서 live로 확인했습니다([검증](docs
 | `openstack image show` | `get_image_detail_list` (filtering) | ✅ | 특정 이미지 조회 |
 | `openstack image create` | `set_image` (action="create") | ✅ | min_disk, min_ram, properties를 가진 이미지 레코드만 생성. 이미지 데이터는 업로드하지 않으므로 이미지는 `queued`에 머물고 서버를 부팅할 수 없음 |
 | `openstack image create --file` / `--import` | — | ❌ Not implemented | 이미지 데이터를 업로드하거나 import하는 도구가 없음. Cinder 볼륨이나 스냅샷으로 이미지를 만들려면 `set_volume` (action="upload_to_image") 사용 |
-| `openstack image delete` | `set_image` (action="delete") | ⚠️ Live unverified | 현재 프로젝트가 소유한 이미지만. 다른 프로젝트의 public, shared, community 이미지는 거부(이전에는 허용). 소유 이미지 삭제는 2026-11-22 targeted check를 통과했고, 거부는 단위 테스트만 거침 |
-| `openstack image set` | `set_image` (action="update") | ⚠️ Live unverified | 현재 프로젝트가 소유한 이미지만(이전에는 보이는 모든 이미지). property를 추가해도 이미지의 다른 사용자 property가 유지됨(2026-11-22 이전에는 삭제됨). 소유 이미지에서 2026-11-22 targeted check를 통과함. 다른 프로젝트 이미지 거부는 단위 테스트만 거침 |
+| `openstack image delete` | `set_image` (action="delete") | ✅ | 현재 프로젝트가 소유한 이미지만. 다른 프로젝트의 public, shared, community 이미지는 거부(이전에는 허용). 소유 이미지 삭제는 2026-11-22 targeted check를 통과함. 2026-11-23 UTC targeted check: 다른 프로젝트의 public 이미지는 거부되었고 그대로 남음 |
+| `openstack image set` | `set_image` (action="update") | ✅ | 현재 프로젝트가 소유한 이미지만(이전에는 보이는 모든 이미지). property를 추가해도 이미지의 다른 사용자 property가 유지됨(2026-11-22 이전에는 삭제됨). 소유 이미지에서 2026-11-22 targeted check를 통과함. 2026-11-23 UTC targeted check: 다른 프로젝트의 public 이미지는 거부되었고 property가 바뀌지 않음 |
 | `openstack image save` | — | ❌ Not implemented | `set_image`는 create, delete, update, list만 지원하며 다운로드 action은 없음 |
 | `openstack image add project` | `set_image_members` (action="add") | ✅ | shared 가시성 이미지에 프로젝트 추가 |
 | `openstack image member list` | `get_image_members` | ✅ | 이미지 멤버 목록 |
 | `openstack image member create` | `set_image_members` | ✅ | 이미지 멤버 관리 |
-| `openstack image set --property` | `set_image_metadata` | ⚠️ Live unverified | `show`는 보이는 모든 이미지를 읽음. `set`은 현재 프로젝트가 소유한 이미지에만 적용(이전에는 보이는 모든 이미지). 소유 이미지에 property를 추가하면서 나머지를 유지하는 `set`은 2026-11-22 targeted check를 통과했고, 다른 프로젝트 이미지 거부는 단위 테스트만 거침 |
-| `openstack image set --public/private` | `set_image_visibility` | ⚠️ Live unverified | `show`는 보이는 모든 이미지를 읽음. `set`은 현재 프로젝트가 소유한 이미지에만 적용(이전에는 보이는 모든 이미지). 2026-11-17 변경은 단위 테스트만 거침 |
+| `openstack image set --property` | `set_image_metadata` | ✅ | `show`는 보이는 모든 이미지를 읽음. `set`은 현재 프로젝트가 소유한 이미지에만 적용(이전에는 보이는 모든 이미지). 소유 이미지에 property를 추가하면서 나머지를 유지하는 `set`은 2026-11-22 targeted check를 통과함. 2026-11-23 UTC targeted check: `show`는 다른 프로젝트의 public 이미지를 읽었고, 그 이미지에 대한 `set`은 거부되었으며 property가 바뀌지 않음 |
+| `openstack image set --public/private` | `set_image_visibility` | ✅ | `show`는 보이는 모든 이미지를 읽음. `set`은 현재 프로젝트가 소유한 이미지에만 적용(이전에는 보이는 모든 이미지). 2026-11-23 UTC targeted check: 소유 이미지가 private에서 shared로 바뀜. 다른 프로젝트의 public 이미지에 대한 `set`은 거부되었고 public으로 남음 |
 
 ### 5. 👥 **Identity (Keystone)**
 
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
-| `openstack user list` | `get_user_list` | ⚠️ Live unverified | Keystone이 reader를 거부했고 MCP가 명시적 실패를 반환함. 이번에 성공적인 목록 조회는 검증하지 않음. 사용자마다 `description`을 표시(2026-11-23 추가, 단위 테스트만 거침) |
-| `openstack user show` | `get_user_list` | ⚠️ Live unverified | 정책 제한이 있는 사용자 목록에 의존. 새 reader에 대해 따로 검증하지 않음 |
+| `openstack user list` | `get_user_list` | ✅ | 현재 프로젝트에 역할이 할당된 사용자이며 도메인의 모든 사용자가 아님. reader는 Keystone이 거부하며 명시적 실패를 반환. 사용자마다 `description`을 표시. Keystone이 반환하지 않는 email과 시각은 `null`(이전에는 "N/A"). 2026-11-23 UTC targeted check(관리자): 프로젝트 사용자가 나열되었고, 새 사용자는 프로젝트 역할을 받은 뒤 description과 함께 나타남 |
+| `openstack user show` | `get_user_list` | ✅ | 사용자 하나를 조회하는 기능은 없으며 프로젝트 사용자 목록에서 읽음. 2026-11-23 UTC targeted check: 위 행과 같음 |
 | `openstack user create/delete` | `set_users` | ✅ | 비밀번호는 서버 환경 변수에서 읽음. 역할은 부여하지 않음 |
 | `openstack project list` | `get_project_details` (`all_projects=true`) | ✅ | `all_projects`가 없으면 현재 프로젝트와 그 리소스 수만 반환. `all_projects=true`이고 `ALLOW_CROSS_PROJECT_READ=true`이면 Keystone 정책이 허용하는 모든 프로젝트의 요약 반환. 2026-11-13 targeted check: 관리자는 세 프로젝트를 나열했고, `member`는 Keystone 정책 거부 실패를 받음 |
 | `openstack project show` | `get_project_details` (name param) | ✅ | `all_projects`가 없으면 현재 프로젝트만. `all_projects=true`이고 이름이나 ID가 한 프로젝트와 일치하면 다른 프로젝트를 포함해 그 프로젝트의 상세와 리소스 수 반환. 2026-11-13 targeted check: 관리자가 본 다른 두 프로젝트의 수가 API로 직접 센 값과 일치했고, `member`는 Keystone 정책 거부 실패를 받음 |
@@ -477,10 +477,10 @@ Cinder가 없는 OpenStack 2026.1에서 live로 확인했습니다([검증](docs
 | `openstack domain create/delete` | `set_domains` | ✅ | 삭제 전에 update로 명시적으로 비활성화해야 함 |
 | `openstack group list` | `get_identity_groups` | ✅ | Keystone 정책을 따름 |
 | `openstack group create/delete` | `set_identity_groups` | ✅ | 그룹 관리 |
-| `openstack service list` | `get_service_status` | ⚠️ Live unverified | reader에게는 서비스 정책 제한이 있으며, 일부 데이터만으로는 전체 상태를 증명하지 못함. Compute와 volume 서비스의 zone은 SDK의 `availability_zone` 필드를 읽음(이전에는 항상 `unknown`). 2026-11-10 targeted check는 관리자로만 이를 확인 |
+| `openstack service list` | `get_service_status` | ⚠️ Live unverified | reader에게는 서비스 정책 제한이 있으며, 일부 데이터만으로는 전체 상태를 증명하지 못함. Nova와 Cinder 서비스, Neutron agent를 나열하며, Glance와 Heat 행은 API가 응답했다는 것만 나타냄(host "unknown"). Compute와 volume 서비스의 zone은 SDK의 `availability_zone` 필드를 읽음(이전에는 항상 `unknown`). 2026-11-10과 2026-11-23 targeted check는 관리자로만 이를 확인했으며, Octavia, Barbican, Aodh, Gnocchi는 보고하지 않음 |
 | `openstack service list` (Keystone catalog) | `set_services` (action="list") | ✅ | SDK의 `is_enabled` 필드를 읽음(이전에는 모든 서비스가 enabled로 보임). 2026-11-10 targeted check: enabled 값이 Keystone과 일치 |
 | `openstack service create/delete` | — | ❌ Not implemented | `set_services`는 list만 지원 |
-| `openstack endpoint list` | `get_service_status` (includes endpoints) | ⚠️ Live unverified | reader에게는 서비스 정책 제한이 있으며, 일부 데이터만으로는 전체 상태를 증명하지 못함 |
+| `openstack endpoint list` | — | ❌ Not implemented | Keystone endpoint 카탈로그를 나열하는 도구는 없음. `get_service_status`는 endpoint를 읽지 않고 Glance와 Heat API의 응답 여부만 확인(2026-11-23 정정. 이전 매핑은 endpoint를 포함한다고 표기) |
 
 ### 6. 🔥 **Orchestration (Heat)**
 
@@ -488,14 +488,14 @@ Cinder가 없는 OpenStack 2026.1에서 live로 확인했습니다([검증](docs
 |---------------------|---------|------|------|
 | `openstack stack list` | `get_heat_stacks` | ✅ | 스택의 프로젝트 ID나 Heat self link가 현재 프로젝트와 일치해야 하며, 알 수 없거나 다른 프로젝트 소유인 스택은 제외. 자기 프로젝트와 다른 프로젝트의 테스트 스택으로 확인. `owner`는 SDK의 `owner_id` 필드를 읽고, 조회에 실패하면 가짜 스택 대신 오류를 반환. 2026-11-10 targeted check: 소유한 테스트 스택이 나열됨 |
 | `openstack stack show` | `get_heat_stacks` | ✅ Partial | 반환된 목록에서 대상을 골라야 하며 이름/필터 파라미터는 없음. 리소스/이벤트/템플릿/출력 조회는 get_heat_stack_details 사용 |
-| `openstack stack create` | `set_heat_stack` (action="create") | ✅ | 스택 생성. 2026-11-10 targeted check: CREATE_COMPLETE에 도달. `files`(provider/중첩 템플릿용, 파일 이름과 내용의 JSON 객체): 2026-11-15 3.9.1 targeted check에서 `files`의 중첩 템플릿으로 멤버를 만든 AutoScalingGroup이 생성되었고 Aodh 알람으로 확장·축소됨. `timeout_mins`: 같은 점검에서 스택에 90으로 조회됨. `environment`는 ⚠️ Live unverified(단위 테스트만). 서버는 `files`를 위해 로컬 경로나 URL을 읽지 않음. AutoScalingGroup 멤버를 `OS::Heat::Stack`으로 만들면 Aodh 알람에 의한 확장이 실패함(Keystone이 trust 재위임을 금지). `files`에 넣은 중첩 템플릿을 사용 |
+| `openstack stack create` | `set_heat_stack` (action="create") | ✅ | 스택 생성. 2026-11-10 targeted check: CREATE_COMPLETE에 도달. `files`(provider/중첩 템플릿용, 파일 이름과 내용의 JSON 객체): 2026-11-15 3.9.1 targeted check에서 `files`의 중첩 템플릿으로 멤버를 만든 AutoScalingGroup이 생성되었고 Aodh 알람으로 확장·축소됨. `timeout_mins`: 같은 점검에서 스택에 90으로 조회됨. `environment`: 2026-11-23 UTC targeted check에서 `parameter_defaults`와 `files`의 중첩 템플릿을 가리키는 `resource_registry` 별칭이 적용됨. 서버는 `files`를 위해 로컬 경로나 URL을 읽지 않음. AutoScalingGroup 멤버를 `OS::Heat::Stack`으로 만들면 Aodh 알람에 의한 확장이 실패함(Keystone이 trust 재위임을 금지). `files`에 넣은 중첩 템플릿을 사용 |
 | `openstack stack delete` | `set_heat_stack` (action="delete") | ✅ | 다른 프로젝트 스택의 삭제는 거부. 소유권 변경 후 소유 스택 삭제 완료. 2026-11-10 targeted check: 삭제됨 |
-| `openstack stack update` | `set_heat_stack` (action="update") | ✅ | 스택 소유권이 일치해야 함. 기본 `PUT`은 스택 정의를 교체하므로 넘기지 않은 파라미터는 템플릿 기본값으로 돌아감. 결과는 SDK의 `status` 필드를 읽음(이전에는 Heat가 update를 받아들인 뒤에도 도구가 실패로 보고). 2026-11-10 targeted check: 소유 스택 update가 접수된 것으로 보고되었고 UPDATE_COMPLETE에 도달. `files`, `environment`, `timeout_mins`는 ⚠️ Live unverified(2026-11-15 추가) |
-| `openstack stack update --existing` | `set_heat_stack` (action="update", `existing=true`) | ⚠️ Live unverified | 저장된 템플릿, 파라미터, files, environment를 유지하고 넘긴 필드만 바꾸는 `PATCH`. 템플릿은 선택 사항. 2026-11-15 추가, 단위 테스트만 |
+| `openstack stack update` | `set_heat_stack` (action="update") | ✅ | 스택 소유권이 일치해야 함. 기본 `PUT`은 스택 정의를 교체하므로 넘기지 않은 파라미터는 템플릿 기본값으로 돌아감. 결과는 SDK의 `status` 필드를 읽음(이전에는 Heat가 update를 받아들인 뒤에도 도구가 실패로 보고). 2026-11-10 targeted check: 소유 스택 update가 접수된 것으로 보고되었고 UPDATE_COMPLETE에 도달. `files`, `environment`, `timeout_mins`: 2026-11-23 UTC targeted check에서 중첩 템플릿 변경, 새 `parameter_defaults`, `timeout_mins=20`을 넣은 update가 UPDATE_COMPLETE에 도달. output에 새 값이 나타났고 넘기지 않은 파라미터는 기본값으로 돌아갔으며, Heat에서 20으로 조회됨 |
+| `openstack stack update --existing` | `set_heat_stack` (action="update", `existing=true`) | ✅ | 저장된 템플릿, 파라미터, files, environment를 유지하고 넘긴 필드만 바꾸는 `PATCH`. 템플릿은 선택 사항. 2026-11-23 UTC targeted check: 파라미터 하나만 바뀌었고, 저장된 environment 값과 중첩 리소스는 유지됨(랜덤 값이 그대로) |
 | `openstack stack suspend/resume` | — | ❌ Not implemented | set_heat_stack은 create, delete, update, validate만 지원 |
 | `openstack orchestration template validate` | `set_heat_stack` (action="validate") | ✅ | 템플릿을 `files`, `environment`와 함께 Heat의 `/validate`로 보냄. 스택 이름은 표시용일 뿐임. 2026-11-15 3.9.1 targeted check: `files`에 중첩 멤버 템플릿을 넣은 템플릿이 통과 |
-| `openstack stack resource list` | `get_heat_stack_details` (section="resources") | ✅ | 실제 Heat 리소스. `nested_depth`(`-n`에 해당)는 ⚠️ Live unverified(2026-11-15 추가) |
-| `openstack stack event list` | `get_heat_stack_details` (section="events") | ✅ | 소유권 변경 후 소유 스택의 이벤트를 조회. `nested_depth`는 ⚠️ Live unverified(2026-11-15 추가) |
+| `openstack stack resource list` | `get_heat_stack_details` (section="resources") | ✅ | 실제 Heat 리소스. `nested_depth`(`-n`에 해당)는 Heat API를 직접 읽고 중첩 행에 `parent_resource`를 붙임. 2026-11-23 이전에는 openstacksdk가 이 값을 버려 최상위 리소스만 반환됨. 2026-11-23 UTC targeted check: 수정 후 depth 1에서 중첩 리소스가 상위 리소스와 함께 반환됨 |
+| `openstack stack event list` | `get_heat_stack_details` (section="events") | ✅ | 소유권 변경 후 소유 스택의 이벤트를 조회. `nested_depth`: 2026-11-23 UTC targeted check에서 중첩 스택의 이벤트가 반환됨 |
 | `openstack stack template show` | `get_heat_stack_details` (section="template") | ✅ | 소유권 변경 후 소유 스택의 템플릿을 조회 |
 | `openstack stack output list` | `get_heat_stack_details` (section="outputs") | ✅ | 소유권 변경 후 소유 스택의 출력을 조회 |
 
@@ -511,85 +511,85 @@ Octavia 도구는 openstacksdk의 속성 이름(`is_admin_state_up`, `is_enabled
 
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
-| `openstack loadbalancer list` | `get_load_balancer_list` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 페이지 처리를 지원하는 로드밸런서 목록. 한 번 호출에 최대 `LIST_MAX_LIMIT`개 반환(기본값 100, 이전에는 고정 200). `vip_qos_policy_id`, `flavor_id`, `availability_zone`을 표시(2026-11-23 추가, 단위 테스트만 거침) |
-| `openstack loadbalancer show` | `get_load_balancer_details` | ✅ | 2026-11-12 Octavia targeted read check 통과. `vip_qos_policy_id`를 포함한 로드밸런서 상세 정보. 풀은 각 풀의 `listeners` 참조로 리스너에 연결. 2026-11-22 UTC targeted check: `vip_qos_policy_id`가 표시됨. 결과의 `flavor_id`와 `availability_zone`은 **Live unverified**(2026-11-23 추가, 단위 테스트만 거침) |
+| `openstack loadbalancer list` | `get_load_balancer_list` | ✅ | 페이지 처리를 지원하는 로드밸런서 목록. 한 번 호출에 최대 `LIST_MAX_LIMIT`개 반환(기본값 100, 이전에는 고정 200). `vip_qos_policy_id`, `flavor_id`, `availability_zone`을 표시. Octavia가 아직 정하지 않은 시각은 `null`(이전에는 문자열 "None". 단위 테스트만 거침). 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): Octavia flavor와 가용 영역을 지정해 만든 로드밸런서가 두 값과 함께 나열됨 |
+| `openstack loadbalancer show` | `get_load_balancer_details` | ✅ | 2026-11-12 Octavia targeted read check 통과. `vip_qos_policy_id`를 포함한 로드밸런서 상세 정보. 풀은 각 풀의 `listeners` 참조로 리스너에 연결. 2026-11-22 UTC targeted check: `vip_qos_policy_id`가 표시됨. 결과의 `flavor_id`와 `availability_zone`: 2026-11-23 UTC targeted check에서 둘 다 다시 읽어 확인 |
 | `openstack loadbalancer create` | `set_load_balancer` (action="create") | ✅ | 로드밸런서 생성. `admin_state_up` 기본값은 true. 2026-11-22 UTC targeted check: amphora 로드밸런서 하나가 586초(TCG) 만에 ACTIVE가 됨. `provider`, `flavor_id`, `availability_zone`은 확인하지 않음 |
 | `openstack loadbalancer delete` | `set_load_balancer` (action="delete") | ✅ | 로드밸런서 삭제. 2026-11-22 UTC targeted check: cascade 삭제가 수락되었고 로드밸런서가 없음을 확인. cascade 없는 삭제는 확인하지 않음 |
 | `openstack loadbalancer set` | `set_load_balancer` (action="set"/"update") | ✅ | `name`, `description`, `admin_state_up`, `vip_qos_policy`. `admin_state_up`은 지정했을 때만 보냄. 2026-11-22 이전에는 모든 `set`이 `admin_state_up=true`도 보내 비활성화된 로드밸런서를 다시 활성화할 수 있었음. 2026-11-22 UTC targeted check: `admin_state_up=false`로 비활성화한 뒤 description만 바꾼 `set` 후에도 비활성 상태가 유지됨. 이름 변경은 확인하지 않음 |
-| `openstack loadbalancer stats show` | `set_load_balancer` (action="stats") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서 통계 |
+| `openstack loadbalancer stats show` | `set_load_balancer` (action="stats") | ✅ | 로드밸런서 통계. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): VIP로 HTTP 요청 6건을 보낸 뒤 연결 수와 바이트 카운터가 증가함 |
 | `openstack loadbalancer status show` | `set_load_balancer` (action="status") | ✅ | Octavia 상태 트리(`GET /lbaas/loadbalancers/{id}/status`): 리스너, pool, 멤버, 헬스 모니터와 각 상태. 이전에는 로드밸런서 자체 상태만 반환했음. 2026-11-16 targeted check: 멤버 2개인 pool 하나를 공유하는 리스너 2개와 로드밸런서가 모두 ACTIVE/ONLINE으로 반환됨 |
-| `openstack loadbalancer failover` | `set_load_balancer` (action="failover") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서 failover |
-| `openstack loadbalancer unset` | `set_load_balancer` (action="unset") | ⚠️ Live unverified | `description` 또는 `vip_qos_policy`를 해제(다음 행 참고). `description` 해제는 라이브로 확인하지 않음 |
+| `openstack loadbalancer failover` | `set_load_balancer` (action="failover") | ✅ | 로드밸런서 failover. 비동기. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): amphora가 교체되었고 390초 뒤 로드밸런서가 다시 ACTIVE가 되었으며, VIP를 통한 HTTP와 L7 리다이렉트 트래픽이 계속 동작함 |
+| `openstack loadbalancer unset` | `set_load_balancer` (action="unset") | ✅ | `description` 또는 `vip_qos_policy`를 해제(다음 행 참고). 2026-11-23 UTC targeted check: `description` 해제를 다시 읽어 확인 |
 | `openstack loadbalancer create/set/unset --vip-qos-policy-id` | `set_load_balancer` (action="create"/"set"/"unset", `vip_qos_policy`) | ✅ Partial | 프로젝트가 소유하거나 공유받은 Neutron QoS policy를 이름 또는 ID로 지정하며, Octavia의 `vip_qos_policy_id`로 보냄. amphora provider에서는 Octavia가 VIP port가 아니라 amphora VRRP port에 적용하며 규칙 유형은 검사하지 않음. `unset`은 현재 연결된 policy를 지정해야 하며 `warning`을 반환. Heat의 `OS::Octavia::LoadBalancer`(2025.1)에는 QoS 속성이 없으므로 스택 생성 후 이 도구로 연결. 2026-11-22 UTC targeted check(Octavia 16.1.1, amphora 1대, ML2/OVS): DSCP policy를 지정한 `create`와 대역폭 policy로 바꾼 `set`이 각각 ACTIVE가 되었고, 로드밸런서와 VRRP port 모두에서 해당 policy를 다시 읽어 확인. 없는 policy와 연결되지 않은 policy의 `unset`은 거부됨. `unset`은 로드밸런서의 `vip_qos_policy_id`를 비웠지만 VRRP port에는 대역폭 policy가 남음: Octavia의 update flow가 새 값을 저장하기 전에 QoS를 적용하면서 저장된 policy로 대체하기 때문. DSCP 마킹과 속도는 측정하지 않았으며, 다른 프로젝트가 공유한 policy는 **Live unverified** |
 | **리스너 관리** | | | |
-| `openstack loadbalancer listener list` | `get_load_balancer_listeners` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 로드밸런서의 리스너 목록. `provisioning_status`, `operating_status`, `default_tls_container_ref`, `sni_container_refs` 표시. `connection_limit`을 표시(2026-11-23 추가, 단위 테스트만 거침) |
-| `openstack loadbalancer listener create` | `set_load_balancer_listener` (action="create") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 리스너 생성(HTTP/HTTPS/TCP/UDP) |
+| `openstack loadbalancer listener list` | `get_load_balancer_listeners` | ✅ | 로드밸런서의 리스너 목록. `provisioning_status`, `operating_status`, `default_tls_container_ref`, `sni_container_refs`, `connection_limit` 표시. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): HTTP 리스너가 `connection_limit` 100과 함께 나열됨 |
+| `openstack loadbalancer listener create` | `set_load_balancer_listener` (action="create") | ✅ | 리스너 생성(HTTP/HTTPS/TCP/UDP). 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): HTTP 리스너가 ACTIVE가 되었고 트래픽을 처리함 |
 | `openstack loadbalancer listener create --protocol TERMINATED_HTTPS --default-tls-container-ref --sni-container-refs` | `set_load_balancer_listener` (action="create"/"set", `default_tls_container_ref`, `sni_container_refs`) | ✅ | Barbican 시크릿 또는 certificate 컨테이너를 이름, ID, href로 지정(이름은 href로 변환). `TERMINATED_HTTPS`에서는 `default_tls_container_ref` 필수. 인증서 오류에는 사전 조건 안내가 붙음. [Barbican과 TLS 가이드](docs/barbican-tls-guide.ko.md) 참고. 2026-11-15 targeted check(OpenWebUI, 단일 계정): 자체 서명 시크릿을 이름으로, 기존 HTTP pool을 지정한 443 포트 `TERMINATED_HTTPS` 리스너가 HTTP 리스너와 함께 ACTIVE/ONLINE이 됨. 같은 날 Claude 클라이언트로 같은 방식의 시크릿과 리스너를 새로 만든 실행에서, floating IP와 VIP에 대한 `curl -vk`가 그 인증서로 TLSv1.3 핸드셰이크를 마치고(h2 협상) HTTP 멤버 2대 각각에서 HTTP 200을 받음. 확인하지 않은 것: `sni_container_refs`, `set`. |
-| `openstack loadbalancer listener delete` | `set_load_balancer_listener` (action="delete") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 리스너 삭제 |
-| `openstack loadbalancer listener show` | `get_load_balancer_listeners` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 리스너 상세 정보 |
+| `openstack loadbalancer listener delete` | `set_load_balancer_listener` (action="delete") | ✅ | 리스너 삭제. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 삭제되어 목록에서 사라짐 |
+| `openstack loadbalancer listener show` | `get_load_balancer_listeners` | ✅ | 리스너 상세 정보. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 조회됨. `set_load_balancer_listener` action="show"에는 `connection_limit`이 없었으며 2026-11-23부터 표시(단위 테스트만 거침) |
 | `openstack loadbalancer listener set` | `set_load_balancer_listener` (action="set"/"update") | ✅ | 리스너 속성 변경. 지정한 값만 보냄(2026-11-22 이전에는 모든 update가 `admin_state_up=true`도 보냈음). 2026-11-22 UTC targeted check: 비활성화된 리스너에 이름만 바꾼 `set` 후에도 비활성 상태가 유지됨. 다른 속성은 확인하지 않음 |
-| `openstack loadbalancer listener stats show` | `set_load_balancer_listener` (action="stats") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 리스너 통계 |
-| `openstack loadbalancer listener unset` | `set_load_balancer_listener` (action="unset") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 리스너 속성 해제 |
+| `openstack loadbalancer listener stats show` | `set_load_balancer_listener` (action="stats") | ✅ | 리스너 통계. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): HTTP 요청 6건 뒤 연결 6건이 집계됨 |
+| `openstack loadbalancer listener unset` | `set_load_balancer_listener` (action="unset") | ✅ | 설명, 연결 제한(무제한으로 복귀), 기본 pool을 해제. 해제할 필드에 아무 값이나 넘김. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 설명이 해제되었고 `connection_limit`이 -1로 조회됨 |
 | **풀 관리** | | | |
 | `openstack loadbalancer pool list` | `get_load_balancer_pools` | ✅ | 2026-11-12 Octavia targeted read check 통과. 풀 목록(전체 또는 리스너별). Octavia 응답의 `listener_ids`, `loadbalancer_ids`, `health_monitor_id` 표시 |
-| `openstack loadbalancer pool create` | `set_load_balancer_pool` (action="create") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 알고리즘을 지정한 풀 생성 |
-| `openstack loadbalancer pool delete` | `set_load_balancer_pool` (action="delete") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 풀 삭제 |
+| `openstack loadbalancer pool create` | `set_load_balancer_pool` (action="create") | ✅ | 알고리즘을 지정한 풀 생성. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): `ROUND_ROBIN` HTTP 풀이 ACTIVE가 되었고 트래픽을 처리함 |
+| `openstack loadbalancer pool delete` | `set_load_balancer_pool` (action="delete") | ✅ | 풀 삭제. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 남은 멤버와 함께 삭제되어 목록에서 사라짐 |
 | `openstack loadbalancer pool set` | `set_load_balancer_pool` (action="set") | ✅ | 풀 속성 변경. 지정한 값만 보내며 바꿀 값이 없는 `set`은 거부(2026-11-22 이전에는 모든 update가 `admin_state_up=true`와 `lb_algorithm=ROUND_ROBIN`도 보냈음). 2026-11-22 UTC targeted check: 이름만 바꾼 `set` 후에도 `LEAST_CONNECTIONS`와 비활성 상태가 유지되었고, 빈 `set`은 거부됨 |
-| `openstack loadbalancer pool create/set --enable-tls --ca-tls-container-ref --crl-container-ref --tls-version --tls-ciphers --alpn-protocol` | `set_load_balancer_pool` (action="create"/"set", `tls_enabled`, `ca_tls_container_ref`, `crl_container_ref`, `tls_versions`, `tls_ciphers`, `alpn_protocols`) | ⚠️ Live unverified | 단위 테스트만 수행. Backend re-encryption. 인증서 참조는 Barbican 이름, ID, href로 지정. pool 결과에 이 필드들이 표시됨. [Barbican과 TLS 가이드](docs/barbican-tls-guide.ko.md#멤버까지의-tls) 참고 |
-| `openstack loadbalancer pool create/set --tls-container-ref` | `set_load_balancer_pool` (`tls_container_ref`) | ⚠️ Live unverified | 단위 테스트만 수행. Backend re-encryption의 client authentication: mutual TLS(mTLS)를 요구하는 멤버에 제시할 클라이언트 인증서. openstacksdk 4.22.0의 pool에는 이 필드가 없어 이 값이 있는 요청은 Octavia API로 직접 보냄. `show`는 Octavia 응답에서 읽음 |
+| `openstack loadbalancer pool create/set --enable-tls --ca-tls-container-ref --crl-container-ref --tls-version --tls-ciphers --alpn-protocol` | `set_load_balancer_pool` (action="create"/"set", `tls_enabled`, `ca_tls_container_ref`, `crl_container_ref`, `tls_versions`, `tls_ciphers`, `alpn_protocols`) | ✅ Partial | Backend re-encryption. 인증서 참조는 Barbican 이름, ID, href로 지정. pool 결과에 이 필드들이 표시됨. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): `tls_enabled`, CA 인증서 시크릿, `tls_versions`, `tls_ciphers`, `alpn_protocols`를 넣은 `set`이 ACTIVE가 되었고 Octavia에서 다시 읽어 확인. 이후 평문 HTTP 멤버는 헬스 체크에 실패하고 VIP는 503을 반환했으며, `tls_enabled`를 false로 바꾸자 200으로 복구됨. `crl_container_ref`와 TLS 멤버에 대한 인증서 검증은 **Live unverified**. [Barbican과 TLS 가이드](docs/barbican-tls-guide.ko.md#멤버까지의-tls) 참고 |
+| `openstack loadbalancer pool create/set --tls-container-ref` | `set_load_balancer_pool` (`tls_container_ref`) | ✅ Partial | Backend re-encryption의 client authentication: mutual TLS(mTLS)를 요구하는 멤버에 제시할 클라이언트 인증서. openstacksdk의 pool에는 이 필드가 없어 이 값이 있는 요청은 Octavia API로 직접 보냄. `show`는 Octavia 응답에서 읽음. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): Barbican certificate 컨테이너를 지정했고 로드밸런서가 ACTIVE가 되었으며 `show`에서 다시 읽어 확인. mTLS를 요구하는 멤버는 테스트하지 않음(**Live unverified**) |
 | `openstack loadbalancer pool show` | `get_load_balancer_pools` | ✅ | 2026-11-12 Octavia targeted read check 통과. 풀 상세 정보(`listener_ids`, `loadbalancer_ids`, `health_monitor_id` 포함) |
 | `openstack loadbalancer pool stats show` | N/A | ❌ Not implemented | 이 CLI 작업에 해당하는 등록된 도구/action이 없음 |
 | `openstack loadbalancer pool unset` | N/A | ❌ Not implemented | 이 CLI 작업에 해당하는 등록된 도구/action이 없음 |
 | **멤버 관리** | | | |
-| `openstack loadbalancer member list` | `get_load_balancer_pool_members` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 풀 멤버 목록 |
-| `openstack loadbalancer member create` | `set_load_balancer_pool_member` (action="create") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 풀 멤버 생성 |
-| `openstack loadbalancer member delete` | `set_load_balancer_pool_member` (action="delete") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 풀 멤버 삭제 |
+| `openstack loadbalancer member list` | `get_load_balancer_pool_members` | ✅ | 풀 멤버 목록. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): HTTP 헬스 모니터가 있을 때 HTTP를 제공하는 멤버는 `ONLINE`, 웹 서버가 없는 멤버는 `ERROR` |
+| `openstack loadbalancer member create` | `set_load_balancer_pool_member` (action="create") | ✅ | 풀 멤버 생성. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 멤버 2개가 ACTIVE가 됨 |
+| `openstack loadbalancer member delete` | `set_load_balancer_pool_member` (action="delete") | ✅ | 풀 멤버 삭제. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 삭제되어 목록에서 사라짐 |
 | `openstack loadbalancer member set` | `set_load_balancer_pool_member` (action="set") | ✅ | 풀 멤버 속성 변경. 지정한 값만 보내고 `weight=0`을 허용하며 바꿀 값이 없는 `set`은 거부(2026-11-22 이전에는 모든 update가 `admin_state_up=true`, `backup=false`, 그리고 지정하지 않으면 `weight=1`도 보냈음). 2026-11-22 UTC targeted check: 이름만 바꾼 `set` 후에도 weight 10, 비활성 상태, `backup=true`가 유지되었고, `weight=0`이 적용됨 |
-| `openstack loadbalancer member show` | `get_load_balancer_pool_members` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 풀 멤버 상세 정보 |
+| `openstack loadbalancer member show` | `get_load_balancer_pool_members` | ✅ | 풀 멤버 상세 정보. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 운영 상태와 함께 조회됨 |
 | `openstack loadbalancer member unset` | N/A | ❌ Not implemented | 이 CLI 작업에 해당하는 등록된 도구/action이 없음 |
 | **헬스 모니터 관리** | | | |
 | `openstack loadbalancer healthmonitor list` | `get_load_balancer_health_monitors` | ✅ | 2026-11-12 Octavia targeted read check 통과. 헬스 모니터 목록(전체 또는 풀별). Octavia 응답의 `pool_ids` 표시 |
-| `openstack loadbalancer healthmonitor create` | `set_load_balancer_health_monitor` (action="create") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 헬스 모니터 생성. non-terminated HTTPS(TLS passthrough) pool용 `TLS-HELLO` 타입 포함 |
-| `openstack loadbalancer healthmonitor delete` | `set_load_balancer_health_monitor` (action="delete") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 헬스 모니터 삭제 |
+| `openstack loadbalancer healthmonitor create` | `set_load_balancer_health_monitor` (action="create") | ✅ | 헬스 모니터 생성. non-terminated HTTPS(TLS passthrough) pool용 `TLS-HELLO` 타입 포함. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): HTTP 모니터가 ACTIVE가 되었고 멤버 운영 상태를 정함 |
+| `openstack loadbalancer healthmonitor delete` | `set_load_balancer_health_monitor` (action="delete") | ✅ | 헬스 모니터 삭제. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 삭제되어 목록에서 사라짐 |
 | `openstack loadbalancer healthmonitor set` | `set_load_balancer_health_monitor` (action="set") | ✅ | 헬스 모니터 변경. 지정한 값만 보내며 바꿀 값이 없는 `set`은 거부(2026-11-22 이전에는 모든 update가 `admin_state_up=true`와 기본 주기 및 HTTP 값도 보냈음). 2026-11-22 UTC targeted check: 이름만 바꾼 `set` 후에도 delay 30, timeout 7, 재시도 4/5, `HEAD /health`, `200-204`, 비활성 상태가 유지됨 |
 | `openstack loadbalancer healthmonitor show` | `get_load_balancer_health_monitors` | ✅ | 2026-11-12 Octavia targeted read check 통과. 헬스 모니터 상세 정보(`pool_ids` 포함) |
 | `openstack loadbalancer healthmonitor unset` | N/A | ❌ Not implemented | 이 CLI 작업에 해당하는 등록된 도구/action이 없음 |
 | **L7 정책 관리** | | | |
-| `openstack loadbalancer l7policy list` | `get_load_balancer_l7_policies` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. L7 정책 목록 |
-| `openstack loadbalancer l7policy create` | `set_load_balancer_l7_policy` (action="create") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 이 관리 도구는 create/delete만 지원 |
-| `openstack loadbalancer l7policy delete` | `set_load_balancer_l7_policy` (action="delete") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. L7 정책 삭제 |
+| `openstack loadbalancer l7policy list` | `get_load_balancer_l7_policies` | ✅ | L7 정책 목록. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 나열됨 |
+| `openstack loadbalancer l7policy create` | `set_load_balancer_l7_policy` (action="create") | ✅ | 이 관리 도구는 create/delete만 지원. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): `PATH STARTS_WITH` 규칙을 둔 `REDIRECT_TO_URL` 정책이 일치하는 요청에는 해당 URL로 302, 그 밖의 요청에는 200을 반환함 |
+| `openstack loadbalancer l7policy delete` | `set_load_balancer_l7_policy` (action="delete") | ✅ | L7 정책 삭제. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 삭제되어 목록에서 사라짐 |
 | `openstack loadbalancer l7policy set` | N/A | ❌ Not implemented | 이 CLI 작업에 해당하는 등록된 도구/action이 없음 |
-| `openstack loadbalancer l7policy show` | `get_load_balancer_l7_policies` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. L7 정책 상세 |
+| `openstack loadbalancer l7policy show` | `get_load_balancer_l7_policies` | ✅ | L7 정책 상세. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 목록을 통해 조회됨 |
 | `openstack loadbalancer l7policy unset` | N/A | ❌ Not implemented | 이 CLI 작업에 해당하는 등록된 도구/action이 없음 |
 | **L7 규칙 관리** 🆕 | | | |
-| `openstack loadbalancer l7rule list` | `get_load_balancer_l7_rules` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. L7 규칙 목록 |
-| `openstack loadbalancer l7rule create` | `set_load_balancer_l7_rule` (action="create") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. L7 규칙 생성 |
-| `openstack loadbalancer l7rule delete` | `set_load_balancer_l7_rule` (action="delete") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. L7 규칙 삭제 |
+| `openstack loadbalancer l7rule list` | `get_load_balancer_l7_rules` | ✅ | L7 규칙 목록. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 나열됨 |
+| `openstack loadbalancer l7rule create` | `set_load_balancer_l7_rule` (action="create") | ✅ | L7 규칙 생성. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): `PATH STARTS_WITH` 규칙이 ACTIVE가 되었고 트래픽에 적용됨 |
+| `openstack loadbalancer l7rule delete` | `set_load_balancer_l7_rule` (action="delete") | ✅ | L7 규칙 삭제. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 삭제되어 목록에서 사라짐 |
 | `openstack loadbalancer l7rule set` | N/A | ❌ Not implemented | 이 CLI 작업에 해당하는 등록된 도구/action이 없음 |
-| `openstack loadbalancer l7rule show` | `get_load_balancer_l7_rules` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. L7 규칙 상세 |
+| `openstack loadbalancer l7rule show` | `get_load_balancer_l7_rules` | ✅ | L7 규칙 상세. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 목록을 통해 조회됨 |
 | `openstack loadbalancer l7rule unset` | N/A | ❌ Not implemented | 이 CLI 작업에 해당하는 등록된 도구/action이 없음 |
 | **Amphora 관리** 🆕 | | | |
-| `openstack loadbalancer amphora list` | `get_load_balancer_amphorae` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. Amphora 목록 |
-| `openstack loadbalancer amphora show` | `set_load_balancer_amphora` (action="show") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. Amphora 상세 |
-| `openstack loadbalancer amphora configure` | `set_load_balancer_amphora` (action="configure") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. Amphora 설정 |
-| `openstack loadbalancer amphora failover` | `set_load_balancer_amphora` (action="failover") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. Amphora failover |
+| `openstack loadbalancer amphora list` | `get_load_balancer_amphorae` | ✅ | Amphora 목록. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 나열되었고 failover마다 교체된 amphora가 나타남 |
+| `openstack loadbalancer amphora show` | `set_load_balancer_amphora` (action="show") | ✅ | Amphora 상세. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 조회됨 |
+| `openstack loadbalancer amphora configure` | `set_load_balancer_amphora` (action="configure") | ✅ | Amphora agent 설정 갱신. Octavia가 요청을 받아들이고(HTTP 202) 비동기로 적용하며, 결과는 "accepted"로 표시(2026-11-23 이전에는 "updated"). 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 요청이 받아들여졌고 Octavia worker 로그에서 약 1초 뒤 갱신이 끝난 것을 확인 |
+| `openstack loadbalancer amphora failover` | `set_load_balancer_amphora` (action="failover") | ✅ | Amphora failover. 비동기. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 새 amphora가 기존 것을 대체했고 470초 뒤 로드밸런서가 다시 ACTIVE가 되었으며, HTTP와 L7 리다이렉트 트래픽이 계속 동작함 |
 | `openstack loadbalancer amphora delete` | N/A | ❌ | OpenStack SDK가 지원하지 않음 |
 | `openstack loadbalancer amphora stats show` | N/A | ❌ | OpenStack SDK가 지원하지 않음 |
 | **Provider 관리** | | | |
-| `openstack loadbalancer provider list` | `get_load_balancer_providers` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. Provider 목록 |
+| `openstack loadbalancer provider list` | `get_load_balancer_providers` | ✅ | Provider 목록. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): `amphora`가 나열됨 |
 | `openstack loadbalancer provider capability list` | N/A | ❌ Not implemented | 이 CLI 작업에 해당하는 등록된 도구/action이 없음 |
 | **가용 영역 관리** 🆕 | | | |
-| `openstack loadbalancer availabilityzone list` | `get_load_balancer_availability_zones` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 가용 영역 목록 |
-| `openstack loadbalancer availabilityzone show` | `get_load_balancer_availability_zones` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 가용 영역 상세 |
-| `openstack loadbalancer availabilityzone create` | `set_load_balancer_availability_zone` (action="create") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 가용 영역 생성 |
-| `openstack loadbalancer availabilityzone delete` | `set_load_balancer_availability_zone` (action="delete") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. 가용 영역 삭제 |
+| `openstack loadbalancer availabilityzone list` | `get_load_balancer_availability_zones` | ✅ | 가용 영역 목록. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 테스트 영역이 profile ID와 함께 나열됨 |
+| `openstack loadbalancer availabilityzone show` | `get_load_balancer_availability_zones` | ✅ | 가용 영역 상세. 목록을 통해 조회. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 조회됨 |
+| `openstack loadbalancer availabilityzone create` | `set_load_balancer_availability_zone` (action="create") | ✅ | 기존 가용 영역 profile로 가용 영역 생성(profile을 만드는 도구는 없음). 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 생성되었고 그 영역에 만든 로드밸런서가 ACTIVE가 됨 |
+| `openstack loadbalancer availabilityzone delete` | `set_load_balancer_availability_zone` (action="delete") | ✅ | 가용 영역 삭제. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 로드밸런서가 영역을 쓰는 동안에는 Octavia의 409가 반환되었고, 로드밸런서가 사라진 뒤 삭제됨 |
 | `openstack loadbalancer availabilityzone set` | N/A | ❌ Not implemented | 이 CLI 작업에 해당하는 등록된 도구/action이 없음 |
 | `openstack loadbalancer availabilityzone unset` | N/A | ❌ Not implemented | 이 CLI 작업에 해당하는 등록된 도구/action이 없음 |
 | **Flavor 관리** 🆕 | | | |
-| `openstack loadbalancer flavor list` | `get_load_balancer_flavors` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. Flavor 목록 |
-| `openstack loadbalancer flavor show` | `get_load_balancer_flavors` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. Flavor 상세 |
-| `openstack loadbalancer flavor create` | `set_load_balancer_flavor` (action="create") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. Flavor 생성 |
-| `openstack loadbalancer flavor delete` | `set_load_balancer_flavor` (action="delete") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. Flavor 삭제 |
+| `openstack loadbalancer flavor list` | `get_load_balancer_flavors` | ✅ | Flavor 목록. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 테스트 flavor가 profile ID와 함께 나열됨 |
+| `openstack loadbalancer flavor show` | `get_load_balancer_flavors` | ✅ | Flavor 상세. 목록을 통해 조회. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 조회됨 |
+| `openstack loadbalancer flavor create` | `set_load_balancer_flavor` (action="create") | ✅ | 기존 flavor profile로 flavor 생성(profile을 만드는 도구는 없음). 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 생성되었고 그 flavor로 만든 로드밸런서가 ACTIVE가 됨 |
+| `openstack loadbalancer flavor delete` | `set_load_balancer_flavor` (action="delete") | ✅ | Flavor 삭제. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 로드밸런서가 flavor를 쓰는 동안에는 Octavia의 409가 반환되었고, 로드밸런서가 사라진 뒤 삭제됨 |
 | `openstack loadbalancer flavor set` | N/A | ❌ Not implemented | 이 CLI 작업에 해당하는 등록된 도구/action이 없음 |
 | `openstack loadbalancer flavor unset` | N/A | ❌ Not implemented | 이 CLI 작업에 해당하는 등록된 도구/action이 없음 |
 | **Flavor Profile 관리** | | | |
@@ -600,10 +600,10 @@ Octavia 도구는 openstacksdk의 속성 이름(`is_admin_state_up`, `is_enabled
 | `openstack loadbalancer flavorprofile unset` | N/A | ❌ Not implemented | 이 CLI 작업에 해당하는 등록된 도구/action이 없음 |
 | `openstack loadbalancer flavorprofile delete` | N/A | ❌ Not implemented | 이 CLI 작업에 해당하는 등록된 도구/action이 없음 |
 | **Quota 관리** 🆕 | | | |
-| `openstack loadbalancer quota list` | `get_load_balancer_quotas` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. Quota 목록 |
-| `openstack loadbalancer quota show` | `get_load_balancer_quotas` | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. Quota 상세 |
-| `openstack loadbalancer quota set` | `set_load_balancer_quota` (action="set") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. Quota 설정 |
-| `openstack loadbalancer quota reset` | `set_load_balancer_quota` (action="reset") | ⚠️ Live unverified | 구현됨. 테스트 플랫폼에 Octavia 없음. Quota 초기화 |
+| `openstack loadbalancer quota list` | `get_load_balancer_quotas` | ✅ | Quota 목록. Octavia 목록은 프로젝트가 바꾸지 않은 한도를 `null`로 반환(기본값이 적용됨). 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 나열됨 |
+| `openstack loadbalancer quota show` | `get_load_balancer_quotas` | ✅ | 프로젝트 하나의 quota 상세이며 실효 값을 표시(-1은 무제한). 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 조회됨 |
+| `openstack loadbalancer quota set` | `set_load_balancer_quota` (action="set") | ✅ | Quota 설정. 지정하지 않은 한도는 유지됨. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 한도 2개를 설정하고 Octavia에서 다시 읽어 확인했으며, 이어서 세 번째 한도를 설정해도 앞의 값이 유지됨 |
+| `openstack loadbalancer quota reset` | `set_load_balancer_quota` (action="reset") | ✅ | Quota를 기본값으로 초기화. 2026-11-23 UTC targeted check(Octavia 16.1.1, amphora provider, SINGLE topology): 프로젝트의 한도가 기본값으로 돌아감 |
 
 ### 8. 🔐 **Key Manager (Barbican)**
 
@@ -616,22 +616,22 @@ payload를 받거나 반환하지 않습니다. 사용자 인증서와 키는 MC
 
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
-| `openstack secret list` | `get_secrets` | ⚠️ Live unverified | 단위 테스트만 수행. 현재 프로젝트 시크릿의 메타데이터. `secret_type` 필터. `limit` 1-1000, `truncated` 표시 |
-| `openstack secret get` | `get_secrets` (`name`) | ⚠️ Live unverified | 단위 테스트만 수행. 이름, ID, href로 지정. 메타데이터와 consumer만 반환 |
+| `openstack secret list` | `get_secrets` | ✅ | 현재 프로젝트 시크릿의 메타데이터. `secret_type` 필터. `limit` 1-1000, `truncated` 표시. 2026-11-23 UTC targeted check(Barbican, 단일 secret store): 나열됨. `symmetric` 필터는 시크릿 1개를 반환했고 `limit=1`은 1개와 `truncated: true`를 반환함 |
+| `openstack secret get` | `get_secrets` (`name`) | ✅ | 이름, ID, href로 지정. 메타데이터와 consumer만 반환. 2026-11-23 UTC targeted check(Barbican, 단일 secret store): 이름으로 조회됨 |
 | `openstack secret get --payload` / `--decrypt` | N/A | ❌ Not implemented | 의도적으로 제외: payload가 LLM에 전달되기 때문 |
 | `openstack secret store` (user payload) | N/A | ❌ Not implemented | 의도적으로 제외: payload가 LLM에 전달되기 때문. 사용자 인증서는 MCP 밖에서 등록 |
 | `openssl req -x509` + `openstack secret store` | `set_secret` (action="create_self_signed_tls") | ✅ | MCP 서버 안에서 키와 인증서를 생성해 암호 없는 PKCS#12 `opaque` 시크릿으로 저장. href, 공개 인증서, fingerprint만 반환하고 키는 반환하지 않음. 2026-11-15 targeted check: IP SAN을 가진 시크릿을 생성했고, 결과에는 href, 공개 인증서, fingerprint, 만료 시각만 있고 키나 payload는 없었음. |
-| `openstack secret delete` | `set_secret` (action="delete") | ⚠️ Live unverified | 단위 테스트만 수행. 이름, ID, href로 지정 |
-| `openstack secret container list` / `show` | `get_secret_containers` | ⚠️ Live unverified | 단위 테스트만 수행. 목록, 또는 이름, ID, href로 컨테이너 하나 조회 |
-| `openstack secret container create` | `set_secret_container` (action="create") | ⚠️ Live unverified | 단위 테스트만 수행. 이름, ID, href로 지정한 기존 시크릿으로 `generic`, `certificate`, `rsa` 생성 |
-| `openstack secret container delete` | `set_secret_container` (action="delete") | ⚠️ Live unverified | 단위 테스트만 수행. 시크릿은 유지됨 |
-| `openstack secret order list` / `get` | `get_secret_orders` | ⚠️ Live unverified | 단위 테스트만 수행. 비대칭 주문의 `container_ref`를 포함한 주문 원본 데이터 |
-| `openstack secret order create` | `set_secret_order` (action="create") | ⚠️ Live unverified | 단위 테스트만 수행. `key`(기본 aes 256 cbc) 또는 `asymmetric`(기본 rsa 2048). Barbican이 키 생성. 비동기 |
-| `openstack secret order delete` | `set_secret_order` (action="delete") | ⚠️ Live unverified | 단위 테스트만 수행 |
-| `openstack acl get` | `get_secret_acl` | ⚠️ Live unverified | 단위 테스트만 수행. 시크릿 또는 컨테이너 |
-| `openstack acl user add` / `user remove` / `submit` / `delete` | `set_secret_acl` (action="add_users"/"remove_users"/"set"/"delete") | ⚠️ Live unverified | 단위 테스트만 수행. 시크릿 또는 컨테이너. `set`은 사용자 목록을 교체하고 선택적으로 `project_access`도 변경 |
-| Barbican effective quotas (`GET /v1/quotas`) | `get_key_manager_quotas` | ⚠️ Live unverified | 단위 테스트만 수행. 현재 프로젝트의 실효 쿼터. 프로젝트 쿼터 변경은 구현하지 않음 |
-| Secret store backends (`GET /v1/secret-stores`) | `get_secret_stores` | ⚠️ Live unverified | 단위 테스트만 수행. Barbican에 다중 시크릿 스토어 백엔드가 활성화된 경우에만 제공 |
+| `openstack secret delete` | `set_secret` (action="delete") | ✅ | 이름, ID, href로 지정. 2026-11-23 UTC targeted check(Barbican, 단일 secret store): 이름과 ID로 삭제됨. 모호한 이름은 거부됨 |
+| `openstack secret container list` / `show` | `get_secret_containers` | ✅ | 목록, 또는 이름, ID, href로 컨테이너 하나 조회. 2026-11-23 UTC targeted check(Barbican, 단일 secret store): 나열 및 조회됨 |
+| `openstack secret container create` | `set_secret_container` (action="create") | ✅ | 이름, ID, href로 지정한 기존 시크릿으로 `generic`, `certificate`, `rsa` 생성. 2026-11-23 UTC targeted check(Barbican, 단일 secret store): 이름과 ID로 지정한 시크릿으로 `generic`과 `certificate` 컨테이너를 생성. 이 도구로 만드는 `rsa`는 **Live unverified**(`rsa` 컨테이너는 asymmetric order로 생성됨) |
+| `openstack secret container delete` | `set_secret_container` (action="delete") | ✅ | 시크릿은 유지됨. 2026-11-23 UTC targeted check(Barbican, 단일 secret store): 삭제되었고 시크릿은 남음 |
+| `openstack secret order list` / `get` | `get_secret_orders` | ✅ | 비대칭 주문의 `container_ref`를 포함한 주문 원본 데이터. 2026-11-23 UTC targeted check(Barbican, 단일 secret store): 두 주문이 `secret_ref` 또는 `container_ref`와 함께 ACTIVE로 나열 및 조회됨 |
+| `openstack secret order create` | `set_secret_order` (action="create") | ✅ | `key`(기본 aes 256 cbc) 또는 `asymmetric`(기본 rsa 2048). Barbican이 키 생성. 비동기. 2026-11-23 UTC targeted check(Barbican, 단일 secret store): `key`와 `asymmetric` 주문이 ACTIVE가 됨 |
+| `openstack secret order delete` | `set_secret_order` (action="delete") | ✅ | 주문 기록을 삭제하며 생성된 시크릿이나 컨테이너는 남음. 2026-11-23 UTC targeted check(Barbican, 단일 secret store): 두 주문 모두 삭제됨 |
+| `openstack acl get` | `get_secret_acl` | ✅ | 시크릿 또는 컨테이너. 2026-11-23 UTC targeted check(Barbican, 단일 secret store): 시크릿과 컨테이너에서 조회됨 |
+| `openstack acl user add` / `user remove` / `submit` / `delete` | `set_secret_acl` (action="add_users"/"remove_users"/"set"/"delete") | ✅ | 시크릿 또는 컨테이너. `set`은 사용자 목록을 교체하고 선택적으로 `project_access`도 변경. 2026-11-23 UTC targeted check(Barbican, 단일 secret store): 시크릿에서 `add_users`, `project_access=false`를 넣은 `set`, `remove_users`(`project_access` 유지), `delete`를 다시 읽어 확인했고, 컨테이너에서 `add_users`를 확인 |
+| Barbican effective quotas (`GET /v1/quotas`) | `get_key_manager_quotas` | ✅ | 현재 프로젝트의 실효 쿼터. 프로젝트 쿼터 변경은 구현하지 않음. 2026-11-23 UTC targeted check(Barbican, 단일 secret store): 5개 모두 -1(무제한)을 반환 |
+| Secret store backends (`GET /v1/secret-stores`) | `get_secret_stores` | ⚠️ Live unverified | Barbican에 다중 시크릿 스토어 백엔드가 활성화된 경우에만 제공. 2026-11-23 UTC targeted check(Barbican, 단일 secret store): 랩에는 백엔드가 하나뿐이며 문서에 적힌 오류(Barbican의 404)가 반환됨. 성공적인 목록 조회는 **Live unverified** |
 
 ### 9. 📊 **Monitoring & Logging**
 
@@ -646,7 +646,7 @@ payload를 받거나 반환하지 않습니다. 사용자 인증서와 키는 MC
 
 | OpenStack CLI 명령 | MCP 도구 | Status | 비고 |
 |---------------------|---------|------|------|
-| Resource monitoring | `get_resource_monitoring` | ⚠️ Live unverified | reader에게는 물리 용량 정책 제한이 있음. 할당과 용량은 별도이며 실시간 사용률은 없음 |
+| Resource monitoring | `get_resource_monitoring` | ⚠️ Live unverified | reader에게는 물리 용량 정책 제한이 있음. 할당과 용량은 별도이며 실시간 사용률은 없음. Nova가 hypervisor 상세에서 빼는 용량(compute microversion 2.88부터)은 `null`이며 이유가 `capacity_error`에 담김(2026-11-23부터. 이전에는 이유 없는 `null`). 2026-11-23 UTC targeted check(관리자): 할당과 quota가 반환되었고 용량은 그 이유와 함께 `null` |
 | Service status | `get_service_status` | ⚠️ Live unverified | reader에게는 서비스 정책 제한이 있으며, 일부 데이터만으로는 전체 상태를 증명하지 못함 |
 | Cluster overview | `get_service_status` + `get_resource_monitoring` | ⚠️ Live unverified | reader에게는 물리 용량 정책 제한이 있음. 할당과 용량은 별도이며 실시간 사용률은 없음 |
 | Service log metadata | `set_service_logs` | Partial | 서비스 목록만 제공. 로그 백엔드가 없으면 로그 조회는 불가. 네트워크 agent는 SDK의 `is_admin_state_up` 필드로 나열(이전에는 누락). 2026-11-10 targeted check: 네트워크 agent와 함께 나열됨 |
@@ -686,7 +686,7 @@ payload를 받거나 반환하지 않습니다. 사용자 인증서와 키는 MC
 | `openstack router list` (관리자, 모든 프로젝트) | `get_routers` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Neutron에는 전체 프로젝트 옵션이 없고 목록 요청을 거부하지 않으며 자격 증명이 볼 수 있는 것을 반환하므로, 다른 프로젝트의 비공유 리소스가 없는 결과에는 `scope.warning`이 붙음. 2026-11-13 targeted check: 관리자는 두 프로젝트의 라우터를 나열했고, `member`는 경고와 함께 자기 라우터만 받음 |
 | `openstack floating ip list` (관리자, 모든 프로젝트) | `get_floating_ips` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Neutron에는 전체 프로젝트 옵션이 없고 목록 요청을 거부하지 않으며 자격 증명이 볼 수 있는 것을 반환하므로, 다른 프로젝트의 비공유 리소스가 없는 결과에는 `scope.warning`이 붙음. 2026-11-13 targeted check: 관리자는 두 프로젝트의 floating IP를 나열했고, `member`는 경고와 함께 자기 것만 받음 |
 | `openstack security group list --all-projects` | `get_security_groups` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Neutron에는 전체 프로젝트 옵션이 없고 목록 요청을 거부하지 않으며 자격 증명이 볼 수 있는 것을 반환하므로, 다른 프로젝트의 비공유 리소스가 없는 결과에는 `scope.warning`이 붙음. 항목에 `shared` 포함. 2026-11-13 targeted check: 관리자는 `service` 프로젝트의 Octavia 그룹을 포함해 세 프로젝트의 그룹을 나열했고, `member`는 경고와 함께 자기 그룹만 받음 |
-| `openstack port list` (관리자, 모든 프로젝트) | `set_network_ports` (action="list", `all_projects=true`) | ⚠️ Live unverified | `ALLOW_CROSS_PROJECT_READ=true`와 변경 도구 등록 필요. `list`에서만 사용. 각 행에 `project_id`와 `project_name`이 있고 결과에 `scope`가 붙음. Octavia amphora의 VRRP port도 포함되는데, 이 port는 Octavia가 자기 Neutron 자격 증명으로 만들므로 로드밸런서의 프로젝트가 아니라 그 자격 증명의 프로젝트(Kolla 랩에서는 `service`) 소유. Octavia 16.1.1 소스와 설정으로 확인했으며 실제 port로 확인하지는 않음. 2026-11-23 추가, 단위 테스트만 거침 |
+| `openstack port list` (관리자, 모든 프로젝트) | `set_network_ports` (action="list", `all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true`와 변경 도구 등록 필요. `list`에서만 사용. 각 행에 `project_id`와 `project_name`이 있고 결과에 `scope`가 붙음. Octavia amphora의 VRRP port도 포함되는데, 이 port는 Octavia가 자기 Neutron 자격 증명으로 만들므로 로드밸런서의 프로젝트가 아니라 그 자격 증명의 프로젝트(Kolla 랩에서는 `service`) 소유. Octavia 16.1.1 소스와 설정으로 확인. 2026-11-23 UTC targeted check(관리자): port 10개가 `project_name`, `scope`와 함께 나열됨. 프로젝트 2개의 port(`service` 프로젝트의 Octavia health-manager port 포함)와, 프로젝트가 없는 라우터 게이트웨이 port와 Floating IP port. 그 시점에는 로드밸런서가 없어 VRRP port는 읽지 않음 |
 | `openstack volume list --all-projects` | `get_volume_list` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Cinder는 권한 없는 요청을 거부하지 않고 호출자의 프로젝트로 좁히므로, 현재 프로젝트만 있는 결과에는 `scope.warning`이 붙음. 2026-11-13 targeted check: 관리자는 두 프로젝트의 볼륨을 나열했고, `member`는 경고와 함께 자기 볼륨만 받음 |
 | `openstack volume snapshot list --all-projects` | `get_volume_snapshots` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. 볼륨과 마찬가지로 좁혀진 결과에는 `scope.warning`이 붙음. 2026-11-13 targeted check: 관리자는 다른 프로젝트의 스냅샷을 나열했고, `member`는 경고와 함께 자기 스냅샷만 받음 |
 | `openstack volume backup list --all-projects` | `get_volume_backups` (`all_projects=true`) | ✅ | `ALLOW_CROSS_PROJECT_READ=true` 필요. Cinder는 권한 없는 요청을 호출자 프로젝트로 좁히고 소유 프로젝트를 관리자에게만 보여 주므로, 소유자가 보이지 않는 결과에는 별도의 `scope.warning`이 붙음. 2026-11-14 targeted check: 관리자는 다른 프로젝트의 백업을 프로젝트와 함께 나열했고, `member`는 소유자 없이 경고와 함께 자기 백업을 받음 |

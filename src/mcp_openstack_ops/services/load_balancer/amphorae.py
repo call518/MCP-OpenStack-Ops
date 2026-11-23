@@ -64,8 +64,8 @@ def get_load_balancer_amphorae(lb_name_or_id: str = "", **kwargs) -> Dict[str, A
                 'cached_zone': getattr(amphora, 'cached_zone', None),
                 'image_id': getattr(amphora, 'image_id', None),
                 'compute_flavor': getattr(amphora, 'compute_flavor', None),
-                'created_at': str(amphora.created_at) if hasattr(amphora, 'created_at') else 'N/A',
-                'updated_at': str(amphora.updated_at) if hasattr(amphora, 'updated_at') else 'N/A'
+                'created_at': getattr(amphora, 'created_at', None),
+                'updated_at': getattr(amphora, 'updated_at', None)
             }
             amphora_details.append(amphora_info)
         
@@ -131,7 +131,8 @@ def set_load_balancer_amphora(action: str, **kwargs) -> Dict[str, Any]:
             conn.load_balancer.configure_amphora(amphora_id)
             return {
                 'success': True,
-                'message': f'Amphora configuration updated: {amphora_id}'
+                # Octavia answers 202 and updates the agent asynchronously.
+                'message': f'Amphora configuration update accepted: {amphora_id}'
             }
         
         elif action == "show":
@@ -165,8 +166,8 @@ def set_load_balancer_amphora(action: str, **kwargs) -> Dict[str, Any]:
                 'cached_zone': getattr(amphora, 'cached_zone', None),
                 'image_id': getattr(amphora, 'image_id', None),
                 'compute_flavor': getattr(amphora, 'compute_flavor', None),
-                'created_at': str(amphora.created_at) if hasattr(amphora, 'created_at') else 'N/A',
-                'updated_at': str(amphora.updated_at) if hasattr(amphora, 'updated_at') else 'N/A'
+                'created_at': getattr(amphora, 'created_at', None),
+                'updated_at': getattr(amphora, 'updated_at', None)
             }
             
             return {

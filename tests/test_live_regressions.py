@@ -165,12 +165,30 @@ async def test_heat_tool_parses_files_environment_and_options(monkeypatch):
 
 
 def test_heat_details_pass_nested_depth(conn):
-    conn.orchestration.find_stack.return_value = _owned_stack()
+    stack = _owned_stack()
+    conn.orchestration.find_stack.return_value = stack
     conn.orchestration.resources.return_value = []
     conn.orchestration.stack_events.return_value = []
-    assert orchestration.get_heat_stack_details('app', 'resources', nested_depth=2)['success']
-    conn.orchestration.resources.assert_called_once_with(
-        conn.orchestration.find_stack.return_value, nested_depth=2)
+    # openstacksdk's Resource drops nested_depth, so resources use the raw API.
+    conn.orchestration.get.return_value.json.return_value = {'resources': [
+        {'resource_name': 'inner', 'resource_type': 'inner.yaml',
+         'resource_status': 'CREATE_COMPLETE'},
+        {'resource_name': 'rnd', 'resource_type': 'OS::Heat::RandomString',
+         'resource_status': 'CREATE_COMPLETE', 'parent_resource': 'inner'},
+    ]}
+    result = orchestration.get_heat_stack_details('app', 'resources', nested_depth=2)
+    assert result['success'], result
+    conn.orchestration.get.assert_called_once_with(
+        f'/stacks/{stack.name}/{stack.id}/resources', params={'nested_depth': 2})
+    conn.orchestration.resources.assert_not_called()
+    assert [(r['name'], r['status'], r.get('parent_resource'))
+            for r in result['resources']] == [
+        ('inner', 'CREATE_COMPLETE', None), ('rnd', 'CREATE_COMPLETE', 'inner')]
+    assert orchestration.get_heat_stack_details('app', 'resources')['success']
+    conn.orchestration.resources.assert_called_once_with(stack)
+    assert orchestration.get_heat_stack_details('app', 'events', nested_depth=2)['success']
+    conn.orchestration.stack_events.assert_called_once_with(stack, nested_depth=2)
+    conn.orchestration.stack_events.reset_mock()
     assert orchestration.get_heat_stack_details('app', 'events')['success']
     conn.orchestration.stack_events.assert_called_once_with(
         conn.orchestration.find_stack.return_value)
@@ -287,7 +305,7 @@ def test_server_backup_uses_sdk_backup_action(conn):
 
 @pytest.mark.parametrize('action', ['list', 'create', 'show', 'set', 'delete'])
 def test_port_forwarding_uses_sdk_parent_parameters(conn, action):
-    conn.network.ips.return_value = [SimpleNamespace(id='fip-a')]
+    conn.network.ips.return_value = [SimpleNamespace(id='fip-a', project_id='project-a')]
     rule = SimpleNamespace(id='rule-a', protocol='tcp')
     conn.network.port_forwardings.return_value = []
     conn.network.create_port_forwarding.return_value = rule
@@ -310,10 +328,44 @@ def test_port_forwarding_uses_sdk_parent_parameters(conn, action):
 
 
 def test_port_forwarding_list_failure_never_looks_like_empty_success(conn):
-    conn.network.ips.return_value = [SimpleNamespace(id='fip-a')]
+    conn.network.ips.return_value = [SimpleNamespace(id='fip-a', project_id='project-a')]
     conn.network.port_forwardings.side_effect = RuntimeError('API unavailable')
     result = network.set_floating_ip_port_forwarding('list', floating_ip_id='fip-a')
     assert result['success'] is False
+
+
+@pytest.mark.parametrize('action', ['show', 'set', 'delete'])
+def test_port_forwarding_rule_actions_accept_floating_ip_address(conn, action):
+    conn.network.ips.return_value = [SimpleNamespace(
+        id='fip-a', project_id='project-a', floating_ip_address='203.0.113.5')]
+    rule = SimpleNamespace(id='rule-a', protocol='tcp')
+    conn.network.get_port_forwarding.return_value = rule
+    conn.network.update_port_forwarding.return_value = rule
+    result = network.set_floating_ip_port_forwarding(
+        action, floating_ip_address='203.0.113.5', port_forwarding_id='rule-a',
+        description='new',
+    )
+    assert result['success'], result
+    conn.network.ips.assert_called_once_with(project_id='project-a')
+    method = {'show': 'get', 'set': 'update', 'delete': 'delete'}[action]
+    assert getattr(conn.network, f'{method}_port_forwarding').call_args.kwargs[
+        'floating_ip'] == 'fip-a'
+
+
+@pytest.mark.parametrize('action', ['list', 'create', 'show', 'set', 'delete'])
+def test_port_forwarding_refuses_other_project_floating_ip(conn, action):
+    conn.network.ips.return_value = [SimpleNamespace(
+        id='fip-b', project_id='project-b', floating_ip_address='203.0.113.9')]
+    result = network.set_floating_ip_port_forwarding(
+        action, floating_ip_address='203.0.113.9', port_forwarding_id='rule-a',
+        external_port=18022, internal_port=22, description='new',
+    )
+    assert result == {'success': False,
+                      'message': 'Floating IP not found in the current project'}
+    conn.network.create_port_forwarding.assert_not_called()
+    conn.network.get_port_forwarding.assert_not_called()
+    conn.network.update_port_forwarding.assert_not_called()
+    conn.network.delete_port_forwarding.assert_not_called()
 
 
 @pytest.mark.asyncio

@@ -89,6 +89,8 @@ Neutron RBAC(`openstack network rbac create --type qos_policy --action access_as
   - heat-engine, Octavia, Aodh는 보고하지 않습니다. 2026-11-14 랩 장애에서
     heat-engine이 데이터베이스 연결을 잃었는데도 `heat-api`는 up으로 보고됐습니다.
   - `running_services`가 조회 결과로 만든 행도 실행 중으로 셉니다.
+  - 서비스별 블록 밖으로 예상하지 못한 오류가 나가면, 오류만 반환하지 않고 상태가
+    `unknown`인 고정된 `nova-compute`와 `neutron-server` 행을 반환합니다.
 
 ## Barbican과 TLS 리스너
 
@@ -96,9 +98,12 @@ Neutron RBAC(`openstack network rbac create --type qos_policy --action access_as
   - 2026-11-15 라이브 확인(admin 계정): `set_secret` `create_self_signed_tls`, 그리고
     `default_tls_container_ref`를 이름으로 지정해 만든 `TERMINATED_HTTPS` 리스너가
     `ACTIVE`/`ONLINE`이 되고 HTTPS를 제공함(`curl -vk`: TLSv1.3, 두 멤버 모두 HTTP 200).
-  - 아직 단위 테스트만 수행한 것: 나머지 Barbican 도구와 액션, `sni_container_refs`,
-    TLS 참조를 쓰는 리스너 `set`, pool의 backend re-encryption 파라미터(Octavia API로
-    직접 보내는 client authentication용 `tls_container_ref` 포함).
+  - 2026-11-23 라이브 확인(admin 계정): 나머지 Barbican 도구와 액션(성공적인
+    `get_secret_stores` 목록 조회와 `set_secret_container`로 만드는 `rsa` 컨테이너는
+    제외. 랩에는 secret store가 하나뿐임), 그리고 `crl_container_ref`를 뺀 pool의
+    backend re-encryption 파라미터([검증 기록](docs/validation.ko.md) 참고).
+  - 아직 단위 테스트만 수행한 것: `sni_container_refs`, TLS 참조를 쓰는 리스너
+    `set`, `crl_container_ref`, 클라이언트 인증서(`tls_container_ref`)를 요구하는 멤버.
   - Non-terminated HTTPS(`HTTPS` 리스너와 pool, `TLS-HELLO` 모니터)와, CA로 멤버를
     검증하는 backend re-encryption을 client authentication이 있을 때와 없을 때 모두
     확인합니다.

@@ -573,7 +573,9 @@ def get_volume_types() -> List[Dict[str, Any]]:
         conn = get_openstack_connection()
         volume_types = []
         
-        for vol_type in conn.volume.types():
+        # Cinder lists only public types to administrators unless is_public is
+        # the string "None"; a Python None is dropped from the query string.
+        for vol_type in conn.volume.types(is_public='None'):
             volume_types.append({
                 'id': vol_type.id,
                 'name': getattr(vol_type, 'name', 'unnamed'),
@@ -974,7 +976,8 @@ def set_volume_qos(action: str, qos_name: Optional[str] = None, **kwargs) -> Dic
             if action != 'disassociate_all':
                 if not (volume_type and volume_type.strip()):
                     raise ValueError(f'volume_type is required for {action}')
-                types = list(api.types())
+                # Include private types (see get_volume_types).
+                types = list(api.types(is_public='None'))
                 type_matches = [t for t in types if t.id == volume_type]
                 if not type_matches:
                     type_matches = [t for t in types if t.name == volume_type]

@@ -385,3 +385,7 @@ def test_user_list_reports_description(conn):
     [user] = identity.get_user_list()
 
     assert user['description'] == 'on-call operator'
+    # Keystone returns no timestamps or email here: null, not "N/A".
+    assert user['email'] is None
+    assert user['created_at'] is None
+    assert user['updated_at'] is None

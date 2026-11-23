@@ -124,8 +124,8 @@ def get_load_balancer_listeners(lb_name_or_id: str) -> Dict[str, Any]:
                 'connection_limit': listener.connection_limit,
                 **_status_info(listener),
                 **_tls_info(listener),
-                'created_at': str(listener.created_at) if hasattr(listener, 'created_at') else 'N/A',
-                'updated_at': str(listener.updated_at) if hasattr(listener, 'updated_at') else 'N/A'
+                'created_at': getattr(listener, 'created_at', None),
+                'updated_at': getattr(listener, 'updated_at', None)
             }
             listener_details.append(listener_info)
         
@@ -380,11 +380,12 @@ def set_load_balancer_listener(action: str, **kwargs) -> Dict[str, Any]:
                     'admin_state_up': listener.is_admin_state_up,
                     'loadbalancer_id': _listener_load_balancer_id(listener),
                     'default_pool_id': getattr(listener, 'default_pool_id', None),
+                    'connection_limit': listener.connection_limit,
                     **_status_info(listener),
                     **_tls_info(listener),
                 }
             }
-        
+
         else:
             return {
                 'success': False,
