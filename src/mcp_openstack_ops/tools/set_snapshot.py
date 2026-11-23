@@ -21,7 +21,8 @@ async def set_snapshot(
     status: str = "",
     # Snapshot creation/modification parameters
     volume_id: str = "",
-    description: str = ""
+    description: str = "",
+    force: bool = False
 ) -> str:
     """
     Manage volume snapshots for backup and recovery operations.
@@ -59,7 +60,10 @@ async def set_snapshot(
         # Creation/modification parameters
         volume_id: Volume ID for snapshot creation (required for create action)
         description: Description for the snapshot (optional)
-        
+        force: For create, snapshot a volume that is attached (in-use); Cinder
+            refuses an in-use volume without it. The snapshot is only
+            crash-consistent
+
     Returns:
         Snapshot management operation result with post-action status verification.
         
@@ -148,7 +152,9 @@ async def set_snapshot(
             kwargs['volume_id'] = volume_id.strip()
         if description.strip():
             kwargs['description'] = description.strip()
-        
+        if force and action == 'create':
+            kwargs['force'] = True
+
         # Handle single snapshot (backward compatibility)
         if len(name_list) == 1:
             logger.info(f"Managing snapshot '{name_list[0]}' with action '{action}'")

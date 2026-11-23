@@ -1041,3 +1041,27 @@ an earlier full summary.
   certificates and the configuration copies were deleted, and Barbican returned
   to its original configuration. This partial check does not update the
   105-tool summary above.
+- **Local unit tests after the in-use snapshot and force upload fixes
+  (2026-11-23; uncommitted working tree based on `23938e1`):** 798/798 (100%)
+  with fastmcp 4.2.2 and the locked openstacksdk 4.24.0, run as
+  `uv run pytest -q`; no failures or skipped tests (793/793 before). A
+  Heat autoscaling request run through an MCP client showed in Cinder's log that an
+  `upload_to_image` with `force=true` and a `set_snapshot` create on an in-use
+  root volume were refused (HTTP 400) before the model fell back to a server
+  snapshot. Cause: Cinder accepts a forced upload only with
+  `enable_force_upload=True` (default False, not set in the lab), and
+  `set_snapshot` offered no `force`. Five new cases check that the forced-upload
+  refusal is explained with the alternative, that other upload errors are not
+  rewritten, that `set_snapshot` passes `force` only for create, and that the
+  service sends it to Cinder. Three of them fail against the `23938e1` source;
+  the other two cover behavior that was already correct.
+- **Targeted check of the in-use snapshot and force upload fixes (2026-11-23
+  UTC; partial; same uncommitted working tree):** same test cloud, through
+  FastMCP's in-memory client as the project administrator, on the in-use root
+  volume of a running server. `set_volume` `upload_to_image` with `force=true`
+  returned the `enable_force_upload` explanation and the alternative, and no
+  image was created; `set_snapshot` create without `force` returned Cinder's
+  400; with `force=true` the snapshot reached available (20 GB) and was deleted
+  with `set_snapshot`. This partial check covers `set_volume` and
+  `set_snapshot` (2 unique tools) and does not update the 105-tool summary
+  above.

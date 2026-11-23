@@ -897,3 +897,22 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   이를 제거했고 서비스 레코드는 남지 않았습니다. 테스트 리소스, namespace, 테스트 인증서,
   설정 사본은 모두 삭제했고 Barbican은 원래 설정으로 돌아갔습니다. 이 partial check는
   위의 105개 도구 요약을 갱신하지 않습니다.
+- **in-use 스냅샷과 force 업로드 수정 후 로컬 단위 테스트 (2026-11-23, `23938e1` 기반
+  커밋 전 작업 트리):** fastmcp 4.2.2와 고정된 openstacksdk 4.24.0으로
+  `uv run pytest -q`를 실행해 798/798 (100%)가 통과했고, 실패하거나 건너뛴 테스트는
+  없었습니다(변경 전 793/793). MCP 클라이언트로 실행한 Heat 오토스케일링 요청에서, 모델이
+  서버 스냅샷으로 우회하기 전에 in-use 루트 볼륨에 대한 `force=true` `upload_to_image`와
+  `set_snapshot` create가 거부된(HTTP 400) 것이 Cinder 로그에 남았습니다. 원인: Cinder는
+  `enable_force_upload=True`일 때만 force 업로드를 받아들이며(기본값 False, 랩에는 설정
+  없음), `set_snapshot`에는 `force`가 없었습니다. 새 테스트 5건은 force 업로드 거부를
+  대안과 함께 설명하는지, 다른 업로드 오류는 바꾸지 않는지, `set_snapshot`이 create에서만
+  `force`를 넘기는지, 서비스가 이를 Cinder로 보내는지 확인합니다. 그중 3건은 `23938e1`
+  소스에서 실패하고, 나머지 2건은 이미 올바르던 동작을 다룹니다.
+- **in-use 스냅샷과 force 업로드 수정 targeted check (2026-11-23 UTC, partial, 같은 커밋
+  전 작업 트리):** 같은 테스트 클라우드에서 실행 중인 서버의 in-use 루트 볼륨을 대상으로,
+  프로젝트 관리자로 FastMCP의 in-memory 클라이언트를 통해 확인했습니다. `force=true`인
+  `set_volume` `upload_to_image`는 `enable_force_upload` 설명과 대안을 반환했고 이미지는
+  만들어지지 않았습니다. `force` 없는 `set_snapshot` create는 Cinder의 400을 반환했고,
+  `force=true`로는 스냅샷이 available(20 GB)에 도달한 뒤 `set_snapshot`으로 삭제되었습니다.
+  이 partial check는 `set_volume`과 `set_snapshot`(고유 도구 2개)을 다루며 위의 105개 도구
+  요약을 갱신하지 않습니다.

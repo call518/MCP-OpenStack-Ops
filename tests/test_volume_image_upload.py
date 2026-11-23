@@ -139,6 +139,62 @@ def test_upload_to_image_allows_in_use_volume_with_force(conn):
     assert conn.volume.upload_volume_to_image.call_args.kwargs['force'] is True
 
 
+def test_upload_to_image_explains_cinder_force_upload_refusal(conn):
+    # Cinder refuses force uploads unless enable_force_upload=True (default False).
+    conn.volume.volumes.return_value = [_volume(status='in-use')]
+    conn.volume.upload_volume_to_image.side_effect = RuntimeError(
+        'BadRequestException: 400: Invalid volume: Volume vol-1 status must be available')
+
+    result = storage.set_volume(
+        'base-src', 'upload_to_image', image_name='img', force=True)
+
+    assert result['success'] is False
+    assert 'enable_force_upload' in result['message']
+    assert 'set_instance action="snapshot"' in result['message']
+    assert 'must be available' in result['error']
+
+
+def test_upload_to_image_other_errors_are_not_rewritten(conn):
+    conn.volume.volumes.return_value = [_volume()]
+    conn.volume.upload_volume_to_image.side_effect = RuntimeError('glance quota exceeded')
+
+    result = storage.set_volume('base-src', 'upload_to_image', image_name='img')
+
+    assert result['success'] is False
+    assert 'glance quota exceeded' in result['error']
+    assert 'enable_force_upload' not in json.dumps(result)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('force, expected', [(True, {'force': True}), (False, {})])
+async def test_snapshot_tool_passes_force_for_create(monkeypatch, force, expected):
+    monkeypatch.setenv('ALLOW_MODIFY_OPERATIONS', 'true')
+    module = importlib.import_module('mcp_openstack_ops.tools.set_snapshot')
+    calls = []
+
+    def fake(snapshot_name, action, **kwargs):
+        calls.append((snapshot_name, action, kwargs))
+        return {'success': True, 'message': 'accepted'}
+
+    monkeypatch.setattr(module, '_set_snapshot', fake)
+    monkeypatch.setattr(module, '_get_resource_status_by_name', lambda *a: 'creating')
+    monkeypatch.setattr('time.sleep', lambda *_: None)
+    handler = getattr(module.set_snapshot, 'fn', module.set_snapshot)
+
+    await handler(action='create', snapshot_names='snap-a', volume_id='vol-1',
+                  force=force)
+
+    assert calls == [('snap-a', 'create', {'volume_id': 'vol-1', **expected})]
+
+
+def test_snapshot_service_sends_force_to_cinder(conn):
+    conn.volume.create_snapshot.return_value = _snapshot(status='creating')
+
+    storage.set_snapshot('snap-a', 'create', volume_id='vol-1', force=True)
+
+    assert conn.volume.create_snapshot.call_args.kwargs['force'] is True
+
+
 @pytest.mark.asyncio
 async def test_tool_passes_upload_options_and_marks_result_async(conn, monkeypatch):
     monkeypatch.setenv('ALLOW_MODIFY_OPERATIONS', 'true')

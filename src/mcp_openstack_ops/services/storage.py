@@ -527,8 +527,25 @@ def _upload_volume_to_image(conn: Any, volume_name: str, **kwargs) -> Dict[str, 
     options = {key: kwargs[key] for key in
                ('disk_format', 'container_format', 'visibility', 'protected')
                if kwargs.get(key) is not None}
-    upload = conn.volume.upload_volume_to_image(
-        volume, image_name, force=force, **options)
+    try:
+        upload = conn.volume.upload_volume_to_image(
+            volume, image_name, force=force, **options)
+    except Exception as exc:  # noqa: BLE001 - explain Cinder's refusal, then report it
+        if not (force and volume.status == 'in-use'
+                and 'must be available' in str(exc)):
+            raise
+        # Cinder accepts force only when enable_force_upload=True (default False).
+        return {
+            'success': False,
+            'message': (
+                f'Cinder refused to upload in-use volume "{volume_name}" with force: '
+                'this cloud does not set enable_force_upload=True (the Cinder default '
+                'is False). Without changing Cinder, use set_instance action="snapshot" '
+                'on the volume-backed server (Nova creates a Cinder snapshot of the '
+                'boot volume), set_volume action="create" with source_snapshot, then '
+                'upload_to_image from that available volume.'),
+            'error': str(exc),
+        }
     image_id = upload.get('image_id')
 
     image: Dict[str, Any] = {

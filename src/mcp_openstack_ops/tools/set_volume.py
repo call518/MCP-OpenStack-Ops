@@ -63,7 +63,10 @@ async def set_volume(volume_names: str, action: str, size: int = 1, instance_nam
         availability_zone: Availability zone for create operations
         force: Force operations even when volume is attached. For
             upload_to_image it allows an in-use volume, whose image may be
-            inconsistent
+            inconsistent, only when Cinder sets enable_force_upload=True (the
+            default is False); otherwise Cinder refuses it and the result
+            names the alternative through a server snapshot. For snapshot it
+            allows an in-use volume (crash-consistent)
         source_snapshot: Project snapshot name or ID to create the volume from
             (create). size is sent only when larger than the snapshot;
             otherwise the volume takes the snapshot's size
