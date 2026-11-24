@@ -4,8 +4,12 @@ import json
 from ..functions import set_network_ports as _set_network_ports
 from ..mcp_main import (
     _is_modify_operation_allowed,
+    _read_action_error,
     conditional_tool,
 )
+
+READ_ACTIONS = {'list': 'get_network_ports', 'show': 'get_network_ports'}
+
 
 @conditional_tool
 async def set_network_ports(
@@ -14,35 +18,28 @@ async def set_network_ports(
     network_id: str = "",
     description: str = "",
     admin_state_up: bool = True,
-    security_groups: str = "[]",
-    all_projects: bool = False
+    security_groups: str = "[]"
 ) -> str:
     """
-    Manage OpenStack network ports for VM and network connectivity
-    
+    Create or delete OpenStack network ports. To list or show ports, use
+    get_network_ports.
+
     Args:
-        action: Action to perform - list, show, create, delete
+        action: Action to perform - create, delete
         port_name: Name or ID of the port
         network_id: Network ID for port creation (required for create)
         description: Description for the port
         admin_state_up: Administrative state (default: True)
         security_groups: JSON array of security group IDs (e.g., '["sg1", "sg2"]');
             if omitted or empty, Neutron applies the project's default group
-        all_projects: list only. list and show return only ports owned by
-            the current project. If True, list every port Neutron shows the
-            credential in any project, such as Octavia amphora VRRP ports,
-            which belong to the project Octavia uses for its Neutron calls,
-            not to the load balancer's project. Requires
-            ALLOW_CROSS_PROJECT_READ=true on the server; rows then carry
-            project_name, and the result has a scope (check scope.warning).
-        
+
     Returns:
-        JSON string with port management operation results. list and show
-        include project_id, qos_policy_id (the policy attached to the port) and
-        qos_network_policy_id (the policy inherited from its network); a
-        null value means no policy.
+        JSON string with port management operation results.
     """
-    
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
+
     if not _is_modify_operation_allowed() and action.lower() in ['create', 'delete']:
         return json.dumps({
             'success': False,
@@ -64,7 +61,6 @@ async def set_network_ports(
             network_id=network_id if network_id else None,
             description=description,
             admin_state_up=admin_state_up,
-            all_projects=all_projects,
             **optional
         )
         return json.dumps(result, indent=2)

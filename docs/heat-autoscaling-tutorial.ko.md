@@ -428,7 +428,7 @@ MCP 클라이언트는 요청을 대략 아래 순서의 도구 호출로 바꿉
    openstack stack show web-asg -c timeout_mins
    ```
 
-8. **알람과 notifier 확인.** `set_alarms`(`action="list"` 또는 `"show"`)로 두
+8. **알람과 notifier 확인.** `get_alarms`(전체 알람, 또는 `alarm_name`으로 하나)로 두
    알람과 `trust+` 액션을 확인합니다. MCP 도구는 서비스 로그를 읽을 수 없으므로
    HTTP 200 확인은 controller의 Aodh notifier 로그로 합니다. 멤버 부팅이 끝나
    유휴 상태가 되면 scale-in 알람이 약 5분 안에 `alarm` 상태가 되어 scale-in

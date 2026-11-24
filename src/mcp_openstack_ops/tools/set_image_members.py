@@ -4,8 +4,12 @@ import json
 from ..functions import set_image_members as _set_image_members
 from ..mcp_main import (
     _is_modify_operation_allowed,
+    _read_action_error,
     conditional_tool,
 )
+
+READ_ACTIONS = {'list': 'get_image_members'}
+
 
 @conditional_tool
 async def set_image_members(
@@ -14,16 +18,20 @@ async def set_image_members(
     member_project: str = ""
 ) -> str:
     """
-    Manage OpenStack image members for sharing images between projects
-    
+    Add or remove OpenStack image members for sharing images between
+    projects. To list members, use get_image_members.
+
     Args:
-        action: Action to perform - list, add, remove
+        action: Action to perform - add, remove
         image_name: Name or ID of the image
         member_project: Project ID to add/remove as member (required for add/remove)
         
     Returns:
         JSON string with image member management operation results
     """
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
     
     if not _is_modify_operation_allowed() and action.lower() in ['add', 'remove']:
         return json.dumps({

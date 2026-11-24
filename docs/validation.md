@@ -1065,3 +1065,99 @@ an earlier full summary.
   with `set_snapshot`. This partial check covers `set_volume` and
   `set_snapshot` (2 unique tools) and does not update the 105-tool summary
   above.
+- **Local unit tests after separating reads from `set_*` tools (2026-11-24;
+  uncommitted working tree based on `bc23582`):** 886/886 (100%) with fastmcp
+  4.2.2 and the locked openstacksdk 4.24.0, run as `uv run pytest -q`; no
+  failures or skipped tests (798/798 before). Every read action that 34
+  `set_*` tools accepted (52 tool/action pairs, such as `list`, `show`,
+  `stats`, `status` and `associations`) is now refused with
+  `READ_ACTION_USE_GET_TOOL` before any OpenStack request, and the read is
+  served by a `get_*` tool that stays registered without modification tools.
+  Ten tools are new (`get_network_ports`, `get_subnets`, `get_network_agents`,
+  `get_floating_ip_port_forwardings`, `get_alarms`, `get_server_migrations`,
+  `get_roles`, `get_services`, `get_compute_agents`,
+  `get_load_balancer_status`); `get_domains`, `get_identity_groups`,
+  `get_volume_backups`, `get_volume_groups`, `get_keypair_list`,
+  `get_floating_ips`, `get_image_detail_list` and `get_load_balancer_pools`
+  gained a name or ID parameter for one item. `set_services` and
+  `set_compute_agents` became `get_services` and `get_compute_agents`, and
+  `set_metrics` and `set_service_logs`, which returned neither metrics nor logs,
+  were removed. Registered tools: 72 read and 56 `set_*` (128) with
+  `ALLOW_MODIFY_OPERATIONS=true`, 72 without (previously 62 and 60, 122). 90
+  new cases cover every refused pair, the routing of each new parameter, the
+  new error paths and the project scoping below; existing tests that called
+  the moved reads now call the `get_*` tools. Most new tools call the same service functions as before, but
+  some behavior changed: a single floating IP is found only among the current
+  project's floating IPs (unless `all_projects=true`), an image `show` uses the
+  visibility-filtered list, another project's details need
+  `get_project_details` with `all_projects=true`, and a failed Nova service
+  listing in `get_compute_agents` is a failure instead of an empty success.
+  Two moved reads ignored the project for an administrator and now follow the
+  project rule of the other read tools: `get_subnets` keeps the current
+  project's subnets and those of shared and external networks, and
+  `get_server_migrations` without `instance_name` keeps the current project's
+  migrations; both list every project only with `all_projects=true` and
+  `ALLOW_CROSS_PROJECT_READ=true`.
+  No live check was run after this change; the moved paths are **Live
+  unverified** in the README mapping until the next full live run.
+  `scripts/live_tool_check.py` was updated to call the `get_*` tools.
+- **Full live check after separating reads from `set_*` tools (2026-11-24 UTC;
+  full; same uncommitted working tree):** Kolla-Ansible all-in-one OpenStack
+  2025.1 (TCG, one compute host), administrator account in the `admin`
+  project. The server was the restarted Docker Compose `mcp-server` (Streamable
+  HTTP, `./src` mounted from the working tree) with
+  `ALLOW_MODIFY_OPERATIONS=true` and `ALLOW_CROSS_PROJECT_READ=false`; the
+  scripts used openstacksdk 4.24.0 to poll final states (900 s per state).
+  - `scripts/live_tool_check.py` over HTTP: 128 tools registered, 119 called;
+    254/260 calls and 63/63 final-state checks passed. The 6 failed calls are
+    outside the changed paths: `get_secret_stores` (the lab had one secret
+    store, so Barbican answered with the documented 404),
+    `get_gnocchi_aggregates` for project-wide `cpu` (the project's metrics use
+    two archive policies, 5 min and 1 min, and Gnocchi answered "No granularity
+    match"), `set_users` create and delete (the password variable existed only
+    in the script's process, not in the server), `set_project` update (the
+    script sent the unimplemented `tags`), and `set_load_balancer_quota` reset
+    of an unknown project ID (Octavia accepts any project ID; the script
+    expected an error).
+  - A second script through the same server covered the success paths the
+    harness does not reach: 141/141 calls and 79/79 final-state checks. It
+    checked that all 52 read actions of the 34 `set_*` tools are refused with
+    `READ_ACTION_USE_GET_TOOL` and name an existing `get_*` tool; network agent
+    disable and enable; port forwarding create, list, show, set and delete;
+    an Aodh alarm created, listed, shown by name and ID, and deleted; volume
+    attach and detach; backup create, show and delete; a generic group created
+    with a test group type, shown and deleted; a self-signed Barbican TLS
+    secret with ACL changes, a container and a key order (ACTIVE); and an
+    Octavia load balancer (ACTIVE) with an Octavia flavor and availability zone
+    (their profiles created with openstacksdk), listener, pool, member, health
+    monitor, L7 policy and rule, `get_load_balancer_status`, single-pool
+    `get_load_balancer_pools`, amphora `configure`, and quota set and reset,
+    all deleted afterwards.
+  - Project scoping through an in-process client from the same working tree:
+    39/39 calls and 6/6 checks. With the switch off, `get_subnets` left out the
+    `service` project's `lb-mgmt-subnet` and refused it by name, ports stayed in
+    the project, and 16 `all_projects=true` reads returned the explicit
+    disabled-switch error; with the switch on, the same 16 reads succeeded and
+    `get_subnets` listed `lb-mgmt-subnet` under `service` without
+    `scope.warning`.
+  - Remaining success paths: a server kept after a confirmed resize appeared,
+    with `project_id`, in `get_server_migrations` without `instance_name`
+    (Docker server) and, with `project_name`, with `all_projects=true`
+    (in-process); `set_users` created and deleted a user in process with the
+    password variable set; `get_secret_stores` listed the store while
+    Barbican's `enable_multiple_secret_stores` was turned on for the check and
+    then restored; `get_gnocchi_aggregates` succeeded when `filters` narrowed
+    the resources to one archive policy (`{"id": ...}` or
+    `{"ended_at": null}`). One extra call failed because the filter was given
+    in Gnocchi query syntax instead of the tool's equality format; Gnocchi
+    answered 500.
+  - Unique tools: 128/128 called; 126 passed at least one success path,
+    `set_server_dump` returned its documented unsupported result, and
+    `set_server_migration` reached only error paths (live migration and
+    evacuation need a second compute host). `get_server_migrations` with
+    `migration_id` stays **Live unverified** for the same reason. Load balancer
+    and listener counters were returned without traffic, and failover was not
+    repeated. All test resources were deleted and confirmed absent; the
+    metadata agent was enabled again and the Barbican configuration restored.
+    This full run covers every tool registered at this revision; the
+    2026-11-04 snapshot above remains the record for its own revision.

@@ -248,7 +248,7 @@ and `set_load_balancer_pool_member`. An existing pool can be switched with
 
 **7. Verify.**
 
-- `set_load_balancer_pool` (`action="show"`) reports `tls_enabled`,
+- `get_load_balancer_pools` with `pool_name_or_id` reports `tls_enabled`,
   `tls_container_ref` and `ca_tls_container_ref`, and the members become
   `ONLINE` in `get_load_balancer_pool_members`.
 - `curl -vk https://<address>/` through the load balancer returns the page.

@@ -4,8 +4,12 @@ import json
 from ..functions import set_roles as _set_roles
 from ..mcp_main import (
     _is_modify_operation_allowed,
+    _read_action_error,
     conditional_tool,
 )
+
+READ_ACTIONS = {'list': 'get_roles'}
+
 
 @conditional_tool
 async def set_roles(
@@ -15,10 +19,11 @@ async def set_roles(
     domain_id: str = ""
 ) -> str:
     """
-    Manage OpenStack roles for access control and permissions
-    
+    Create OpenStack roles for access control and permissions. To list
+    roles, use get_roles.
+
     Args:
-        action: Action to perform - list, create
+        action: Action to perform - create
         role_name: Name of the role (required for create)
         description: Description for the role
         domain_id: Domain ID for domain-scoped roles (optional)
@@ -26,6 +31,9 @@ async def set_roles(
     Returns:
         JSON string with role management operation results
     """
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
     
     if not _is_modify_operation_allowed() and action.lower() in ['create']:
         return json.dumps({

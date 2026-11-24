@@ -4,8 +4,12 @@ import json
 from ..functions import set_volume_groups as _set_volume_groups
 from ..mcp_main import (
     _is_modify_operation_allowed,
+    _read_action_error,
     conditional_tool,
 )
+
+READ_ACTIONS = {'list': 'get_volume_groups', 'show': 'get_volume_groups'}
+
 
 @conditional_tool
 async def set_volume_groups(
@@ -18,10 +22,11 @@ async def set_volume_groups(
     volume_types: str = ""
 ) -> str:
     """
-    Manage OpenStack volume groups for consistent group operations
-    
+    Create or delete OpenStack volume groups for consistent group operations.
+    To list or show groups, use get_volume_groups.
+
     Args:
-        action: Action to perform - list, create, delete, show
+        action: Action to perform - create, delete
         group_name: Name or ID of the volume group
         description: Description for the volume group
         group_type: Type of volume group (default: 'default')
@@ -34,6 +39,9 @@ async def set_volume_groups(
     Returns:
         JSON string with volume group operation results
     """
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
     
     if not _is_modify_operation_allowed() and action.lower() in ['create', 'delete']:
         return json.dumps({

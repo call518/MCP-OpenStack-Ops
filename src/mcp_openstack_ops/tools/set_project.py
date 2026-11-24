@@ -2,10 +2,14 @@
 
 from ..functions import set_project as _set_project
 from ..mcp_main import (
+    _read_action_error,
     conditional_tool,
     handle_operation_result,
     logger,
 )
+
+READ_ACTIONS = {'list': 'get_project_details', 'show': 'get_project_details'}
+
 
 @conditional_tool
 async def set_project(
@@ -19,11 +23,12 @@ async def set_project(
     tags: str = ""
 ) -> str:
     """
-    Manage OpenStack projects (create, delete, update, show, list).
-    
+    Manage OpenStack projects (create, delete, update). To list or show
+    projects, use get_project_details.
+
     Args:
         project_name: Name of the project (required)
-        action: Action to perform (create, delete, update, show, list).
+        action: Action to perform (create, delete, update).
                 The set alias is accepted for backward compatibility.
         description: Project description (optional, for create/update)
         enable: Enable project (optional, for update action)
@@ -35,6 +40,9 @@ async def set_project(
     Returns:
         JSON string containing the result of the project management operation
     """
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
     unsupported = [name for name, value in (('parent', parent), ('tags', tags))
                    if value]
     if unsupported:

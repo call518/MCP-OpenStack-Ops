@@ -4,8 +4,12 @@ import json
 from ..functions import set_volume_backups as _set_volume_backups
 from ..mcp_main import (
     _is_modify_operation_allowed,
+    _read_action_error,
     conditional_tool,
 )
+
+READ_ACTIONS = {'list': 'get_volume_backups', 'show': 'get_volume_backups'}
+
 
 @conditional_tool
 async def set_volume_backups(
@@ -18,11 +22,12 @@ async def set_volume_backups(
     volume_id: str = ""
 ) -> str:
     """
-    Manage OpenStack volume backups with comprehensive backup operations
-    
+    Create, delete or restore OpenStack volume backups. To list or show
+    backups, use get_volume_backups.
+
     Args:
-        action: Action to perform - list, create, show, delete, restore
-        backup_name: Name or ID of the backup (required for show/delete/restore)
+        action: Action to perform - create, delete, restore
+        backup_name: Name or ID of the backup (required for delete/restore)
         volume_name: Optional name for a newly restored volume
         volume_id: Source volume ID for create, or target volume ID for restore
         description: Description for backup operations
@@ -32,6 +37,9 @@ async def set_volume_backups(
     Returns:
         JSON string with backup operation results
     """
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
     
     if not _is_modify_operation_allowed() and action.lower() in ['create', 'delete',
         'restore']:

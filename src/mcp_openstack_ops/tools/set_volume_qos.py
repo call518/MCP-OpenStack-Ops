@@ -4,8 +4,15 @@ import json
 from ..functions import set_volume_qos as _set_volume_qos
 from ..mcp_main import (
     _is_modify_operation_allowed,
+    _read_action_error,
     conditional_tool,
 )
+
+READ_ACTIONS = {
+    'list': 'get_volume_qos', 'show': 'get_volume_qos',
+    'associations': 'get_volume_qos',
+}
+
 
 @conditional_tool
 async def set_volume_qos(
@@ -17,11 +24,13 @@ async def set_volume_qos(
     force: bool = False
 ) -> str:
     """
-    Manage OpenStack volume QoS specifications for performance control.
+    Change OpenStack volume QoS specifications for performance control.
     Cloud policy usually restricts these operations to administrators.
-    
+    To list specifications or show one with its associations, use
+    get_volume_qos.
+
     Args:
-        action: Action to perform - list, create, delete, show, set, associate,
+        action: Action to perform - create, delete, set, associate,
             disassociate, or disassociate_all
         qos_name: Name or ID of the QoS specification
         consumer: QoS consumer type - 'front-end', 'back-end', or 'both'
@@ -32,6 +41,9 @@ async def set_volume_qos(
     Returns:
         JSON string with QoS operation results
     """
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
     
     modify_actions = {
         'create', 'delete', 'set', 'associate', 'disassociate',

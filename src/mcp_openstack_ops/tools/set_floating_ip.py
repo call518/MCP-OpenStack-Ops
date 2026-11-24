@@ -2,16 +2,21 @@
 
 from ..functions import set_floating_ip as _set_floating_ip
 from ..mcp_main import (
+    _read_action_error,
     conditional_tool,
     handle_operation_result,
     logger,
 )
 
+READ_ACTIONS = {'list': 'get_floating_ips', 'show': 'get_floating_ips'}
+
+
 @conditional_tool
-async def set_floating_ip(action: str, floating_network_id: str = "", port_id: str = "", floating_ip_id: str = "", 
+async def set_floating_ip(action: str, floating_network_id: str = "", port_id: str = "", floating_ip_id: str = "",
                          floating_ip_address: str = "", description: str = "") -> str:
     """
-    Manage floating IPs (create, delete, associate, disassociate, set, show, list).
+    Manage floating IPs (create, delete, associate, disassociate, set).
+    To list or show floating IPs, use get_floating_ips.
 
     Functions:
     - Create new floating IPs from external networks (allocate)
@@ -19,13 +24,11 @@ async def set_floating_ip(action: str, floating_network_id: str = "", port_id: s
     - Associate floating IPs with instance ports
     - Disassociate floating IPs from instances (detach the port, keep the IP)
     - Set floating IP properties (description, fixed IP)
-    - Show detailed floating IP information
-    - List all floating IPs
 
     Use when user requests floating IP management, external connectivity setup, or IP allocation tasks.
 
     Args:
-        action: Action to perform (create/allocate, delete/release, associate, disassociate, set, show, list).
+        action: Action to perform (create/allocate, delete/release, associate, disassociate, set).
             Do not use "unset": no parameter selects what to clear, so it always
             returns an error. Use "disassociate" to detach the port.
         floating_network_id: ID of external network for create action
@@ -38,6 +41,9 @@ async def set_floating_ip(action: str, floating_network_id: str = "", port_id: s
     Returns:
         Result of floating IP management operation in JSON format.
     """
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
     try:
         logger.info(f"Managing floating IP with action '{action}'")
         

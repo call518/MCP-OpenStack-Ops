@@ -10,7 +10,7 @@ from ..mcp_main import (
 )
 
 @mcp.tool()
-async def get_image_detail_list(all_projects: bool = False) -> str:
+async def get_image_detail_list(image_name: str = "", all_projects: bool = False) -> str:
     """
     Get detailed list of all images with comprehensive metadata.
 
@@ -23,6 +23,8 @@ async def get_image_detail_list(all_projects: bool = False) -> str:
     Use when user requests image listing, image information, or image metadata details.
 
     Args:
+        image_name: Optional image name or ID. When provided, return only the
+            matching images (like 'openstack image show'); none is an error.
         all_projects: If True, include every image Glance shows the credential,
             including other projects' private images (like 'openstack image
             list' as an administrator); rows carry project_id and project_name.
@@ -30,13 +32,20 @@ async def get_image_detail_list(all_projects: bool = False) -> str:
             are visible to everyone, so check scope.warning.
 
     Returns:
-        Comprehensive image list in JSON format with detailed metadata, properties, and status information.
+        Comprehensive image list in JSON format with detailed metadata,
+        properties, tags, visibility, protected, owner and status information.
     """
     try:
         logger.info("Fetching detailed image list")
         # The default call keeps its original arguments.
         images = (_get_image_detail_list(all_projects=True) if all_projects
                   else _get_image_detail_list())
+        image_name = image_name.strip()
+        if image_name:
+            images = [row for row in images
+                      if image_name in (row['id'], row['name'])]
+            if not images:
+                return f"Error: Image '{image_name}' not found"
 
         response = {
             "timestamp": datetime.now().isoformat(),

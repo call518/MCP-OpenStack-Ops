@@ -4,8 +4,12 @@ import json
 from ..functions import set_alarms as _set_alarms
 from ..mcp_main import (
     _is_modify_operation_allowed,
+    _read_action_error,
     conditional_tool,
 )
+
+READ_ACTIONS = {'list': 'get_alarms', 'show': 'get_alarms'}
+
 
 @conditional_tool
 async def set_alarms(
@@ -22,10 +26,11 @@ async def set_alarms(
     alarm_actions: list[str] | None = None
 ) -> str:
     """
-    Manage real project-scoped Aodh Gnocchi resource threshold alarms
-    
+    Create or delete real project-scoped Aodh Gnocchi resource threshold
+    alarms. To list or show alarms, use get_alarms.
+
     Args:
-        action: Action to perform - list, create, show, delete
+        action: Action to perform - create, delete
         alarm_name: Name of the alarm
         resource_id: Resource ID to monitor
         threshold: Required for create; zero and negative thresholds are valid
@@ -48,6 +53,9 @@ async def set_alarms(
     Returns:
         JSON string with alarm management operation results
     """
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
     
     if not _is_modify_operation_allowed() and action.lower() in ['create', 'delete']:
         return json.dumps({

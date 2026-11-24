@@ -141,27 +141,28 @@ def test_compute_agent_show_by_id_uses_service_listing(conn):
     service = Service(id='svc-1', binary='nova-compute', host='node1', availability_zone='nova',
                       status='enabled', state='up')
     conn.compute.services.return_value = [service]
-    result = functions.set_compute_agents('show', agent_id='svc-1')
+    result = functions.get_compute_agents(agent_id='svc-1')
     assert result['success'], result
     assert result['agent_details']['host'] == 'node1'
     assert result['agent_details']['zone'] == 'nova'
 
 
-def test_compute_agent_list_and_host_show_read_sdk_zone_field(conn):
+def test_compute_agent_list_and_host_filter_read_sdk_zone_field(conn):
     service = Service(id='svc-1', binary='nova-compute', host='node1',
                       availability_zone='az1', status='enabled', state='up')
     conn.compute.services.return_value = [service]
-    listed = functions.set_compute_agents('list')
+    listed = functions.get_compute_agents()
     assert listed['success'], listed
     assert listed['compute_services'][0]['zone'] == 'az1'
-    by_host = functions.set_compute_agents('show', host='node1')
+    by_host = functions.get_compute_agents(host='node1')
     assert by_host['success'], by_host
-    assert by_host['agents_on_host'][0]['zone'] == 'az1'
+    assert by_host['compute_services'][0]['zone'] == 'az1'
+    assert functions.get_compute_agents(host='other')['compute_services'] == []
 
 
 def test_compute_agent_show_unknown_id_is_explicit_error(conn):
     conn.compute.services.return_value = []
-    result = functions.set_compute_agents('show', agent_id='missing')
+    result = functions.get_compute_agents(agent_id='missing')
     assert result['success'] is False
     assert 'not found' in result['message']
 

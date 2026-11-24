@@ -101,14 +101,15 @@ async def test_floating_ip_set_show_delete_by_address(conn, monkeypatch):
 
     updated = await handler(action='set', floating_ip_address='203.0.113.5',
                             description='new')
-    shown = await handler(action='show', floating_ip_address='203.0.113.5')
+    _, get_handler = _tool('get_floating_ips')
+    shown = json.loads(await get_handler(floating_ip='203.0.113.5'))
     deleted = await handler(action='delete', floating_ip_address='203.0.113.5')
 
     conn.network.update_ip.assert_called_once_with(fip, description='new')
     assert updated['floating_ip']['description'] == 'new'
-    assert shown['success'] is True
-    assert shown['floating_ip']['id'] == 'fip-1'
-    assert shown['floating_ip']['description'] == 'old'
+    [row] = shown['floating_ips']
+    assert row['id'] == 'fip-1'
+    assert row['description'] == 'old'
     assert deleted['success'] is True, deleted
     conn.network.delete_ip.assert_called_once_with(fip)
 
@@ -383,13 +384,13 @@ async def test_port_create_security_group_default_and_description(
 @pytest.mark.asyncio
 @pytest.mark.parametrize('action,key', [('list', 'ports'), ('show', 'port')])
 async def test_port_read_reports_qos_policies_and_description(conn, action, key):
-    _, handler = _tool('set_network_ports')
+    _, handler = _tool('get_network_ports')
     conn.network.ports.return_value = [Port.existing(
         id='port-1', name='p', network_id='net-1', project_id='project-a',
         description='vip', qos_policy_id='qos-port',
         qos_network_policy_id='qos-net')]
 
-    result = json.loads(await handler(action=action, port_name='p'))
+    result = json.loads(await handler(port_name='p' if action == 'show' else ''))
 
     assert result['success'] is True, result
     port = result[key][0] if action == 'list' else result[key]
@@ -410,9 +411,9 @@ def _vrrp_port():
 @pytest.mark.asyncio
 async def test_port_list_all_projects_requires_switch(conn, monkeypatch):
     monkeypatch.delenv('ALLOW_CROSS_PROJECT_READ', raising=False)
-    _, handler = _tool('set_network_ports')
+    _, handler = _tool('get_network_ports')
 
-    result = json.loads(await handler(action='list', all_projects=True))
+    result = json.loads(await handler(all_projects=True))
 
     assert result['success'] is False
     assert 'ALLOW_CROSS_PROJECT_READ=true' in result['error']
@@ -427,9 +428,9 @@ async def test_port_list_all_projects_shows_other_project_ports(conn, monkeypatc
         SimpleNamespace(id='project-a', name='admin'),
         SimpleNamespace(id='service-project', name='service')]
     conn.network.ports.return_value = [_vrrp_port()]
-    _, handler = _tool('set_network_ports')
+    _, handler = _tool('get_network_ports')
 
-    result = json.loads(await handler(action='list', all_projects=True))
+    result = json.loads(await handler(all_projects=True))
 
     assert result['success'] is True, result
     conn.network.ports.assert_called_once_with()
@@ -442,10 +443,9 @@ async def test_port_list_all_projects_shows_other_project_ports(conn, monkeypatc
 @pytest.mark.asyncio
 async def test_port_show_rejects_all_projects(conn, monkeypatch):
     monkeypatch.setenv('ALLOW_CROSS_PROJECT_READ', 'true')
-    _, handler = _tool('set_network_ports')
+    _, handler = _tool('get_network_ports')
 
-    result = json.loads(await handler(action='show', port_name='vrrp-1',
-                                      all_projects=True))
+    result = json.loads(await handler(port_name='vrrp-1', all_projects=True))
 
     assert result['success'] is False
     assert 'only to list' in result['error']
@@ -455,17 +455,98 @@ async def test_port_show_rejects_all_projects(conn, monkeypatch):
 @pytest.mark.asyncio
 @pytest.mark.parametrize('action,key', [('list', 'subnets'), ('show', 'subnet')])
 async def test_subnet_read_reports_description(conn, action, key):
-    _, handler = _tool('set_subnets')
+    _, handler = _tool('get_subnets')
     conn.network.subnets.return_value = [Subnet.existing(
         id='subnet-1', name='s', network_id='net-1', cidr='10.0.0.0/24',
-        description='app tier')]
+        description='app tier', project_id='project-a')]
 
-    result = json.loads(await handler(action=action, subnet_name='s'))
+    result = json.loads(await handler(subnet_name='s' if action == 'show' else ''))
 
     assert result['success'] is True, result
     subnet = result[key][0] if action == 'list' else result[key]
     assert subnet['description'] == 'app tier'
 
+
+
+def _subnets_of_three_projects(conn):
+    conn.network.networks.return_value = [
+        Network.existing(id='net-a', project_id='project-a'),
+        _external_network(),
+        Network.existing(id='net-b', project_id='project-b')]
+    conn.network.subnets.return_value = [
+        Subnet.existing(id='own', name='own', network_id='net-a',
+                        project_id='project-a', cidr='10.0.0.0/24'),
+        Subnet.existing(id='public', name='public', network_id='ext-net',
+                        project_id='admin', cidr='203.0.113.0/24'),
+        Subnet.existing(id='other', name='other', network_id='net-b',
+                        project_id='project-b', cidr='10.1.0.0/24')]
+
+
+@pytest.mark.asyncio
+async def test_subnet_list_keeps_project_and_external_subnets(conn):
+    # An administrator's credential returns every project's subnets.
+    _subnets_of_three_projects(conn)
+    _, handler = _tool('get_subnets')
+
+    result = json.loads(await handler())
+
+    assert result['success'] is True, result
+    assert [row['id'] for row in result['subnets']] == ['own', 'public']
+    assert 'scope' not in result
+
+
+@pytest.mark.asyncio
+async def test_subnet_show_refuses_another_projects_subnet(conn):
+    _subnets_of_three_projects(conn)
+    _, handler = _tool('get_subnets')
+
+    result = json.loads(await handler(subnet_name='other'))
+
+    assert result['success'] is False
+    assert 'not found in the current project' in result['message']
+
+
+@pytest.mark.asyncio
+async def test_subnet_list_all_projects_requires_switch(conn, monkeypatch):
+    monkeypatch.delenv('ALLOW_CROSS_PROJECT_READ', raising=False)
+    _, handler = _tool('get_subnets')
+
+    result = json.loads(await handler(all_projects=True))
+
+    assert result['success'] is False
+    assert 'ALLOW_CROSS_PROJECT_READ=true' in result['error']
+    conn.network.subnets.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_subnet_list_all_projects_labels_rows(conn, monkeypatch):
+    monkeypatch.setenv('ALLOW_CROSS_PROJECT_READ', 'true')
+    conn.identity = Mock()
+    conn.identity.projects.return_value = [
+        SimpleNamespace(id='project-a', name='demo'),
+        SimpleNamespace(id='project-b', name='team-b'),
+        SimpleNamespace(id='admin', name='admin')]
+    _subnets_of_three_projects(conn)
+    _, handler = _tool('get_subnets')
+
+    result = json.loads(await handler(all_projects=True))
+
+    rows = {row['id']: row for row in result['subnets']}
+    assert set(rows) == {'own', 'public', 'other'}
+    assert (rows['other']['project_name'], rows['other']['shared']) == ('team-b', False)
+    assert rows['public']['shared'] is True
+    assert 'warning' not in result['scope']
+
+
+@pytest.mark.asyncio
+async def test_subnet_show_rejects_all_projects(conn, monkeypatch):
+    monkeypatch.setenv('ALLOW_CROSS_PROJECT_READ', 'true')
+    _, handler = _tool('get_subnets')
+
+    result = json.loads(await handler(subnet_name='own', all_projects=True))
+
+    assert result['success'] is False
+    assert 'only to list' in result['error']
 
 # --- 6. unimplemented set_volume parameters ----------------------------------
 

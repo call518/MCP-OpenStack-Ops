@@ -8,10 +8,14 @@ from ..functions import (
 )
 from ..mcp_main import (
     _get_resource_status_by_name,
+    _read_action_error,
     conditional_tool,
     handle_operation_result,
     logger,
 )
+
+READ_ACTIONS = {'list': 'get_network_details'}
+
 
 @conditional_tool
 async def set_networks(
@@ -31,14 +35,14 @@ async def set_networks(
     mtu: int = 0
 ) -> str:
     """
-    Manage OpenStack networks for tenant isolation and connectivity.
-    Supports both direct targeting and filter-based bulk operations.
+    Create, delete or update OpenStack networks for tenant isolation and
+    connectivity. Supports both direct targeting and filter-based bulk
+    operations. To list networks, use get_network_details.
     
     Functions:
     - Create new networks with provider settings and MTU configuration
     - Delete existing networks 
     - Update network properties (description, admin state, shared access)
-    - List all networks with detailed configuration
     - Bulk operations: Apply action to multiple networks at once
     - Filter-based targeting: Automatically find targets using filtering conditions
     
@@ -48,14 +52,13 @@ async def set_networks(
     - "Update network [name] description to [text]"
     - "Make network [name] shared/private"
     - "Delete all networks with name containing 'test'"
-    - "List all networks"
     
     Targeting Methods:
     1. Direct: Specify network_names directly
     2. Filter-based: Use name_contains, status to auto-identify targets
     
     Args:
-        action: Action to perform - list, create, delete, update
+        action: Action to perform - create, delete, update
         network_names: Name(s) of networks to manage. Support formats:
                       - Single: "network1"
                       - Multiple: "network1,network2,network3"
@@ -87,26 +90,14 @@ async def set_networks(
         set_networks(action="delete", name_contains="test")
         set_networks(action="create", network_names="new-net", description="New network")
     """
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
     try:
         if not action or not action.strip():
-            return "Error: Action is required (create, delete, update, list)"
+            return "Error: Action is required (create, delete, update)"
             
         action = action.strip().lower()
-        
-        # For list action, handle separately
-        if action == 'list':
-            logger.info("Listing all networks")
-            result = _set_networks(action, "", **{
-                'description': description,
-                'admin_state_up': admin_state_up,
-                'shared': shared,
-                'external': external,
-                'provider_network_type': provider_network_type,
-                'provider_physical_network': provider_physical_network,
-                'provider_segmentation_id': provider_segmentation_id,
-                'mtu': mtu
-            })
-            return handle_operation_result(result, "Network Management", {"Action": action})
         
         # Determine targeting method
         has_direct_targets = network_names and network_names.strip()

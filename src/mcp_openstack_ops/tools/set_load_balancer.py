@@ -6,9 +6,15 @@ from typing import Optional
 from ..functions import set_load_balancer as _set_load_balancer
 from ..mcp_main import (
     _is_modify_operation_allowed,
+    _read_action_error,
     conditional_tool,
     logger,
 )
+
+READ_ACTIONS = {
+    'stats': 'get_load_balancer_status', 'status': 'get_load_balancer_status',
+}
+
 
 @conditional_tool
 async def set_load_balancer(
@@ -25,7 +31,8 @@ async def set_load_balancer(
     vip_qos_policy: str = ""
 ) -> str:
     """
-    Comprehensive load balancer management operations (create, delete, set, unset, failover, stats, status).
+    Comprehensive load balancer management operations (create, delete, set, unset, failover).
+    For the status tree and statistics, use get_load_balancer_status.
     
     Functions:
     - Create new load balancers with VIP configuration, flavor/AZ options and
@@ -35,8 +42,6 @@ async def set_load_balancer(
       VIP QoS policy)
     - Clear/unset load balancer settings (description, VIP QoS policy)
     - Trigger load balancer failover operations
-    - Get load balancer statistics (bytes in/out, connections)
-    - Get load balancer status tree (detailed operational status)
     
     Use when user requests:
     - "Create a load balancer named [name] on subnet [id]"
@@ -45,11 +50,9 @@ async def set_load_balancer(
     - "Clear load balancer [name] description"
     - "Apply QoS policy [policy] to load balancer [name]'s VIP"
     - "Failover load balancer [name/id]"
-    - "Show load balancer [name] statistics"
-    - "Get load balancer [name] status tree"
     
     Args:
-        action: Operation to perform (create, delete, set, unset, failover, stats, status)
+        action: Operation to perform (create, delete, set, unset, failover)
         lb_name_or_id: Load balancer name or ID (required for most operations)
         name: Name for new load balancer (required for create)
         vip_subnet_id: VIP subnet ID (required for create)
@@ -71,11 +74,14 @@ async def set_load_balancer(
             depends on the Neutron ML2 driver. The VRRP ports belong to the
             project Octavia uses for its Neutron calls, not to the load
             balancer's project, so checking their qos_policy_id needs
-            set_network_ports list with all_projects=true.
+            get_network_ports with all_projects=true.
 
     Returns:
         JSON string with operation results and load balancer details
     """
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
     if not _is_modify_operation_allowed() and action.lower() in ['create', 'delete', 'set', 'unset', 'failover']:
         return json.dumps({
             'success': False,

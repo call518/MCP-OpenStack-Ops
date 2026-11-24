@@ -1002,11 +1002,6 @@ def test_heat_queries_use_actual_sdk_or_template_response(conn, section):
         assert len(result[section]) == 1
 
 
-def test_unsupported_logs_and_telemetry_do_not_report_success(conn):
-    assert not functions.set_service_logs('show', 'nova')['success']
-    assert not functions.set_metrics('show', resource_id='server-a')['success']
-
-
 def test_usage_pagination_merges_totals_without_following_hostile_url(conn):
     def page(instance_id, hours, more):
         return {

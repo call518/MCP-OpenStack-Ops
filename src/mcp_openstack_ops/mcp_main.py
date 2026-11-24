@@ -235,6 +235,30 @@ def _is_modify_operation_allowed() -> bool:
     """Check if modify operations are allowed based on environment variable."""
     return os.environ.get("ALLOW_MODIFY_OPERATIONS", "false").lower() == "true"
 
+
+def _read_action_error(action: str, read_tools: Dict[str, str]) -> Optional[str]:
+    """Refuse a read action sent to a set_* tool and name the get_* tool for it.
+
+    set_* tools only change resources; reads live in get_* tools, which stay
+    registered when modifications are disabled.
+
+    Args:
+        action: The action the caller sent.
+        read_tools: Read action name -> get_* tool that serves it.
+
+    Returns:
+        A JSON error string, or None when the action is not a read action.
+    """
+    target = read_tools.get((action or "").strip().lower())
+    if target is None:
+        return None
+    return json.dumps({
+        "success": False,
+        "message": f'"{action}" is a read action; use {target}. '
+                   "set_* tools only change resources.",
+        "error": "READ_ACTION_USE_GET_TOOL",
+    })
+
 def conditional_tool(func):
     """
     Decorator that conditionally registers tools based on ALLOW_MODIFY_OPERATIONS setting.

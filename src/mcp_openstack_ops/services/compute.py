@@ -2262,7 +2262,13 @@ def set_server_migration(instance_name: str, action: str, **kwargs) -> Dict[str,
         # Import here to avoid circular imports
         from ..connection import get_openstack_connection
         conn = get_openstack_connection()
-        
+        all_projects = bool(kwargs.get('all_projects'))
+        if all_projects and (action.lower() != 'list' or instance_name):
+            raise ValueError('all_projects applies only to the list without instance_name')
+        if all_projects:
+            from ..connection import require_cross_project_read
+            require_cross_project_read()
+
         # Find the server for most actions (and for a server-scoped list)
         if action.lower() not in ['list'] or instance_name:
             server = None
@@ -2352,11 +2358,24 @@ def set_server_migration(instance_name: str, action: str, **kwargs) -> Dict[str,
                             'updated_at': str(getattr(migration, 'updated_at', 'unknown'))
                         })
                 else:
-                    # Get all migrations (admin required)
+                    # os-migrations covers every server in the cloud (usually
+                    # admin-only). Without all_projects keep the current
+                    # project's migrations: by project_id (Nova 2.80+), else
+                    # by the project's own servers.
+                    project_id = conn.current_project_id
+                    own_servers = (None if all_projects else
+                                   {srv.id for srv in conn.compute.servers()})
                     for migration in conn.compute.migrations():
+                        owner = getattr(migration, 'project_id', None)
+                        server_id = getattr(migration, 'server_id', None)
+                        if not all_projects and not (
+                                owner == project_id
+                                or (not owner and server_id in own_servers)):
+                            continue
                         migrations.append({
                             'id': getattr(migration, 'id', 'unknown'),
-                            'server_id': getattr(migration, 'server_id', None) or 'unknown',
+                            'project_id': owner,
+                            'server_id': server_id or 'unknown',
                             'status': getattr(migration, 'status', 'unknown'),
                             'migration_type': getattr(migration, 'migration_type', 'unknown'),
                             'source_node': getattr(migration, 'source_node', 'unknown'),
@@ -2371,6 +2390,14 @@ def set_server_migration(instance_name: str, action: str, **kwargs) -> Dict[str,
                     'message': f'Could not list migrations: {e}'
                 }
 
+            if all_projects:
+                from ..connection import cross_project_items_scope, get_project_names
+                names = get_project_names(conn)
+                for row in migrations:
+                    row['project_name'] = names.get(row['project_id'])
+                return {'success': True, 'migrations': migrations,
+                        'count': len(migrations),
+                        'scope': cross_project_items_scope(migrations)}
             return {
                 'success': True,
                 'migrations': migrations,

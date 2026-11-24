@@ -5,9 +5,13 @@ from datetime import datetime
 from ..functions import set_load_balancer_amphora as _set_load_balancer_amphora
 from ..mcp_main import (
     _is_modify_operation_allowed,
+    _read_action_error,
     conditional_tool,
     logger,
 )
+
+READ_ACTIONS = {'show': 'get_load_balancer_amphorae'}
+
 
 @conditional_tool
 async def set_load_balancer_amphora(
@@ -15,18 +19,21 @@ async def set_load_balancer_amphora(
     amphora_id: str = ""
 ) -> str:
     """
-    Manage amphora operations (configure, failover, show).
-    
-    NOTE: 'delete' and 'stats' operations are NOT supported by OpenStack SDK.
-    Only configure, failover, and show operations are available.
-    
+    Manage amphora operations (configure, failover). To list amphorae, use
+    get_load_balancer_amphorae.
+
+    NOTE: 'delete' and 'stats' operations are not implemented.
+
     Args:
-        action: Action to perform (configure, failover, show)
+        action: Action to perform (configure, failover)
         amphora_id: Amphora ID (required)
     
     Returns:
         JSON string with operation results
     """
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
     if not _is_modify_operation_allowed() and action.lower() in ['configure', 'failover']:
         return json.dumps({
             'success': False,
@@ -40,7 +47,7 @@ async def set_load_balancer_amphora(
         if action in ['delete', 'stats']:
             return json.dumps({
                 'success': False,
-                'message': f'Action "{action}" is not supported by OpenStack SDK. Available actions: configure, failover, show',
+                'message': f'Action "{action}" is not supported by OpenStack SDK. Available actions: configure, failover',
                 'error': 'UNSUPPORTED_OPERATION'
             })
         

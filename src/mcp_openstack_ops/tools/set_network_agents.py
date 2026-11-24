@@ -4,8 +4,12 @@ import json
 from ..functions import set_network_agents as _set_network_agents
 from ..mcp_main import (
     _is_modify_operation_allowed,
+    _read_action_error,
     conditional_tool,
 )
+
+READ_ACTIONS = {'list': 'get_network_agents'}
+
 
 @conditional_tool
 async def set_network_agents(
@@ -13,16 +17,20 @@ async def set_network_agents(
     agent_id: str = ""
 ) -> str:
     """
-    Manage OpenStack network agents for network service monitoring and control
-    
+    Enable or disable OpenStack network agents. To list agents, use
+    get_network_agents.
+
     Args:
-        action: Action to perform - list, enable, disable
+        action: Action to perform - enable, disable
         agent_id: ID of the network agent (required for enable/disable)
         
     Returns:
         JSON string with network agent management operation results
     """
-    
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
+
     if not _is_modify_operation_allowed() and action.lower() in ['enable', 'disable']:
         return json.dumps({
             'success': False,

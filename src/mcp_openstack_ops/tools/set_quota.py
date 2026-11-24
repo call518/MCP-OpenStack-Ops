@@ -1,13 +1,16 @@
 """Tool implementation for set_quota."""
 
 from ..functions import set_quota as _set_quota
-from ..functions import get_quota as _get_quota
 from ..mcp_main import (
     _is_modify_operation_allowed,
+    _read_action_error,
     conditional_tool,
     handle_operation_result,
     logger,
 )
+
+READ_ACTIONS = {'list': 'get_quota'}
+
 
 @conditional_tool
 async def set_quota(
@@ -27,11 +30,11 @@ async def set_quota(
     security_group_rules: int = None
 ) -> str:
     """
-    Manage project quotas (set, delete, list).
-    
+    Manage project quotas (set, delete). To read quotas, use get_quota.
+
     Args:
-        project_name: Name of the project (required for set/delete, optional for list)
-        action: Action to perform (set, delete, list)
+        project_name: Name of the project (required)
+        action: Action to perform (set, delete)
         cores: Compute cores quota (optional, for set action)
         instances: Instance count quota (optional, for set action)
         ram: RAM in MB quota (optional, for set action)
@@ -48,6 +51,9 @@ async def set_quota(
     Returns:
         JSON string containing the result of the quota management operation
     """
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
     try:
         logger.info(f"Managing quota - Action: {action}, Project: {project_name}")
         
@@ -79,10 +85,8 @@ async def set_quota(
             quota_params['security_group_rules'] = security_group_rules
         
         action = action.strip().lower()
-        if action == 'list':
-            quota_result = _get_quota(project_name)
-        elif action not in ('set', 'delete'):
-            quota_result = {'success': False, 'message': 'Use list, set, or delete'}
+        if action not in ('set', 'delete'):
+            quota_result = {'success': False, 'message': 'Use set or delete'}
         elif not _is_modify_operation_allowed():
             return '{"success": false, "error": "MODIFY_OPERATIONS_DISABLED"}'
         else:

@@ -10,7 +10,7 @@ from ..mcp_main import (
 )
 
 @mcp.tool()
-async def get_floating_ips(all_projects: bool = False) -> str:
+async def get_floating_ips(floating_ip: str = "", all_projects: bool = False) -> str:
     """
     Get list of floating IPs with their associations.
     
@@ -23,6 +23,9 @@ async def get_floating_ips(all_projects: bool = False) -> str:
     Use when user requests floating IP information, external connectivity queries, or IP management tasks.
 
     Args:
+        floating_ip: Optional floating IP ID or address. When provided, return
+            only that floating IP (like 'openstack floating ip show'); an
+            unknown one is an error.
         all_projects: If True, list every floating IP Neutron shows the
             credential in any project (like 'openstack floating ip list' as an
             administrator). Requires ALLOW_CROSS_PROJECT_READ=true on the
@@ -36,6 +39,15 @@ async def get_floating_ips(all_projects: bool = False) -> str:
     try:
         logger.info("Fetching floating IPs")
         floating_ips = _get_floating_ips(all_projects=all_projects)
+        floating_ip = floating_ip.strip()
+        if floating_ip:
+            floating_ips = [
+                row for row in floating_ips
+                if floating_ip in (row['id'], row['floating_ip_address'])]
+            if not floating_ips:
+                where = ("visible to the credential" if all_projects
+                         else "in the current project")
+                return f"Error: Floating IP '{floating_ip}' not found {where}"
 
         result = {
             "timestamp": datetime.now().isoformat(),

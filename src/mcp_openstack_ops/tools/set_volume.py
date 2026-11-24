@@ -6,10 +6,14 @@ from typing import Optional
 from ..functions import set_volume as _set_volume
 from ..mcp_main import (
     _get_resource_status_by_name,
+    _read_action_error,
     conditional_tool,
     handle_operation_result,
     logger,
 )
+
+READ_ACTIONS = {'list': 'get_volume_list'}
+
 
 @conditional_tool
 async def set_volume(volume_names: str, action: str, size: int = 1, instance_name: str = "", 
@@ -22,13 +26,13 @@ async def set_volume(volume_names: str, action: str, size: int = 1, instance_nam
                    container_format: str = "", visibility: str = "",
                    protected: Optional[bool] = None) -> str:
     """
-    Manages project-scoped OpenStack volumes and attachments.
-    Supports both single volume and bulk operations.
+    Changes project-scoped OpenStack volumes and attachments.
+    Supports both single volume and bulk operations. To list volumes, use
+    get_volume_list.
     
     Functions:
     - Create new volumes with specified size and type
     - Delete existing volumes
-    - List all volumes with detailed status information
     - Extend volumes to larger sizes
     - Create volume snapshots
     - Create volumes from a project snapshot (source_snapshot)
@@ -45,7 +49,7 @@ async def set_volume(volume_names: str, action: str, size: int = 1, instance_nam
                      - Single: "volume1" 
                      - Multiple: "volume1,volume2,volume3" or "volume1, volume2, volume3"
                      - List format: '["volume1", "volume2", "volume3"]'
-        action: Management action (create, delete, list, extend, attach, detach,
+        action: Management action (create, delete, extend, attach, detach,
             snapshot, upload_to_image)
         size: Volume size in GB (default: 1); fallback for extend if new_size is omitted
         instance_name: Instance name or ID (required for attach)
@@ -92,10 +96,13 @@ async def set_volume(volume_names: str, action: str, size: int = 1, instance_nam
         Volume management operation result in JSON format with success status and volume information.
         For bulk operations, returns summary of successes and failures.
     """
-    
+
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
     try:
         if not action or not action.strip():
-            return "Error: Action is required (create, delete, list)"
+            return "Error: Action is required (create, delete, extend, attach, detach, snapshot, upload_to_image)"
 
         unsupported = [name for name, value in (
             ('source_volume', source_volume), ('backup_name', backup_name),
@@ -110,46 +117,7 @@ async def set_volume(volume_names: str, action: str, size: int = 1, instance_nam
 
         action = action.strip().lower()
         
-        # For list action, allow empty volume_names
-        if action == 'list':
-            # Special handling for list action
-            logger.info(f"Managing volume with action '{action}'")
-            
-            kwargs = {
-                'size': size,
-                'new_size': new_size if new_size > 0 else None,
-                'source_volume': source_volume if source_volume else None,
-                'backup_name': backup_name if backup_name else None,
-                'snapshot_name': snapshot_name if snapshot_name else None,
-                'transfer_name': transfer_name if transfer_name else None,
-                'host': host if host else None,
-                'description': description if description else None,
-                'volume_type': volume_type if volume_type else None,
-                'availability_zone': availability_zone if availability_zone else None,
-                'force': force,
-                'incremental': incremental,
-                'force_host_copy': force_host_copy,
-                'lock_volume': lock_volume
-            }
-            if instance_name:
-                kwargs['instance_name'] = instance_name.strip()
-            
-            # Remove None values from kwargs
-            kwargs = {k: v for k, v in kwargs.items() if v is not None}
-            
-            result = _set_volume("", action, **kwargs)
-            return handle_operation_result(
-                result,
-                "Volume Management",
-                {
-                    "Action": action,
-                    "Volume": "all",
-                    "Size": f"{size}GB" if size else "Not specified",
-                    "Instance": instance_name or "Not specified"
-                }
-            )
-        
-        # Parse volume names for non-list actions
+        # Parse volume names
         if not volume_names or not volume_names.strip():
             return "Error: Volume name(s) are required for this action"
             

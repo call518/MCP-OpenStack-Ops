@@ -14,32 +14,8 @@ logger = logging.getLogger(__name__)
 
 def set_domains(action: str, domain_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
     """
-    Manage OpenStack domains (list, show,             # Calculate compute resources
-            resources['compute']['instances'] = len(project_instances)
-            for instance in project_instances:
-                try:
-                    # Get vCPU and RAM directly from flavor object
-                    if hasattr(instance, 'flavor'):
-                        flavor = instance.flavor
-                        # Flavor object has vcpus and ram attributes directly
-                        if hasattr(flavor, 'vcpus') and hasattr(flavor, 'ram'):
-                            vcpus = getattr(flavor, 'vcpus', 0)
-                            ram_mb = getattr(flavor, 'ram', 0)
-                            resources['compute']['vcpus_used'] += vcpus
-                            resources['compute']['ram_mb_used'] += ram_mb
-                            logger.debug(f"Instance {instance.name}: vCPUs={vcpus}, RAM={ram_mb}MB")
-                        else:
-                            # Fallback: try to get from dict representation
-                            flavor_dict = dict(flavor)
-                            vcpus = flavor_dict.get('vcpus', 0)
-                            ram_mb = flavor_dict.get('ram', 0)
-                            resources['compute']['vcpus_used'] += vcpus
-                            resources['compute']['ram_mb_used'] += ram_mb
-                            logger.debug(f"Instance {instance.name} (dict): vCPUs={vcpus}, RAM={ram_mb}MB")
-                except Exception as inst_error:
-                    logger.warning(f"Could not get flavor info for instance {instance.id}: {inst_error}")
-                    continueate)
-    
+    Manage OpenStack domains (list, show, create, delete, update)
+
     Args:
         action: Action to perform (list, show, create, delete, update)
         domain_name: Name or ID of the domain

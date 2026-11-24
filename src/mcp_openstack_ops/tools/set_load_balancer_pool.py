@@ -4,9 +4,13 @@ import json
 from datetime import datetime
 from typing import Optional
 from ..mcp_main import (
+    _read_action_error,
     conditional_tool,
     logger,
 )
+
+READ_ACTIONS = {'show': 'get_load_balancer_pools'}
+
 
 @conditional_tool
 async def set_load_balancer_pool(
@@ -27,12 +31,13 @@ async def set_load_balancer_pool(
     alpn_protocols: str = ""
 ) -> str:
     """
-    Manage OpenStack load balancer pool operations (create, delete, show, set).
+    Manage OpenStack load balancer pool operations (create, delete, set).
+    To list or inspect pools, use get_load_balancer_pools and
+    get_load_balancer_pool_members.
 
     Functions:
     - Create new pools for listeners with specified protocols
     - Delete existing pools
-    - Show detailed pool information including members
     - Update pool properties (name, description, algorithm, admin state)
     - Backend re-encryption: TLS from the load balancer to the members
 
@@ -48,13 +53,12 @@ async def set_load_balancer_pool(
     Use when user requests:
     - "Create pool [name] for listener [listener] using HTTP"
     - "Delete pool [name/id]"
-    - "Show pool [name/id] details"
     - "Update pool [name] algorithm to LEAST_CONNECTIONS"
     - "Re-encrypt traffic to the members of pool [name] and verify them with CA [secret]"
 
     Args:
-        action: Operation to perform (create, delete, show, set)
-        pool_name_or_id: Pool name or ID (required for delete/show/set)
+        action: Operation to perform (create, delete, set)
+        pool_name_or_id: Pool name or ID (required for delete/set)
         name: Name for new pool (required for create)
         listener_name_or_id: Listener name or ID (required for create)
         protocol: Pool protocol - HTTP, HTTPS, TCP, UDP (required for create).
@@ -82,6 +86,9 @@ async def set_load_balancer_pool(
     Returns:
         JSON string with operation results and pool details
     """
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
     def split(value: str) -> list:
         return [item.strip() for item in value.split(',') if item.strip()]
 

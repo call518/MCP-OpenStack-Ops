@@ -55,12 +55,11 @@ async def test_load_balancer_tools_reach_service_exports(monkeypatch, tool, kwar
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('action,names', [('list', ''), ('create', 'image-a')])
-async def test_image_scalar_and_list_paths_reach_service(monkeypatch, action, names):
+async def test_image_scalar_path_reaches_service(monkeypatch):
     module = importlib.import_module('mcp_openstack_ops.tools.set_image')
     service = Mock(return_value={'success': True})
     monkeypatch.setattr(module, '_set_image', service)
-    await invoke('set_image', action=action, image_names=names)
+    await invoke('set_image', action='create', image_names='image-a')
     service.assert_called_once()
     assert service.call_args.kwargs['properties'] == {}
 
@@ -384,15 +383,14 @@ async def test_quota_tool_routes_fields_without_changing_schema(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_quota_list_is_read_only(monkeypatch):
+async def test_quota_list_points_to_get_quota(monkeypatch):
     module = importlib.import_module('mcp_openstack_ops.tools.set_quota')
-    getter = Mock(return_value={'success': True})
     setter = Mock()
-    monkeypatch.setattr(module, '_get_quota', getter, raising=False)
     monkeypatch.setattr(module, '_set_quota', setter)
-    result = await invoke('set_quota', project_name='test-project', action='list')
-    assert json.loads(result)['success']
-    getter.assert_called_once_with('test-project')
+    result = json.loads(
+        await invoke('set_quota', project_name='test-project', action='list'))
+    assert result['error'] == 'READ_ACTION_USE_GET_TOOL'
+    assert 'get_quota' in result['message']
     setter.assert_not_called()
 
 

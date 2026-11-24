@@ -7,6 +7,7 @@ from ..functions import (
     set_instance as _set_instance,
 )
 from ..mcp_main import (
+    _read_action_error,
     conditional_tool,
     handle_operation_result,
     logger,
@@ -14,6 +15,8 @@ from ..mcp_main import (
 from ..services.compute import NOVA_SERVER_STATUSES
 from ..services.compute import get_instance_details as _get_instance_details
 from ..settings import instance_filter_max_matches
+
+READ_ACTIONS = {'list': 'get_instance_details'}
 
 
 def _contains(value, needle: str) -> bool:
@@ -52,7 +55,8 @@ async def set_instance(
     boot_volume: Optional[str] = None,
 ) -> str:
     """
-    Manage OpenStack instance lifecycle operations.
+    Manage OpenStack instance lifecycle operations. To list or show
+    instances, use get_instance_details or search_instances.
     Supports both direct target specification and automatic filtering-based target identification.
     
     Functions:
@@ -152,6 +156,9 @@ async def set_instance(
                      flavor="m1.small", image="rocky-9", networks="private-net",
                      boot_from_volume=True, volume_size=10)
     """
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
     try:
         if not action or not action.strip():
             return "Error: Action is required; see the tool description for supported actions"

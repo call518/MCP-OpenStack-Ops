@@ -4,10 +4,14 @@ import json
 from datetime import datetime
 from ..functions import set_server_migration as _set_server_migration
 from ..mcp_main import (
+    _read_action_error,
     conditional_tool,
     handle_operation_result,
     logger,
 )
+
+READ_ACTIONS = {'list': 'get_server_migrations', 'show': 'get_server_migrations'}
+
 
 @conditional_tool
 async def set_server_migration(
@@ -20,29 +24,27 @@ async def set_server_migration(
     on_shared_storage: bool = False
 ) -> str:
     """
-    Manage server migration and evacuation operations.
-    
+    Manage server migration and evacuation operations. To list migrations
+    or show one, use get_server_migrations.
+
     Functions:
     - Live migrate server to different host
     - Evacuate server from failed host
     - Confirm/revert migration operations
-    - List server migrations
-    - Show migration details
     - Abort ongoing migrations
     - Force complete migrations
     
     Use when user requests:
     - "Migrate server X to host Y"
     - "Evacuate server X"
-    - "List migrations for server X"
     - "Abort migration Y for server X"
     - "Confirm migration for server X"
     
     Args:
         instance_name: Name or ID of the server
-        action: Action to perform (migrate, evacuate, confirm, revert, list, show, abort, force_complete)
+        action: Action to perform (migrate, evacuate, confirm, revert, abort, force_complete)
         host: Target host for migration/evacuation
-        migration_id: Migration ID for show/abort/force_complete actions
+        migration_id: Migration ID for abort/force_complete actions
         block_migration: Block migration mode (auto, true, false)
         admin_pass: Admin password for evacuation
         on_shared_storage: Legacy evacuation flag for compute microversions
@@ -52,6 +54,9 @@ async def set_server_migration(
     Returns:
         JSON string containing operation results
     """
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
     try:
         logger.info(f"Managing server migration: {instance_name}, action: {action}")
         

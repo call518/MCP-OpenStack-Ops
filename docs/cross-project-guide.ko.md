@@ -73,7 +73,9 @@
 | `get_heat_stacks` | Heat의 `global_tenant` 쿼리로 모든 프로젝트의 스택. Heat의 기본 `stacks:global_index` 정책은 관리자를 포함한 모두에게 이를 거부함 |
 | `get_load_balancer_list` | 조회 가능한 모든 프로젝트의 로드밸런서. 각 항목에 `project_id`와 `project_name` 포함. `result.scope`는 모든 페이지를 기준으로 함 |
 | `get_network_details`, `get_routers`, `get_security_groups`, `get_floating_ips` | Neutron이 자격 증명에 보여 주는 네트워크, 라우터, 보안 그룹 또는 floating IP. 각 항목에 `project_id`와 `project_name` 포함. Neutron은 목록 요청을 거부하지 않고 다른 프로젝트의 공유·외부 리소스를 모두에게 보여 주므로, 결과에 다른 프로젝트의 비공유 리소스가 없으면 `scope.warning`이 붙음 |
-| `set_network_ports` (action `list`) | Neutron이 자격 증명에 보여 주는 port. 각 항목에 `project_id`와 `project_name` 포함. Octavia가 Neutron 호출에 쓰는 프로젝트 소유인 amphora VRRP port도 포함. `ALLOW_MODIFY_OPERATIONS=true`일 때만 등록됨. `show`는 현재 프로젝트 안에서만 조회 |
+| `get_subnets` | Neutron이 자격 증명에 보여 주는 서브넷. 각 항목에 `project_id`, `project_name`, `shared`(네트워크가 공유 또는 외부 네트워크) 포함. 네트워크와 마찬가지로 공유·외부 네트워크의 서브넷은 scope 판단에 세지 않음. 목록에서만 사용. 서브넷 하나(`subnet_name`)는 현재 프로젝트와 공유·외부 네트워크 안에서만 조회 |
+| `get_server_migrations` | Nova의 os-migrations API가 반환하는 클라우드 전체 서버의 migration. 각 항목에 `project_id`(Nova microversion 2.80 이전에는 null)와 `project_name` 포함. `instance_name` 없을 때만 사용 |
+| `get_network_ports` | Neutron이 자격 증명에 보여 주는 port. 각 항목에 `project_id`와 `project_name` 포함. Octavia가 Neutron 호출에 쓰는 프로젝트 소유인 amphora VRRP port도 포함. 목록에서만 사용. port 하나(`port_name`)는 현재 프로젝트 안에서만 조회 |
 | `get_project_details` | 조회 가능한 모든 프로젝트의 요약(ID, 이름, 도메인, 활성 여부, `is_current`). `project_name`이나 ID가 한 프로젝트와 일치하면 그 프로젝트의 상세와 리소스 수. 네트워크 수는 자격 증명이 볼 수 있는 리소스만 포함 |
 
 ## 동작 방식

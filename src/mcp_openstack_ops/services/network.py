@@ -1344,10 +1344,34 @@ def set_subnets(action: str, subnet_name: Optional[str] = None, **kwargs) -> Dic
         # Import here to avoid circular imports
         from ..connection import get_openstack_connection
         conn = get_openstack_connection()
-        
+        all_projects = bool(kwargs.get('all_projects'))
+        if all_projects and action.lower() != 'list':
+            raise ValueError('all_projects applies only to list')
+        if all_projects:
+            from ..connection import require_cross_project_read
+            require_cross_project_read()
+
+        def visible_subnets():
+            # Neutron returns every project's subnets to an administrator, so
+            # keep the current project's and those of shared or external
+            # networks (as get_network_details does) unless all_projects.
+            if all_projects:
+                return list(conn.network.subnets())
+            project_id = conn.current_project_id
+            networks = {net.id: net for net in conn.network.networks()}
+            visible = []
+            for subnet in conn.network.subnets():
+                network = networks.get(getattr(subnet, 'network_id', None))
+                owner = (getattr(subnet, 'project_id', None)
+                         or getattr(subnet, 'tenant_id', None))
+                if (owner == project_id if network is None else
+                        _can_read_network_subnet(subnet, network, project_id)):
+                    visible.append(subnet)
+            return visible
+
         if action.lower() == 'list':
             subnets = []
-            for subnet in conn.network.subnets():
+            for subnet in visible_subnets():
                 subnets.append({
                     'id': subnet.id,
                     'name': getattr(subnet, 'name', 'unnamed'),
@@ -1358,8 +1382,23 @@ def set_subnets(action: str, subnet_name: Optional[str] = None, **kwargs) -> Dic
                     'gateway_ip': getattr(subnet, 'gateway_ip', None),
                     'enable_dhcp': getattr(subnet, 'is_dhcp_enabled', False),
                     'allocation_pools': getattr(subnet, 'allocation_pools', []),
-                    'dns_nameservers': getattr(subnet, 'dns_nameservers', [])
+                    'dns_nameservers': getattr(subnet, 'dns_nameservers', []),
+                    'project_id': (getattr(subnet, 'project_id', None)
+                                   or getattr(subnet, 'tenant_id', None))
                 })
+            if all_projects:
+                from ..connection import shared_items_scope
+                networks = {net.id: net for net in conn.network.networks()}
+                for row in subnets:
+                    # Subnets of shared or external networks are visible to
+                    # every project, so they do not show a cross-project read.
+                    network = networks.get(row['network_id'])
+                    row['shared'] = bool(network is not None and (
+                        getattr(network, 'is_shared', False)
+                        or getattr(network, 'is_router_external', False)))
+                _label_project_rows(conn, subnets)
+                return {'success': True, 'subnets': subnets, 'count': len(subnets),
+                        'scope': shared_items_scope(subnets)}
             return {
                 'success': True,
                 'subnets': subnets,
@@ -1374,7 +1413,7 @@ def set_subnets(action: str, subnet_name: Optional[str] = None, **kwargs) -> Dic
                 }
             
             # Find the subnet
-            for subnet in conn.network.subnets():
+            for subnet in visible_subnets():
                 if getattr(subnet, 'name', '') == subnet_name or subnet.id == subnet_name:
                     return {
                         'success': True,
@@ -1397,7 +1436,8 @@ def set_subnets(action: str, subnet_name: Optional[str] = None, **kwargs) -> Dic
             
             return {
                 'success': False,
-                'message': f'Subnet "{subnet_name}" not found'
+                'message': f'Subnet "{subnet_name}" not found in the current project '
+                           'or its shared and external networks'
             }
             
         elif action.lower() == 'create':

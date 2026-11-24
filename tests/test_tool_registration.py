@@ -24,7 +24,7 @@ async def verify():
     tools = {tool.name: tool for tool in await mcp.list_tools()}
     read_tools = [tool for tool in tools.values()
                   if tool.name.startswith(('get_', 'search_'))]
-    assert len(read_tools) == 62
+    assert len(read_tools) == 72
     for tool in read_tools:
         assert tool.description.strip(), tool.name
         for parameter, schema in tool.parameters.get('properties', {}).items():
@@ -37,8 +37,14 @@ async def verify():
         'get_gnocchi_metrics', 'get_gnocchi_measures', 'get_gnocchi_service_info',
         'get_gnocchi_aggregates', 'get_secrets', 'get_secret_containers',
         'get_secret_orders', 'get_secret_acl', 'get_key_manager_quotas',
-        'get_secret_stores',
+        'get_secret_stores', 'get_network_ports', 'get_subnets',
+        'get_network_agents', 'get_floating_ip_port_forwardings', 'get_alarms',
+        'get_server_migrations', 'get_roles', 'get_services',
+        'get_compute_agents', 'get_load_balancer_status',
     }
+    # Removed: they returned neither metrics nor logs; reads moved to get_*.
+    assert not {'set_metrics', 'set_service_logs', 'set_services',
+                'set_compute_agents'} & tools.keys()
     writes = {
         'set_alarms', 'set_routers', 'set_security_groups',
         'set_security_group_rules', 'set_users',
@@ -65,16 +71,16 @@ async def verify():
         expected_actions = {
             'set_instance': {'delete', 'resize', 'snapshot', 'rebuild'},
             'set_flavor': {'set_extra_specs'},
-            'set_project': {'update', 'show', 'list'},
-            'set_keypair': {'import', 'show'},
-            'set_network_ports': {'show'},
-            'set_subnets': {'show'},
+            'set_project': {'update'},
+            'set_keypair': {'import'},
+            'set_network_ports': {'create', 'delete'},
+            'set_subnets': {'create', 'delete'},
             'set_security_group_rules': {'create', 'delete'},
             'set_volume_qos': {
                 'associate', 'disassociate', 'disassociate_all',
             },
             'set_network_qos_policies': {
-                'show', 'update', 'add_rule', 'update_rule', 'delete_rule',
+                'update', 'add_rule', 'update_rule', 'delete_rule',
                 'associate', 'disassociate',
             },
         }

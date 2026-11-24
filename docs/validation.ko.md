@@ -916,3 +916,80 @@ live 분류는 도구 단위(중복 없는 도구 수)로 세고, 단위 테스�
   `force=true`로는 스냅샷이 available(20 GB)에 도달한 뒤 `set_snapshot`으로 삭제되었습니다.
   이 partial check는 `set_volume`과 `set_snapshot`(고유 도구 2개)을 다루며 위의 105개 도구
   요약을 갱신하지 않습니다.
+- **`set_*` 도구에서 조회를 분리한 뒤 로컬 단위 테스트 (2026-11-24, `bc23582` 기반 커밋
+  전 작업 트리):** fastmcp 4.2.2와 고정된 openstacksdk 4.24.0으로 `uv run pytest -q`를
+  실행해 886/886 (100%)가 통과했고, 실패하거나 건너뛴 테스트는 없었습니다(변경 전
+  798/798). `set_*` 도구 34개가 받던 모든 조회 action(`list`, `show`, `stats`, `status`,
+  `associations` 등 도구/action 쌍 52개)은 이제 OpenStack 요청 전에
+  `READ_ACTION_USE_GET_TOOL`로 거부되고, 그 조회는 변경 도구 없이도 등록되는 `get_*`
+  도구가 맡습니다. 새 도구는 10개(`get_network_ports`, `get_subnets`,
+  `get_network_agents`, `get_floating_ip_port_forwardings`, `get_alarms`,
+  `get_server_migrations`, `get_roles`, `get_services`, `get_compute_agents`,
+  `get_load_balancer_status`)입니다. `get_domains`, `get_identity_groups`,
+  `get_volume_backups`, `get_volume_groups`, `get_keypair_list`, `get_floating_ips`,
+  `get_image_detail_list`, `get_load_balancer_pools`에는 항목 하나를 조회하는 이름 또는
+  ID 파라미터가 추가되었습니다. `set_services`와 `set_compute_agents`는 `get_services`와
+  `get_compute_agents`가 되었고, 메트릭도 로그도 반환하지 않던 `set_metrics`와
+  `set_service_logs`는 제거되었습니다. 등록 도구: `ALLOW_MODIFY_OPERATIONS=true`일 때
+  조회 72개와 `set_*` 56개(128개), 아닐 때 72개(이전 62개와 60개, 122개). 새 테스트
+  90건은 거부되는 모든 쌍, 새 파라미터 각각의 라우팅, 새 오류 경로, 아래의 프로젝트 범위
+  제한을 확인하며, 옮겨진 조회를 호출하던 기존 테스트는 이제 `get_*` 도구를 호출합니다. 새 도구 대부분은 이전과
+  같은 service 함수를 호출하지만 일부 동작은 달라졌습니다. Floating IP 하나는 현재
+  프로젝트의 Floating IP 중에서만 찾고(`all_projects=true` 제외), 이미지 `show`는
+  visibility로 거른 목록을 쓰며, 다른 프로젝트의 상세에는 `all_projects=true`인
+  `get_project_details`가 필요하고, `get_compute_agents`에서 Nova 서비스 목록 조회
+  실패는 빈 성공이 아니라 실패입니다. 관리자에게 프로젝트를 구분하지 않던 옮겨진 조회 2개는
+  이제 다른 조회 도구와 같은 프로젝트 규칙을 따릅니다. `get_subnets`는 현재 프로젝트의
+  서브넷과 공유·외부 네트워크의 서브넷을 남기고, `instance_name` 없는
+  `get_server_migrations`는 현재 프로젝트의 migration을 남깁니다. 둘 다 모든 프로젝트는
+  `all_projects=true`와 `ALLOW_CROSS_PROJECT_READ=true`일 때만 나열합니다. 이 변경 뒤 live check는 실행하지 않았으므로, 옮겨진
+  경로는 다음 전체 live 실행 전까지 README 매핑에서 **Live unverified**입니다.
+  `scripts/live_tool_check.py`는 `get_*` 도구를 호출하도록 갱신했습니다.
+- **`set_*` 도구에서 조회를 분리한 뒤 전체 live check (2026-11-24 UTC, full, 같은 커밋
+  전 작업 트리):** Kolla-Ansible all-in-one OpenStack 2025.1(TCG, compute 호스트 1대),
+  `admin` 프로젝트의 관리자 계정. 서버는 재기동한 Docker Compose `mcp-server`(Streamable
+  HTTP, 작업 트리의 `./src`를 마운트)이며 `ALLOW_MODIFY_OPERATIONS=true`,
+  `ALLOW_CROSS_PROJECT_READ=false`였습니다. 스크립트는 openstacksdk 4.24.0으로 최종 상태를
+  폴링했습니다(상태당 900초).
+  - HTTP로 실행한 `scripts/live_tool_check.py`: 등록 도구 128개, 호출 도구 119개.
+    호출 254/260과 최종 상태 점검 63/63이 통과했습니다. 실패한 호출 6건은 변경한 경로
+    밖입니다. `get_secret_stores`(랩의 secret store가 하나라 Barbican이 문서에 적힌 404를
+    반환), 프로젝트 전체 `cpu`에 대한 `get_gnocchi_aggregates`(프로젝트 metric이 5분과
+    1분 두 archive policy를 써서 Gnocchi가 "No granularity match"를 반환), `set_users`
+    create와 delete(비밀번호 변수가 서버가 아니라 스크립트 프로세스에만 있었음),
+    `set_project` update(스크립트가 구현되지 않은 `tags`를 보냄), 없는 프로젝트 ID에 대한
+    `set_load_balancer_quota` reset(Octavia는 어떤 프로젝트 ID든 받아들이는데 스크립트는
+    오류를 기대함).
+  - 같은 서버로 실행한 두 번째 스크립트는 하니스가 닿지 않는 성공 경로를 다뤘습니다.
+    호출 141/141과 최종 상태 점검 79/79가 통과했습니다. `set_*` 도구 34개의 조회 action
+    52개가 모두 `READ_ACTION_USE_GET_TOOL`로 거부되고 존재하는 `get_*` 도구를 알려 주는지,
+    network agent 비활성화와 활성화, port forwarding create, list, show, set, delete, Aodh
+    알람의 생성, 목록, 이름과 ID로 조회, 삭제, 볼륨 attach와 detach, 백업 create, show,
+    delete, 테스트 group type으로 만든 generic group의 생성, 조회, 삭제, Barbican 자체 서명
+    TLS secret과 ACL 변경, container, key order(ACTIVE), Octavia flavor와 availability
+    zone(profile은 openstacksdk로 생성)을 쓴 로드밸런서(ACTIVE)와 리스너, pool, 멤버,
+    헬스 모니터, L7 policy와 rule, `get_load_balancer_status`, pool 하나를 조회하는
+    `get_load_balancer_pools`, amphora `configure`, quota set과 reset을 확인했고, 모두 이후
+    삭제했습니다.
+  - 같은 작업 트리의 in-process 클라이언트로 한 프로젝트 범위 점검: 호출 39/39, 점검
+    6/6. 스위치를 끈 상태에서 `get_subnets`는 `service` 프로젝트의 `lb-mgmt-subnet`을
+    빼고 이름으로도 거부했으며, port는 프로젝트 안에 머물렀고, `all_projects=true` 조회
+    16개는 스위치 비활성 오류를 명시적으로 반환했습니다. 스위치를 켜자 같은 16개가 성공했고
+    `get_subnets`는 `lb-mgmt-subnet`을 `service` 아래 `scope.warning` 없이 나열했습니다.
+  - 남은 성공 경로: resize를 확정한 뒤 남겨 둔 서버가 `instance_name` 없는
+    `get_server_migrations`(Docker 서버)에 `project_id`와 함께, `all_projects=true`
+    (in-process)에 `project_name`과 함께 나왔습니다. `set_users`는 비밀번호 변수를 설정한
+    in-process 서버에서 사용자를 만들고 삭제했습니다. `get_secret_stores`는 점검 동안
+    Barbican의 `enable_multiple_secret_stores`를 켰을 때 store를 나열했고 설정은 원래대로
+    되돌렸습니다. `get_gnocchi_aggregates`는 `filters`로 리소스를 한 archive policy로
+    좁혔을 때(`{"id": ...}` 또는 `{"ended_at": null}`) 성공했습니다. 추가 호출 1건은 필터를
+    도구의 등호 형식이 아니라 Gnocchi 쿼리 문법으로 넘겨 실패했고 Gnocchi가 500을
+    반환했습니다.
+  - 고유 도구: 128/128 호출. 126개가 성공 경로를 하나 이상 통과했고, `set_server_dump`는
+    문서에 적힌 미지원 결과를 반환했으며, `set_server_migration`은 오류 경로만 거쳤습니다
+    (live migration과 evacuation에는 두 번째 compute 호스트가 필요). 같은 이유로
+    `migration_id`를 준 `get_server_migrations`는 **Live unverified**로 남습니다.
+    로드밸런서와 리스너 카운터는 트래픽 없이 반환되었고 failover는 다시 실행하지
+    않았습니다. 테스트 리소스는 모두 삭제되어 없음을 확인했고, metadata agent는 다시
+    활성화했으며 Barbican 설정은 복원했습니다. 이 full run은 이 리비전에 등록된 모든 도구를
+    다루며, 위의 2026-11-04 snapshot은 그 리비전의 기록으로 남습니다.

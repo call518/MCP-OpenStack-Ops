@@ -6,9 +6,15 @@ from typing import Optional
 from ..functions import set_load_balancer_listener as _set_load_balancer_listener
 from ..mcp_main import (
     _is_modify_operation_allowed,
+    _read_action_error,
     conditional_tool,
     logger,
 )
+
+READ_ACTIONS = {
+    'show': 'get_load_balancer_listeners', 'stats': 'get_load_balancer_status',
+}
+
 
 @conditional_tool
 async def set_load_balancer_listener(
@@ -26,15 +32,15 @@ async def set_load_balancer_listener(
     sni_container_refs: str = ""
 ) -> str:
     """
-    Comprehensive load balancer listener management (create, delete, set, unset, show, stats).
+    Comprehensive load balancer listener management (create, delete, set, unset).
+    To list listeners, use get_load_balancer_listeners; for statistics, use
+    get_load_balancer_status.
     
     Functions:
     - Create new listeners on load balancers with protocol configuration
     - Delete existing listeners
     - Set/update listener properties (name, description, connection limits)
     - Unset/clear listener settings (description, connection limits, default pool)
-    - Show detailed listener information
-    - Get listener statistics (traffic and connection metrics)
     
     Use when user requests:
     - "Create listener [name] on load balancer [lb_name] for HTTP on port 80"
@@ -42,12 +48,10 @@ async def set_load_balancer_listener(
     - "Delete listener [name/id]"
     - "Update listener [name] connection limit to 1000"
     - "Clear listener [name] description"
-    - "Show listener [name/id] details"
-    - "Get listener [name] statistics"
     
     Args:
-        action: Operation to perform (create, delete, set, unset, show, stats)
-        listener_name_or_id: Listener name or ID (required for delete/set/unset/show/stats)
+        action: Operation to perform (create, delete, set, unset)
+        listener_name_or_id: Listener name or ID (required for delete/set/unset)
         name: Name for new listener (required for create)
         lb_name_or_id: Load balancer name or ID (required for create)
         protocol: Listener protocol - HTTP, HTTPS (non-terminated HTTPS, i.e. TLS
@@ -74,6 +78,9 @@ async def set_load_balancer_listener(
     Returns:
         JSON string with operation results and listener details
     """
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
     if not _is_modify_operation_allowed() and action.lower() in ['create', 'delete', 'set', 'unset']:
         return json.dumps({
             'success': False,

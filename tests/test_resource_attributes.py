@@ -24,7 +24,6 @@ from openstack.identity.v3.role_assignment import RoleAssignment
 from openstack.identity.v3.service import Service
 from openstack.identity.v3.user import User
 from openstack.network.v2._proxy import Proxy as NetworkProxy
-from openstack.network.v2.agent import Agent
 from openstack.network.v2.quota import Quota
 from openstack.orchestration.v1._proxy import Proxy as HeatProxy
 from openstack.orchestration.v1.stack import Stack
@@ -113,6 +112,8 @@ def test_server_group_create_reports_sdk_member_ids(conn):
 
 
 def test_migration_list_reports_sdk_server_id(conn):
+    # s1 belongs to the current project; the listing keeps only its migrations.
+    conn.compute.servers.return_value = [Server.existing(id='s1', name='vm')]
     conn.compute.migrations.return_value = [Migration.existing(
         id='m1', server_id='s1', status='completed')]
 
@@ -366,7 +367,7 @@ def test_compute_agents_list_reads_sdk_hypervisor_capacity(conn):
         id='h1', name='cmp1', status='enabled', state='up',
         memory_size=4096, local_disk_size=100, vcpus=8)]
 
-    result = functions.set_compute_agents('list')
+    result = functions.get_compute_agents()
 
     assert result['hypervisors'][0]['memory_mb'] == 4096
     conn.compute.hypervisors.assert_called_once_with(details=True)
@@ -376,21 +377,19 @@ def test_services_list_reports_sdk_is_enabled(conn):
     conn.identity.services.return_value = [Service.existing(
         id='svc1', name='nova', type='compute', is_enabled=False)]
 
-    result = functions.set_services('list')
+    result = functions.get_services()
 
     assert result['services'][0]['enabled'] is False
 
 
-def test_service_logs_list_reports_sdk_agent_admin_state(conn):
-    conn.network.agents.return_value = [Agent.existing(
-        id='ag1', agent_type='L3 agent', host='net1',
-        is_admin_state_up=False, is_alive=True)]
+def test_compute_agents_list_reports_service_listing_failure(conn):
+    # A failed service listing used to read as success with no services.
+    conn.compute.services.side_effect = RuntimeError('policy denied')
 
-    result = functions.set_service_logs('list')
+    result = functions.get_compute_agents()
 
-    network = [s for s in result['services'] if s['type'] == 'network']
-    assert network == [{'name': 'L3 agent', 'type': 'network', 'host': 'net1',
-                        'status': 'disabled', 'state': 'up'}]
+    assert result['success'] is False
+    assert 'policy denied' in result['error']
 
 
 # --- identity users --------------------------------------------------------

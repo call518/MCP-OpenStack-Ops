@@ -6,9 +6,13 @@ from typing import Optional
 from ..functions import set_load_balancer_health_monitor as _set_load_balancer_health_monitor
 from ..mcp_main import (
     _is_modify_operation_allowed,
+    _read_action_error,
     conditional_tool,
     logger,
 )
+
+READ_ACTIONS = {'show': 'get_load_balancer_health_monitors'}
+
 
 @conditional_tool
 async def set_load_balancer_health_monitor(
@@ -27,24 +31,23 @@ async def set_load_balancer_health_monitor(
     expected_codes: str = ""
 ) -> str:
     """
-    Comprehensive health monitor management operations (create, delete, set, show).
+    Comprehensive health monitor management operations (create, delete, set).
+    To list health monitors, use get_load_balancer_health_monitors.
 
     Functions:
     - Create new health monitors for pools with various protocols (HTTP, HTTPS, TLS-HELLO, TCP, UDP, PING)
     - Delete existing health monitors
     - Set/update monitor settings (timing, HTTP parameters, admin state)
-    - Show detailed health monitor configuration and status
 
     Use when user requests:
     - "Create HTTP health monitor for pool [name] checking /health every 30 seconds"
     - "Delete health monitor [name/id]"
     - "Update health monitor [name] timeout to 10 seconds"
-    - "Show health monitor [name/id] details"
 
     Args:
-        action: Operation to perform (create, delete, set, show). "unset" is not
+        action: Operation to perform (create, delete, set). "unset" is not
             implemented and returns an error.
-        monitor_name_or_id: Monitor name or ID (required for delete/set/show)
+        monitor_name_or_id: Monitor name or ID (required for delete/set)
         name: Name for the monitor
         pool_name_or_id: Pool name or ID (required for create)
         monitor_type: Monitor type (HTTP, HTTPS, TLS-HELLO, TCP, PING, UDP-CONNECT,
@@ -63,6 +66,9 @@ async def set_load_balancer_health_monitor(
     Returns:
         JSON string with operation results and health monitor details
     """
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
     if not _is_modify_operation_allowed() and action.lower() in ['create', 'delete', 'set', 'unset']:
         return json.dumps({
             'success': False,

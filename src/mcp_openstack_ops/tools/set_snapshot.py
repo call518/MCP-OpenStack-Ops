@@ -7,10 +7,14 @@ from ..functions import (
 )
 from ..mcp_main import (
     _get_resource_status_by_name,
+    _read_action_error,
     conditional_tool,
     handle_operation_result,
     logger,
 )
+
+READ_ACTIONS = {'list': 'get_volume_snapshots'}
+
 
 @conditional_tool
 async def set_snapshot(
@@ -25,8 +29,9 @@ async def set_snapshot(
     force: bool = False
 ) -> str:
     """
-    Manage volume snapshots for backup and recovery operations.
+    Create or delete volume snapshots for backup and recovery operations.
     Supports both direct targeting and filter-based bulk operations.
+    To list snapshots, use get_volume_snapshots.
     
     Functions:
     - Create snapshots from existing volumes for backup
@@ -75,6 +80,9 @@ async def set_snapshot(
         set_snapshot(action="delete", name_contains="old", status="available")
         set_snapshot(action="create", snapshot_names="backup-snap", volume_id="vol-123")
     """
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
     try:
         if not action or not action.strip():
             return "Error: Action is required (create, delete)"

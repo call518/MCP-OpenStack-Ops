@@ -25,9 +25,8 @@ async def get_network_details(network_name: str = "all", all_projects: bool = Fa
     - Check subnet configuration and IP allocation status per network
     
     Use when user requests network or subnet information. For routers use
-    get_routers, for security groups get_security_groups, and for ports
-    set_network_ports (action list or show; registered only when
-    ALLOW_MODIFY_OPERATIONS=true).
+    get_routers, for security groups get_security_groups, for ports
+    get_network_ports, and for a flat subnet list get_subnets.
     
     Args:
         network_name: Name of network to query or "all" for all networks (default: "all")

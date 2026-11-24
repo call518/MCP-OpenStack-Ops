@@ -4,9 +4,16 @@ import json
 from datetime import datetime
 from ..functions import set_floating_ip_port_forwarding as _set_floating_ip_port_forwarding
 from ..mcp_main import (
+    _read_action_error,
     conditional_tool,
     logger,
 )
+
+READ_ACTIONS = {
+    'list': 'get_floating_ip_port_forwardings',
+    'show': 'get_floating_ip_port_forwardings',
+}
+
 
 @conditional_tool
 async def set_floating_ip_port_forwarding(
@@ -22,31 +29,28 @@ async def set_floating_ip_port_forwarding(
     description: str = ""
 ) -> str:
     """
-    Manage floating IP port forwarding rules for NAT translation.
-    
+    Create, delete or update floating IP port forwarding rules for NAT
+    translation. To list or show rules, use get_floating_ip_port_forwardings.
+
     Functions:
     - Create port forwarding rules to redirect external traffic to internal IPs
     - Delete existing port forwarding rules
-    - List all port forwarding rules for a floating IP
-    - Show detailed configuration of specific port forwarding rule
     - Update port forwarding settings (description, internal target)
-    
+
     Use when user requests:
     - "Create port forwarding rule for floating IP [ip] from port [ext] to [int:internal]"
     - "Delete port forwarding rule [id] from floating IP [ip]"
-    - "List port forwarding rules for floating IP [ip]"
-    - "Show port forwarding rule [id] details"
     - "Update port forwarding rule [id] description to [text]"
 
     Every action needs the floating IP, by ID or address, and works only on
     floating IPs owned by the current project.
 
     Args:
-        action: Action to perform (create, delete, list, show, set)
+        action: Action to perform (create, delete, set)
         floating_ip_id: Floating IP ID (alternative to floating_ip_address);
             the floating IP must belong to the current project
         floating_ip_address: Floating IP address (alternative to floating_ip_id)
-        port_forwarding_id: Port forwarding rule ID (for delete/show/set actions)
+        port_forwarding_id: Port forwarding rule ID (for delete/set actions)
         protocol: Protocol for port forwarding (tcp, udp, icmp) - default: tcp
         external_port: External port number (for create action)
         internal_port: Internal port number (for create action)
@@ -57,6 +61,9 @@ async def set_floating_ip_port_forwarding(
     Returns:
         Result of port forwarding management operation in JSON format.
     """
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
     try:
         logger.info(f"Managing floating IP port forwarding with action '{action}'")
         

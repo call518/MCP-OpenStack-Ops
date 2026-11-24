@@ -4,9 +4,13 @@ import json
 from datetime import datetime
 from typing import Optional
 from ..mcp_main import (
+    _read_action_error,
     conditional_tool,
     logger,
 )
+
+READ_ACTIONS = {'show': 'get_load_balancer_pool_members'}
+
 
 @conditional_tool
 async def set_load_balancer_pool_member(
@@ -23,24 +27,23 @@ async def set_load_balancer_pool_member(
     monitor_port: int = 0
 ) -> str:
     """
-    Manage OpenStack load balancer pool member operations (create, delete, show, set).
+    Manage OpenStack load balancer pool member operations (create, delete, set).
+    To list members, use get_load_balancer_pool_members.
 
     Functions:
     - Add new members to pools with IP address and port
     - Remove existing members from pools
-    - Show detailed member information
     - Update member properties (weight, admin state, backup status)
 
     Use when user requests:
     - "Add member 192.168.1.10:80 to pool [name] with weight 5"
     - "Remove member [id] from pool [name]"
-    - "Show member [id] details in pool [name]"
     - "Set member [id] as backup in pool [name]"
 
     Args:
-        action: Operation to perform (create, delete, show, set)
+        action: Operation to perform (create, delete, set)
         pool_name_or_id: Pool name or ID (required)
-        member_id: Member ID (required for delete/show/set)
+        member_id: Member ID (required for delete/set)
         name: Name for the member
         address: IP address of the member (required for create)
         protocol_port: Port number (required for create)
@@ -55,6 +58,9 @@ async def set_load_balancer_pool_member(
     Returns:
         JSON string with operation results and member details
     """
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
     try:
         from ..functions import set_load_balancer_pool_member
         

@@ -7,10 +7,14 @@ from ..functions import (
 )
 from ..mcp_main import (
     _get_resource_status_by_name,
+    _read_action_error,
     conditional_tool,
     handle_operation_result,
     logger,
 )
+
+READ_ACTIONS = {'list': 'get_keypair_list', 'show': 'get_keypair_list'}
+
 
 @conditional_tool
 async def set_keypair(
@@ -22,8 +26,9 @@ async def set_keypair(
     public_key: str = ""
 ) -> str:
     """
-    Manage SSH keypairs for secure instance access authentication.
-    Supports both direct targeting and filter-based bulk operations.
+    Create, import or delete SSH keypairs for secure instance access
+    authentication. Supports both direct targeting and filter-based bulk
+    operations. To list or show keypairs, use get_keypair_list.
     
     Functions:
     - Create new SSH keypairs with automatic key generation
@@ -44,7 +49,7 @@ async def set_keypair(
     2. Filter-based: Use name_contains to auto-identify targets
     
     Args:
-        action: Action to perform - create, delete, import, show. Import is an
+        action: Action to perform - create, delete, import. Import is an
                 alias for create with public_key supplied.
         keypair_names: Name(s) of keypairs to manage. Support formats:
                       - Single: "keypair1"
@@ -69,9 +74,12 @@ async def set_keypair(
         set_keypair(action="delete", name_contains="test")
         set_keypair(action="create", keypair_names="new-key")
     """
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
     try:
         if not action or not action.strip():
-            return "Error: Action is required (create, delete, import, show)"
+            return "Error: Action is required (create, delete, import)"
             
         action = action.strip().lower()
         if action == 'import':

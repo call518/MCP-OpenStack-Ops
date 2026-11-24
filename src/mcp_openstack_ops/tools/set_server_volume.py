@@ -3,10 +3,14 @@
 from typing import Optional
 from ..functions import set_server_volume as _set_server_volume
 from ..mcp_main import (
+    _read_action_error,
     conditional_tool,
     handle_operation_result,
     logger,
 )
+
+READ_ACTIONS = {'list': 'get_server_volumes'}
+
 
 @conditional_tool
 async def set_server_volume(
@@ -18,11 +22,12 @@ async def set_server_volume(
     attachment_id: Optional[str] = None
 ) -> str:
     """
-    Manage server volume attachments (attach, detach, list)
-    
+    Attach or detach server volumes. To list a server's attached volumes,
+    use get_server_volumes.
+
     Args:
         instance_name: Name or ID of the server instance
-        action: Action to perform (attach, detach, list)
+        action: Action to perform (attach, detach)
         volume_id: Volume ID for attach/detach operations
         volume_name: Volume name for attach/detach operations (alternative to volume_id)
         device: Device path for attach operation (optional, e.g., /dev/vdb)
@@ -31,6 +36,9 @@ async def set_server_volume(
     Returns:
         JSON string with server volume operation result
     """
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
     try:
         logger.info(f"Managing server volume: {instance_name}, action: {action}")
         

@@ -5,16 +5,21 @@ from datetime import datetime
 from ..functions import set_image as _set_image
 from ..mcp_main import (
     _get_resource_status_by_name,
+    _read_action_error,
     conditional_tool,
     handle_operation_result,
     logger,
 )
 
+READ_ACTIONS = {'list': 'get_image_detail_list'}
+
+
 @conditional_tool
 async def set_image(image_names: str, action: str, container_format: str = "bare", disk_format: str = "qcow2", 
                    visibility: str = "private", min_disk: int = 0, min_ram: int = 0, properties: str = "{}") -> str:
     """
-    Manage images (create, delete, update, list).
+    Manage images (create, delete, update). To list images, use
+    get_image_detail_list.
     Supports both single image and bulk operations.
     
     Create registers an image record only. No image data is uploaded, so the
@@ -26,18 +31,17 @@ async def set_image(image_names: str, action: str, container_format: str = "bare
     - Create new image records with specified formats and properties
     - Delete images owned by the current project
     - Update metadata and visibility of images owned by the current project
-    - List all available images in the project
     - Handle image lifecycle management
     - Bulk operations: Apply action to multiple images at once
     
-    Use when user requests image management, custom image creation, image listing, or image metadata updates.
+    Use when user requests image management, custom image creation, or image metadata updates.
     
     Args:
         image_names: Name(s) of images to manage. Support formats:
                     - Single: "image1" 
                     - Multiple: "image1,image2,image3" or "image1, image2, image3"
                     - List format: '["image1", "image2", "image3"]'
-        action: Action to perform (create, delete, update, list)
+        action: Action to perform (create, delete, update)
         container_format: Container format (bare, ovf, etc.)
         disk_format: Disk format (qcow2, raw, vmdk, etc.)
         visibility: Image visibility (private, public, shared, community)
@@ -49,45 +53,12 @@ async def set_image(image_names: str, action: str, container_format: str = "bare
         Result of image management operation in JSON format.
         For bulk operations, returns summary of successes and failures.
     """
-    
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
+
     try:
-        # For list action, allow empty image_names
-        if action.lower() == 'list':
-            logger.info(f"Managing image with action '{action}'")
-            
-            kwargs = {
-                'container_format': container_format,
-                'disk_format': disk_format,
-                'visibility': visibility,
-                'min_disk': min_disk,
-                'min_ram': min_ram
-            }
-            
-            # Parse properties JSON if provided
-            if properties.strip():
-                try:
-                    kwargs['properties'] = json.loads(properties)
-                except json.JSONDecodeError:
-                    return json.dumps({
-                        "timestamp": datetime.now().isoformat(),
-                        "error": "Invalid JSON format for properties",
-                        "message": "Properties must be valid JSON format"
-                    })
-            
-            result_data = _set_image("", action, **kwargs)
-            return handle_operation_result(
-                result_data,
-                "Image Management",
-                {
-                    "Action": action,
-                    "Image Name": "all",
-                    "Container Format": container_format,
-                    "Disk Format": disk_format,
-                    "Visibility": visibility
-                }
-            )
-        
-        # Parse image names for non-list actions
+        # Parse image names
         if not image_names or not image_names.strip():
             return "Error: Image name(s) are required for this action"
             

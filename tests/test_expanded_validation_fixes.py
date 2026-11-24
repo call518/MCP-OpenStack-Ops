@@ -19,11 +19,11 @@ def _tool_handler(module, name):
     'tool,actions',
     [
         ('set_instance', {'delete', 'resize', 'snapshot', 'rebuild'}),
-        ('set_flavor', {'list', 'set_extra_specs'}),
-        ('set_project', {'update', 'show', 'list'}),
-        ('set_keypair', {'import', 'show'}),
-        ('set_network_ports', {'show'}),
-        ('set_subnets', {'show'}),
+        ('set_flavor', {'set_extra_specs', 'get_flavors'}),
+        ('set_project', {'update', 'get_project_details'}),
+        ('set_keypair', {'import', 'get_keypair_list'}),
+        ('set_network_ports', {'create', 'get_network_ports'}),
+        ('set_subnets', {'create', 'get_subnets'}),
     ],
 )
 def test_tool_descriptions_expose_supported_actions(tool, actions):

@@ -4,8 +4,12 @@ import json
 from ..functions import set_domains as _set_domains
 from ..mcp_main import (
     _is_modify_operation_allowed,
+    _read_action_error,
     conditional_tool,
 )
+
+READ_ACTIONS = {'list': 'get_domains', 'show': 'get_domains'}
+
 
 @conditional_tool
 async def set_domains(
@@ -15,10 +19,11 @@ async def set_domains(
     enabled: bool = True
 ) -> str:
     """
-    Manage OpenStack domains for multi-tenancy organization
-    
+    Create, delete or update OpenStack domains for multi-tenancy
+    organization. To list or show domains, use get_domains.
+
     Args:
-        action: Action to perform - list, show, create, delete, update
+        action: Action to perform - create, delete, update
         domain_name: Name of the domain (required for create)
         description: Description for the domain
         enabled: Enable the domain (default: True)
@@ -26,6 +31,9 @@ async def set_domains(
     Returns:
         JSON string with domain management operation results
     """
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
     
     if not _is_modify_operation_allowed() and action.lower() in ['create', 'delete',
         'update']:

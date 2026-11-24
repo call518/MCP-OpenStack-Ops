@@ -6,8 +6,13 @@ from typing import Optional
 from ..functions import set_network_qos_policies as _set_network_qos_policies
 from ..mcp_main import (
     _is_modify_operation_allowed,
+    _read_action_error,
     conditional_tool,
 )
+
+READ_ACTIONS = {
+    'list': 'get_network_qos_policies', 'show': 'get_network_qos_policies',
+}
 
 MODIFY_ACTIONS = {
     'create', 'update', 'delete', 'add_rule', 'update_rule', 'delete_rule',
@@ -30,7 +35,8 @@ async def set_network_qos_policies(
 ) -> str:
     """
     Manage Neutron QoS policies, their rules, and their attachment to
-    project-owned ports, networks, floating IPs and router gateways.
+    project-owned ports, networks, floating IPs and router gateways. To list
+    policies or show one with its rules, use get_network_qos_policies.
 
     Policies and rules change only when owned by the current project.
     associate/disassociate also accept policies shared with this project.
@@ -41,7 +47,7 @@ async def set_network_qos_policies(
     cloud's QoS driver does not support are rejected by Neutron.
 
     Args:
-        action: list, show, create, update, delete, add_rule, update_rule,
+        action: create, update, delete, add_rule, update_rule,
             delete_rule, associate, or disassociate
         policy_name: Name or ID of the QoS policy
         description: Policy description for create/update
@@ -65,6 +71,9 @@ async def set_network_qos_policies(
         JSON string with the operation result. associate/disassociate report
         confirmed only when a read-back shows the expected qos_policy_id.
     """
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
 
     if not _is_modify_operation_allowed() and action.lower() in MODIFY_ACTIONS:
         return json.dumps({

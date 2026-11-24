@@ -253,6 +253,7 @@ The MCP server uses automatic tool discovery. When you create a new file in `src
 
 - **Read-only tools**: Use `@mcp.tool()` - always available
 - **Modify tools**: Use `@conditional_tool` - only available when `ALLOW_MODIFY_OPERATIONS=true`
+- **Reads and writes stay separate**: every read (list, show, stats) is a `get_*` tool. A `set_*` tool takes only write actions; if its service function also handles a read action, map that action to the `get_*` tool in a `READ_ACTIONS` dict and return `_read_action_error(action, READ_ACTIONS)` first, so the call is refused before any OpenStack request
 - **Connection**: Always use `get_openstack_connection()` for OpenStack API access
 - **Project isolation**: All operations are automatically scoped to `OS_PROJECT_NAME`
 

@@ -139,7 +139,8 @@ def get_image_detail_list(all_projects: bool = False) -> List[Dict[str, Any]]:
                     'updated_at': str(getattr(image, 'updated_at', 'unknown')),
                     'protected': getattr(image, 'is_protected', False),
                     'checksum': getattr(image, 'checksum', None),
-                    'properties': getattr(image, 'properties', {})
+                    'properties': getattr(image, 'properties', {}),
+                    'tags': list(getattr(image, 'tags', None) or [])
                 })
 
         if all_projects:

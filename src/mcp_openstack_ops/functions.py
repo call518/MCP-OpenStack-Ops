@@ -390,281 +390,44 @@ def set_roles(action: str, role_name: Optional[str] = None, **kwargs) -> Dict[st
         }
 
 
-def set_services(action: str, service_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+def get_services() -> Dict[str, Any]:
     """
-    Manage OpenStack services (list, show, create, delete)
-    
-    Args:
-        action: Action to perform (list, show, create, delete)
-        service_name: Name or ID of the service
-        **kwargs: Additional parameters
-    
+    List the Keystone service catalog (like 'openstack service list').
+
     Returns:
-        Result of the service management operation
+        Services with id, name, type, description and enabled, or a failure
     """
     try:
         conn = get_openstack_connection()
-        
-        if action.lower() == 'list':
-            services = []
-            try:
-                for service in conn.identity.services():
-                    services.append({
-                        'id': service.id,
-                        'name': service.name,
-                        'type': service.type,
-                        'description': getattr(service, 'description', 'N/A'),
-                        'enabled': getattr(service, 'is_enabled', True),
-                        'created_at': str(getattr(service, 'created_at', 'N/A')),
-                        'updated_at': str(getattr(service, 'updated_at', 'N/A'))
-                    })
-            except Exception as e:
-                return {
-                    'success': False,
-                    'message': f'Services not accessible: {str(e)}',
-                    'services': []
-                }
-            return {
-                'success': True,
-                'services': services,
-                'count': len(services)
-            }
-        
-        else:
+        services = []
+        try:
+            for service in conn.identity.services():
+                services.append({
+                    'id': service.id,
+                    'name': service.name,
+                    'type': service.type,
+                    'description': getattr(service, 'description', 'N/A'),
+                    'enabled': getattr(service, 'is_enabled', True),
+                    'created_at': str(getattr(service, 'created_at', 'N/A')),
+                    'updated_at': str(getattr(service, 'updated_at', 'N/A'))
+                })
+        except Exception as e:
             return {
                 'success': False,
-                'message': f'Unknown action "{action}". Supported: list'
+                'message': f'Services not accessible: {str(e)}',
+                'services': []
             }
-            
-    except Exception as e:
-        logger.error(f"Failed to manage service: {e}")
         return {
-            'success': False,
-            'message': f'Failed to manage service: {str(e)}',
-            'error': str(e)
+            'success': True,
+            'services': services,
+            'count': len(services)
         }
 
-
-def set_service_logs(
-    action: str,
-    service_name: str = None,
-    log_level: str = "INFO"
-) -> Dict[str, Any]:
-    """
-    Manage OpenStack service logs and logging configuration.
-    
-    Args:
-        action: Action to perform - list, show
-        service_name: Name of the service to get logs for
-        log_level: Log level filter (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-        
-    Returns:
-        Service logs information
-    """
-    try:
-        conn = get_openstack_connection()
-        
-        if action.lower() == 'list':
-            # List available services for logging
-            services = []
-            try:
-                # Get compute services
-                for service in conn.compute.services():
-                    services.append({
-                        'name': service.binary,
-                        'type': 'compute',
-                        'host': service.host,
-                        'status': service.status,
-                        'state': service.state
-                    })
-                    
-                # Get network agents (similar to services)
-                for agent in conn.network.agents():
-                    services.append({
-                        'name': agent.agent_type,
-                        'type': 'network',
-                        'host': agent.host,
-                        'status': 'enabled' if agent.is_admin_state_up else 'disabled',
-                        'state': 'up' if agent.is_alive else 'down'
-                    })
-                    
-            except Exception as e:
-                logger.warning(f"Could not get all services: {e}")
-                
-            return {
-                'success': True,
-                'services': services,
-                'message': f'Found {len(services)} services available for logging',
-                'log_level_filter': log_level
-            }
-            
-        elif action.lower() == 'show':
-            if not service_name:
-                return {
-                    'success': False,
-                    'message': 'Service name required for show action'
-                }
-                
-            return {
-                'success': False,
-                'message': 'Service log retrieval is not implemented; a centralized '
-                    'logging backend is required',
-                'error': 'LOG_BACKEND_NOT_CONFIGURED',
-            }
-        
-        else:
-            return {
-                'success': False,
-                'message': f'Unknown action "{action}". Supported: list, show'
-            }
-            
     except Exception as e:
-        logger.error(f"Failed to manage service logs: {e}")
+        logger.error(f"Failed to list services: {e}")
         return {
             'success': False,
-            'message': f'Failed to manage service logs: {str(e)}',
-            'error': str(e)
-        }
-
-
-def set_metrics(
-    action: str,
-    resource_type: str = "compute",
-    resource_id: str = None
-) -> Dict[str, Any]:
-    """
-    Manage OpenStack metrics collection and monitoring.
-    
-    Args:
-        action: Action to perform - list, show, summary
-        resource_type: Type of resource (compute, network, storage, identity)
-        resource_id: Specific resource ID to get metrics for
-        
-    Returns:
-        Metrics information
-    """
-    try:
-        conn = get_openstack_connection()
-        
-        if action.lower() == 'list':
-            metrics = []
-            
-            if resource_type.lower() == 'compute':
-                # Get compute metrics
-                try:
-                    for server in conn.compute.servers():
-                        metrics.append({
-                            'resource_type': 'compute',
-                            'resource_id': server.id,
-                            'resource_name': server.name,
-                            'status': server.status,
-                            'power_state': getattr(server, 'power_state', 'unknown'),
-                            'created_at': server.created_at,
-                            'updated_at': server.updated_at
-                        })
-                except Exception as e:
-                    logger.warning(f"Could not get compute metrics: {e}")
-                    
-            elif resource_type.lower() == 'network':
-                # Get network metrics
-                try:
-                    for network in conn.network.networks():
-                        metrics.append({
-                            'resource_type': 'network',
-                            'resource_id': network.id,
-                            'resource_name': network.name,
-                            'status': network.status,
-                            'is_admin_state_up': network.is_admin_state_up,
-                            'created_at': getattr(network, 'created_at', None),
-                            'updated_at': getattr(network, 'updated_at', None)
-                        })
-                except Exception as e:
-                    logger.warning(f"Could not get network metrics: {e}")
-                    
-            elif resource_type.lower() == 'storage':
-                # Get storage metrics
-                try:
-                    for volume in conn.block_storage.volumes():
-                        metrics.append({
-                            'resource_type': 'storage',
-                            'resource_id': volume.id,
-                            'resource_name': volume.name,
-                            'status': volume.status,
-                            'size': volume.size,
-                            'created_at': volume.created_at,
-                            'updated_at': volume.updated_at
-                        })
-                except Exception as e:
-                    logger.warning(f"Could not get storage metrics: {e}")
-                    
-            return {
-                'success': True,
-                'metrics': metrics,
-                'resource_type': resource_type,
-                'count': len(metrics)
-            }
-            
-        elif action.lower() == 'show':
-            if not resource_id:
-                return {
-                    'success': False,
-                    'message': 'Resource ID required for show action'
-                }
-                
-            return {
-                'success': False,
-                'message': 'Telemetry samples are not implemented; list/summary expose'
-                    ' current resource metadata only',
-                'error': 'TELEMETRY_BACKEND_NOT_CONFIGURED',
-            }
-
-        elif action.lower() == 'summary':
-            # Get summary metrics across all resource types
-            summary = {
-                'compute': {'total': 0, 'active': 0, 'error': 0},
-                'network': {'total': 0, 'active': 0, 'down': 0},
-                'storage': {'total': 0, 'available': 0, 'in_use': 0},
-                'timestamp': datetime.utcnow().isoformat()
-            }
-            
-            try:
-                # Compute summary
-                servers = list(conn.compute.servers())
-                summary['compute']['total'] = len(servers)
-                summary['compute']['active'] = len([s for s in servers if s.status == 'ACTIVE'])
-                summary['compute']['error'] = len([s for s in servers if s.status == 'ERROR'])
-                
-                # Network summary
-                networks = list(conn.network.networks())
-                summary['network']['total'] = len(networks)
-                summary['network']['active'] = len([n for n in networks if n.status == 'ACTIVE'])
-                summary['network']['down'] = len([n for n in networks if n.status == 'DOWN'])
-                
-                # Storage summary
-                volumes = list(conn.block_storage.volumes())
-                summary['storage']['total'] = len(volumes)
-                summary['storage']['available'] = len([v for v in volumes if v.status == 'available'])
-                summary['storage']['in_use'] = len([v for v in volumes if v.status == 'in-use'])
-                
-            except Exception as e:
-                summary['error'] = f"Could not get complete summary: {str(e)}"
-                
-            return {
-                'success': True,
-                'summary': summary
-            }
-        
-        else:
-            return {
-                'success': False,
-                'message': f'Unknown action "{action}". Supported: list, show, summary'
-            }
-            
-    except Exception as e:
-        logger.error(f"Failed to manage metrics: {e}")
-        return {
-            'success': False,
-            'message': f'Failed to manage metrics: {str(e)}',
+            'message': f'Failed to list services: {str(e)}',
             'error': str(e)
         }
 
@@ -679,162 +442,104 @@ from .services.gnocchi import (
 )
 
 
-def set_compute_agents(
-    action: str,
+def get_compute_agents(
     agent_id: str = None,
     host: str = None
 ) -> Dict[str, Any]:
     """
-    Manage OpenStack compute agents and hypervisor monitoring.
-    
+    List Nova compute services with hypervisors, or show one compute service.
+
     Args:
-        action: Action to perform - list, show
-        agent_id: ID of specific agent
-        host: Host name to filter agents
-        
+        agent_id: ID of one compute service to show
+        host: Host name that filters the list (services and hypervisors)
+
     Returns:
-        Compute agent information
+        Compute agent information, or a failure with the error
     """
     try:
         conn = get_openstack_connection()
-        
-        if action.lower() == 'list':
-            agents = []
-            
-            # Get compute services (agents)
-            try:
-                for service in conn.compute.services():
-                    if not host or service.host == host:
-                        agents.append({
-                            'id': service.id,
-                            'binary': service.binary,
-                            'host': service.host,
-                            'zone': _service_zone(service),
-                            'status': service.status,
-                            'state': service.state,
-                            'updated_at': service.updated_at,
-                            'disabled_reason': getattr(service, 'disabled_reason', None)
-                        })
-            except Exception as e:
-                logger.warning(f"Could not get compute services: {e}")
-                
-            # Get hypervisor information
-            try:
-                hypervisors = []
-                from .services.monitoring import _hypervisor_capacity
-                for hypervisor in conn.compute.hypervisors(details=True):
-                    if not host or hypervisor.name == host:
-                        # SDK names are memory_size/local_disk_size; Nova
-                        # 2.88+ omits capacity fields, which stay None.
-                        hypervisors.append({
-                            'id': hypervisor.id,
-                            'name': hypervisor.name,
-                            'status': hypervisor.status,
-                            'state': hypervisor.state,
-                            **_hypervisor_capacity(hypervisor),
-                        })
-                        
-                return {
-                    'success': True,
-                    'compute_services': agents,
-                    'hypervisors': hypervisors,
-                    'count': {
-                        'services': len(agents),
-                        'hypervisors': len(hypervisors)
-                    }
-                }
-            except Exception as e:
-                logger.warning(f"Could not get hypervisor information: {e}")
-                return {
-                    'success': True,
-                    'compute_services': agents,
-                    'hypervisors_error': str(e),
-                    'count': {'services': len(agents)}
-                }
-                
-        elif action.lower() == 'show':
-            if not agent_id and not host:
+
+        if agent_id:
+            # The compute proxy has no get_service(); look the
+            # service up from the os-services listing instead.
+            service = next(
+                (svc for svc in conn.compute.services()
+                 if str(svc.id) == str(agent_id)),
+                None,
+            )
+            if service is None:
                 return {
                     'success': False,
-                    'message': 'Agent ID or host name required for show action'
+                    'message': f'Compute service "{agent_id}" not found'
                 }
-                
-            # Get specific agent details
-            if agent_id:
-                try:
-                    # The compute proxy has no get_service(); look the
-                    # service up from the os-services listing instead.
-                    service = next(
-                        (svc for svc in conn.compute.services()
-                         if str(svc.id) == str(agent_id)),
-                        None,
-                    )
-                    if service is None:
-                        return {
-                            'success': False,
-                            'message': f'Compute service "{agent_id}" not found'
-                        }
-                    agent_details = {
-                        'id': service.id,
-                        'binary': service.binary,
-                        'host': service.host,
-                        'zone': _service_zone(service),
-                        'status': service.status,
-                        'state': service.state,
-                        'updated_at': service.updated_at,
-                        'disabled_reason': getattr(service, 'disabled_reason', None)
-                    }
-                    
-                    return {
-                        'success': True,
-                        'agent_details': agent_details
-                    }
-                except Exception as e:
-                    return {
-                        'success': False,
-                        'message': f'Agent not found: {str(e)}'
-                    }
-            else:
-                # Search by host
-                agents = []
-                for service in conn.compute.services():
-                    if service.host == host:
-                        agents.append({
-                            'id': service.id,
-                            'binary': service.binary,
-                            'host': service.host,
-                            'zone': _service_zone(service),
-                            'status': service.status,
-                            'state': service.state
-                        })
-                        
-                return {
-                    'success': True,
-                    'agents_on_host': agents,
-                    'host': host,
-                    'count': len(agents)
-                }
-        
-        else:
             return {
-                'success': False,
-                'message': f'Unknown action "{action}". Supported: list, show'
+                'success': True,
+                'agent_details': {
+                    'id': service.id,
+                    'binary': service.binary,
+                    'host': service.host,
+                    'zone': _service_zone(service),
+                    'status': service.status,
+                    'state': service.state,
+                    'updated_at': service.updated_at,
+                    'disabled_reason': getattr(service, 'disabled_reason', None)
+                }
             }
-            
-    except Exception as e:
-        logger.error(f"Failed to manage compute agents: {e}")
+
+        # A failed service listing is reported as a failure, not as an
+        # empty list of services.
+        agents = []
+        for service in conn.compute.services():
+            if not host or service.host == host:
+                agents.append({
+                    'id': service.id,
+                    'binary': service.binary,
+                    'host': service.host,
+                    'zone': _service_zone(service),
+                    'status': service.status,
+                    'state': service.state,
+                    'updated_at': service.updated_at,
+                    'disabled_reason': getattr(service, 'disabled_reason', None)
+                })
+
+        # Get hypervisor information
+        try:
+            hypervisors = []
+            from .services.monitoring import _hypervisor_capacity
+            for hypervisor in conn.compute.hypervisors(details=True):
+                if not host or hypervisor.name == host:
+                    # SDK names are memory_size/local_disk_size; Nova
+                    # 2.88+ omits capacity fields, which stay None.
+                    hypervisors.append({
+                        'id': hypervisor.id,
+                        'name': hypervisor.name,
+                        'status': hypervisor.status,
+                        'state': hypervisor.state,
+                        **_hypervisor_capacity(hypervisor),
+                    })
+        except Exception as e:
+            logger.warning(f"Could not get hypervisor information: {e}")
+            return {
+                'success': True,
+                'compute_services': agents,
+                'hypervisors_error': str(e),
+                'count': {'services': len(agents)}
+            }
         return {
-            'success': False,
-            'message': f'Failed to manage compute agents: {str(e)}',
-            'error': str(e)
+            'success': True,
+            'compute_services': agents,
+            'hypervisors': hypervisors,
+            'count': {
+                'services': len(agents),
+                'hypervisors': len(hypervisors)
+            }
         }
 
-
     except Exception as e:
-        logger.error(f"Failed to manage compute agents: {e}")
+        logger.error(f"Failed to get compute agents: {e}")
         return {
             'success': False,
-            'message': f'Failed to manage compute agents: {str(e)}',
+            'message': f'Failed to get compute agents: {str(e)}',
             'error': str(e)
         }
 

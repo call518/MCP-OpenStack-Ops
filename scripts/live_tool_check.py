@@ -119,14 +119,19 @@ OPTIONAL_SERVICE_PREFIXES = {
     'get_load_balancer': 'load-balancer', 'set_load_balancer': 'load-balancer',
     'get_volume_backups': 'backup', 'set_volume_backups': 'backup',
     'get_volume': 'block-storage', 'set_volume': 'block-storage',
-    'set_snapshot': 'block-storage', 'set_alarms': 'alarming',
+    'set_snapshot': 'block-storage', 'set_alarms': 'alarming', 'get_alarms': 'alarming',
     'get_network_qos_policies': 'qos', 'set_network_qos_policies': 'qos',
     'get_gnocchi': 'metric',
     'get_heat_stack': 'orchestration', 'set_heat_stack': 'orchestration',
 }
 # Composite reads whose block-storage section fails without Cinder.
 STORAGE_SECTION_TOOLS = {'get_quota', 'set_quota', 'get_resource_monitoring',
-                         'get_usage_statistics', 'set_metrics'}
+                         'get_usage_statistics'}
+# Reads that need a target; the empty call must be refused.
+TARGET_REQUIRED_READS = {
+    'get_floating_ip_port_forwardings': 'requires a floating IP',
+    'get_load_balancer_status': 'requires a load balancer or listener',
+}
 
 
 class Runner:
@@ -283,6 +288,9 @@ async def run(args) -> int:
                     # Needs metric or operations; covered by explicit calls below.
                     await r.call(tool, {}, expect='error', note='requires metric or operations')
                     continue
+                if tool in TARGET_REQUIRED_READS:
+                    await r.call(tool, {}, expect='error', note=TARGET_REQUIRED_READS[tool])
+                    continue
                 await r.call(tool, {})
         await r.call('get_instance', {'all_instances': True})
         await r.call('get_instance', {'names': args.existing_server})
@@ -331,56 +339,56 @@ async def run(args) -> int:
         await r.call('get_load_balancer_l7_rules', {'policy_name_or_id': f'{P}-missing'},
                      expect='error')
 
-        if not modify:
-            return 0
-
-        # -------------------------------------------------- admin read actions
-        await r.call('set_flavor', {'flavor_name': '', 'action': 'list'})
-        await r.call('set_project', {'project_name': '', 'action': 'list'})
-        agents_out = await r.call('set_compute_agents', {'action': 'list'})
-        r.check('set_compute_agents list includes hypervisors', lambda: (
+        # Reads moved out of set_* tools; the listings above call them with {}.
+        agents_out = await r.call('get_compute_agents', {}, note='with hypervisors')
+        r.check('get_compute_agents list includes hypervisors', lambda: (
             '"hypervisors"' in agents_out, agents_out[:200]))
         svc = next(iter(conn.compute.services()), None)
         if svc is not None:
-            await r.call('set_compute_agents', {'action': 'show', 'agent_id': svc.id})
-            await r.call('set_compute_agents', {'action': 'show', 'host': svc.host})
-        await r.call('set_compute_agents', {'action': 'show', 'agent_id': f'{P}-missing'},
-                     expect='error')
-        await r.call('set_network_agents', {'action': 'list'})
-        await r.call('set_services', {'action': 'list'})
-        await r.call('set_service_logs', {'action': 'list'})
-        await r.call('set_metrics', {'action': 'list'})
-        await r.call('set_metrics', {'action': 'summary'})
-        await r.call('set_metrics', {'action': 'show'}, expect='error', note='documented unsupported')
-        await r.call('set_roles', {'action': 'list'})
-        await r.call('set_domains', {'action': 'list'})
-        await r.call('set_identity_groups', {'action': 'list'})
-        await r.call('set_network_qos_policies', {'action': 'list'})
-        await r.call('set_volume_qos', {'action': 'list'})
-        await r.call('set_volume_backups', {'action': 'list'})
-        await r.call('set_volume_groups', {'action': 'list'})
-        await r.call('set_alarms', {'action': 'list'})
-        await r.call('set_floating_ip', {'action': 'list'})
-        await r.call('set_floating_ip_port_forwarding', {'action': 'list'}, expect='error',
-                     note='requires a floating IP: listing without one must be refused')
-        await r.call('set_networks', {'action': 'list'})
-        await r.call('set_subnets', {'action': 'list'})
-        await r.call('set_network_ports', {'action': 'list'})
-        await r.call('set_image', {'image_names': '', 'action': 'list'})
-        await r.call('set_volume', {'volume_names': '', 'action': 'list'})
+            await r.call('get_compute_agents', {'agent_id': svc.id})
+            await r.call('get_compute_agents', {'host': svc.host})
+        await r.call('get_compute_agents', {'agent_id': f'{P}-missing'}, expect='error')
+        await r.call('get_domains', {'domain_name': f'{P}-missing'}, expect='error')
+        await r.call('get_identity_groups', {'group_name': f'{P}-missing'}, expect='error')
+        await r.call('get_keypair_list', {'keypair_name': f'{P}-missing'}, expect='error')
+        await r.call('get_image_detail_list', {'image_name': f'{P}-missing'}, expect='error')
+        await r.call('get_floating_ips', {'floating_ip': f'{P}-missing'}, expect='error')
+        await r.call('get_network_ports', {'port_name': f'{P}-missing'}, expect='error')
+        await r.call('get_subnets', {'subnet_name': f'{P}-missing'}, expect='error')
+        await r.call('get_volume_backups', {'backup_name': f'{P}-missing'}, expect='error')
+        await r.call('get_volume_groups', {'group_name': f'{P}-missing'}, expect='error')
+        await r.call('get_alarms', {'alarm_name': f'{P}-missing'}, expect='error',
+                     note='missing alarm' + ('' if r.has_service('alarming') else '; Aodh absent'))
+        await r.call('get_load_balancer_status', {'lb_name_or_id': f'{P}-missing'},
+                     expect='error', note='missing load balancer'
+                     + ('' if r.has_service('load-balancer') else '; Octavia absent'))
+        await r.call('get_load_balancer_pools', {'pool_name_or_id': f'{P}-missing'},
+                     expect='error', note='missing pool'
+                     + ('' if r.has_service('load-balancer') else '; Octavia absent'))
+
+        cross_read = os.environ.get('ALLOW_CROSS_PROJECT_READ', '').lower() == 'true'
+        for tool in ('get_subnets', 'get_server_migrations'):
+            await r.call(tool, {'all_projects': True}, expect='ok' if cross_read else 'error',
+                         note='all_projects needs ALLOW_CROSS_PROJECT_READ=true')
+
+        if not modify:
+            return 0
+
+        # set_* tools refuse read actions and name the get_* tool.
+        await r.call('set_network_ports', {'action': 'list'}, expect='error',
+                     note='read action refused; use get_network_ports')
 
         # ------------------------------------------------------- identity CRUD
         await r.call('set_domains', {'action': 'create', 'domain_name': f'{P}-domain',
                                      'description': 'mcp live check'}, kind='write')
-        await r.call('set_domains', {'action': 'show', 'domain_name': f'{P}-domain'})
+        await r.call('get_domains', {'domain_name': f'{P}-domain'})
         await r.call('set_domains', {'action': 'update', 'domain_name': f'{P}-domain',
                                      'description': 'updated', 'enabled': False}, kind='write')
         await r.call('set_domains', {'action': 'delete', 'domain_name': f'{P}-domain'}, kind='write')
         r.check('domain deleted', r.gone(conn.identity.find_domain, f'{P}-domain'))
-        await r.call('set_domains', {'action': 'show', 'domain_name': f'{P}-missing'}, expect='error')
 
         await r.call('set_identity_groups', {'action': 'create', 'group_name': f'{P}-group'}, kind='write')
-        await r.call('set_identity_groups', {'action': 'show', 'group_name': f'{P}-group'})
+        await r.call('get_identity_groups', {'group_name': f'{P}-group'})
         await r.call('set_identity_groups', {'action': 'update', 'group_name': f'{P}-group',
                                              'description': 'updated'}, kind='write')
         await r.call('set_identity_groups', {'action': 'delete', 'group_name': f'{P}-group'}, kind='write')
@@ -399,10 +407,12 @@ async def run(args) -> int:
 
         await r.call('set_project', {'project_name': f'{P}-project', 'action': 'create',
                                      'description': 'mcp live check'}, kind='write')
-        await r.call('set_project', {'project_name': f'{P}-project', 'action': 'show'})
+        await r.call('get_project_details', {'project_name': f'{P}-project', 'all_projects': True},
+                     expect='ok' if cross_read else 'error',
+                     note='another project needs ALLOW_CROSS_PROJECT_READ=true')
         await r.call('set_project', {'project_name': f'{P}-project', 'action': 'update',
                                      'description': 'updated', 'tags': 'mcpval'}, kind='write')
-        await r.call('set_quota', {'project_name': f'{P}-project', 'action': 'list'})
+        await r.call('get_quota', {'project_name': f'{P}-project'})
         await r.call('set_quota', {'project_name': f'{P}-project', 'action': 'set', 'cores': 3,
                                    'instances': 3, 'networks': 3, 'volumes': 3}, kind='write')
         r.check('compute quota cores=3', lambda: (
@@ -412,7 +422,7 @@ async def run(args) -> int:
         await r.call('get_quota', {'project_name': f'{P}-project'})
         await r.call('set_project', {'project_name': f'{P}-project', 'action': 'delete'}, kind='write')
         r.check('project deleted', r.gone(conn.identity.find_project, f'{P}-project'))
-        await r.call('set_project', {'project_name': f'{P}-missing', 'action': 'show'}, expect='error')
+        await r.call('set_project', {'project_name': f'{P}-missing', 'action': 'delete'}, expect='error')
 
         # ------------------------------------------------------------- flavors
         await r.call('set_flavor', {'flavor_name': f'{P}-flavor', 'action': 'create', 'vcpus': 1,
@@ -436,13 +446,12 @@ async def run(args) -> int:
         net_id = net.id if net else ''
         await r.call('set_subnets', {'action': 'create', 'subnet_name': f'{P}-subnet',
                                      'network_id': net_id, 'cidr': '10.97.0.0/24'}, kind='write')
-        await r.call('set_subnets', {'action': 'show', 'subnet_name': f'{P}-subnet'})
+        await r.call('get_subnets', {'subnet_name': f'{P}-subnet'})
         await r.call('set_subnets', {'action': 'create', 'subnet_name': f'{P}-badsubnet',
                                      'network_id': net_id, 'cidr': 'not-a-cidr'}, expect='error')
         await r.call('set_network_ports', {'action': 'create', 'port_name': f'{P}-port',
                                            'network_id': net_id}, kind='write')
-        await r.call('set_network_ports', {'action': 'show', 'port_name': f'{P}-port'})
-        await r.call('set_network_ports', {'action': 'show', 'port_name': f'{P}-missing'}, expect='error')
+        await r.call('get_network_ports', {'port_name': f'{P}-port'})
         await r.call('set_routers', {'action': 'create', 'router_name': f'{P}-router'}, kind='write')
         await r.call('get_routers', {})
         await r.call('set_routers', {'action': 'delete', 'router_name': f'{P}-router'}, kind='write')
@@ -495,28 +504,26 @@ async def run(args) -> int:
             if not args.no_cleanup:
                 CREATED_FIPS.append(fip.id)
         fip_addr = fip.floating_ip_address if fip else ''
-        await r.call('set_floating_ip', {'action': 'show', 'floating_ip_address': fip_addr})
+        await r.call('get_floating_ips', {'floating_ip': fip_addr})
         await r.call('set_floating_ip', {'action': 'set', 'floating_ip_address': fip_addr,
                                          'description': f'{P}-fip'}, kind='write')
-        await r.call('set_floating_ip_port_forwarding', {'action': 'list', 'floating_ip_address': fip_addr},
+        await r.call('get_floating_ip_port_forwardings', {'floating_ip_address': fip_addr},
                      expect='ok' if conn.network.find_extension('floating-ip-port-forwarding') else 'error',
                      note='requires the floating-ip-port-forwarding extension')
         await r.call('get_floating_ips', {})
 
         # ------------------------------------------------------------- keypair
         await r.call('set_keypair', {'action': 'create', 'keypair_names': f'{P}-kp'}, kind='write')
-        await r.call('set_keypair', {'action': 'show', 'keypair_names': f'{P}-kp'})
-        await r.call('set_keypair', {'action': 'show', 'keypair_names': f'{P}-missing'}, expect='error')
+        await r.call('get_keypair_list', {'keypair_name': f'{P}-kp'})
 
         # ------------------------------------------------------------ images
         await r.call('set_image', {'image_names': f'{P}-image', 'action': 'create',
                                    'properties': '{"mcpval": "yes"}'}, kind='write')
         await r.call('set_image_metadata', {'action': 'set', 'image_name': f'{P}-image',
                                             'properties': '{"os_distro": "cirros"}'}, kind='write')
-        await r.call('set_image_metadata', {'action': 'show', 'image_name': f'{P}-image'})
+        await r.call('get_image_detail_list', {'image_name': f'{P}-image'})
         await r.call('set_image_visibility', {'action': 'set', 'image_name': f'{P}-image',
                                               'visibility': 'shared'}, kind='write')
-        await r.call('set_image_visibility', {'action': 'show', 'image_name': f'{P}-image'})
         if args.member_project:
             demo_project = conn.identity.find_project(args.member_project)
         else:
@@ -525,20 +532,19 @@ async def run(args) -> int:
         if demo_project:
             await r.call('set_image_members', {'action': 'add', 'image_name': f'{P}-image',
                                                'member_project': demo_project.name}, kind='write')
-            await r.call('set_image_members', {'action': 'list', 'image_name': f'{P}-image'})
+            await r.call('get_image_members', {'image_name': f'{P}-image'})
             await r.call('set_image_members', {'action': 'remove', 'image_name': f'{P}-image',
                                                'member_project': demo_project.name}, kind='write')
         await r.call('set_image', {'image_names': f'{P}-image', 'action': 'update',
                                    'min_ram': 64}, kind='write')
         await r.call('set_image', {'image_names': f'{P}-image', 'action': 'delete'}, kind='write')
         r.check('image deleted', r.gone(conn.image.find_image, f'{P}-image'), timeout=30)
-        await r.call('set_image_metadata', {'action': 'show', 'image_name': f'{P}-missing'}, expect='error')
 
         # ------------------------------------------------------------ servers
         vm = f'{P}-vm1'
         await r.call('set_server_group', {'group_name': f'{P}-sgroup', 'action': 'create',
                                           'policies': 'soft-anti-affinity'}, kind='write')
-        await r.call('set_server_group', {'group_name': f'{P}-sgroup', 'action': 'show'})
+        await r.call('get_server_groups', {})
         vm2 = f'{P}-vm2'
         await r.call('set_instance', {'instance_names': f'{vm},{vm2}', 'action': 'create',
                                       'flavor': args.flavor, 'image': args.image,
@@ -626,10 +632,10 @@ async def run(args) -> int:
                 r.check('floating IP disassociated', lambda: (
                     not conn.network.find_ip(fip_addr).port_id, conn.network.find_ip(fip_addr).status),
                     timeout=30)
-            await r.call('set_server_volume', {'instance_name': vm, 'action': 'list'})
-            await r.call('set_server_migration', {'instance_name': vm, 'action': 'list'})
-            await r.call('set_server_migration', {'instance_name': vm, 'action': 'show',
-                                                  'migration_id': '999999'}, expect='error')
+            await r.call('get_server_volumes', {'instance_name': vm})
+            await r.call('get_server_migrations', {'instance_name': vm})
+            await r.call('get_server_migrations', {'instance_name': vm,
+                                                   'migration_id': '999999'}, expect='error')
             await r.call('set_server_dump', {'instance_name': vm}, expect='error',
                          note='documented unsupported')
             await r.call('get_server_events', {'instance_name': vm, 'include_event_details': True})
@@ -706,7 +712,7 @@ async def run(args) -> int:
             await r.call('set_volume_types', {'action': 'delete', 'type_name': f'{P}-vtype'}, kind='write')
             await r.call('set_volume_qos', {'action': 'create', 'qos_name': f'{P}-vqos',
                                             'specs': '{"read_iops_sec": "1000"}'}, kind='write')
-            await r.call('set_volume_qos', {'action': 'show', 'qos_name': f'{P}-vqos'})
+            await r.call('get_volume_qos', {'qos_name': f'{P}-vqos'})
             await r.call('set_volume_qos', {'action': 'delete', 'qos_name': f'{P}-vqos'}, kind='write')
             await r.call('set_volume_backups', {
                 'action': 'create', 'backup_name': f'{P}-vbackup',
@@ -722,7 +728,6 @@ async def run(args) -> int:
                 r.check('volume backup deleted', r.gone(
                     conn.block_storage.find_backup, f'{P}-vbackup',
                 ), timeout=args.timeout)
-            await r.call('set_volume_groups', {'action': 'list'})
             await r.call('set_volume', {'volume_names': f'{P}-vol', 'action': 'delete'}, kind='write')
             r.check('volume deleted', r.gone(conn.block_storage.find_volume, f'{P}-vol'), timeout=args.timeout)
         await r.call('set_volume', {'volume_names': f'{P}-missing', 'action': 'delete'}, expect='error')
@@ -760,25 +765,25 @@ async def run(args) -> int:
 
         # ------------------------------------------------------- load balancer
         has_lb = r.has_service('load-balancer')
-        await r.call('set_load_balancer', {'action': 'status', 'lb_name_or_id': f'{P}-missing'},
+        await r.call('set_load_balancer', {'action': 'delete', 'lb_name_or_id': f'{P}-missing'},
                      expect='error', note='missing load balancer' + ('' if has_lb else '; Octavia absent'))
         for tool, params in [
-            ('set_load_balancer_amphora', {'action': 'show', 'amphora_id': f'{P}-missing'}),
-            ('set_load_balancer_availability_zone', {'action': 'show', 'az_name': f'{P}-missing'}),
-            ('set_load_balancer_flavor', {'action': 'show', 'flavor_name_or_id': f'{P}-missing'}),
-            ('set_load_balancer_health_monitor', {'action': 'show', 'monitor_name_or_id': f'{P}-missing'}),
+            ('set_load_balancer_amphora', {'action': 'configure', 'amphora_id': f'{P}-missing'}),
+            ('set_load_balancer_availability_zone', {'action': 'delete', 'az_name': f'{P}-missing'}),
+            ('set_load_balancer_flavor', {'action': 'delete', 'flavor_name_or_id': f'{P}-missing'}),
+            ('set_load_balancer_health_monitor', {'action': 'delete', 'monitor_name_or_id': f'{P}-missing'}),
             ('set_load_balancer_l7_policy', {'action': 'delete', 'policy_name_or_id': f'{P}-missing'}),
-            ('set_load_balancer_l7_rule', {'action': 'show', 'policy_name_or_id': f'{P}-missing',
+            ('set_load_balancer_l7_rule', {'action': 'delete', 'policy_name_or_id': f'{P}-missing',
                                            'rule_id': f'{P}-missing'}),
-            ('set_load_balancer_listener', {'action': 'show', 'listener_name_or_id': f'{P}-missing'}),
-            ('set_load_balancer_pool', {'action': 'show', 'pool_name_or_id': f'{P}-missing'}),
-            ('set_load_balancer_pool_member', {'action': 'show', 'pool_name_or_id': f'{P}-missing',
+            ('set_load_balancer_listener', {'action': 'delete', 'listener_name_or_id': f'{P}-missing'}),
+            ('set_load_balancer_pool', {'action': 'delete', 'pool_name_or_id': f'{P}-missing'}),
+            ('set_load_balancer_pool_member', {'action': 'delete', 'pool_name_or_id': f'{P}-missing',
                                                'member_id': f'{P}-missing'}),
             ('set_load_balancer_quota', {'action': 'reset', 'project_id': f'{P}-missing'}),
         ]:
             await r.call(tool, params, expect='error',
                          note='missing resource' + ('' if has_lb else '; Octavia absent'))
-        await r.call('set_alarms', {'action': 'show', 'alarm_name': f'{P}-missing'}, expect='error',
+        await r.call('set_alarms', {'action': 'delete', 'alarm_name': f'{P}-missing'}, expect='error',
                      note='missing alarm' + ('' if r.has_service('alarming') else '; Aodh absent'))
 
         # ------------------------------------------------------------- cleanup

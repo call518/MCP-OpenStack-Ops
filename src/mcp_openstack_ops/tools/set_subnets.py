@@ -4,8 +4,12 @@ import json
 from ..functions import set_subnets as _set_subnets
 from ..mcp_main import (
     _is_modify_operation_allowed,
+    _read_action_error,
     conditional_tool,
 )
+
+READ_ACTIONS = {'list': 'get_subnets', 'show': 'get_subnets'}
+
 
 @conditional_tool
 async def set_subnets(
@@ -20,10 +24,11 @@ async def set_subnets(
     dns_nameservers: str = "[]"
 ) -> str:
     """
-    Manage OpenStack network subnets for IP address allocation
-    
+    Create or delete OpenStack network subnets. To list or show subnets, use
+    get_subnets.
+
     Args:
-        action: Action to perform - list, show, create, delete
+        action: Action to perform - create, delete
         subnet_name: Name or ID of the subnet
         network_id: Network ID for subnet creation (required for create)
         cidr: CIDR notation for subnet (required for create, e.g., '192.168.1.0/24')
@@ -37,7 +42,10 @@ async def set_subnets(
     Returns:
         JSON string with subnet management operation results
     """
-    
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
+
     if not _is_modify_operation_allowed() and action.lower() in ['create', 'delete']:
         return json.dumps({
             'success': False,

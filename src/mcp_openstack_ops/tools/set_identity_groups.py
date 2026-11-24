@@ -4,8 +4,12 @@ import json
 from ..functions import set_identity_groups as _set_identity_groups
 from ..mcp_main import (
     _is_modify_operation_allowed,
+    _read_action_error,
     conditional_tool,
 )
+
+READ_ACTIONS = {'list': 'get_identity_groups', 'show': 'get_identity_groups'}
+
 
 @conditional_tool
 async def set_identity_groups(
@@ -15,10 +19,11 @@ async def set_identity_groups(
     domain_id: str = "default"
 ) -> str:
     """
-    Manage OpenStack identity groups for user organization
-    
+    Create, delete or update OpenStack identity groups for user
+    organization. To list or show groups, use get_identity_groups.
+
     Args:
-        action: Action to perform - list, show, create, delete, update
+        action: Action to perform - create, delete, update
         group_name: Name of the group (required for create)
         description: Description for the group
         domain_id: Domain ID for the group (default: 'default')
@@ -26,6 +31,9 @@ async def set_identity_groups(
     Returns:
         JSON string with identity group management operation results
     """
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
     
     if not _is_modify_operation_allowed() and action.lower() in ['create', 'delete',
         'update']:

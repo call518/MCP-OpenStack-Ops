@@ -4,8 +4,12 @@ import json
 from ..functions import set_image_metadata as _set_image_metadata
 from ..mcp_main import (
     _is_modify_operation_allowed,
+    _read_action_error,
     conditional_tool,
 )
+
+READ_ACTIONS = {'show': 'get_image_detail_list'}
+
 
 @conditional_tool
 async def set_image_metadata(
@@ -14,18 +18,22 @@ async def set_image_metadata(
     properties: str = "{}"
 ) -> str:
     """
-    Manage OpenStack image metadata and properties
+    Set OpenStack image metadata and properties. To read them, use
+    get_image_detail_list (properties and tags).
     
     Args:
-        action: Action to perform - show, set. show reads any visible image;
-            set applies only to images owned by the current project
+        action: Action to perform - set. It applies only to images owned by
+            the current project
         image_name: Name or ID of the image
         properties: JSON string of properties to set (e.g., '{"os_type": "linux", "architecture": "x86_64"}')
         
     Returns:
         JSON string with image metadata management operation results
     """
-    
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
+
     if not _is_modify_operation_allowed() and action.lower() in ['set']:
         return json.dumps({
             'success': False,

@@ -253,6 +253,7 @@ import를 추가할 필요가 없습니다.
 
 - **읽기 전용 도구**: `@mcp.tool()`을 쓰며 항상 사용 가능합니다.
 - **변경 도구**: `@conditional_tool`을 쓰며 `ALLOW_MODIFY_OPERATIONS=true`일 때만 사용 가능합니다.
+- **조회와 변경 분리**: 모든 조회(list, show, stats)는 `get_*` 도구입니다. `set_*` 도구는 쓰기 action만 받습니다. service 함수가 조회 action도 처리한다면 그 action을 `READ_ACTIONS` dict에서 `get_*` 도구에 대응시키고 맨 앞에서 `_read_action_error(action, READ_ACTIONS)`를 반환해, OpenStack 요청 전에 거부되게 합니다.
 - **연결**: OpenStack API에 접근할 때는 항상 `get_openstack_connection()`을 쓰세요.
 - **프로젝트 격리**: 모든 작업은 자동으로 `OS_PROJECT_NAME` 범위로 제한됩니다.
 

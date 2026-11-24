@@ -233,7 +233,7 @@ openstack secret store --name web-backend-ca -t opaque -e base64 \
 
 **7. 확인합니다.**
 
-- `set_load_balancer_pool`(`action="show"`)이 `tls_enabled`, `tls_container_ref`,
+- `pool_name_or_id`를 준 `get_load_balancer_pools`가 `tls_enabled`, `tls_container_ref`,
   `ca_tls_container_ref`를 보여 주고, `get_load_balancer_pool_members`에서 멤버가
   `ONLINE`이 됩니다.
 - 로드밸런서를 거친 `curl -vk https://<address>/`가 페이지를 반환합니다.

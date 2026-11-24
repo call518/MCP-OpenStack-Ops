@@ -3,10 +3,14 @@
 from typing import Optional
 from ..functions import set_flavor as _set_flavor
 from ..mcp_main import (
+    _read_action_error,
     conditional_tool,
     handle_operation_result,
     logger,
 )
+
+READ_ACTIONS = {'list': 'get_flavors'}
+
 
 @conditional_tool
 async def set_flavor(
@@ -22,11 +26,12 @@ async def set_flavor(
     properties: Optional[str] = None
 ) -> str:
     """
-    Manage OpenStack flavors (create, delete, list, set extra specs).
-    
+    Manage OpenStack flavors (create, delete, set extra specs). To list
+    flavors, use get_flavors.
+
     Args:
         flavor_name: Name of the flavor
-        action: Action to perform (create, delete, list, set_extra_specs).
+        action: Action to perform (create, delete, set_extra_specs).
                 The set alias is accepted for backward compatibility.
         vcpus: Number of virtual CPUs (for create)
         ram: Amount of RAM in MB (for create)
@@ -40,6 +45,9 @@ async def set_flavor(
     Returns:
         JSON string with flavor operation result
     """
+    read_error = _read_action_error(action, READ_ACTIONS)
+    if read_error:
+        return read_error
     try:
         logger.info(f"Managing flavor: {flavor_name}, action: {action}")
         

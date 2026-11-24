@@ -438,8 +438,8 @@ write is asynchronous, so every step is confirmed with a read before the next.
    openstack stack show web-asg -c timeout_mins
    ```
 
-8. **Check the alarms and the notifier.** `set_alarms` (`action="list"` or
-   `"show"`) shows both alarms with the `trust+` actions. The MCP tools cannot
+8. **Check the alarms and the notifier.** `get_alarms` (all alarms, or one by
+   `alarm_name`) shows both alarms with the `trust+` actions. The MCP tools cannot
    read service logs, so an HTTP 200 check uses the Aodh notifier log on the
    controller. Once the members have finished booting and are idle, the
    scale-in alarm enters `alarm` within about 5 minutes and calls the scale-in

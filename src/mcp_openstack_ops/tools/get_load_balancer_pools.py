@@ -3,15 +3,17 @@
 import json
 from datetime import datetime
 from ..functions import get_load_balancer_pools as _get_load_balancer_pools
+from ..services.load_balancer import set_load_balancer_pool as _pool_query
 from ..mcp_main import (
     logger,
     mcp,
 )
 
 @mcp.tool()
-async def get_load_balancer_pools(listener_name_or_id: str = "") -> str:
+async def get_load_balancer_pools(listener_name_or_id: str = "",
+                                  pool_name_or_id: str = "") -> str:
     """
-    Get load balancer pools, optionally filtered by listener.
+    Get load balancer pools, optionally filtered by listener, or show one pool.
     
     Functions:
     - Lists all pools or pools for a specific listener
@@ -27,11 +29,18 @@ async def get_load_balancer_pools(listener_name_or_id: str = "") -> str:
     
     Args:
         listener_name_or_id: Optional listener name or ID to filter pools
-        
+        pool_name_or_id: Optional pool name or ID. When provided, show that
+            pool with provisioning_status, operating_status and its client
+            certificate (tls_container_ref); listener_name_or_id is ignored.
+
     Returns:
         JSON string containing pool details with member information
     """
     try:
+        if pool_name_or_id:
+            result = _pool_query(action="show", pool_name_or_id=pool_name_or_id)
+            return json.dumps({"timestamp": datetime.now().isoformat(),
+                               "result": result}, indent=2, ensure_ascii=False)
         logger.info(f"Getting load balancer pools (listener filter: {listener_name_or_id if listener_name_or_id else 'none'})")
         result = _get_load_balancer_pools(
             listener_name_or_id=listener_name_or_id if listener_name_or_id else None
